@@ -1,0 +1,15 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {analyze,differential,digest,protocolBytes} from './analyze.mjs';
+const budgets=JSON.stringify({budgets:{paint:{minimum_samples:1,p95_ms:16.7}}});
+const identity={candidateSha256:'a'.repeat(64),binarySha256:'b'.repeat(64),hostSha256:'c'.repeat(64),budgetSha256:digest(budgets),protocolSha256:digest(protocolBytes)};
+const attempt=i=>({runId:'run-'+i,attempt:i,identity,coldProcess:true,freshStorage:true,status:'completed',startMs:5000,endMs:7000,host:Array.from({length:8},(_,j)=>({atMs:j*1000,normalizedLoad1:0.1,availableMemoryFraction:0.8,cpuPressureAvg10:0,memoryPressureAvg10:0})),metrics:{paint:[10]}});
+test('one sample cannot yield a population p95',()=>{const r=analyze(identity,[attempt(1)],budgets);assert.equal(r.status,'INCOMPLETE');assert.equal(r.metrics[0].p95Ms,null);});
+test('40 independent session maxima produce nearest-rank p95',()=>{const a=Array.from({length:40},(_,i)=>attempt(i+1));a[0].metrics.paint=[500];const r=analyze(identity,a,budgets);assert.equal(r.status,'PASS');assert.equal(r.metrics[0].p95Ms,10);assert.equal(r.metrics[0].sessionMaximaMs[0],500);});
+test('slow qualified sessions remain in the population and can fail',()=>{const a=Array.from({length:40},(_,i)=>attempt(i+1));for(let i=0;i<3;i++)a[i].metrics.paint=[99];const r=analyze(identity,a,budgets);assert.equal(r.status,'FAIL');assert.equal(r.metrics[0].p95Ms,99);});
+test('host rejection is independent of timing',()=>{const a=attempt(1);a.host[0].cpuPressureAvg10=80;const r=analyze(identity,[a],budgets);a.metrics.paint=[999];assert.deepEqual(analyze(identity,[a],budgets).rejected,r.rejected);assert.equal(r.qualifiedCount,0);});
+test('failed qualified session is not discarded',()=>{const a=attempt(1);a.status='failed';const r=analyze(identity,[a],budgets);assert.equal(r.status,'INVALID');assert.equal(r.qualifiedCount,1);});
+test('identity drift and duplicate attempts fail closed',()=>{const a=attempt(1);a.identity={...identity,binarySha256:'d'.repeat(64)};assert.equal(analyze(identity,[a],budgets).status,'INVALID');assert.equal(analyze(identity,[attempt(1),attempt(1)],budgets).status,'INVALID');});
+test('missing metrics or observation gaps cannot pass',()=>{const a=attempt(1);a.metrics={};assert.equal(analyze(identity,[a],budgets).status,'INVALID');a.host.splice(2,3);assert.equal(analyze(identity,[a],budgets).qualifiedCount,0);});
+test('fixed population prevents selecting more runs after target',()=>assert.equal(analyze(identity,Array.from({length:41},(_,i)=>attempt(i+1)),budgets).status,'INVALID'));
+test('differential requires complete populations and matching apparatus',()=>{const a=analyze(identity,Array.from({length:40},(_,i)=>attempt(i+1)),budgets);const b=structuredClone(a);b.identity.candidateSha256='e'.repeat(64);assert.equal(differential(a,b).status,'COMPARABLE');b.identity.hostSha256='f'.repeat(64);assert.equal(differential(a,b).status,'not_evaluable');assert.equal(differential(a,analyze(identity,[],budgets)).status,'not_evaluable');});

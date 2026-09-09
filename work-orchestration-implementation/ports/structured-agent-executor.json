@@ -1,0 +1,26 @@
+{
+  "schema_version": "cav2-work-orchestration-structured-agent-executor/v1",
+  "port_id": "StructuredAgentExecutor",
+  "ownership": "bounded command execution only",
+  "input_contract": {
+    "arguments": ["contract", "role_id", "input_json_path", "output_json_path"],
+    "environment": ["API_BASE optional"],
+    "command_identity": "immutable DagCommand.command_id",
+    "input_manifest": "static input plus canonical successful dependency output references and executor-materialized verified dependency JSON at dependencies[].output",
+    "dependency_verification": ["regular file", "contained under run-root outputs", "node identity matches filename", "recorded byte size matches", "recorded SHA-256 matches", "valid JSON"]
+  },
+  "output_contract": {
+    "success": "valid JSON at output_json_path",
+    "receipt": "optional adjacent output_json_path.receipt.json",
+    "event": "succeeded, retryable_failure, or failed NodeEvent"
+  },
+  "bounds": {
+    "parallelism": "DAG max_parallelism",
+    "request_timeout": "minimum of executor request timeout and remaining DAG deadline",
+    "attempts": "DAG node max_attempts",
+    "filesystem": "writes run-root inputs and outputs; reads dependency artifacts only from the canonical run-root outputs directory"
+  },
+  "authority_effect": "none",
+  "external_effect": "model endpoint invocation only when separately configured by the operator",
+  "claim_ceiling": "Transport/executor adapter candidate; it does not own research meaning, judge acceptance, deployment, or external authority."
+}

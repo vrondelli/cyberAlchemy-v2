@@ -1,0 +1,732 @@
+{
+  "status": "AWAITING_APPROVAL",
+  "reason_codes": null,
+  "retention_policy": "recent-observations-v2",
+  "delivery_policy": "bounded-reads-v1",
+  "completion_policy": "reserved-headroom-v7",
+  "source_policy": "inspected-mutation-v1",
+  "last_confirmed_source_pins": [
+    {
+      "path": "src/subject.mjs",
+      "sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+      "source_call_id": "call_-7285893907169144538"
+    }
+  ],
+  "delivery_progress": {
+    "executed_read_call_ids": [
+      "call_-7285818178305783343",
+      "call_-7285893907169144538",
+      "call_-7285906551552867739",
+      "call_-7285908544417693591",
+      "call_-7285913560939494686"
+    ],
+    "delivered_call_ids": [
+      "call_-7285818178305783343",
+      "call_-7285893907169144538",
+      "call_-7285906551552867739",
+      "call_-7285908544417693591",
+      "call_-7285913560939494686"
+    ],
+    "attempted_delivery_call_ids": [
+      "call_-7285818178305783343",
+      "call_-7285893907169144538",
+      "call_-7285906551552867739",
+      "call_-7285908544417693591",
+      "call_-7285913560939494686"
+    ],
+    "delivery_unknown_call_ids": [],
+    "undelivered_call_ids": [],
+    "deferred_call_ids": [],
+    "meaningful_archive_delivery_call_ids": [
+      "call_-7285913560939494686"
+    ],
+    "executed_reads": [
+      {
+        "call_id": "call_-7285818178305783343",
+        "name": "read-file",
+        "path": "README.md",
+        "delivered": true,
+        "delivery_unknown": false
+      },
+      {
+        "call_id": "call_-7285893907169144538",
+        "name": "read-file",
+        "path": "src/subject.mjs",
+        "delivered": true,
+        "delivery_unknown": false
+      },
+      {
+        "call_id": "call_-7285906551552867739",
+        "name": "read-file",
+        "path": "evidence/contract.json",
+        "delivered": true,
+        "delivery_unknown": false
+      },
+      {
+        "call_id": "call_-7285908544417693591",
+        "name": "read-file",
+        "path": "evidence/cases.json",
+        "delivered": true,
+        "delivery_unknown": false
+      },
+      {
+        "call_id": "call_-7285913560939494686",
+        "name": "read-inspection-evidence",
+        "path": "README.md",
+        "source_call_id": "call_-7285818178305783343",
+        "delivered": true,
+        "delivery_unknown": false
+      }
+    ]
+  },
+  "admission_policy": {
+    "configured_soft_limit": 8000,
+    "soft_headroom_reservation": 256,
+    "effective_recycle_at": 7744
+  },
+  "candidate_validation": null,
+  "final_response_evidence": {
+    "schema_version": "are.glm-final-response-evidence/v1",
+    "text": "{\"schema_version\":\"are.patch-set-candidate/v1\",\"expected_base_tree_sha256\":\"0bd8039e27fd0a562be243ac9bca26ab6f7be1e2dc395e1e93abe97a2b41856b\",\"changes\":[{\"operation\":\"replace-file\",\"path\":\"src/subject.mjs\",\"expected_file_sha256\":\"de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276\",\"utf8\":\"import {createHash} from 'node:crypto';\\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\\nexport function projectObservations(history, history_ref, recentCount) {\\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\\n  return history.map((entry, step) => {\\n    const messages = entry.messages;\\n    const calls = messages?.[0]?.tool_calls;\\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\\n    const ids = calls.map(call => call.id);\\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && ids.length > 0\\n      && new Set(ids).size === ids.length, 'retention-tool-pair-invalid');\\n    for (const [index, message] of messages.slice(1).entries()) {\\n      need(message.role === 'tool' && message.tool_call_id === ids[index] && typeof message.content === 'string',\\n        'retention-tool-pair-invalid');\\n    }\\n    if (step >= history.length - recentCount) return entry;\\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\\n  });\\n}\\n\"}],\"rationale\":\"Repair retention-tool-pairs mutation: enforce tool-call ID uniqueness within each exchange and exact positional pairing between assistant tool_calls and tool results, preserving export, masking behavior and all other checks.\",\"authority_effect\":\"none\"}",
+    "text_sha256": "b5abe831b1906f5acbc9b3c837e318fc0b85165ead0a267bbb6c04ae8c4d868f",
+    "original_bytes": 2378,
+    "recorded_bytes": 2378,
+    "truncated": false,
+    "finish_reason": "stop",
+    "posture": "unvalidated-model-output",
+    "authority_effect": "none"
+  },
+  "last_model_response_evidence": {
+    "schema_version": "are.glm-visible-response-evidence/v1",
+    "text": "{\"content\":\"{\\\"schema_version\\\":\\\"are.patch-set-candidate/v1\\\",\\\"expected_base_tree_sha256\\\":\\\"0bd8039e27fd0a562be243ac9bca26ab6f7be1e2dc395e1e93abe97a2b41856b\\\",\\\"changes\\\":[{\\\"operation\\\":\\\"replace-file\\\",\\\"path\\\":\\\"src/subject.mjs\\\",\\\"expected_file_sha256\\\":\\\"de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276\\\",\\\"utf8\\\":\\\"import {createHash} from 'node:crypto';\\\\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\\\\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\\\\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\\\\nexport function projectObservations(history, history_ref, recentCount) {\\\\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\\\\n  return history.map((entry, step) => {\\\\n    const messages = entry.messages;\\\\n    const calls = messages?.[0]?.tool_calls;\\\\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\\\\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\\\\n    const ids = calls.map(call => call.id);\\\\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && ids.length > 0\\\\n      && new Set(ids).size === ids.length, 'retention-tool-pair-invalid');\\\\n    for (const [index, message] of messages.slice(1).entries()) {\\\\n      need(message.role === 'tool' && message.tool_call_id === ids[index] && typeof message.content === 'string',\\\\n        'retention-tool-pair-invalid');\\\\n    }\\\\n    if (step >= history.length - recentCount) return entry;\\\\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\\\\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\\\\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\\\\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\\\\n  });\\\\n}\\\\n\\\"}],\\\"rationale\\\":\\\"Repair retention-tool-pairs mutation: enforce tool-call ID uniqueness within each exchange and exact positional pairing between assistant tool_calls and tool results, preserving export, masking behavior and all other checks.\\\",\\\"authority_effect\\\":\\\"none\\\"}\",\"role\":\"assistant\",\"tool_calls\":null}",
+    "text_sha256": "4688aca5d3057e32c1d7e0e242b2636bece7de87627ccbdfb89b4cc43f4939b4",
+    "original_bytes": 2488,
+    "recorded_bytes": 2488,
+    "truncated": false,
+    "finish_reason": "stop",
+    "posture": "unvalidated-model-output",
+    "authority_effect": "none"
+  },
+  "receipts": [
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "e7488271c8382c8389b7cd7731f75ce28228b1ffc57592710070196793400f2b",
+      "status": 200,
+      "latency_ms": 868,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 1453
+    },
+    {
+      "kind": "model",
+      "model": "glm-5.3-flash",
+      "request_sha256": "fd9534c7a2f917cfcfb09173e7acb80987e7a0f0d00fcadbeb8a4cfbd284ce26",
+      "status": 200,
+      "latency_ms": 4367,
+      "response_bytes": 575,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 1453,
+      "output_tokens": 13,
+      "reasoning_tokens": 0,
+      "cached_tokens": 1408,
+      "reserved_input_tokens": 1709,
+      "output_cap": 2048,
+      "finish_reason": "tool_calls"
+    },
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "c77ab12aa42f0ec1d653fe9af71e88ada0ddd391d8d419f6d17d6853bfec2c48",
+      "status": 200,
+      "latency_ms": 969,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 1928
+    },
+    {
+      "kind": "model",
+      "model": "glm-5.3-flash",
+      "request_sha256": "4eb2b3fb2ffa1f29ba9b9b81fd25f588cc56141042ae905cde416f4a7e92dfcb",
+      "status": 200,
+      "latency_ms": 4903,
+      "response_bytes": 578,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 1928,
+      "output_tokens": 16,
+      "reasoning_tokens": 0,
+      "cached_tokens": 0,
+      "reserved_input_tokens": 2184,
+      "output_cap": 2048,
+      "finish_reason": "tool_calls"
+    },
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "41452c0b1039ec4e3cd67b6544cfc7181096629d084ae65cfd6d40251ea28c52",
+      "status": 200,
+      "latency_ms": 735,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 2992
+    },
+    {
+      "kind": "model",
+      "model": "glm-5.3-flash",
+      "request_sha256": "678eacb228f3f5322d247b6a19bcd69e050d3df7b2170b6309e90fca56dc2505",
+      "status": 200,
+      "latency_ms": 5088,
+      "response_bytes": 585,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 2992,
+      "output_tokens": 16,
+      "reasoning_tokens": 0,
+      "cached_tokens": 0,
+      "reserved_input_tokens": 3248,
+      "output_cap": 2048,
+      "finish_reason": "tool_calls"
+    },
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "14a122a131df63fcaf2280cfaf41bc5db0013143af6ee87590073fa0098711eb",
+      "status": 200,
+      "latency_ms": 959,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 5354
+    },
+    {
+      "kind": "model",
+      "model": "glm-5.3-flash",
+      "request_sha256": "a2ac8c12dabaf04aa0d39c69a26d5320479a29cd72343faef8c70ef1b61c3e34",
+      "status": 200,
+      "latency_ms": 6275,
+      "response_bytes": 989,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 5354,
+      "output_tokens": 93,
+      "reasoning_tokens": 77,
+      "cached_tokens": 0,
+      "reserved_input_tokens": 5610,
+      "output_cap": 2048,
+      "finish_reason": "tool_calls"
+    },
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "2c212a7c6435a5abb2a4520e85df1e000b543e676cce581b8b076ea252c1fb9f",
+      "status": 200,
+      "latency_ms": 1168,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 5648
+    },
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "8df1b745a609926acaed25549f8c66eed09dd522d9798a97e448b83a1b173ab3",
+      "status": 200,
+      "latency_ms": 687,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 5276
+    },
+    {
+      "kind": "model",
+      "model": "glm-5.3-flash",
+      "request_sha256": "e118f542ed15ba9f49de50fdd1ec796af22b746cc0acff70ee04c96617b34e78",
+      "status": 200,
+      "latency_ms": 4943,
+      "response_bytes": 638,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 5353,
+      "output_tokens": 44,
+      "reasoning_tokens": 0,
+      "cached_tokens": 0,
+      "reserved_input_tokens": 5532,
+      "output_cap": 2048,
+      "finish_reason": "tool_calls"
+    },
+    {
+      "kind": "tokenizer",
+      "model": "glm-5.3-flash",
+      "request_sha256": "d3c0ca2a3b34ba996f0f0939f51870f4b28ea69a8db67b068136aa95111a1ac6",
+      "status": 200,
+      "latency_ms": 995,
+      "response_bytes": 191,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 3657
+    },
+    {
+      "kind": "model",
+      "model": "glm-5.3-flash",
+      "request_sha256": "c7d78829f9f48e22972ad9d967ec171c9f16e90a4f5393662bad327f23408fa6",
+      "status": 200,
+      "latency_ms": 16154,
+      "response_bytes": 3318,
+      "provider_code": null,
+      "dispatched": true,
+      "automatic_retries": 0,
+      "redirects_followed": 0,
+      "authority_effect": "none",
+      "input_tokens": 3734,
+      "output_tokens": 749,
+      "reasoning_tokens": 95,
+      "cached_tokens": 0,
+      "reserved_input_tokens": 3913,
+      "output_cap": 2048,
+      "finish_reason": "stop"
+    }
+  ],
+  "recycling": {
+    "dispatches": [
+      {
+        "binding": "47709081ca2958256a8e6c54bc784686ce3c903f1f448c7298c00103c6881356",
+        "generation": 0,
+        "history_ref": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "input_upper_bound": 1709,
+        "output_reservation": 2048,
+        "projected_upper_bound": 3757,
+        "prompt_digest": "75c3b0b39aa15cc76f0ceb2822bd2944e9c369de8881f785e99ca308d27c4816",
+        "sequence": 1
+      },
+      {
+        "binding": "47709081ca2958256a8e6c54bc784686ce3c903f1f448c7298c00103c6881356",
+        "generation": 0,
+        "history_ref": "ef1a422ac690dc4be37723f5909bf7bb99cca617cc58277fd4479309122a6a10",
+        "input_upper_bound": 2184,
+        "output_reservation": 2048,
+        "projected_upper_bound": 4232,
+        "prompt_digest": "7fa1b1ac79d647875b836c31715fc9f39798a604e158805de100d0ca1add569d",
+        "sequence": 2
+      },
+      {
+        "binding": "47709081ca2958256a8e6c54bc784686ce3c903f1f448c7298c00103c6881356",
+        "generation": 0,
+        "history_ref": "e84d040942e860e784536ae54b69fbaba536ba38b767acdf76b27016d19b8a23",
+        "input_upper_bound": 3248,
+        "output_reservation": 2048,
+        "projected_upper_bound": 5296,
+        "prompt_digest": "8e0da590babd0e961a2b248a4ba37af7edd49b0ff04a08390ad8637009f07934",
+        "sequence": 3
+      },
+      {
+        "binding": "47709081ca2958256a8e6c54bc784686ce3c903f1f448c7298c00103c6881356",
+        "generation": 0,
+        "history_ref": "2d0230d85797269e1d1d654c043b23168641d07985281ba0b6d1b43a9ae4c061",
+        "input_upper_bound": 5610,
+        "output_reservation": 2048,
+        "projected_upper_bound": 7658,
+        "prompt_digest": "f0419f53411b808c8558900c75f59fbace69382919100917c868875c844b6f54",
+        "sequence": 4
+      },
+      {
+        "binding": "47709081ca2958256a8e6c54bc784686ce3c903f1f448c7298c00103c6881356",
+        "generation": 1,
+        "history_ref": "ea923365a473d6bc9359e2120377a64e20ea57331193438551e04a04bdc823c6",
+        "input_upper_bound": 5532,
+        "output_reservation": 2048,
+        "projected_upper_bound": 7580,
+        "prompt_digest": "e83c797422b6e8ad7e2ea90d78cc731cbbfe5f6de870114a4877fb2b99a3593f",
+        "sequence": 5
+      },
+      {
+        "binding": "47709081ca2958256a8e6c54bc784686ce3c903f1f448c7298c00103c6881356",
+        "generation": 1,
+        "history_ref": "e1cac1dfc4e1bfaa4439ed8eaeaae0b836e7911634841cdbc8400aaa0646c2aa",
+        "input_upper_bound": 3913,
+        "output_reservation": 2048,
+        "projected_upper_bound": 5961,
+        "prompt_digest": "10e3dbb24705e38db9f7254e15ddbb274e29b212aa1d2f8b01361b6bd6cc9417",
+        "sequence": 6
+      }
+    ],
+    "generation": 1,
+    "history_digest": "d9073d8d7448118f8e006bf6ddd3b2fa21c1f8673c899e4f7e3506bdb41ceaa0",
+    "phase": "terminal",
+    "recycles": 1
+  },
+  "history": [
+    {
+      "calls": [
+        {
+          "id": "call_-7285818178305783343",
+          "name": "read-file",
+          "arguments": {
+            "path": "README.md"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "ok": true,
+          "schema_version": "are.coding-agent-tool-result/v1",
+          "tool_name": "read-file",
+          "arguments": {
+            "path": "README.md"
+          },
+          "output": {
+            "path": "README.md",
+            "utf8": "# retention-tool-pairs controlled repair\n\nRestore unique assistant tool-call identifiers and exact ordered tool-result pairing without changing masking semantics.\n\nThis disposable source file was adapted from ARE and deliberately mutated for\nthis experiment. It does not describe an unresolved bug in the repository.\nRead src/subject.mjs, this README, evidence/contract.json and evidence/cases.json\non separate turns before proposing a patch. Both evidence files contain relevant\nacceptance cases, not executable code. Their examples complement the contract;\nthe verifier includes independent boundary cases not shown here.\n\nOnly src/subject.mjs is mutable. Keep the public export and other behavior.\nUse the source and contracts to propose a small patch. Do not modify evidence,\nverification files, or add dependencies. No tool execution is required.\nAfter any context recycling, use read-context-evidence at least once to inspect\narchived evidence; use inspection progress to avoid rereading completed files.\n\n## Open Questions\n\nWhether the selected retention policy reduces repeated reads and recovery cost\nis measured by the enclosing experiment; a passing repair alone does not prove it.\n",
+            "sha256": "0c692c101e21824dd4770e74ba465b5db3086d587e76b2fb6f9d4f4d16fa3b1f",
+            "byte_count": 1193
+          },
+          "output_sha256": "465823e49908541f2f11a23c0c64cfb010f3fbb33c5f27461e8ba779d96d2198",
+          "output_bytes": 1338,
+          "effect_calls": 0,
+          "authority_effect": "none"
+        }
+      ],
+      "receipt": {
+        "kind": "model",
+        "model": "glm-5.3-flash",
+        "request_sha256": "fd9534c7a2f917cfcfb09173e7acb80987e7a0f0d00fcadbeb8a4cfbd284ce26",
+        "status": 200,
+        "latency_ms": 4367,
+        "response_bytes": 575,
+        "provider_code": null,
+        "dispatched": true,
+        "automatic_retries": 0,
+        "redirects_followed": 0,
+        "authority_effect": "none",
+        "input_tokens": 1453,
+        "output_tokens": 13,
+        "reasoning_tokens": 0,
+        "cached_tokens": 1408,
+        "reserved_input_tokens": 1709,
+        "output_cap": 2048,
+        "finish_reason": "tool_calls"
+      },
+      "elapsed_ms": 5247,
+      "delivered_call_ids": [],
+      "source_pin_refs": []
+    },
+    {
+      "calls": [
+        {
+          "id": "call_-7285893907169144538",
+          "name": "read-file",
+          "arguments": {
+            "path": "src/subject.mjs"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "ok": true,
+          "schema_version": "are.coding-agent-tool-result/v1",
+          "tool_name": "read-file",
+          "arguments": {
+            "path": "src/subject.mjs"
+          },
+          "output": {
+            "path": "src/subject.mjs",
+            "utf8": "import {createHash} from 'node:crypto';\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\nexport function projectObservations(history, history_ref, recentCount) {\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\n  return history.map((entry, step) => {\n    const messages = entry.messages;\n    const calls = messages?.[0]?.tool_calls;\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\n    const ids = calls.map(call => call.id);\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && ids.length > 0,\n      'retention-tool-pair-invalid');\n    for (const [index, message] of messages.slice(1).entries()) {\n      need(message.role === 'tool' && ids.includes(message.tool_call_id) && typeof message.content === 'string',\n        'retention-tool-pair-invalid');\n    }\n    if (step >= history.length - recentCount) return entry;\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\n  });\n}\n\n",
+            "sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+            "byte_count": 1744
+          },
+          "output_sha256": "5454477a6755448d995c67963e21762bc3bf651d0e39bb8a4c19b49c6ffb0af8",
+          "output_bytes": 1900,
+          "effect_calls": 0,
+          "authority_effect": "none"
+        }
+      ],
+      "receipt": {
+        "kind": "model",
+        "model": "glm-5.3-flash",
+        "request_sha256": "4eb2b3fb2ffa1f29ba9b9b81fd25f588cc56141042ae905cde416f4a7e92dfcb",
+        "status": 200,
+        "latency_ms": 4903,
+        "response_bytes": 578,
+        "provider_code": null,
+        "dispatched": true,
+        "automatic_retries": 0,
+        "redirects_followed": 0,
+        "authority_effect": "none",
+        "input_tokens": 1928,
+        "output_tokens": 16,
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "reserved_input_tokens": 2184,
+        "output_cap": 2048,
+        "finish_reason": "tool_calls"
+      },
+      "elapsed_ms": 5892,
+      "delivered_call_ids": [
+        "call_-7285818178305783343"
+      ],
+      "source_pin_refs": []
+    },
+    {
+      "calls": [
+        {
+          "id": "call_-7285906551552867739",
+          "name": "read-file",
+          "arguments": {
+            "path": "evidence/contract.json"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "ok": true,
+          "schema_version": "are.coding-agent-tool-result/v1",
+          "tool_name": "read-file",
+          "arguments": {
+            "path": "evidence/contract.json"
+          },
+          "output": {
+            "path": "evidence/contract.json",
+            "utf8": "{\"episode\":\"retention-tool-pairs\",\"document\":\"contract\",\"posture\":\"normative fixture examples, not repository authority\",\"requirements\":[\"History is an array of at most twelve complete exchanges.\",\"Call IDs must be nonempty strings and unique within each exchange.\",\"Every result role is tool and ID matches the positional call.\",\"Masking affects old content only; original journal bytes remain external.\"],\"examples\":[{\"case_id\":\"contract-01\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-0\",\"read-source-0\"],\"tool_result_ids\":[\"read-contract-0\",\"read-source-0\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 1 verified.\",\"Source observation 1 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-02\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-1\",\"read-source-1\"],\"tool_result_ids\":[\"read-contract-1\",\"read-source-1\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 2 verified.\",\"Source observation 2 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-03\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-2\",\"read-source-2\"],\"tool_result_ids\":[\"read-contract-2\",\"read-source-2\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 3 verified.\",\"Source observation 3 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-04\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-3\",\"read-source-3\"],\"tool_result_ids\":[\"read-contract-3\",\"read-source-3\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 4 verified.\",\"Source observation 4 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-05\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-4\",\"read-source-4\"],\"tool_result_ids\":[\"read-contract-4\",\"read-source-4\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 5 verified.\",\"Source observation 5 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-06\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-5\",\"read-source-5\"],\"tool_result_ids\":[\"read-contract-5\",\"read-source-5\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 6 verified.\",\"Source observation 6 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-07\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-6\",\"read-source-6\"],\"tool_result_ids\":[\"read-contract-6\",\"read-source-6\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 7 verified.\",\"Source observation 7 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-08\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-7\",\"read-source-7\"],\"tool_result_ids\":[\"read-contract-7\",\"read-source-7\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 8 verified.\",\"Source observation 8 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-09\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-8\",\"read-source-8\"],\"tool_result_ids\":[\"read-contract-8\",\"read-source-8\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 9 verified.\",\"Source observation 9 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-10\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-9\",\"read-source-9\"],\"tool_result_ids\":[\"read-contract-9\",\"read-source-9\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 10 verified.\",\"Source observation 10 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-11\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-10\",\"read-source-10\"],\"tool_result_ids\":[\"read-contract-10\",\"read-source-10\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 11 verified.\",\"Source observation 11 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-12\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-11\",\"read-source-11\"],\"tool_result_ids\":[\"read-contract-11\",\"read-source-11\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 12 verified.\",\"Source observation 12 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-13\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-12\",\"read-source-12\"],\"tool_result_ids\":[\"read-contract-12\",\"read-source-12\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 13 verified.\",\"Source observation 13 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-14\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-13\",\"read-source-13\"],\"tool_result_ids\":[\"read-contract-13\",\"read-source-13\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 14 verified.\",\"Source observation 14 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-15\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-14\",\"read-source-14\"],\"tool_result_ids\":[\"read-contract-14\",\"read-source-14\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 15 verified.\",\"Source observation 15 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"contract-16\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-15\",\"read-source-15\"],\"tool_result_ids\":[\"read-contract-15\",\"read-source-15\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 16 verified.\",\"Source observation 16 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"}],\"open_questions\":[\"Measured retention efficiency is owned by the experiment runner.\"]}\n",
+            "sha256": "7c38c2e12a9562a9c9d6a242a4599168aa428b3ce274f1c3fa9f3dc7bd3ec17c",
+            "byte_count": 10385
+          },
+          "output_sha256": "cd37981471c5ec5c2c64620215e5ebaf907cae79191f44e9511dea577f6a979d",
+          "output_bytes": 11224,
+          "effect_calls": 0,
+          "authority_effect": "none"
+        }
+      ],
+      "receipt": {
+        "kind": "model",
+        "model": "glm-5.3-flash",
+        "request_sha256": "678eacb228f3f5322d247b6a19bcd69e050d3df7b2170b6309e90fca56dc2505",
+        "status": 200,
+        "latency_ms": 5088,
+        "response_bytes": 585,
+        "provider_code": null,
+        "dispatched": true,
+        "automatic_retries": 0,
+        "redirects_followed": 0,
+        "authority_effect": "none",
+        "input_tokens": 2992,
+        "output_tokens": 16,
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "reserved_input_tokens": 3248,
+        "output_cap": 2048,
+        "finish_reason": "tool_calls"
+      },
+      "elapsed_ms": 5835,
+      "delivered_call_ids": [
+        "call_-7285893907169144538"
+      ],
+      "source_pin_refs": [
+        {
+          "path": "src/subject.mjs",
+          "sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+          "source_call_id": "call_-7285893907169144538"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "id": "call_-7285908544417693591",
+          "name": "read-file",
+          "arguments": {
+            "path": "evidence/cases.json"
+          }
+        }
+      ],
+      "observations": [
+        {
+          "ok": true,
+          "schema_version": "are.coding-agent-tool-result/v1",
+          "tool_name": "read-file",
+          "arguments": {
+            "path": "evidence/cases.json"
+          },
+          "output": {
+            "path": "evidence/cases.json",
+            "utf8": "{\"episode\":\"retention-tool-pairs\",\"document\":\"cases\",\"posture\":\"normative fixture examples, not repository authority\",\"requirements\":[\"History is an array of at most twelve complete exchanges.\",\"Call IDs must be nonempty strings and unique within each exchange.\",\"Every result role is tool and ID matches the positional call.\",\"Masking affects old content only; original journal bytes remain external.\"],\"examples\":[{\"case_id\":\"cases-01\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-0\",\"read-contract-0\"],\"tool_result_ids\":[\"read-contract-0\",\"read-contract-0\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 1 verified.\",\"Source observation 1 verified.\"],\"should_accept\":false,\"interpretation\":\"Two assistant calls with the same identifier cannot identify two independent results, even if both output identifiers match.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-02\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-1\",\"read-source-1\"],\"tool_result_ids\":[\"read-source-1\",\"read-contract-1\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 2 verified.\",\"Source observation 2 verified.\"],\"should_accept\":false,\"interpretation\":\"Membership alone is insufficient: each tool result must match the assistant call at the same positional index.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-03\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-2\",\"read-source-2\"],\"tool_result_ids\":[\"read-contract-2\",\"foreign-call\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 3 verified.\",\"Source observation 3 verified.\"],\"should_accept\":false,\"interpretation\":\"A result for a foreign call cannot become trusted progress or a retained observation.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-04\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-3\",\"read-source-3\"],\"tool_result_ids\":[\"read-contract-3\",\"read-source-3\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 4 verified.\",\"Source observation 4 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-05\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-4\",\"read-contract-4\"],\"tool_result_ids\":[\"read-contract-4\",\"read-contract-4\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 5 verified.\",\"Source observation 5 verified.\"],\"should_accept\":false,\"interpretation\":\"Two assistant calls with the same identifier cannot identify two independent results, even if both output identifiers match.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-06\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-5\",\"read-source-5\"],\"tool_result_ids\":[\"read-source-5\",\"read-contract-5\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 6 verified.\",\"Source observation 6 verified.\"],\"should_accept\":false,\"interpretation\":\"Membership alone is insufficient: each tool result must match the assistant call at the same positional index.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-07\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-6\",\"read-source-6\"],\"tool_result_ids\":[\"read-contract-6\",\"foreign-call\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 7 verified.\",\"Source observation 7 verified.\"],\"should_accept\":false,\"interpretation\":\"A result for a foreign call cannot become trusted progress or a retained observation.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-08\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-7\",\"read-source-7\"],\"tool_result_ids\":[\"read-contract-7\",\"read-source-7\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 8 verified.\",\"Source observation 8 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-09\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-8\",\"read-contract-8\"],\"tool_result_ids\":[\"read-contract-8\",\"read-contract-8\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 9 verified.\",\"Source observation 9 verified.\"],\"should_accept\":false,\"interpretation\":\"Two assistant calls with the same identifier cannot identify two independent results, even if both output identifiers match.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-10\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-9\",\"read-source-9\"],\"tool_result_ids\":[\"read-source-9\",\"read-contract-9\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 10 verified.\",\"Source observation 10 verified.\"],\"should_accept\":false,\"interpretation\":\"Membership alone is insufficient: each tool result must match the assistant call at the same positional index.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-11\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-10\",\"read-source-10\"],\"tool_result_ids\":[\"read-contract-10\",\"foreign-call\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 11 verified.\",\"Source observation 11 verified.\"],\"should_accept\":false,\"interpretation\":\"A result for a foreign call cannot become trusted progress or a retained observation.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-12\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-11\",\"read-source-11\"],\"tool_result_ids\":[\"read-contract-11\",\"read-source-11\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 12 verified.\",\"Source observation 12 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-13\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-12\",\"read-contract-12\"],\"tool_result_ids\":[\"read-contract-12\",\"read-contract-12\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 13 verified.\",\"Source observation 13 verified.\"],\"should_accept\":false,\"interpretation\":\"Two assistant calls with the same identifier cannot identify two independent results, even if both output identifiers match.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-14\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-13\",\"read-source-13\"],\"tool_result_ids\":[\"read-source-13\",\"read-contract-13\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 14 verified.\",\"Source observation 14 verified.\"],\"should_accept\":false,\"interpretation\":\"Membership alone is insufficient: each tool result must match the assistant call at the same positional index.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-15\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-14\",\"read-source-14\"],\"tool_result_ids\":[\"read-contract-14\",\"foreign-call\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 15 verified.\",\"Source observation 15 verified.\"],\"should_accept\":false,\"interpretation\":\"A result for a foreign call cannot become trusted progress or a retained observation.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"},{\"case_id\":\"cases-16\",\"assistant_role\":\"assistant\",\"assistant_call_ids\":[\"read-contract-15\",\"read-source-15\"],\"tool_result_ids\":[\"read-contract-15\",\"read-source-15\"],\"tool_result_roles\":[\"tool\",\"tool\"],\"tool_result_contents\":[\"Contract evidence section 16 verified.\",\"Source observation 16 verified.\"],\"should_accept\":true,\"interpretation\":\"Valid ordered one-to-one pairing must survive unchanged in the recent tail.\",\"masking_contract\":\"Validate every exchange before projecting. Preserve recent messages exactly. Replace only old result content with a source-bound recovery descriptor; never mutate input history.\"}],\"open_questions\":[\"Measured retention efficiency is owned by the experiment runner.\"]}\n",
+            "sha256": "deda49aa631c8af1740888f9c9201db80d26066e294bf66626f1bc9ff30df4fe",
+            "byte_count": 10732
+          },
+          "output_sha256": "16cc4b20f05161e7c31f809f2411eba5d8bcfece9f17006a75b88c7a38a4dfbb",
+          "output_bytes": 11568,
+          "effect_calls": 0,
+          "authority_effect": "none"
+        }
+      ],
+      "receipt": {
+        "kind": "model",
+        "model": "glm-5.3-flash",
+        "request_sha256": "a2ac8c12dabaf04aa0d39c69a26d5320479a29cd72343faef8c70ef1b61c3e34",
+        "status": 200,
+        "latency_ms": 6275,
+        "response_bytes": 989,
+        "provider_code": null,
+        "dispatched": true,
+        "automatic_retries": 0,
+        "redirects_followed": 0,
+        "authority_effect": "none",
+        "input_tokens": 5354,
+        "output_tokens": 93,
+        "reasoning_tokens": 77,
+        "cached_tokens": 0,
+        "reserved_input_tokens": 5610,
+        "output_cap": 2048,
+        "finish_reason": "tool_calls"
+      },
+      "elapsed_ms": 7258,
+      "delivered_call_ids": [
+        "call_-7285906551552867739"
+      ],
+      "source_pin_refs": [
+        {
+          "path": "src/subject.mjs",
+          "sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+          "source_call_id": "call_-7285893907169144538"
+        }
+      ]
+    },
+    {
+      "calls": [
+        {
+          "id": "call_-7285913560939494686",
+          "name": "read-inspection-evidence",
+          "arguments": {
+            "call_id": "call_-7285818178305783343",
+            "max_chars": 1024,
+            "offset": 0
+          }
+        }
+      ],
+      "observations": [
+        {
+          "ok": true,
+          "output": {
+            "call_id": "call_-7285818178305783343",
+            "path": "README.md",
+            "sha256": "0c692c101e21824dd4770e74ba465b5db3086d587e76b2fb6f9d4f4d16fa3b1f",
+            "digest": "ea923365a473d6bc9359e2120377a64e20ea57331193438551e04a04bdc823c6",
+            "archive_digest": "ea923365a473d6bc9359e2120377a64e20ea57331193438551e04a04bdc823c6",
+            "offset_unit": "utf16-code-units",
+            "offset": 0,
+            "next_offset": 1024,
+            "total_chars": 1193,
+            "eof": false,
+            "utf8": "# retention-tool-pairs controlled repair\n\nRestore unique assistant tool-call identifiers and exact ordered tool-result pairing without changing masking semantics.\n\nThis disposable source file was adapted from ARE and deliberately mutated for\nthis experiment. It does not describe an unresolved bug in the repository.\nRead src/subject.mjs, this README, evidence/contract.json and evidence/cases.json\non separate turns before proposing a patch. Both evidence files contain relevant\nacceptance cases, not executable code. Their examples complement the contract;\nthe verifier includes independent boundary cases not shown here.\n\nOnly src/subject.mjs is mutable. Keep the public export and other behavior.\nUse the source and contracts to propose a small patch. Do not modify evidence,\nverification files, or add dependencies. No tool execution is required.\nAfter any context recycling, use read-context-evidence at least once to inspect\narchived evidence; use inspection progress to avoid rereading completed files.\n\n## Open Ques"
+          }
+        }
+      ],
+      "receipt": {
+        "kind": "model",
+        "model": "glm-5.3-flash",
+        "request_sha256": "e118f542ed15ba9f49de50fdd1ec796af22b746cc0acff70ee04c96617b34e78",
+        "status": 200,
+        "latency_ms": 4943,
+        "response_bytes": 638,
+        "provider_code": null,
+        "dispatched": true,
+        "automatic_retries": 0,
+        "redirects_followed": 0,
+        "authority_effect": "none",
+        "input_tokens": 5353,
+        "output_tokens": 44,
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "reserved_input_tokens": 5532,
+        "output_cap": 2048,
+        "finish_reason": "tool_calls"
+      },
+      "elapsed_ms": 6870,
+      "delivered_call_ids": [
+        "call_-7285908544417693591"
+      ],
+      "source_pin_refs": [
+        {
+          "path": "src/subject.mjs",
+          "sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+          "source_call_id": "call_-7285893907169144538"
+        }
+      ]
+    },
+    {
+      "receipt": {
+        "kind": "model",
+        "model": "glm-5.3-flash",
+        "request_sha256": "c7d78829f9f48e22972ad9d967ec171c9f16e90a4f5393662bad327f23408fa6",
+        "status": 200,
+        "latency_ms": 16154,
+        "response_bytes": 3318,
+        "provider_code": null,
+        "dispatched": true,
+        "automatic_retries": 0,
+        "redirects_followed": 0,
+        "authority_effect": "none",
+        "input_tokens": 3734,
+        "output_tokens": 749,
+        "reasoning_tokens": 95,
+        "cached_tokens": 0,
+        "reserved_input_tokens": 3913,
+        "output_cap": 2048,
+        "finish_reason": "stop"
+      },
+      "elapsed_ms": 17219,
+      "delivered_call_ids": [
+        "call_-7285913560939494686"
+      ],
+      "source_pin_refs": [
+        {
+          "path": "src/subject.mjs",
+          "sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+          "source_call_id": "call_-7285893907169144538"
+        }
+      ]
+    }
+  ],
+  "original_agent_result_file_sha256": "4ed2e4a5a3bc40ac2e3a1ffa8bd91fe35bdf961f268a409265609eac36054b79",
+  "authority_effect": "none",
+  "open_questions_ref": "../../README.md#open-questions"
+}

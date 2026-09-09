@@ -1,0 +1,344 @@
+{
+  "schema_version": "workspace.controlled-latency-hypotheses/v1",
+  "task_id": "latency.hypothesize",
+  "predecessor_candidate_sha256": "8c0c8060ffc3fdcd3fc20c029e8507277200b89f1c2ca5cea184b9b17fb68b59",
+  "timing_report_digest": "911cef5f2fe6c655cb7ce7b65cfcf8d211b919b44fd09a5aee3954c226fe2cf2",
+  "ontology": {
+    "ontology_id": "are.research-learning",
+    "sha256": "18c671dc8929b07582295c68b286de152028125036ae7ec1188c2c1944cb0481",
+    "selectors": [
+      "definitions:ARE-RL-D01",
+      "definitions:ARE-RL-D03",
+      "definitions:ARE-RL-D08",
+      "relations:experiment-tests-hypothesis"
+    ]
+  },
+  "definitions": [
+    {
+      "id": "frame-wait",
+      "boundaries": [
+        "handshake"
+      ],
+      "statement": "Frame scheduling may account for more of the handshake measurement than the status IPC round trip.",
+      "mechanism": "The existing interval ends after a requestAnimationFrame callback, so main-thread scheduling contributes to its duration.",
+      "falsifier": "In a qualified paired campaign, post-status frame wait is no greater than status IPC in most sessions and the controlled scheduling change does not reduce it.",
+      "metrics": [
+        "chat-cold-ipc-handshake"
+      ],
+      "baseline": "Current status invoke plus subsequent frame callback, with additive phase spans.",
+      "treatment": "Same instrumentation and status semantics; defer only identified unrelated startup UI work until after the callback.",
+      "prediction": "Post-status frame-wait span decreases while status IPC span and status semantics remain stable.",
+      "controls": [
+        "Same window visibility and refresh mode",
+        "Same status response semantics",
+        "Identical instrumentation in both arms"
+      ],
+      "required_spans": [
+        "frontend status invoke round trip",
+        "frontend status response to frame callback"
+      ],
+      "confounders": [
+        "Background window throttling",
+        "Instrumentation overhead",
+        "Host load"
+      ]
+    },
+    {
+      "id": "startup-phases",
+      "boundaries": [
+        "connect",
+        "upstream-ready",
+        "connect-to-ready"
+      ],
+      "statement": "Late prewarm completion or upstream initialization may explain startup delay even when chat_connect itself is short.",
+      "mechanism": "Native prewarm, process acquisition, bridge startup, initialize and thread/start are distinct intervals; process presence does not imply readiness.",
+      "falsifier": "Correlated qualified sessions show readiness already emitted before binding, with neither prewarm waiting nor upstream initialization on the launch-to-ready critical path; a scheduling-only prewarm change does not improve that path.",
+      "metrics": [
+        "chat.connect-to-ready"
+      ],
+      "baseline": "Current native prewarm placement with process-local spans and launch/session correlation.",
+      "treatment": "Move only the prewarm scheduling point earlier without reusing a process from a previous desktop session or changing initialization semantics.",
+      "prediction": "Launch-to-visible-ready decreases if prewarm overlap is limiting; if initialization duration dominates unchanged, that alternative remains open.",
+      "controls": [
+        "Fresh desktop and bridge processes in each arm",
+        "Same provider, model and request",
+        "Same initialization and permission behavior"
+      ],
+      "required_spans": [
+        "native prewarm start/end and outcome",
+        "native acquisition and mutex wait",
+        "Node bridge entry to session.ready",
+        "Node initialize round trip",
+        "Node thread/start round trip",
+        "frontend monotonic connect to ready receive"
+      ],
+      "confounders": [
+        "Provider variability",
+        "Prewarm failure and fallback spawn",
+        "OS filesystem caches are not reset by a fresh process"
+      ]
+    },
+    {
+      "id": "ready-replay",
+      "boundaries": [
+        "replay",
+        "connect-to-ready"
+      ],
+      "statement": "Buffered session.ready delivery may dominate the observed connect-to-ready interval after upstream initialization has finished.",
+      "mechanism": "Event binding and replay determine when a previously emitted ready event reaches the frontend.",
+      "falsifier": "Correlated qualified traces show ready is never buffered or replay residence is negligible, and changing replay scheduling alone does not reduce visible-ready latency.",
+      "metrics": [
+        "chat.connect-to-ready"
+      ],
+      "baseline": "Existing event bind and replay order with ready-event identity and native buffer-residence spans.",
+      "treatment": "Prioritize replay immediately after binding, preserving event ordering, deduplication and delivery semantics.",
+      "prediction": "Native buffer residence and frontend ready-receive delay decrease without reducing upstream initialization duration.",
+      "controls": [
+        "Same ready-event identity across emission, buffering and receipt",
+        "No dropped or duplicate events",
+        "Identical ready semantics"
+      ],
+      "required_spans": [
+        "native buffer enqueue to dequeue",
+        "frontend replay invoke round trip",
+        "ready event correlation ID and replay flag"
+      ],
+      "confounders": [
+        "Ready emitted after binding",
+        "Event ordering bugs",
+        "Cross-process clock subtraction"
+      ]
+    },
+    {
+      "id": "projection-scroll",
+      "boundaries": [
+        "projection",
+        "paint"
+      ],
+      "statement": "Frontend batching and conditional scrolling may explain delta-to-frame delay independently of upstream delta production.",
+      "mechanism": "The oldest batched delta anchors the metric, projection is timestamped before scrolling, and paint ends at a frame callback rather than presented pixels.",
+      "falsifier": "Qualified correlated spans show batching, DOM update and scrolling are small relative to delivery, and coalescing redundant scroll operations does not improve receive-to-frame timing.",
+      "metrics": [
+        "chat.delta-to-projection",
+        "chat.delta-to-paint"
+      ],
+      "baseline": "Current batching, DOM update and conditional scrolling with additive frontend spans.",
+      "treatment": "Coalesce redundant scroll operations within each existing batch while preserving text order and user scroll intent.",
+      "prediction": "Scroll cost and frontend receive-to-frame decrease without changing content, delta ordering or existing metric definitions.",
+      "controls": [
+        "Same replayable delta stream and essay length",
+        "Same viewport and user scroll position",
+        "Separate provider runs from deterministic delivery fixtures"
+      ],
+      "required_spans": [
+        "frontend receive to flush",
+        "frontend DOM update",
+        "frontend conditional scroll",
+        "frontend projection to frame callback"
+      ],
+      "confounders": [
+        "Cross-process wall-clock adjustment",
+        "Delta batch-size variation",
+        "Frame callback is not pixel presentation"
+      ]
+    }
+  ],
+  "records": [
+    {
+      "authority_effect": "none",
+      "experiment_template": {
+        "baseline_ref": "unbound-design:baseline:frame-wait",
+        "dataset_refs": [
+          "unbound-design:matched-cold-session-fixture"
+        ],
+        "required_repetitions": 40,
+        "research_question": "Frame scheduling may account for more of the handshake measurement than the status IPC round trip.",
+        "stop_conditions": [
+          "Reject contaminated sessions; retain their receipts.",
+          "Stop at the unchanged maximum attempt count; insufficient qualified population remains not_evaluable.",
+          "Stop on semantic or smoke failure; retain failure evidence."
+        ],
+        "success_criteria": {
+          "exact_candidate_binding_required": true,
+          "existing_budgets_unchanged": true,
+          "prediction": "Post-status frame-wait span decreases while status IPC span and status semantics remain stable.",
+          "qualified_comparison_required": true,
+          "semantic_equivalence_required": true
+        },
+        "treatment_ref": "unbound-design:treatment:frame-wait"
+      },
+      "falsifier": "In a qualified paired campaign, post-status frame wait is no greater than status IPC in most sessions and the controlled scheduling change does not reduce it.",
+      "hypothesis_key": "frame-wait",
+      "mechanism": "The existing interval ends after a requestAnimationFrame callback, so main-thread scheduling contributes to its duration.",
+      "metrics": [
+        "chat-cold-ipc-handshake"
+      ],
+      "provenance_refs": [
+        "workspace-timing-report:911cef5f2fe6c655cb7ce7b65cfcf8d211b919b44fd09a5aee3954c226fe2cf2"
+      ],
+      "record_digest": "a6700a7b907eeccb7a120a6fa6d44b2a23db958e3a31859819acea8bf0846d28",
+      "record_id": "research-hypothesis:a6700a7b907eeccb7a120a6fa6d44b2a23db958e3a31859819acea8bf0846d28",
+      "schema_version": "are.research-hypothesis/v1",
+      "scope": "Workspace latency; prospective untested alternative, not a causal conclusion.",
+      "statement": "Frame scheduling may account for more of the handshake measurement than the status IPC round trip."
+    },
+    {
+      "authority_effect": "none",
+      "experiment_template": {
+        "baseline_ref": "unbound-design:baseline:startup-phases",
+        "dataset_refs": [
+          "unbound-design:matched-cold-session-fixture"
+        ],
+        "required_repetitions": 40,
+        "research_question": "Late prewarm completion or upstream initialization may explain startup delay even when chat_connect itself is short.",
+        "stop_conditions": [
+          "Reject contaminated sessions; retain their receipts.",
+          "Stop at the unchanged maximum attempt count; insufficient qualified population remains not_evaluable.",
+          "Stop on semantic or smoke failure; retain failure evidence."
+        ],
+        "success_criteria": {
+          "exact_candidate_binding_required": true,
+          "existing_budgets_unchanged": true,
+          "prediction": "Launch-to-visible-ready decreases if prewarm overlap is limiting; if initialization duration dominates unchanged, that alternative remains open.",
+          "qualified_comparison_required": true,
+          "semantic_equivalence_required": true
+        },
+        "treatment_ref": "unbound-design:treatment:startup-phases"
+      },
+      "falsifier": "Correlated qualified sessions show readiness already emitted before binding, with neither prewarm waiting nor upstream initialization on the launch-to-ready critical path; a scheduling-only prewarm change does not improve that path.",
+      "hypothesis_key": "startup-phases",
+      "mechanism": "Native prewarm, process acquisition, bridge startup, initialize and thread/start are distinct intervals; process presence does not imply readiness.",
+      "metrics": [
+        "chat.connect-to-ready"
+      ],
+      "provenance_refs": [
+        "workspace-timing-report:911cef5f2fe6c655cb7ce7b65cfcf8d211b919b44fd09a5aee3954c226fe2cf2"
+      ],
+      "record_digest": "956cbd7432ac089efb67fcb7b70f94653e5b7fd87cd0fedc472584282d90af3a",
+      "record_id": "research-hypothesis:956cbd7432ac089efb67fcb7b70f94653e5b7fd87cd0fedc472584282d90af3a",
+      "schema_version": "are.research-hypothesis/v1",
+      "scope": "Workspace latency; prospective untested alternative, not a causal conclusion.",
+      "statement": "Late prewarm completion or upstream initialization may explain startup delay even when chat_connect itself is short."
+    },
+    {
+      "authority_effect": "none",
+      "experiment_template": {
+        "baseline_ref": "unbound-design:baseline:ready-replay",
+        "dataset_refs": [
+          "unbound-design:matched-cold-session-fixture"
+        ],
+        "required_repetitions": 40,
+        "research_question": "Buffered session.ready delivery may dominate the observed connect-to-ready interval after upstream initialization has finished.",
+        "stop_conditions": [
+          "Reject contaminated sessions; retain their receipts.",
+          "Stop at the unchanged maximum attempt count; insufficient qualified population remains not_evaluable.",
+          "Stop on semantic or smoke failure; retain failure evidence."
+        ],
+        "success_criteria": {
+          "exact_candidate_binding_required": true,
+          "existing_budgets_unchanged": true,
+          "prediction": "Native buffer residence and frontend ready-receive delay decrease without reducing upstream initialization duration.",
+          "qualified_comparison_required": true,
+          "semantic_equivalence_required": true
+        },
+        "treatment_ref": "unbound-design:treatment:ready-replay"
+      },
+      "falsifier": "Correlated qualified traces show ready is never buffered or replay residence is negligible, and changing replay scheduling alone does not reduce visible-ready latency.",
+      "hypothesis_key": "ready-replay",
+      "mechanism": "Event binding and replay determine when a previously emitted ready event reaches the frontend.",
+      "metrics": [
+        "chat.connect-to-ready"
+      ],
+      "provenance_refs": [
+        "workspace-timing-report:911cef5f2fe6c655cb7ce7b65cfcf8d211b919b44fd09a5aee3954c226fe2cf2"
+      ],
+      "record_digest": "13ff123cf9ccf8863ac10fe5a856c9d98eb0135f557850df6cbdedadf6a03614",
+      "record_id": "research-hypothesis:13ff123cf9ccf8863ac10fe5a856c9d98eb0135f557850df6cbdedadf6a03614",
+      "schema_version": "are.research-hypothesis/v1",
+      "scope": "Workspace latency; prospective untested alternative, not a causal conclusion.",
+      "statement": "Buffered session.ready delivery may dominate the observed connect-to-ready interval after upstream initialization has finished."
+    },
+    {
+      "authority_effect": "none",
+      "experiment_template": {
+        "baseline_ref": "unbound-design:baseline:projection-scroll",
+        "dataset_refs": [
+          "unbound-design:matched-cold-session-fixture"
+        ],
+        "required_repetitions": 40,
+        "research_question": "Frontend batching and conditional scrolling may explain delta-to-frame delay independently of upstream delta production.",
+        "stop_conditions": [
+          "Reject contaminated sessions; retain their receipts.",
+          "Stop at the unchanged maximum attempt count; insufficient qualified population remains not_evaluable.",
+          "Stop on semantic or smoke failure; retain failure evidence."
+        ],
+        "success_criteria": {
+          "exact_candidate_binding_required": true,
+          "existing_budgets_unchanged": true,
+          "prediction": "Scroll cost and frontend receive-to-frame decrease without changing content, delta ordering or existing metric definitions.",
+          "qualified_comparison_required": true,
+          "semantic_equivalence_required": true
+        },
+        "treatment_ref": "unbound-design:treatment:projection-scroll"
+      },
+      "falsifier": "Qualified correlated spans show batching, DOM update and scrolling are small relative to delivery, and coalescing redundant scroll operations does not improve receive-to-frame timing.",
+      "hypothesis_key": "projection-scroll",
+      "mechanism": "The oldest batched delta anchors the metric, projection is timestamped before scrolling, and paint ends at a frame callback rather than presented pixels.",
+      "metrics": [
+        "chat.delta-to-paint",
+        "chat.delta-to-projection"
+      ],
+      "provenance_refs": [
+        "workspace-timing-report:911cef5f2fe6c655cb7ce7b65cfcf8d211b919b44fd09a5aee3954c226fe2cf2"
+      ],
+      "record_digest": "b3ab2b5a5ac0c121443ad7a5e675931693e47324fc7cc5a979e13b08e6437769",
+      "record_id": "research-hypothesis:b3ab2b5a5ac0c121443ad7a5e675931693e47324fc7cc5a979e13b08e6437769",
+      "schema_version": "are.research-hypothesis/v1",
+      "scope": "Workspace latency; prospective untested alternative, not a causal conclusion.",
+      "statement": "Frontend batching and conditional scrolling may explain delta-to-frame delay independently of upstream delta production."
+    }
+  ],
+  "protocol": {
+    "id": "cc-cold-session-protocol-v1",
+    "qualifiedSessions": 40,
+    "maxAttempts": 60,
+    "prelaunchObservations": 5,
+    "maxObservationGapMs": 2000,
+    "maxNormalizedLoad1": 0.5,
+    "minAvailableMemoryFraction": 0.2,
+    "maxCpuPressureAvg10": 5,
+    "maxMemoryPressureAvg10": 1,
+    "estimator": "nearest-rank-p95-of-session-maxima",
+    "authorityEffect": "none"
+  },
+  "budget_sha256": "e8f7ac530bb990402a04a85ea61e654f83787263c24e73ac26d279fdabd77baf",
+  "comparison_requirements": {
+    "order": "Predeclare balanced baseline/treatment order before execution.",
+    "population": "40 qualified independent cold desktop sessions per arm; at most 60 attempts per arm.",
+    "estimator": "nearest-rank-p95-of-session-maxima",
+    "clock": "Correlate IDs across processes; subtract only process-local monotonic timestamps.",
+    "identity": [
+      "candidate source digest",
+      "binary digest",
+      "budget digest",
+      "protocol digest",
+      "fixture digest",
+      "host receipts",
+      "raw logs"
+    ],
+    "prerequisites": [
+      "Exact instrumented baseline and treatment bytes",
+      "Instrumentation overhead check",
+      "Criterion and effect-size thresholds frozen before runs",
+      "Semantic-equivalence checks"
+    ],
+    "missing_prerequisites_status": "not_evaluable"
+  },
+  "evidence_kind": "source-grounded-hypothesis-prototypes",
+  "causal_conclusion": "not_evaluable",
+  "observations": [],
+  "registration_status": "not-registered",
+  "authority_effect": "none",
+  "open_questions_ref": "README.md#open-questions",
+  "bundle_digest": "767241ca45f369f5a2bf916328e045a34b33ce86041c1f6c3deccb9d283d8051"
+}

@@ -1,0 +1,264 @@
+{
+  "schema_version": "workspace.timing-boundary-report/v1",
+  "task_id": "latency.inspect",
+  "evidence_kind": "source-inspection-not-runtime-measurement",
+  "sources": [
+    {
+      "id": "clock",
+      "path": "cyberAlchemy-v2/workspace/runtime/src/performance.ts",
+      "sha256": "1d7a01f4d9f4b0f4f260ddd4aaa5680f404dfbc652ef31d8370b217e852086f7",
+      "selectors": [
+        {
+          "selector": "performance.now()",
+          "line": 27
+        },
+        {
+          "selector": "finally",
+          "line": 47
+        },
+        {
+          "selector": "recordPerformanceSample",
+          "line": 17
+        }
+      ]
+    },
+    {
+      "id": "connect",
+      "path": "cyberAlchemy-v2/workspace/runtime/src/features/chat/are-chat-bridge.ts",
+      "sha256": "6c1c68bf834c3d7a65aa95e6143194d83551c46a5fc9ef40950afcfa7ded17d5",
+      "selectors": [
+        {
+          "selector": "chat-cold-ipc-handshake",
+          "line": 102
+        },
+        {
+          "selector": "requestAnimationFrame",
+          "line": 105
+        },
+        {
+          "selector": "chat_connect",
+          "line": 113
+        },
+        {
+          "selector": "chat_replay",
+          "line": 117
+        },
+        {
+          "selector": "const startedAt = Date.now()",
+          "line": 147
+        }
+      ]
+    },
+    {
+      "id": "native",
+      "path": "cyberAlchemy-v2/essays/development/agent-runtime/implementation/desktop/src-tauri/src/main.rs",
+      "sha256": "2e59fa3b04499fe2b5016072bc35c1a7c4c61210ce7c08205cc1a58f2aeaa903",
+      "selectors": [
+        {
+          "selector": "chat_supervisor.prewarm(&chat_configuration)",
+          "line": 628
+        },
+        {
+          "selector": "get_or_try_init",
+          "line": 216
+        },
+        {
+          "selector": "process.events.bind(on_event)",
+          "line": 390
+        },
+        {
+          "selector": "process.events.replay()",
+          "line": 412
+        },
+        {
+          "selector": "async fn read_snapshot",
+          "line": 490
+        }
+      ]
+    },
+    {
+      "id": "bridge",
+      "path": "cyberAlchemy-v2/development/agent-reasoning-engine/codex-integration/client/desktop-bridge.mjs",
+      "sha256": "21ffb553630bbac8092551ebdf487b111944b0d562b02264292285344c7c5895",
+      "selectors": [
+        {
+          "selector": "emittedAtMs: Date.now()",
+          "line": 23
+        },
+        {
+          "selector": "const started = await session.start",
+          "line": 144
+        },
+        {
+          "selector": "emit(\"session.ready\"",
+          "line": 145
+        }
+      ]
+    },
+    {
+      "id": "session",
+      "path": "cyberAlchemy-v2/development/agent-reasoning-engine/codex-integration/client/session.mjs",
+      "sha256": "61d84e1034ac44927f1f461df87b49148ca068475faff7b51620dc85599d4ce5",
+      "selectors": [
+        {
+          "selector": "async start(",
+          "line": 75
+        },
+        {
+          "selector": "this.child = spawn",
+          "line": 78
+        },
+        {
+          "selector": "this.request(\"initialize\"",
+          "line": 94
+        },
+        {
+          "selector": "this.request(\"thread/start\"",
+          "line": 95
+        }
+      ]
+    },
+    {
+      "id": "paint",
+      "path": "cyberAlchemy-v2/workspace/runtime/src/features/chat/ChatSurface.tsx",
+      "sha256": "ec5c0cd37de84ccaf5a580c3f54bb87905a9243f080035070925fd18b03e56ad",
+      "selectors": [
+        {
+          "selector": "const oldest = Math.min",
+          "line": 117
+        },
+        {
+          "selector": "const recordedAt = Date.now()",
+          "line": 119
+        },
+        {
+          "selector": "chat.delta-to-projection",
+          "line": 125
+        },
+        {
+          "selector": "chat.delta-to-paint",
+          "line": 139
+        },
+        {
+          "selector": "const frame = requestAnimationFrame",
+          "line": 135
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "id": "handshake",
+      "source_refs": [
+        "clock",
+        "connect",
+        "native"
+      ],
+      "clock": "frontend performance.now",
+      "interval": "Before status invoke through its response and a subsequent requestAnimationFrame callback.",
+      "conclusion": "Not pure IPC latency: the metric includes frame scheduling. Status checks process-cell presence, not upstream readiness.",
+      "missing": [
+        "status IPC round trip separately",
+        "post-status animation-frame wait separately"
+      ]
+    },
+    {
+      "id": "connect",
+      "source_refs": [
+        "clock",
+        "connect",
+        "native"
+      ],
+      "clock": "frontend performance.now",
+      "interval": "chat_connect invoke through response, including native supervisor acquisition, mutex acquisition and event binding.",
+      "conclusion": "Native setup already attempts prewarm. Cold process spawn is a fallback if the cell is empty; connect latency alone does not establish that it occurred.",
+      "missing": [
+        "prewarm success or failure receipt",
+        "handler entry/exit",
+        "mutex wait",
+        "fallback spawn duration"
+      ]
+    },
+    {
+      "id": "upstream-ready",
+      "source_refs": [
+        "native",
+        "bridge",
+        "session"
+      ],
+      "clock": "No phase durations recorded by these functions",
+      "interval": "Native bridge spawn, Node startup/imports, proxy spawn, initialize response, thread/start response, session.ready emission.",
+      "conclusion": "These are distinct phases without per-phase timing in the inspected functions; no attribution of the measured delay to one phase is justified.",
+      "missing": [
+        "bridge entry time",
+        "proxy launch duration",
+        "initialize round trip",
+        "thread/start round trip"
+      ]
+    },
+    {
+      "id": "replay",
+      "source_refs": [
+        "clock",
+        "connect",
+        "native"
+      ],
+      "clock": "frontend performance.now",
+      "interval": "chat_replay invoke through response after binding; buffered events can be delivered during replay.",
+      "conclusion": "Receiving session.ready can reflect buffered delivery, not the instant upstream became ready.",
+      "missing": [
+        "ready emission/receive correlation",
+        "buffer residence time",
+        "replayed event count with timing"
+      ]
+    },
+    {
+      "id": "connect-to-ready",
+      "source_refs": [
+        "connect",
+        "bridge"
+      ],
+      "clock": "frontend Date.now at start and receive",
+      "interval": "startAreChatControlPlane call through receipt of session.ready.",
+      "conclusion": "Starts after native setup prewarm; not full cold desktop launch-to-ready. Wall-clock adjustments can affect elapsed time.",
+      "missing": [
+        "native launch-to-visible-ready duration",
+        "monotonic frontend start-to-receive companion span"
+      ]
+    },
+    {
+      "id": "projection",
+      "source_refs": [
+        "paint",
+        "bridge"
+      ],
+      "clock": "Node Date.now emission to frontend Date.now projection",
+      "interval": "Oldest batched delta emission through direct textContent update and projection timestamp.",
+      "conclusion": "Cross-process wall-clock subtraction includes delivery and batching. It is not isolated DOM work; no cross-process monotonic origin is established.",
+      "missing": [
+        "correlated process-local monotonic spans",
+        "separate receive-to-flush and DOM update spans"
+      ]
+    },
+    {
+      "id": "paint",
+      "source_refs": [
+        "paint"
+      ],
+      "clock": "Node Date.now emission to frontend Date.now rAF callback",
+      "interval": "Oldest delta emission through animation-frame callback scheduled after projection.",
+      "conclusion": "A requestAnimationFrame callback is the recorded boundary, not proof of pixels presented. Projection timestamp is taken before conditional scrolling.",
+      "missing": [
+        "layout/scroll cost",
+        "actual presentation evidence if required by a future contract"
+      ]
+    }
+  ],
+  "causal_conclusion": "not_evaluable",
+  "historical_host": "CC006 rejected for memory pressure; retained measurements cannot establish repair benefit.",
+  "clock_policy": "Use process-local monotonic spans and correlation IDs; never subtract unrelated monotonic origins. Keep existing metrics/budgets unchanged.",
+  "next_task": "latency.hypothesize",
+  "authority_effect": "none",
+  "open_questions_ref": "README.md#open-questions",
+  "report_digest": "911cef5f2fe6c655cb7ce7b65cfcf8d211b919b44fd09a5aee3954c226fe2cf2"
+}

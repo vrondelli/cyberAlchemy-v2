@@ -1,0 +1,57 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-BROWSER-DRIVER",
+  "question": "Which supervised browser driver executes authorized browser action envelopes outside the Tauri application WebView?",
+  "request_digest": "f90e2de87eb9be7b62811ab5d9d741ba762cb16510a949f8b23485689de6c96d",
+  "selected_option_id": "OPT-BROWSER-PLAYWRIGHT-SUPERVISOR",
+  "selected_option": "Run a pinned Playwright supervisor as a separate local process managed by the Rust daemon, using isolated browser contexts, resilient locators, actionability checks, events, traces, and an explicit Chromium-only raw-CDP escape hatch behind the same effect gate.",
+  "rationale": "The user explicitly selected OPT-BROWSER-PLAYWRIGHT-SUPERVISOR. It provides a mature high-level interaction model and evidence surface while keeping browser lifecycle and implementation failures outside the Rust semantic kernel; narrowly typed raw CDP remains available only where the high-level protocol cannot express a reviewed Chromium-specific operation.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-BROWSER-PLAYWRIGHT-SUPERVISOR",
+    "recorded_at": "2026-09-01T18:45:28+01:00"
+  },
+  "binding_effect": {
+    "browser_driver": "supervised-pinned-playwright-process",
+    "required_semantics": [
+      "the Playwright supervisor is a separate least-privileged local process managed by the Rust daemon and never becomes the accepted-state semantic authority",
+      "only the daemon can submit a browser action envelope; desktop, CLI, remote, agent, and WebAssembly clients cannot connect to Playwright or its browser endpoint directly",
+      "each action envelope binds request, actor, workspace, browser-session, page, expected revision, capability, effect-policy, origin, action, target, input-handle, credential-handle, idempotency, deadline, and evidence identities",
+      "the exact Playwright release, supervisor source digest, runtime identity, browser family, browser build, launch arguments, and protocol compatibility are pinned and recorded",
+      "new sessions use isolated non-persistent browser contexts by default; persistent or authenticated contexts require an explicit credential and storage-state policy",
+      "browser launch, endpoint discovery, readiness, health, reconnect, cancellation, graceful shutdown, forced termination, orphan cleanup, and bounded restart are owned by the daemon supervisor contract",
+      "navigation, redirects, popups, dialogs, permission prompts, downloads, uploads, new origins, credential use, raw CDP, and external protocol handlers are intercepted and routed through the selected browser-effect policy",
+      "the supervisor never implicitly retries an action whose external effect may have occurred; disconnect, timeout, crash, or missing confirmation after dispatch yields an explicit uncertain outcome",
+      "traces, screenshots, DOM or accessibility snapshots, requests, responses, downloads, console output, and CDP observations are bounded and redacted before evidence storage",
+      "raw CDP is Chromium-only, disabled by default, limited to versioned typed operations absent from the high-level driver, and crosses the same capability and effect gates as every other action",
+      "browser observations and receipts are evidence only and cannot accept Essays content, mutate canonical state, or prove an external effect succeeded"
+    ],
+    "non_implications": [
+      "selecting Playwright does not select the exact release, JavaScript runtime, browser build, launch mode, profile location, packaging, update, or installation mechanism",
+      "Playwright auto-waiting and actionability checks do not prove that an action is authorized, idempotent, harmless, or externally successful",
+      "an isolated browser context is not a complete security boundary and does not authorize credential persistence or secret exposure",
+      "a trace or screenshot may contain sensitive data and is not automatically admissible evidence",
+      "this decision does not satisfy the browser effect-policy, security-owner, or Work Owner gates and does not authorize dependency installation, browser launch, navigation, credential use, downloads, uploads, external effects, release, or deployment"
+    ]
+  },
+  "owner_gate": {
+    "required_owner": "Essays Project owner plus Essays security owner plus Work Owner effect-policy owner",
+    "status": "pending",
+    "effect_until_satisfied": "Playwright installation, browser launch, navigation, credential use, and browser effects prohibited"
+  },
+  "remaining_blockers": [
+    "browser approval, credential, navigation, popup, dialog, permission, download, upload, uncertain-outcome, retry, and evidence policy",
+    "Essays security-owner and Work Owner review of the browser driver and effect policy",
+    "exact pinned Playwright, JavaScript runtime, browser build, packaging, launch, and supervisor protocol identities",
+    "Essays security-owner review of the remote authentication binding and WebAssembly policies",
+    "remote capability authorization and grant semantics",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Cross-browser parity and any raw-CDP operation catalog remain deferred until the first browser family and required effect operations are frozen."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

@@ -1,0 +1,24 @@
+# Invoke Result
+
+- Mode: plan
+- Spell: invoke
+- Canonical ID: invoke
+- Scope: library
+- Phase status: pass
+- Mode contract: `arcanum/spells/invoke/plan.md`
+- Outputs: `IMPLEMENTATION-LAYERING.md`, `WORK-PACK.md`, `EXECUTION-PACK.md`, `PLAN-TRANSPORT.md`, `DISTILL-VALIDATION.md`
+- Design views: C18 rule, discipline, definitions, Canonical Kinds, validation boundary covered
+- Glossary consistency: pass; terms are referenced from CAV2 authority and not redefined
+- Dispatch techniques: ten selected; full dispatch passes at `artifact-admission-validator.dispatch.json`
+- Distill validation: pass; recomposition complete; four owned target gaps
+- Implementation layering: L0-L3 mapped; L0 selected; L3 deferred
+- Work-pack: split
+- Complexity: medium
+- Per-layer planning: L0, L1, L2, L3 with W0-W3
+- Implementation detail: task specs complete
+- Smallest working units: seven complete; `SWU-AAV-001` selected
+- Template/profile selection: standalone layering + work-pack + DomainSpec execution-pack wave shape
+- Validation strategy: schema, strict policy parsing, fixture matrix, two-phase path/link checks, stable receipts, authority audit
+- Decisions: candidate validator may be planned and built; promotion and CI remain owner-gated
+- Unresolved gaps: candidate authority status, Markdown-only kind registry, durability override carrier, CI evidence
+- Next route: task-session for `SWU-AAV-001`

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "id",
+    "capability_ref",
+    "deadline_seconds",
+    "step_timeout_seconds",
+    "runtime_configuration",
+    "operations",
+    "policy",
+    "open_questions_ref"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "alch-host-provisioning-source/v1"
+    },
+    "status": {
+      "const": "prototype"
+    },
+    "id": {
+      "const": "alch-host-local-v1"
+    },
+    "capability_ref": {
+      "const": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK"
+    },
+    "deadline_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    },
+    "step_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+    },
+    "runtime_configuration": {
+      "const": {
+        "schema": "alch-host-fixture/v1",
+        "runtime": "rust",
+        "max_concurrency": 1,
+        "network": "disabled",
+        "activated": false
+      }
+    },
+    "operations": {
+      "const": [
+        {
+          "id": "validate",
+          "depends_on": [],
+          "adapter": "local-contract"
+        },
+        {
+          "id": "configure",
+          "depends_on": [
+            "validate"
+          ],
+          "adapter": "ansible-local"
+        },
+        {
+          "id": "verify-config",
+          "depends_on": [
+            "configure"
+          ],
+          "adapter": "independent-config-read"
+        },
+        {
+          "id": "verify-storage",
+          "depends_on": [
+            "configure"
+          ],
+          "adapter": "independent-storage-probe"
+        },
+        {
+          "id": "ready",
+          "depends_on": [
+            "verify-config",
+            "verify-storage"
+          ],
+          "adapter": "local-readiness-receipt"
+        }
+      ]
+    },
+    "policy": {
+      "const": {
+        "effect": "private-tmp-files-only",
+        "retry": "reconcile-before-repeat",
+        "compensation": "none-automatic",
+        "failure": "stop",
+        "history": "sqlite-single-owner"
+      }
+    },
+    "open_questions_ref": {
+      "const": "README.md#open-questions"
+    }
+  }
+}

@@ -1,0 +1,272 @@
+{
+  "schema_version": "cav2.alchlang.carrier/v2-candidate",
+  "identity": {
+    "domain_id": "order-outbox-operation",
+    "title": "Order operation with Outbox effect"
+  },
+  "owners": [
+    {
+      "owner_route": "order-domain-owner"
+    }
+  ],
+  "terms": [
+    {
+      "term_id": "OrderOperation",
+      "kind": "entity",
+      "meaning": "Declared entity OrderOperation."
+    },
+    {
+      "term_id": "OutboxMessage",
+      "kind": "entity",
+      "meaning": "Declared entity OutboxMessage."
+    },
+    {
+      "term_id": "OrderService",
+      "kind": "actor",
+      "meaning": "Declared actor OrderService."
+    },
+    {
+      "term_id": "pending",
+      "kind": "state",
+      "meaning": "State pending of OrderOperation."
+    },
+    {
+      "term_id": "committed",
+      "kind": "state",
+      "meaning": "State committed of OrderOperation."
+    },
+    {
+      "term_id": "PersistOrderWithOutbox",
+      "kind": "effect",
+      "meaning": "Declared effect PersistOrderWithOutbox."
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "OrderOperation-initial-pending",
+      "type": "occupies",
+      "source_ref": "OrderOperation",
+      "target_ref": "pending"
+    }
+  ],
+  "facts": [
+    {
+      "fact_id": "operationId",
+      "type": "identifier",
+      "required": true,
+      "owner_route": "order-domain-owner"
+    },
+    {
+      "fact_id": "orderId",
+      "type": "identifier",
+      "required": true,
+      "owner_route": "order-domain-owner"
+    },
+    {
+      "fact_id": "status",
+      "type": "string",
+      "required": true,
+      "owner_route": "order-domain-owner"
+    },
+    {
+      "fact_id": "outboxMessageId",
+      "type": "identifier",
+      "required": true,
+      "owner_route": "order-domain-owner"
+    },
+    {
+      "fact_id": "occurredAt",
+      "type": "timestamp",
+      "required": true,
+      "owner_route": "order-domain-owner"
+    },
+    {
+      "fact_id": "payload",
+      "type": "record",
+      "required": true,
+      "owner_route": "order-domain-owner"
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "operation-pending",
+      "scope_refs": [],
+      "fact_refs": [
+        "status"
+      ],
+      "condition": {
+        "operator": "eq",
+        "operands": [
+          {
+            "node": "fact_ref",
+            "ref": "status"
+          },
+          {
+            "node": "literal",
+            "value_type": "string",
+            "value": "pending"
+          }
+        ]
+      },
+      "consequence": "satisfied",
+      "exception_refs": [],
+      "owner_route": "order-domain-owner",
+      "source_refs": [
+        "text:20"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "event_id": "outbox-message-recorded",
+      "subject_refs": [
+        "OrderOperation"
+      ],
+      "payload_facts": [
+        "operationId",
+        "orderId",
+        "outboxMessageId",
+        "occurredAt",
+        "payload"
+      ],
+      "trigger_refs": [],
+      "authority_boundary_ref": "order-transaction-authority",
+      "source_refs": [
+        "text:51"
+      ]
+    }
+  ],
+  "states": [
+    {
+      "state_id": "pending",
+      "subject_ref": "OrderOperation"
+    },
+    {
+      "state_id": "committed",
+      "subject_ref": "OrderOperation"
+    }
+  ],
+  "transitions": [
+    {
+      "transition_id": "OrderOperation-pending-committed",
+      "subject_ref": "OrderOperation",
+      "from_state_ref": "pending",
+      "to_state_ref": "committed",
+      "trigger_ref": null,
+      "guard_rule_refs": [
+        "operation-pending"
+      ],
+      "authority_boundary_ref": null,
+      "resulting_event_refs": [
+        "outbox-message-recorded"
+      ]
+    }
+  ],
+  "effects": [
+    {
+      "effect_id": "PersistOrderWithOutbox",
+      "pattern_ref": "transactional-outbox",
+      "integration_binding_ref": "sqlite-transactional-outbox",
+      "write_refs": [
+        "OrderOperation",
+        "OutboxMessage"
+      ],
+      "event_refs": [
+        "outbox-message-recorded"
+      ],
+      "guarantee": "atomic-state-and-outbox",
+      "failure_continuation": "rollback",
+      "authority_boundary_ref": "order-transaction-authority"
+    }
+  ],
+  "actions": [
+    {
+      "action_id": "CommitOrderWithOutbox",
+      "actor_refs": [
+        "OrderService"
+      ],
+      "subject_refs": [
+        "OrderOperation"
+      ],
+      "input_facts": [
+        "operationId",
+        "orderId",
+        "outboxMessageId",
+        "occurredAt",
+        "payload"
+      ],
+      "precondition_rule_refs": [
+        "operation-pending"
+      ],
+      "permission_refs": [
+        "commit-order-with-outbox"
+      ],
+      "confirmation_policy_ref": null,
+      "outcome_refs": [
+        "outbox-message-recorded"
+      ],
+      "performs": [
+        {
+          "effect_ref": "PersistOrderWithOutbox",
+          "integration_binding_ref": "sqlite-transactional-outbox"
+        }
+      ],
+      "authority_boundary_ref": "order-transaction-authority"
+    }
+  ],
+  "permissions": [
+    {
+      "permission_id": "commit-order-with-outbox",
+      "actor_refs": [
+        "OrderService"
+      ],
+      "action_refs": [
+        "CommitOrderWithOutbox"
+      ],
+      "target_refs": [],
+      "scope_refs": [],
+      "condition": {
+        "operator": "eq",
+        "operands": [
+          {
+            "node": "fact_ref",
+            "ref": "status"
+          },
+          {
+            "node": "literal",
+            "value_type": "string",
+            "value": "pending"
+          }
+        ]
+      },
+      "exception_refs": [],
+      "confirmation_policy_ref": null,
+      "authority_boundary_ref": "order-transaction-authority"
+    }
+  ],
+  "examples": [
+    {
+      "example_id": "pending-order-operation",
+      "kind": "positive",
+      "facts": {},
+      "expected_interpretation": "committed-with-outbox-message",
+      "affected_rule_refs": [
+        "operation-pending"
+      ],
+      "boundary_witness_refs": [],
+      "source_refs": [
+        "text:56"
+      ]
+    }
+  ],
+  "authority": {
+    "authority_effect": "none",
+    "boundaries": [
+      {
+        "boundary_id": "order-transaction-authority",
+        "owner_route": "order-domain-owner"
+      }
+    ]
+  },
+  "residue": []
+}

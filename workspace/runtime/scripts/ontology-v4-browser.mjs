@@ -1,0 +1,54 @@
+import {createRequire} from 'node:module';
+import {mkdir} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url);
+const {chromium}=require('/home/vrondelli/.nvm/versions/node/v22.12.0/lib/node_modules/playwright');
+const base=process.argv[2];
+if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw new Error('Exact loopback origin required');
+const browser=await chromium.launch({headless:true,executablePath:'/home/vrondelli/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome'});
+const page=await browser.newPage({viewport:{width:1440,height:1100}});
+page.setDefaultTimeout(30000);
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+try {
+  await page.goto(base+'/index.html#/ontology');
+  const packages=page.getByLabel('Ontology package',{exact:true});
+  await packages.waitFor();assert.equal(await packages.locator('option').count(),21);
+  const options=await packages.locator('option').evaluateAll(options=>options.map(o=>({value:o.value,text:o.textContent})));
+  const selectPackage=async text=>{const option=options.find(o=>o.text.includes(text));assert.ok(option,text);await packages.selectOption(option.value);};
+  await page.locator('[data-portal-node-id]').first().click();
+  await page.getByRole('button',{name:'Inspect record & relations',exact:true}).click();
+  await page.getByText('Full source record and provenance',{exact:true}).click();
+  assert.match(await page.locator('dialog').innerText(),/record_sha256/);
+  await page.getByRole('button',{name:'Close ontology detail',exact:true}).click();
+  await selectPackage('cav2.define.system-runtime.v1');
+  const views=page.getByLabel('Ontology view',{exact:true});
+  assert.equal(await views.locator('option').count(),7);
+  for(const label of ['Context','High-level structure','Low-level components and contracts','Workflow process','Decision flow','Dependency and interface']) {
+    await views.selectOption({label});await page.locator('[data-portal-node-id]').first().waitFor();
+    assert.equal(await page.getByRole('alert').count(),0,label);
+    assert.ok(await page.locator('.react-flow__edge').count()>0,`${label} must expose its actual relations`);
+  }
+  await selectPackage('cav2.define —');await views.selectOption({label:'VIEW-DEFINE-BRIDGE'});
+  await page.locator('[data-portal-node-id]').first().waitFor();assert.equal(await page.getByRole('alert').count(),0);
+  await selectPackage('ontology/domainspec-v2/current-candidate/profile.json');
+  await views.selectOption({label:'business.md (document)'});
+  await page.getByRole('heading',{name:/views\/business.md/}).waitFor();
+  assert.match(await page.locator('.runtime-document pre').innerText(),/Business View/);
+  const response=page.waitForResponse(r=>r.url()===base+'/api/ontology-v4');
+  await page.getByRole('button',{name:'Refresh from events',exact:true}).click();assert.equal((await response).status(),200);
+  await packages.waitFor();
+  await selectPackage('cav2.define.system-runtime.v1');await views.selectOption({label:'Context'});
+  await page.locator('[data-portal-node-id]').first().waitFor();
+  await mkdir('output/playwright',{recursive:true});
+  await page.screenshot({path:'output/playwright/ontology-v4.png',fullPage:true});
+  await page.getByRole('button',{name:'Show Workspace graph',exact:true}).click();
+  await page.getByText('15 nodes · 14 relations',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Show v4 runtime',exact:true}).click();
+  await page.route('**/api/ontology-v4',r=>r.fulfill({status:503,contentType:'application/json',body:'{"error":"test unavailable"}'}));
+  await page.getByRole('button',{name:'Refresh from events',exact:true}).click();
+  await page.getByRole('alert').waitFor();assert.equal(await page.locator('.react-flow').count(),0);
+  await page.unroute('**/api/ontology-v4');
+  await page.getByRole('button',{name:'Refresh from events',exact:true}).click();await packages.waitFor();
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({result:'PASS',packages:21,system_views_tested:6,bridge_view:true,markdown_view:true,record_provenance:true,refresh:true,legacy_graph:true,unavailable_no_fallback:true,page_errors:errors,screenshot:'output/playwright/ontology-v4.png'}));
+} finally {await browser.close();}

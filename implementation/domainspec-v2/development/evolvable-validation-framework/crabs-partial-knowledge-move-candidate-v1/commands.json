@@ -1,0 +1,63 @@
+{
+  "schema_version": "evf.crabs-partial-knowledge-commands/v1",
+  "cwd": "/home/vrondelli/projects/domainspec-core-kep-residue-closure/cyberAlchemy-v2/implementation/domainspec-v2/development/evolvable-validation-framework/crabs-partial-knowledge-move-candidate-v1",
+  "typed_tokens": {
+    "@ATTEMPT_DIR@": "one newly and atomically created evidence/attempts/<run-id> directory"
+  },
+  "environment": {"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin"},
+  "commands": {
+    "generate_cases": {
+      "argv": ["/usr/bin/python3", "generator/cases.py", "--manifest", "case-manifest.json", "--json", "@ATTEMPT_DIR@/generated/cases.json", "--header", "@ATTEMPT_DIR@/generated/cases.h"],
+      "timeout_seconds": 5,
+      "expected_exit_codes": [0],
+      "risk": "output-only",
+      "outputs": ["@ATTEMPT_DIR@/generated/cases.json", "@ATTEMPT_DIR@/generated/cases.h"]
+    },
+    "compile_native": {
+      "argv": ["/usr/bin/x86_64-linux-gnu-gcc-13", "-std=c11", "-O0", "-g3", "-Wall", "-Wextra", "-Werror", "-pedantic", "-D_POSIX_C_SOURCE=200809L", "-B/usr/bin", "-I/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/src", "-I@ATTEMPT_DIR@", "harness/partial_knowledge_move.c", "harness/crabs_dependencies.c", "/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/src/OT/ot_ordered_set.c", "-o", "@ATTEMPT_DIR@/build/native-harness"],
+      "timeout_seconds": 60,
+      "expected_exit_codes": [0],
+      "risk": "output-only",
+      "outputs": ["@ATTEMPT_DIR@/build/native-harness"]
+    },
+    "compile_sanitizer": {
+      "argv": ["/usr/bin/x86_64-linux-gnu-gcc-13", "-std=c11", "-O0", "-g3", "-Wall", "-Wextra", "-Werror", "-pedantic", "-D_POSIX_C_SOURCE=200809L", "-B/usr/bin", "-fsanitize=address,undefined", "-fno-omit-frame-pointer", "-fno-sanitize-recover=undefined", "-I/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/src", "-I@ATTEMPT_DIR@", "harness/partial_knowledge_move.c", "harness/crabs_dependencies.c", "/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/src/OT/ot_ordered_set.c", "-o", "@ATTEMPT_DIR@/build/sanitizer-harness"],
+      "timeout_seconds": 60,
+      "expected_exit_codes": [0],
+      "risk": "output-only",
+      "outputs": ["@ATTEMPT_DIR@/build/sanitizer-harness"]
+    },
+    "native_case": {
+      "argv_prefix": ["@ATTEMPT_DIR@/build/native-harness", "--case-id"],
+      "argument_contract": "append exactly one case_id from generated/cases.json",
+      "timeout_seconds": 5,
+      "expected_exit_codes": [0],
+      "risk": "output-only"
+    },
+    "sanitizer_case": {
+      "argv_prefix": ["@ATTEMPT_DIR@/build/sanitizer-harness", "--case-id"],
+      "argument_contract": "append exactly one case_id from generated/cases.json",
+      "environment": {"ASAN_OPTIONS": "abort_on_error=1:detect_leaks=1:symbolize=0", "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=0"},
+      "timeout_seconds": 10,
+      "expected_exit_codes": [0],
+      "risk": "output-only"
+    },
+    "cbmc": {
+      "executable": "/home/vrondelli/projects/domainspec-core/.formal-tools/cbmc/6.11.0/root/usr/bin/cbmc",
+      "include": "-I/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/src",
+      "dependency": "harness/crabs_dependencies.c",
+      "implementation": "/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/src/OT/ot_ordered_set.c",
+      "representatives": {
+        "b-newer": {"harness": "harness/cbmc_move_b_newer.c", "property_id": "main.assertion.1", "assertion_text": "EVF_CBMC_B_NEWER_CONVERGENCE"},
+        "c-newer": {"harness": "harness/cbmc_move_c_newer.c", "property_id": "main.assertion.1", "assertion_text": "EVF_CBMC_C_NEWER_CONVERGENCE"}
+      },
+      "unwindset": "memcmp.0:65,crabs_ot_ordered_set_destroy.0:4,crabs_ot_ordered_set_get.0:4,crabs_ot_ordered_set_find.0:4,crabs_ot_ordered_set_apply_move.0:4,crabs_ot_ordered_set_merge.0:4,evf_cbmc_valid.0:4,evf_cbmc_same_state.0:4,evf_cbmc_expected_order.0:4,_get_at_internal.0:4,_placement_index.0:4,_placements_valid.0:4,_placements_valid.1:4,_merge_preflight.0:4,_merge_preflight.1:4,_next_child.0:4,_materialize.0:4,_materialize.1:7,_materialize.2:4",
+      "timeout_seconds": 180,
+      "expected_exit_codes": [0, 10],
+      "risk": "read-subject-write-raw-evidence"
+    }
+  },
+  "allowed_live_writes": ["evidence/attempts/<new-run-id>/**", "evidence/runs.jsonl"],
+  "immutable_during_live_run": ["../crabs-convergence-repair-candidate-v1/partial-knowledge-move-run-plan.md", "README.md", "profile.json", "obligation.json", "case-manifest.json", "commands.json", "source-manifest.json", "tool-manifest.json", "cbmc-bound-manifest.json", "generator/**", "harness/**", "schemas/**", "scripts/**", "fixtures/**", "evidence/attempts/<prior-run-id>/**", "/home/vrondelli/projects/domainspec-core/.formal-tools/crabs-repair/ordered-set-convergence-v1/repo/**"],
+  "authority_effect": "none"
+}

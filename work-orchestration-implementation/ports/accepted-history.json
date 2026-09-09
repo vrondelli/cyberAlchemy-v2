@@ -1,0 +1,31 @@
+{
+  "schema_version": "cav2-accepted-history-port/v1",
+  "port_id": "CA2-PORT-ACCEPTED-STRUCTURAL-HISTORY",
+  "owner": "selected host runtime, never RWO semantic core",
+  "authority_cardinality": "exactly-one-per-stream",
+  "operations": [
+    {
+      "operation": "read",
+      "input": ["stream_id"],
+      "output": ["ordered_events", "cursor", "cursor_identity"]
+    },
+    {
+      "operation": "compare_and_append",
+      "input": ["stream_id", "expected_cursor_identity", "accepted_event", "next_cursor", "command_intents"],
+      "output": ["Accepted", "Duplicate", "Conflict"]
+    }
+  ],
+  "atomic_unit": ["accepted_event", "next_cursor", "command_intents"],
+  "idempotency_key": ["stream_id", "event_id"],
+  "conflict_rule": "Reject when expected_cursor_identity differs from the current accepted cursor identity.",
+  "forbidden": [
+    "synthesizing an accepted event",
+    "rewriting accepted history",
+    "deriving domain success",
+    "executing a command intent",
+    "maintaining a competing authoritative cursor"
+  ],
+  "physical_store": "deferred",
+  "status": "selected-port-contract-candidate",
+  "authority_effect": "none"
+}

@@ -1,0 +1,14 @@
+{
+  "authority_effect": "none",
+  "changes": [
+    {
+      "expected_file_sha256": "5f17d922744244d4fc9df9d061838f70f63e3f2ce39b68143fac8b4d0ee7d9ee",
+      "operation": "replace-file",
+      "path": "src/subject.mjs",
+      "utf8": "const need=(condition,code)=>{if(!condition)throw new Error(code);};\nexport function sliceInspection(text,offset=0,max_chars=1024){\n need(typeof text==='string','inspection-text-invalid');\n need(Number.isSafeInteger(offset)&&offset>=0&&offset<=text.length&&Number.isSafeInteger(max_chars)&&max_chars>=1&&max_chars<=1024,'inspection-range-invalid');\n const splitPair=position=>position>0&&position<text.length&&/[\\uD800-\\uDBFF]/.test(text[position-1])&&/[\\uDC00-\\uDFFF]/.test(text[position]);\n\n need(!splitPair(offset),'inspection-range-splits-unicode');\n let end=Math.min(text.length,offset+max_chars);\n while(end>offset&&splitPair(end)){\n  end--;\n }\n\n need(end>offset||offset===text.length,'inspection-range-splits-unicode');\n return {offset_unit:'utf16-code-units',offset,next_offset:end,total_chars:text.length,eof:end===text.length,utf8:text.slice(offset,end)};\n}\n"
+    }
+  ],
+  "expected_base_tree_sha256": "0892ea41e705fdd99c4a39a13e8067722049ad55f727c1bf28851c2d108c1ef9",
+  "rationale": "Restores surrogate-pair handling: reject a start offset that would split a pair, and move an interior end backward to the pair boundary before validating progress.",
+  "schema_version": "are.patch-set-candidate/v1"
+}

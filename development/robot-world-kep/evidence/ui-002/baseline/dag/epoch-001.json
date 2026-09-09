@@ -1,0 +1,77 @@
+{
+  "schema_version": "cav2-rwo-dag-definition/v1",
+  "dag_id": "robot-world-kep-local-epoch-001",
+  "deadline_seconds": 120,
+  "max_parallelism": 2,
+  "nodes": [
+    {
+      "node_id": "W0",
+      "contract": "robot-world-kep.fixture/world",
+      "role_id": "world-author",
+      "depends_on": [],
+      "release": {
+        "mode": "root"
+      },
+      "max_attempts": 1,
+      "static_input": {
+        "title": "Run deterministic scripted robot world",
+        "lane": "product-construction",
+        "track": "world",
+        "owner": "world-author",
+        "affected_stage": "implementation-prototype",
+        "done_when": "Two robots construct without marketplace access",
+        "execution_scope": "local-fixture-only",
+        "open_questions": "OPEN-QUESTIONS.md",
+        "operation": "world"
+      }
+    },
+    {
+      "node_id": "M0",
+      "contract": "robot-world-kep.fixture/marketplace",
+      "role_id": "marketplace-author",
+      "depends_on": [],
+      "release": {
+        "mode": "root"
+      },
+      "max_attempts": 1,
+      "static_input": {
+        "title": "Expose materialized fixture dataset",
+        "lane": "product-construction",
+        "track": "marketplace",
+        "owner": "marketplace-author",
+        "affected_stage": "implementation-prototype",
+        "done_when": "Run independently of world and reject invalid materializations",
+        "execution_scope": "local-fixture-only",
+        "open_questions": "OPEN-QUESTIONS.md",
+        "operation": "marketplace"
+      }
+    },
+    {
+      "node_id": "J0",
+      "contract": "robot-world-kep.fixture/bridge",
+      "role_id": "integration-author",
+      "depends_on": [
+        "W0",
+        "M0"
+      ],
+      "release": {
+        "mode": "all"
+      },
+      "max_attempts": 1,
+      "static_input": {
+        "title": "Join local artifact and dataset exchange",
+        "lane": "product-construction",
+        "track": "bridge",
+        "owner": "integration-author",
+        "affected_stage": "implementation-prototype",
+        "done_when": "World recipe enters catalog; exact dataset result enters world context",
+        "execution_scope": "local-fixture-only",
+        "open_questions": "OPEN-QUESTIONS.md",
+        "operation": "bridge"
+      }
+    }
+  ],
+  "authority_effect": "none",
+  "external_effect": "none",
+  "claim_ceiling": "Three allowlisted local tasks only. Existing Rust RWO schedules world and marketplace independently before their join."
+}

@@ -1,0 +1,316 @@
+{
+  "schema_version": "domainspec.stream-lifecycle/v1-candidate",
+  "initial": "created",
+  "open": "open",
+  "terminal": {
+    "complete": "completed",
+    "fail": "failed",
+    "cancel": "cancelled"
+  },
+  "provider_events": {
+    "delta": "delta",
+    "complete": "completed",
+    "fail": "error"
+  },
+  "errors": {
+    "eof": "INCOMPLETE_PROVIDER_STREAM",
+    "unknown": "INVALID_PROVIDER_EVENT",
+    "provider": "PROVIDER_STREAM_ERROR",
+    "invalid": "INVALID_PROVIDER_EVENT"
+  },
+  "limits": {
+    "max_bytes": 65536,
+    "max_event_bytes": 16384,
+    "max_frame_bytes": 65536
+  },
+  "transitions": [
+    {
+      "from": "created",
+      "event": "start",
+      "to": "open"
+    },
+    {
+      "from": "created",
+      "event": "fail",
+      "to": "failed"
+    },
+    {
+      "from": "created",
+      "event": "cancel",
+      "to": "cancelled"
+    },
+    {
+      "from": "open",
+      "event": "delta",
+      "to": "open"
+    },
+    {
+      "from": "open",
+      "event": "complete",
+      "to": "completed"
+    },
+    {
+      "from": "open",
+      "event": "fail",
+      "to": "failed"
+    },
+    {
+      "from": "open",
+      "event": "cancel",
+      "to": "cancelled"
+    }
+  ],
+  "frames": {
+    "start": {
+      "module": "Started",
+      "event": "started"
+    },
+    "delta": {
+      "module": "Delta",
+      "event": "delta"
+    },
+    "complete": {
+      "module": "Completed",
+      "event": "completed"
+    },
+    "fail": {
+      "module": "Failed",
+      "event": "error"
+    }
+  },
+  "modules": {
+    "Started": {
+      "input": {
+        "type": {
+          "identity": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              }
+            }
+          }
+        }
+      }
+    },
+    "Delta": {
+      "input": {
+        "type": {
+          "identity": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              }
+            }
+          },
+          "event": {
+            "type": {
+              "text": {
+                "type": "string",
+                "max": 32768
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "text": {
+                "type": "string",
+                "max": 32768
+              }
+            }
+          }
+        }
+      }
+    },
+    "Completed": {
+      "input": {
+        "type": {
+          "identity": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              }
+            }
+          },
+          "event": {
+            "type": {
+              "stop_reason": {
+                "type": "string",
+                "pattern": "^(stop|length|content_filter|unknown)$"
+              },
+              "prompt_tokens": {
+                "type": "integer",
+                "optional": true,
+                "nullable": true,
+                "min": 0,
+                "max": 1000000000
+              },
+              "completion_tokens": {
+                "type": "integer",
+                "optional": true,
+                "nullable": true,
+                "min": 0,
+                "max": 1000000000
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "finish_reason": {
+                "type": "string",
+                "pattern": "^(stop|length|content_filter|unknown)$"
+              },
+              "usage": {
+                "type": {
+                  "input_tokens": {
+                    "type": {
+                      "value": {
+                        "type": "integer",
+                        "nullable": true,
+                        "min": 0,
+                        "max": 1000000000
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "pattern": "^(unavailable|provider-reported)$"
+                      }
+                    }
+                  },
+                  "output_tokens": {
+                    "type": {
+                      "value": {
+                        "type": "integer",
+                        "nullable": true,
+                        "min": 0,
+                        "max": 1000000000
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "pattern": "^(unavailable|provider-reported)$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Failed": {
+      "input": {
+        "type": {
+          "identity": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              }
+            }
+          },
+          "code": {
+            "type": "string",
+            "max": 256
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "error": {
+                "type": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

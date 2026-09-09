@@ -1,0 +1,11 @@
+-- Logical SQL portability contract. Adapter migrations may translate types and
+-- auto-generated sequence syntax, but not the keys or append-only semantics.
+--
+-- durable_objects key:
+--   (domain, algorithm, algorithm_version, digest) -> exact object_bytes
+-- recovery_journal event:
+--   monotonically ordered append of the same qualified identity and bytes
+--
+-- Neither table, dialect, database, host, container, nor locator contributes
+-- to qualified immutable object identity.
+

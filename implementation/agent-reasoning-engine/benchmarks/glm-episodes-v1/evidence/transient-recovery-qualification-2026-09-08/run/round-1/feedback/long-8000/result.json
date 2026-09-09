@@ -1,0 +1,196 @@
+{
+  "status": "REPAIRED",
+  "candidate": {
+    "authority_effect": "none",
+    "changes": [
+      {
+        "expected_file_sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+        "operation": "replace-file",
+        "path": "src/subject.mjs",
+        "utf8": "import {createHash} from 'node:crypto';\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\nexport function projectObservations(history, history_ref, recentCount) {\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\n  need(Number.isInteger(recentCount) && recentCount >= 0, 'retention-recent-invalid');\n  const recentStart = history.length - recentCount;\n  return history.map((entry, step) => {\n    const messages = entry.messages;\n    const calls = messages?.[0]?.tool_calls;\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\n    const ids = calls.map(call => call.id);\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && ids.length > 0\n      && new Set(ids).size === ids.length, 'retention-tool-pair-invalid');\n    for (const [index, message] of messages.slice(1).entries()) {\n      need(message.role === 'tool' && message.tool_call_id === ids[index] && typeof message.content === 'string',\n        'retention-tool-pair-invalid');\n    }\n    if (step >= recentStart) return entry;\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\n  });\n}\n"
+      }
+    ],
+    "expected_base_tree_sha256": "e859c0f16501402f4976e177db9321e3c1e2d2b0a1b984bc8f6509e60c1f7e1e",
+    "rationale": "Repair retention-long-window mutation: enforce unique nonempty tool-call IDs within each exchange, require positional one-to-one tool-result pairing, and clamp the retention window so masking applies to all entries older than the recent tail.",
+    "schema_version": "are.patch-set-candidate/v1"
+  },
+  "before": {
+    "schema_version": "are.public-case-result/v1",
+    "backend_id": "container-public-v1:8cb8978de5662fe8d090c939be13c5a95f3634dad067c2408777eec45b57eeb2",
+    "ok": true,
+    "subject_sha256": "433b5a86fad5dc519de08d5fc80cb9111a5dfadf20c24ce37ab95c9c11be7ee2",
+    "plan_sha256": "2a1291aa0f0e5c95bd9c33c331118f0f0722c0bbced70adf19dca6a7ae3435ff",
+    "results": [
+      {
+        "id": "pair-0",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-1",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-2",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-3",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-4",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-5",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-6",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-7",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "empty-history",
+        "passed": true,
+        "reason": "matched"
+      }
+    ],
+    "passed": 9,
+    "total": 9,
+    "worker_validation": {
+      "schema_version": "are.public-case-result/v1",
+      "authority_effect": "none",
+      "child_timeout_ms": 5000,
+      "batch_timeout_ms": 120000,
+      "ok": true,
+      "subject_sha256": "433b5a86fad5dc519de08d5fc80cb9111a5dfadf20c24ce37ab95c9c11be7ee2",
+      "plan_sha256": "0b579636e58939818bd35f9e770330faeb660f439c3a70a70d4903739a035af2",
+      "passed": 9,
+      "total": 9,
+      "results": [
+        {
+          "id": "pair-0",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-1",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-2",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-3",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-4",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-5",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-6",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-7",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "empty-history",
+          "passed": true,
+          "reason": "matched"
+        }
+      ],
+      "elapsed_ms": 404
+    },
+    "worker_execution": {
+      "schema_version": "are.owned-container-result/v1",
+      "ok": true,
+      "container_name": "are-validation-833053ba-83a6-4688-bd81-51c0d38c53d3",
+      "sandbox": {
+        "schema_version": "are.coding-agent-sandbox-result/v1",
+        "ok": true,
+        "reason_codes": [],
+        "engine": "/usr/bin/docker",
+        "engine_kind": "docker",
+        "image": "node@sha256:367679cf9792759492a486e4aa4b421764d71a9546a6dae8aab81a99eb797b3e",
+        "config_digest": "29bb86a25803583311d47759454d4af25b6781a455f5c88c500d55c492bfaa66",
+        "command": [
+          "node",
+          "/workspace/worker.mjs"
+        ],
+        "injected_environment_names": [],
+        "observed_exit": 0,
+        "stdout": "{\"schema_version\":\"are.public-case-result/v1\",\"authority_effect\":\"none\",\"child_timeout_ms\":5000,\"batch_timeout_ms\":120000,\"ok\":true,\"subject_sha256\":\"433b5a86fad5dc519de08d5fc80cb9111a5dfadf20c24ce37ab95c9c11be7ee2\",\"plan_sha256\":\"0b579636e58939818bd35f9e770330faeb660f439c3a70a70d4903739a035af2\",\"passed\":9,\"total\":9,\"results\":[{\"id\":\"pair-0\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-1\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-2\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-3\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-4\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-5\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-6\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-7\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"empty-history\",\"passed\":true,\"reason\":\"matched\"}],\"elapsed_ms\":404}",
+        "stderr": "",
+        "stdout_sha256": "a0717621a579f4bb17665be7f651189d2d6c9b08ffd4fa9f48afaa6c0b83b42c",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "network": "none",
+        "source_mount": "read-only",
+        "effect_applied": false,
+        "authority_effect": "none",
+        "result_digest": "66f8d1c16a38c0efed4a5664f040b15113805645caf3e8fdbf8413e01444553b"
+      },
+      "cleanup": {
+        "attempted": true,
+        "verified_absent": true,
+        "remove_exit": 0
+      },
+      "authority_effect": "none"
+    },
+    "worker_cleanup_verified": true,
+    "authority_effect": "none"
+  },
+  "model_attempts": 1,
+  "authority_effect": "none",
+  "correction_kind": "format",
+  "format": {
+    "status": "FORMAT_REPAIRED",
+    "candidate": {
+      "authority_effect": "none",
+      "changes": [
+        {
+          "expected_file_sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+          "operation": "replace-file",
+          "path": "src/subject.mjs",
+          "utf8": "import {createHash} from 'node:crypto';\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\nexport function projectObservations(history, history_ref, recentCount) {\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\n  need(Number.isInteger(recentCount) && recentCount >= 0, 'retention-recent-invalid');\n  const recentStart = history.length - recentCount;\n  return history.map((entry, step) => {\n    const messages = entry.messages;\n    const calls = messages?.[0]?.tool_calls;\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\n    const ids = calls.map(call => call.id);\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && ids.length > 0\n      && new Set(ids).size === ids.length, 'retention-tool-pair-invalid');\n    for (const [index, message] of messages.slice(1).entries()) {\n      need(message.role === 'tool' && message.tool_call_id === ids[index] && typeof message.content === 'string',\n        'retention-tool-pair-invalid');\n    }\n    if (step >= recentStart) return entry;\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\n  });\n}\n"
+        }
+      ],
+      "expected_base_tree_sha256": "e859c0f16501402f4976e177db9321e3c1e2d2b0a1b984bc8f6509e60c1f7e1e",
+      "rationale": "Repair retention-long-window mutation: enforce unique nonempty tool-call IDs within each exchange, require positional one-to-one tool-result pairing, and clamp the retention window so masking applies to all entries older than the recent tail.",
+      "schema_version": "are.patch-set-candidate/v1"
+    },
+    "call_id": "call_-7273037420784772716",
+    "original_sha256": "065de6b9346dee2ddbc56dcfbeba93d494fab84c650a0657ab106ecc52c3206a",
+    "changes_sha256": "c045192680deed57e8b6fe4a35593a73e30c9cbb329ced670b7002e24f0d634a",
+    "model_attempts": 1,
+    "semantic_validation_required": true,
+    "authority_effect": "none"
+  },
+  "correction_dispatches": 1
+}

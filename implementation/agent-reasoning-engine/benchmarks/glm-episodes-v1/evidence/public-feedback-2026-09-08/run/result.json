@@ -1,0 +1,747 @@
+{
+  "status": "COMPLETED",
+  "results": [
+    {
+      "id": "long-recent-1",
+      "episode": "retention-long-window",
+      "prior_repair": false,
+      "result": {
+        "status": "REJECTED",
+        "candidate": {
+          "authority_effect": "none",
+          "changes": [
+            {
+              "expected_file_sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+              "operation": "replace-file",
+              "path": "src/subject.mjs",
+              "utf8": "import {createHash} from 'node:crypto';\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\nexport function projectObservations(history, history_ref, recentCount) {\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\n  need(Number.isInteger(recentCount) && recentCount >= 0, 'retention-history-invalid');\n  return history.map((entry, step) => {\n    const messages = entry.messages;\n    const calls = messages?.[0]?.tool_calls;\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\n    const ids = calls.map(call => call.id);\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && new Set(ids).size === ids.length,\n      'retention-tool-pair-invalid');\n    for (const [index, message] of messages.slice(1).entries()) {\n      need(message.role === 'tool' && message.tool_call_id === ids[index] && typeof message.content === 'string',\n        'retention-tool-pair-invalid');\n    }\n    if (step >= history.length - recentCount) return entry;\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\n  });\n}\n"
+            }
+          ],
+          "expected_base_tree_sha256": "e859c0f16501402f4976e177db9321e3c1e2d2b0a1b984bc8f6509e60c1f7e1e",
+          "rationale": "Fix the empty-history check: recentCount must not be required to be <= history.length (empty history with recentCount=1 must return []). Retain all tool-pair validation (unique ids, positional pairing) and masking semantics.",
+          "schema_version": "are.patch-set-candidate/v1"
+        },
+        "before": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": false,
+          "subject_sha256": "441c3e00cdcaca4f6aa602202c23503dcab60a11979a1409d4d47c1eb1e66904",
+          "plan_sha256": "2a1291aa0f0e5c95bd9c33c331118f0f0722c0bbced70adf19dca6a7ae3435ff",
+          "passed": 8,
+          "total": 9,
+          "results": [
+            {
+              "id": "pair-0",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-1",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-2",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-3",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-4",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-5",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-6",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-7",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "empty-history",
+              "passed": false,
+              "reason": "output-mismatch"
+            }
+          ],
+          "elapsed_ms": 4817
+        },
+        "after": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": false,
+          "subject_sha256": "96d2ea31f969a5b605b1e7f2ab932feeb2d70cdf61c7cb5812b0f8efb7ba7048",
+          "plan_sha256": "2a1291aa0f0e5c95bd9c33c331118f0f0722c0bbced70adf19dca6a7ae3435ff",
+          "passed": 6,
+          "total": 9,
+          "results": [
+            {
+              "id": "pair-0",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-1",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-2",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-3",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-4",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-5",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-6",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-7",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "empty-history",
+              "passed": true,
+              "reason": "matched"
+            }
+          ],
+          "elapsed_ms": 32622
+        },
+        "model_attempts": 1,
+        "call_id": "call_-7285526979523113754",
+        "authority_effect": "none"
+      },
+      "transport": {
+        "receipts": [
+          {
+            "kind": "tokenizer",
+            "model": "glm-5.3-flash",
+            "request_sha256": "9a13fb5440e80cad1be7425bb1e05715e4751496521500ebfd32cf566751035d",
+            "status": 200,
+            "latency_ms": 3133,
+            "timeout_ms": 30000,
+            "response_bytes": 191,
+            "provider_code": null,
+            "dispatched": true,
+            "automatic_retries": 0,
+            "redirects_followed": 0,
+            "authority_effect": "none",
+            "input_tokens": 3598
+          },
+          {
+            "kind": "model",
+            "model": "glm-5.3-flash",
+            "request_sha256": "2212a76da55daa8294c69f174ca08fea4e960315292e86c2ff747a01f3281dce",
+            "status": 200,
+            "latency_ms": 14650,
+            "timeout_ms": 60000,
+            "response_bytes": 3524,
+            "provider_code": null,
+            "reasoning_effort": "low",
+            "dispatched": true,
+            "automatic_retries": 0,
+            "redirects_followed": 0,
+            "authority_effect": "none",
+            "input_tokens": 3598,
+            "output_tokens": 795,
+            "reasoning_tokens": 84,
+            "cached_tokens": 0,
+            "reserved_input_tokens": 4110,
+            "output_cap": 2048,
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "recycling": {
+          "dispatches": [
+            {
+              "binding": "3db8fde570ab4d3db739986f82006621c1b454d76f039cd6f1c3516e2c857e2d",
+              "generation": 0,
+              "history_ref": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "input_upper_bound": 4110,
+              "output_reservation": 2048,
+              "projected_upper_bound": 6158,
+              "prompt_digest": "16419ef10392253d8300586f71a33977166004f229ec0ab8b89979cd28864824",
+              "sequence": 1
+            }
+          ],
+          "generation": 0,
+          "history_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "phase": "terminal",
+          "recycles": 0
+        }
+      }
+    },
+    {
+      "id": "archive-recent-1",
+      "episode": "archive-slice-bounds",
+      "prior_repair": true,
+      "result": {
+        "status": "UNCHANGED",
+        "candidate": {
+          "authority_effect": "none",
+          "changes": [
+            {
+              "expected_file_sha256": "5f17d922744244d4fc9df9d061838f70f63e3f2ce39b68143fac8b4d0ee7d9ee",
+              "operation": "replace-file",
+              "path": "src/subject.mjs",
+              "utf8": "const need=(condition,code)=>{if(!condition)throw new Error(code);};\nexport function sliceInspection(text,offset=0,max_chars=1024){\n need(typeof text==='string','inspection-text-invalid');\n need(Number.isSafeInteger(offset)&&offset>=0&&offset<=text.length&&Number.isSafeInteger(max_chars)&&max_chars>=1&&max_chars<=1024,'inspection-range-invalid');\n const splitPair=position=>position>0&&position<text.length&&/[\\uD800-\\uDBFF]/.test(text[position-1])&&/[\\uDC00-\\uDFFF]/.test(text[position]);\n\n need(!splitPair(offset),'inspection-range-splits-unicode');\n\n let end=Math.min(text.length,offset+max_chars);\n while(splitPair(end))end-=1;\n\n need(end>offset||offset===text.length,'inspection-range-splits-unicode');\n return {offset_unit:'utf16-code-units',offset,next_offset:end,total_chars:text.length,eof:end===text.length,utf8:text.slice(offset,end)};\n}\n"
+            }
+          ],
+          "expected_base_tree_sha256": "0892ea41e705fdd99c4a39a13e8067722049ad55f727c1bf28851c2d108c1ef9",
+          "rationale": "Restore slice-bounds handling: reject interior surrogate-pair start offsets and move an interior end backward to avoid splitting a pair, preserving exports, validation, and return fields.",
+          "schema_version": "are.patch-set-candidate/v1"
+        },
+        "before": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": true,
+          "subject_sha256": "547e72c2015e471a0e59a137c25a2e95b0518f335bb92e22b0e1646fd633d7e1",
+          "plan_sha256": "db85e0e61ac05abeae874a81f91dd164d4e7ab0be4eef01c5ec59f6789d953bb",
+          "passed": 3,
+          "total": 3,
+          "results": [
+            {
+              "id": "end-boundary",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "start-boundary",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "no-progress",
+              "passed": true,
+              "reason": "matched"
+            }
+          ],
+          "elapsed_ms": 7164
+        },
+        "model_attempts": 0,
+        "authority_effect": "none"
+      },
+      "transport": null
+    },
+    {
+      "id": "scoring-clear-1",
+      "episode": "exact-json-scoring",
+      "prior_repair": true,
+      "result": {
+        "status": "BLOCK",
+        "reason_codes": [
+          "feedback.validation-execution-failed"
+        ],
+        "before": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": false,
+          "subject_sha256": "ea023508953dcbe773a846168803bf7a797a42797ef2df206743e552ad6d8cf4",
+          "plan_sha256": "69a3a3d57a9be990cc1f6ff9cf006fd9cd48ad0ab30d07b91cae172d79c84d15",
+          "passed": 6,
+          "total": 8,
+          "results": [
+            {
+              "id": "json-0",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-1",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-2",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-3",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-4",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "json-5",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "json-6",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-7",
+              "passed": true,
+              "reason": "matched"
+            }
+          ],
+          "elapsed_ms": 32008
+        },
+        "model_attempts": 0,
+        "authority_effect": "none"
+      },
+      "transport": null
+    },
+    {
+      "id": "scoring-clear-2",
+      "episode": "exact-json-scoring",
+      "prior_repair": true,
+      "result": {
+        "status": "UNCHANGED",
+        "candidate": {
+          "authority_effect": "none",
+          "changes": [
+            {
+              "expected_file_sha256": "232889b6b40b24ba20b08b4846966169fc4d98945f8906d9ce70b157b4b1d123",
+              "operation": "replace-file",
+              "path": "src/subject.mjs",
+              "utf8": "import {isDeepStrictEqual} from 'node:util';\nexport function scoreResponse(gold, text) {\n  if (typeof text !== 'string') return {passed:false,reason:'response_not_text'};\n  let value; try { value=JSON.parse(text); } catch { return {passed:false,reason:'invalid_json'}; }\n  const passed = isDeepStrictEqual(value, gold.expected);\n  return {passed, reason: passed ? 'exact_json_match' : 'answer_mismatch'};\n}\n"
+            }
+          ],
+          "expected_base_tree_sha256": "df0267c7d80a3300b8e870b985e97aaa7a5094343ca38dd0a06b393e1e3fc320",
+          "rationale": "Replace stringified-JSON comparison (key-order-sensitive and breaks on nested objects) with isDeepStrictEqual structural deep equality, preserving response_not_text/invalid_json reasons and exact_json_match/answer_mismatch semantics.",
+          "schema_version": "are.patch-set-candidate/v1"
+        },
+        "before": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": true,
+          "subject_sha256": "3463d673af03c98bffeceeffbc5706019bc35b724cc5c6509fa2b1b852867d17",
+          "plan_sha256": "69a3a3d57a9be990cc1f6ff9cf006fd9cd48ad0ab30d07b91cae172d79c84d15",
+          "passed": 8,
+          "total": 8,
+          "results": [
+            {
+              "id": "json-0",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-1",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-2",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-3",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-4",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-5",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-6",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "json-7",
+              "passed": true,
+              "reason": "matched"
+            }
+          ],
+          "elapsed_ms": 4044
+        },
+        "model_attempts": 0,
+        "authority_effect": "none"
+      },
+      "transport": null
+    },
+    {
+      "id": "archive-recent-2",
+      "episode": "archive-slice-bounds",
+      "prior_repair": false,
+      "result": {
+        "status": "BLOCK",
+        "reason_codes": [
+          "feedback.request-failed"
+        ],
+        "before": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": false,
+          "subject_sha256": "61eaecc35fc25e663a2ae201c87419a7dcf63f7e154d048de0baaaa60c981c2f",
+          "plan_sha256": "db85e0e61ac05abeae874a81f91dd164d4e7ab0be4eef01c5ec59f6789d953bb",
+          "passed": 2,
+          "total": 3,
+          "results": [
+            {
+              "id": "end-boundary",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "start-boundary",
+              "passed": false,
+              "reason": "output-mismatch"
+            },
+            {
+              "id": "no-progress",
+              "passed": true,
+              "reason": "matched"
+            }
+          ],
+          "elapsed_ms": 5549
+        },
+        "model_attempts": null,
+        "attempt_accounting": "consult-transport-ledger",
+        "authority_effect": "none"
+      },
+      "transport": {
+        "receipts": [
+          {
+            "kind": "tokenizer",
+            "model": "glm-5.3-flash",
+            "request_sha256": "8dcfd2ac5afc88898fdfac306d09e573364fc81886ed5f07295a924ba7f20277",
+            "status": 200,
+            "latency_ms": 2688,
+            "timeout_ms": 30000,
+            "response_bytes": 191,
+            "provider_code": null,
+            "dispatched": true,
+            "automatic_retries": 0,
+            "redirects_followed": 0,
+            "authority_effect": "none",
+            "input_tokens": 1406
+          },
+          {
+            "kind": "model",
+            "model": "glm-5.3-flash",
+            "request_sha256": "63097312c97e094d2f704992d254acbd7f5ef7eec97b3a19e4130d633a03c5db",
+            "status": null,
+            "secret_resolution_failure": "timeout",
+            "latency_ms": 5818,
+            "timeout_ms": 60000,
+            "response_bytes": 0,
+            "provider_code": null,
+            "reasoning_effort": "low",
+            "dispatched": false,
+            "automatic_retries": 0,
+            "redirects_followed": 0,
+            "authority_effect": "none"
+          }
+        ],
+        "recycling": {
+          "dispatches": [
+            {
+              "binding": "2c504c7741639c8a6e1b00e835bc68e19c0976f19cb035fde2569df7e1a203a8",
+              "generation": 0,
+              "history_ref": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+              "input_upper_bound": 1918,
+              "output_reservation": 2048,
+              "projected_upper_bound": 3966,
+              "prompt_digest": "677c8f5ed951be1673bbc7b2417e5ac0bd94859c2c8c5c39026bcbc04c6646f3",
+              "sequence": 1
+            }
+          ],
+          "generation": 0,
+          "history_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "phase": "model-pending",
+          "recycles": 0
+        }
+      }
+    },
+    {
+      "id": "long-recent-2",
+      "episode": "retention-long-window",
+      "prior_repair": false,
+      "result": {
+        "status": "BLOCK",
+        "reason_codes": [
+          "feedback.validation-execution-failed"
+        ],
+        "before": {
+          "schema_version": "are.public-case-result/v1",
+          "authority_effect": "none",
+          "child_timeout_ms": 5000,
+          "batch_timeout_ms": 120000,
+          "ok": false,
+          "subject_sha256": "6317bf07a2319056160a7c0c4770dabd296ce0813d4d455c17ea506f44c94432",
+          "plan_sha256": "2a1291aa0f0e5c95bd9c33c331118f0f0722c0bbced70adf19dca6a7ae3435ff",
+          "passed": 3,
+          "total": 9,
+          "results": [
+            {
+              "id": "pair-0",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-1",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "pair-2",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-3",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-4",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-5",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-6",
+              "passed": false,
+              "reason": "child-timeout"
+            },
+            {
+              "id": "pair-7",
+              "passed": true,
+              "reason": "matched"
+            },
+            {
+              "id": "empty-history",
+              "passed": false,
+              "reason": "child-timeout"
+            }
+          ],
+          "elapsed_ms": 45871
+        },
+        "model_attempts": 0,
+        "authority_effect": "none"
+      },
+      "transport": null
+    }
+  ],
+  "oracle": [
+    {
+      "id": "long-recent-1",
+      "result": {
+        "ok": false,
+        "passed": 3,
+        "expected_tests": 8,
+        "results": [
+          {
+            "id": "duplicate-ids",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "reordered-results",
+            "passed": false,
+            "reason": "invalid-or-failed-child-output"
+          },
+          {
+            "id": "foreign-result",
+            "passed": false,
+            "reason": "invalid-or-failed-child-output"
+          },
+          {
+            "id": "wrong-result-role",
+            "passed": false,
+            "reason": "invalid-or-failed-child-output"
+          },
+          {
+            "id": "empty-call-id",
+            "passed": false,
+            "reason": "invalid-or-failed-child-output"
+          },
+          {
+            "id": "mask-old-only",
+            "passed": false,
+            "reason": "invalid-or-failed-child-output"
+          },
+          {
+            "id": "keep-recent-pair",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "empty-history",
+            "passed": true,
+            "reason": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "id": "archive-recent-1",
+      "result": {
+        "ok": true,
+        "passed": 8,
+        "expected_tests": 8,
+        "results": [
+          {
+            "id": "ascii",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "end-boundary",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "start-boundary",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "no-progress",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "whole-pair",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "eof",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "outside",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "zero-width",
+            "passed": true,
+            "reason": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scoring-clear-1",
+      "result": null
+    },
+    {
+      "id": "scoring-clear-2",
+      "result": {
+        "ok": true,
+        "passed": 8,
+        "expected_tests": 8,
+        "results": [
+          {
+            "id": "nested-object-order",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "nested-value-mismatch",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "extra-field",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "array-order",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "non-string",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "malformed-json",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "null",
+            "passed": true,
+            "reason": "matched"
+          },
+          {
+            "id": "nested-type",
+            "passed": true,
+            "reason": "matched"
+          }
+        ]
+      }
+    },
+    {
+      "id": "archive-recent-2",
+      "result": null
+    },
+    {
+      "id": "long-recent-2",
+      "result": null
+    }
+  ],
+  "model_attempts": 2,
+  "tokenizer_attempts": 2,
+  "corrected": 0,
+  "oracle_passes": 2,
+  "authority_effect": "none",
+  "open_questions_ref": "../README.md#open-questions"
+}

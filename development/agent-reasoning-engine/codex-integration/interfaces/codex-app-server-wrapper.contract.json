@@ -1,0 +1,55 @@
+{
+  "schema_ref": "../schemas/codex-request-governance.schema.json#/$defs/hostInterface",
+  "schema_version": "are.codex-app-server-wrapper-interface/v1",
+  "interface_id": "CA2-ARE-CODEX-INTERFACE-APP-SERVER-WRAPPER",
+  "boundary_kind": "codex-app-server-wrapper",
+  "protocol": "Codex app-server JSON-RPC v2 candidate protocol",
+  "protocol_observation_ref": "evidence/codex-app-server-protocol-observation.v1.json",
+  "continuation_source_decision_ref": "decisions/continuation-source-model-selection.v1.json",
+  "preflight": {
+    "input_surface": "turn/start.params.input",
+    "ordering_rule": "Evaluate CodexRequestContext before forwarding turn/start to app-server.",
+    "direct_behavior": "Forward the original turn/start with additive digest-bound routing context.",
+    "gate_behavior": "Do not forward turn/start; return the exact candidates, reasons, provenance, and owner route to the user interaction surface.",
+    "block_behavior": "Do not forward turn/start; return causal blocker residue."
+  },
+  "effect_boundary": {
+    "request_surfaces": ["item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval"],
+    "ordering_rule": "Evaluate the proposed effect before returning an approval response.",
+    "direct_behavior": "Approve only when the engine directive and independent Codex permission policy both permit the exact effect.",
+    "gate_behavior": "Withhold approval and route the exact decision to its owner.",
+    "block_behavior": "Deny the request; interruption policy remains an adapter design concern."
+  },
+  "continuation": {
+    "completion_surface": "turn/completed",
+    "bounded_completion_definition": "One completed Codex turn plus all item and approval events attributed to that turn.",
+    "assessment_rule": "Reconcile plan-bound proposals and interaction-bound proposals with mechanism-observed turn, item, and approval evidence, then evaluate continuation before starting another turn.",
+    "proposal_lanes": {
+      "plan_bound": "Project only digest-bound declared successor actions; exactly one verified safe proposal may qualify for direct.",
+      "interaction_bound": "Normalize attributed agent, chat, or human proposals as candidate meaning; always gate until a human decision binds the exact proposal digest."
+    },
+    "merge_rule": "Any interaction-bound proposal, multiple surviving proposals, or unknown metadata gates; only one safe plan-bound proposal and no interaction-bound proposal may be direct.",
+    "direct_behavior": "Start at most one next turn when exactly one admissible plan-bound proposal is explicitly reversible and non-consequential and no interaction-bound proposal survives.",
+    "gate_behavior": "Start no successor turn and present the exact consequential, ambiguous, or interaction-bound choice with attribution and provenance.",
+    "complete_behavior": "Start no successor turn and close the capability run.",
+    "block_behavior": "Start no successor turn and preserve causal residue."
+  },
+  "receipt": {
+    "required_identity": ["thread_id", "turn_id", "request_or_completion_digest", "decision_profile_digest", "decision_digest"],
+    "required_ordering": ["decision_completed_before_turn_start", "effect_decision_before_approval_response", "continuation_decision_after_turn_completed"],
+    "evidence_surfaces": ["turn/started", "item/started", "item/completed", "hook/started", "hook/completed", "turn/completed"]
+  },
+  "fail_closed_conditions": [
+    "protocol version or selected schema projection drift",
+    "missing request, turn, item, effect, or decision identity",
+    "unknown effect, reversibility, owner route, or selected dependency",
+    "interaction-bound proposal without a human decision bound to its exact digest",
+    "agent prose presented as plan-bound or authoritative evidence",
+    "ambiguous direct route",
+    "receipt ordering contradiction"
+  ],
+  "implementation_status": "not-implemented",
+  "adoption_status": "not-adopted",
+  "authority_effect": "none",
+  "claim_limit": "Candidate immutable interface shape derived after owner selection of the app-server wrapper boundary. It is not an accepted implementation binding and proves no live interception, enforcement, conformance, or effect authority."
+}

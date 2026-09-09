@@ -1,0 +1,997 @@
+{
+  "schemas": {
+    "RawAmount": {
+      "value": {
+        "type": "string",
+        "max": 32
+      },
+      "precision": {
+        "type": "integer",
+        "const": 20
+      }
+    },
+    "Price": {
+      "id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "price_set_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "currency_code": {
+        "type": "string",
+        "pattern": "^[a-z]{3}$"
+      },
+      "raw_amount": {
+        "type": "RawAmount"
+      },
+      "min_quantity": {
+        "type": "integer",
+        "optional": true,
+        "nullable": true,
+        "min": 1,
+        "max": 2147483647
+      },
+      "max_quantity": {
+        "type": "integer",
+        "optional": true,
+        "nullable": true,
+        "min": 1,
+        "max": 2147483647
+      },
+      "price_list_id": {
+        "type": "string",
+        "nullable": true,
+        "const": null
+      },
+      "rules_count": {
+        "type": "integer",
+        "const": 0
+      },
+      "deleted_at": {
+        "type": "timestamp",
+        "optional": true,
+        "nullable": true
+      }
+    },
+    "PriceSnapshot": {
+      "variant_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "price_set_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "prices": {
+        "type": "list",
+        "items": "Price",
+        "max": 1000
+      }
+    },
+    "Request": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "variant_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "currency_code": {
+        "type": "string",
+        "pattern": "^[A-Za-z]{3}$"
+      },
+      "quantity": {
+        "type": "integer",
+        "min": 1,
+        "max": 2147483647
+      }
+    },
+    "Envelope": {
+      "request": {
+        "type": "Request"
+      },
+      "snapshot": {
+        "type": "PriceSnapshot",
+        "optional": true
+      }
+    },
+    "Quote": {
+      "request_id": {
+        "type": "identifier"
+      },
+      "variant_id": {
+        "type": "identifier"
+      },
+      "price_set_id": {
+        "type": "identifier"
+      },
+      "currency_code": {
+        "type": "string",
+        "const": "usd"
+      },
+      "status": {
+        "type": "string",
+        "pattern": "^(quoted|no_price|ambiguous_price)$"
+      },
+      "price_id": {
+        "type": "identifier",
+        "optional": true
+      },
+      "price_ids": {
+        "type": "list",
+        "items": "identifier",
+        "optional": true,
+        "max": 1000
+      },
+      "unit_amount": {
+        "type": "string",
+        "optional": true
+      },
+      "unit_amount_minor": {
+        "type": "string",
+        "optional": true
+      },
+      "quantity": {
+        "type": "integer",
+        "optional": true
+      },
+      "subtotal": {
+        "type": "string",
+        "optional": true
+      },
+      "subtotal_minor": {
+        "type": "string",
+        "optional": true
+      }
+    }
+  },
+  "integrations": {
+    "Prices": {
+      "query": {
+        "variant_id": "input.request.variant_id"
+      },
+      "transport": "provided-or-http",
+      "provided": "input.snapshot",
+      "output": "PriceSnapshot",
+      "urlEnv": "PRICE_SNAPSHOT_URL",
+      "secretEnv": "PRICE_SNAPSHOT_TOKEN",
+      "timeout": 3000,
+      "maxBytes": 262144
+    }
+  },
+  "flows": {
+    "QuotePrice": [
+      {
+        "kind": "let",
+        "name": "request",
+        "expr": {
+          "kind": "ref",
+          "name": "input.request"
+        }
+      },
+      {
+        "kind": "require",
+        "expr": {
+          "kind": "call",
+          "name": "eq",
+          "args": [
+            {
+              "kind": "call",
+              "name": "lower",
+              "args": [
+                {
+                  "kind": "ref",
+                  "name": "request.currency_code"
+                }
+              ]
+            },
+            {
+              "kind": "literal",
+              "value": "usd"
+            }
+          ]
+        },
+        "code": "QUOTE_UNSUPPORTED_CURRENCY"
+      },
+      {
+        "kind": "bind",
+        "name": "snapshot",
+        "integration": "Prices"
+      },
+      {
+        "kind": "require",
+        "expr": {
+          "kind": "call",
+          "name": "eq",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "snapshot.variant_id"
+            },
+            {
+              "kind": "ref",
+              "name": "request.variant_id"
+            }
+          ]
+        },
+        "code": "QUOTE_VARIANT_MISMATCH"
+      },
+      {
+        "kind": "require",
+        "expr": {
+          "kind": "call",
+          "name": "every",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "snapshot.prices"
+            },
+            {
+              "kind": "lambda",
+              "name": "row",
+              "body": {
+                "kind": "call",
+                "name": "eq",
+                "args": [
+                  {
+                    "kind": "ref",
+                    "name": "row.price_set_id"
+                  },
+                  {
+                    "kind": "ref",
+                    "name": "snapshot.price_set_id"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "code": "QUOTE_PRICE_SET_MISMATCH"
+      },
+      {
+        "kind": "require",
+        "expr": {
+          "kind": "call",
+          "name": "eq",
+          "args": [
+            {
+              "kind": "call",
+              "name": "count",
+              "args": [
+                {
+                  "kind": "call",
+                  "name": "distinct",
+                  "args": [
+                    {
+                      "kind": "call",
+                      "name": "map",
+                      "args": [
+                        {
+                          "kind": "ref",
+                          "name": "snapshot.prices"
+                        },
+                        {
+                          "kind": "lambda",
+                          "name": "row",
+                          "body": {
+                            "kind": "ref",
+                            "name": "row.id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "name": "count",
+              "args": [
+                {
+                  "kind": "ref",
+                  "name": "snapshot.prices"
+                }
+              ]
+            }
+          ]
+        },
+        "code": "QUOTE_DUPLICATE_PRICE"
+      },
+      {
+        "kind": "require",
+        "expr": {
+          "kind": "call",
+          "name": "every",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "snapshot.prices"
+            },
+            {
+              "kind": "lambda",
+              "name": "row",
+              "body": {
+                "kind": "call",
+                "name": "if",
+                "args": [
+                  {
+                    "kind": "call",
+                    "name": "and",
+                    "args": [
+                      {
+                        "kind": "call",
+                        "name": "present",
+                        "args": [
+                          {
+                            "kind": "ref",
+                            "name": "row.min_quantity"
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "call",
+                        "name": "present",
+                        "args": [
+                          {
+                            "kind": "ref",
+                            "name": "row.max_quantity"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "call",
+                    "name": "lte",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "row.min_quantity"
+                      },
+                      {
+                        "kind": "ref",
+                        "name": "row.max_quantity"
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "literal",
+                    "value": true
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "code": "QUOTE_TIER_RANGE"
+      },
+      {
+        "kind": "let",
+        "name": "active",
+        "expr": {
+          "kind": "call",
+          "name": "filter",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "snapshot.prices"
+            },
+            {
+              "kind": "lambda",
+              "name": "row",
+              "body": {
+                "kind": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "kind": "call",
+                    "name": "not",
+                    "args": [
+                      {
+                        "kind": "call",
+                        "name": "present",
+                        "args": [
+                          {
+                            "kind": "ref",
+                            "name": "row.deleted_at"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "call",
+                    "name": "eq",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "row.currency_code"
+                      },
+                      {
+                        "kind": "literal",
+                        "value": "usd"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "rows",
+        "expr": {
+          "kind": "call",
+          "name": "map",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "active"
+            },
+            {
+              "kind": "lambda",
+              "name": "row",
+              "body": {
+                "kind": "object",
+                "fields": [
+                  [
+                    "priceId",
+                    {
+                      "kind": "ref",
+                      "name": "row.id"
+                    }
+                  ],
+                  [
+                    "currency",
+                    {
+                      "kind": "ref",
+                      "name": "row.currency_code"
+                    }
+                  ],
+                  [
+                    "amountMinor",
+                    {
+                      "kind": "call",
+                      "name": "decimalToUInt64",
+                      "args": [
+                        {
+                          "kind": "ref",
+                          "name": "row.raw_amount.value"
+                        },
+                        {
+                          "kind": "literal",
+                          "value": 2
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    "minQuantity",
+                    {
+                      "kind": "call",
+                      "name": "if",
+                      "args": [
+                        {
+                          "kind": "call",
+                          "name": "present",
+                          "args": [
+                            {
+                              "kind": "ref",
+                              "name": "row.min_quantity"
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "call",
+                          "name": "uint64",
+                          "args": [
+                            {
+                              "kind": "ref",
+                              "name": "row.min_quantity"
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "call",
+                          "name": "uint64",
+                          "args": [
+                            {
+                              "kind": "literal",
+                              "value": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    "maxQuantity",
+                    {
+                      "kind": "call",
+                      "name": "if",
+                      "args": [
+                        {
+                          "kind": "call",
+                          "name": "present",
+                          "args": [
+                            {
+                              "kind": "ref",
+                              "name": "row.max_quantity"
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "call",
+                          "name": "uint64",
+                          "args": [
+                            {
+                              "kind": "ref",
+                              "name": "row.max_quantity"
+                            }
+                          ]
+                        },
+                        {
+                          "kind": "call",
+                          "name": "uint64",
+                          "args": [
+                            {
+                              "kind": "literal",
+                              "value": "18446744073709551615"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "parameters",
+        "expr": {
+          "kind": "object",
+          "fields": [
+            [
+              "requestedCurrency",
+              {
+                "kind": "call",
+                "name": "lower",
+                "args": [
+                  {
+                    "kind": "ref",
+                    "name": "request.currency_code"
+                  }
+                ]
+              }
+            ],
+            [
+              "requestedQuantity",
+              {
+                "kind": "call",
+                "name": "uint64",
+                "args": [
+                  {
+                    "kind": "ref",
+                    "name": "request.quantity"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "eligible",
+        "expr": {
+          "kind": "call",
+          "name": "query",
+          "args": [
+            {
+              "kind": "literal",
+              "value": "EligiblePrices"
+            },
+            {
+              "kind": "ref",
+              "name": "rows"
+            },
+            {
+              "kind": "ref",
+              "name": "parameters"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "base",
+        "expr": {
+          "kind": "object",
+          "fields": [
+            [
+              "request_id",
+              {
+                "kind": "ref",
+                "name": "request.request_id"
+              }
+            ],
+            [
+              "variant_id",
+              {
+                "kind": "ref",
+                "name": "request.variant_id"
+              }
+            ],
+            [
+              "price_set_id",
+              {
+                "kind": "ref",
+                "name": "snapshot.price_set_id"
+              }
+            ],
+            [
+              "currency_code",
+              {
+                "kind": "literal",
+                "value": "usd"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "kind": "when",
+        "expr": {
+          "kind": "call",
+          "name": "eq",
+          "args": [
+            {
+              "kind": "call",
+              "name": "count",
+              "args": [
+                {
+                  "kind": "ref",
+                  "name": "eligible"
+                }
+              ]
+            },
+            {
+              "kind": "literal",
+              "value": 0
+            }
+          ]
+        },
+        "result": {
+          "kind": "call",
+          "name": "merge",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "base"
+            },
+            {
+              "kind": "object",
+              "fields": [
+                [
+                  "status",
+                  {
+                    "kind": "literal",
+                    "value": "no_price"
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "best",
+        "expr": {
+          "kind": "call",
+          "name": "first",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "eligible"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "ties",
+        "expr": {
+          "kind": "call",
+          "name": "filter",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "eligible"
+            },
+            {
+              "kind": "lambda",
+              "name": "row",
+              "body": {
+                "kind": "call",
+                "name": "eq",
+                "args": [
+                  {
+                    "kind": "ref",
+                    "name": "row.amountMinor"
+                  },
+                  {
+                    "kind": "ref",
+                    "name": "best.amountMinor"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "when",
+        "expr": {
+          "kind": "call",
+          "name": "gt",
+          "args": [
+            {
+              "kind": "call",
+              "name": "count",
+              "args": [
+                {
+                  "kind": "ref",
+                  "name": "ties"
+                }
+              ]
+            },
+            {
+              "kind": "literal",
+              "value": 1
+            }
+          ]
+        },
+        "result": {
+          "kind": "call",
+          "name": "merge",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "base"
+            },
+            {
+              "kind": "object",
+              "fields": [
+                [
+                  "status",
+                  {
+                    "kind": "literal",
+                    "value": "ambiguous_price"
+                  }
+                ],
+                [
+                  "price_ids",
+                  {
+                    "kind": "call",
+                    "name": "sort",
+                    "args": [
+                      {
+                        "kind": "call",
+                        "name": "map",
+                        "args": [
+                          {
+                            "kind": "ref",
+                            "name": "ties"
+                          },
+                          {
+                            "kind": "lambda",
+                            "name": "row",
+                            "body": {
+                              "kind": "ref",
+                              "name": "row.priceId"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                [
+                  "unit_amount",
+                  {
+                    "kind": "call",
+                    "name": "formatDecimal",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "best.amountMinor"
+                      },
+                      {
+                        "kind": "literal",
+                        "value": 2
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "let",
+        "name": "subtotal",
+        "expr": {
+          "kind": "call",
+          "name": "calculate",
+          "args": [
+            {
+              "kind": "literal",
+              "value": "LineSubtotal"
+            },
+            {
+              "kind": "object",
+              "fields": [
+                [
+                  "amountMinor",
+                  {
+                    "kind": "ref",
+                    "name": "best.amountMinor"
+                  }
+                ],
+                [
+                  "requestedQuantity",
+                  {
+                    "kind": "ref",
+                    "name": "parameters.requestedQuantity"
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "return",
+        "expr": {
+          "kind": "call",
+          "name": "merge",
+          "args": [
+            {
+              "kind": "ref",
+              "name": "base"
+            },
+            {
+              "kind": "object",
+              "fields": [
+                [
+                  "status",
+                  {
+                    "kind": "literal",
+                    "value": "quoted"
+                  }
+                ],
+                [
+                  "price_id",
+                  {
+                    "kind": "ref",
+                    "name": "best.priceId"
+                  }
+                ],
+                [
+                  "unit_amount",
+                  {
+                    "kind": "call",
+                    "name": "formatDecimal",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "best.amountMinor"
+                      },
+                      {
+                        "kind": "literal",
+                        "value": 2
+                      }
+                    ]
+                  }
+                ],
+                [
+                  "unit_amount_minor",
+                  {
+                    "kind": "call",
+                    "name": "string",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "best.amountMinor"
+                      }
+                    ]
+                  }
+                ],
+                [
+                  "quantity",
+                  {
+                    "kind": "ref",
+                    "name": "request.quantity"
+                  }
+                ],
+                [
+                  "subtotal",
+                  {
+                    "kind": "call",
+                    "name": "formatDecimal",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "subtotal"
+                      },
+                      {
+                        "kind": "literal",
+                        "value": 2
+                      }
+                    ]
+                  }
+                ],
+                [
+                  "subtotal_minor",
+                  {
+                    "kind": "call",
+                    "name": "string",
+                    "args": [
+                      {
+                        "kind": "ref",
+                        "name": "subtotal"
+                      }
+                    ]
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "endpoint": {
+    "id": "QuantityPrice",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/quote",
+    "input": "Envelope",
+    "output": "Quote",
+    "flow": "QuotePrice",
+    "authEnv": "QUOTE_API_TOKEN",
+    "maxBytes": 262144,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "quoted": 200,
+      "no_price": 404,
+      "ambiguous_price": 409
+    },
+    "errors": {
+      "FUNCTION_ENV_REQUIRED": 503,
+      "FUNCTION_OUTPUT_SCHEMA": 500,
+      "FUNCTION_URL": 503,
+      "FUNCTION_INTEGRATION_TIMEOUT": 504,
+      "FUNCTION_INTEGRATION_LIMIT": 502,
+      "FUNCTION_INTEGRATION_SCHEMA": 502,
+      "FUNCTION_TIMEOUT": 408,
+      "FUNCTION_INTEGRATION_STATUS": 502,
+      "FUNCTION_INTEGRATION_FAILED": 502,
+      "FUNCTION_BODY_LIMIT": 413
+    }
+  }
+}

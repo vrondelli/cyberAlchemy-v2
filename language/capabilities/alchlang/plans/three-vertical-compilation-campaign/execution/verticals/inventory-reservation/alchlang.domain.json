@@ -1,0 +1,65 @@
+{
+  "schema_version": "alchlang.governed-domain-description/v1-candidate",
+  "domain_id": "inventory-reservation",
+  "title": "Inventory reservation",
+  "capability_ref": "CA2-REF-CAP-INVENTORY-RESERVATION",
+  "business_ontology_ref": "cav2.alchlang.example.inventory-reservation.business",
+  "owner_route": "reference inventory-domain owner",
+  "primary_subject": {
+    "term_id": "stock-item",
+    "fields": [
+      {"id": "stock-item-id", "type": "uuid", "required": true},
+      {"id": "available-quantity", "type": "integer", "required": true},
+      {"id": "status", "type": "string", "required": true}
+    ]
+  },
+  "terms": [
+    {"id": "stock-item", "meaning": "The item whose finite availability is reserved."},
+    {"id": "reservation", "meaning": "An idempotently identified claim on a positive quantity."},
+    {"id": "available-quantity", "meaning": "The owner-qualified quantity currently available to reserve."}
+  ],
+  "ontology_edges": [
+    {"id": "inventory-item-has-availability", "type": "has_current", "source": "stock-item", "target": "available-quantity"},
+    {"id": "inventory-reservation-targets-item", "type": "targets", "source": "reservation", "target": "stock-item"}
+  ],
+  "rules": [
+    {"id": "positive-quantity", "description": "A reservation quantity must be positive.", "predicate": "quantity-greater-than-zero", "action_refs": ["reserve-inventory"]},
+    {"id": "quantity-invariant", "description": "Active reservations may not exceed available quantity.", "predicate": "quantity-within-availability", "action_refs": ["reserve-inventory"]},
+    {"id": "idempotency-invariant", "description": "The same request key may not reserve twice.", "predicate": "request-key-idempotent", "action_refs": ["reserve-inventory"]},
+    {"id": "observation-owner-resolved", "description": "The availability observation owner must be resolved.", "predicate": "observation-owner-known", "action_refs": ["reserve-inventory"]},
+    {"id": "reservation-exists", "description": "Only an active reservation may be released.", "predicate": "reservation-is-active", "action_refs": ["release-reservation"]}
+  ],
+  "state_machine": {
+    "id": "reservation-lifecycle",
+    "states": ["requested", "reserved", "rejected", "released"],
+    "initial": "requested",
+    "transitions": [
+      {"id": "reserve", "from": "requested", "to": "reserved", "rule_ref": "quantity-invariant", "event_ref": "inventory-reserved"},
+      {"id": "reject", "from": "requested", "to": "rejected", "rule_ref": null, "event_ref": null},
+      {"id": "release", "from": "reserved", "to": "released", "rule_ref": "reservation-exists", "event_ref": "reservation-released"}
+    ]
+  },
+  "events": [
+    {"id": "inventory-reserved", "description": "Inventory was reserved.", "payload": ["stock-item-id", "request-key", "quantity"]},
+    {"id": "reservation-released", "description": "A reservation was released.", "payload": ["stock-item-id", "request-key", "quantity"]}
+  ],
+  "actions": [
+    {"id": "reserve-inventory", "description": "Attempt to reserve inventory.", "reads": ["stock-item"], "writes": ["stock-item.available-quantity"], "event_refs": ["inventory-reserved"], "rule_refs": ["positive-quantity", "quantity-invariant", "idempotency-invariant", "observation-owner-resolved"], "authority_boundary_ref": "inventory-observation-authority", "failure_continuation": "return-denied-or-blocked"},
+    {"id": "release-reservation", "description": "Release an active reservation.", "reads": ["stock-item"], "writes": ["stock-item.available-quantity"], "event_refs": ["reservation-released"], "rule_refs": ["reservation-exists"], "authority_boundary_ref": "inventory-observation-authority", "failure_continuation": "return-not-found"}
+  ],
+  "permissions": [],
+  "authority_boundaries": [
+    {"id": "inventory-observation-authority", "scope": "one in-memory item", "operation": "observe and mutate reference availability", "effect": "transactional in-memory adapter only"}
+  ],
+  "examples": [
+    {"id": "within-availability", "kind": "positive", "expected": "reserved"},
+    {"id": "over-reservation", "kind": "negative", "expected": "denied"},
+    {"id": "duplicate-request", "kind": "boundary", "expected": "idempotent"},
+    {"id": "unknown-observation-owner", "kind": "missing-information", "expected": "blocked"}
+  ],
+  "open_questions": [
+    {"id": "inventory-observation-owner", "question": "Which observation owns availability during competing requests?", "status": "resolved", "resolution": "The injected transactional adapter owns one serialized in-memory observation for this reference vertical."}
+  ],
+  "runtime_profile": "inventory-reservation-reference-v1",
+  "authority_effect": "none"
+}

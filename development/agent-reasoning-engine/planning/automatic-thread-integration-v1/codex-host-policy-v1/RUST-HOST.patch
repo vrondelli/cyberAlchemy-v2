@@ -1,0 +1,455 @@
+--- a/codex-rs/core/src/config/mod.rs
++++ b/codex-rs/core/src/config/mod.rs
+@@ -607,6 +607,8 @@
+ /// Application configuration loaded from disk and merged with overrides.
+ #[derive(Debug, Clone, PartialEq)]
+ pub struct Config {
++    /// Programmatic offline context gate; never loaded from user configuration.
++    pub experimental_context_gate: Option<codex_client::ContextGateConfig>,
+     /// Provenance for how this [`Config`] was derived (merged layers + enforced
+     /// requirements).
+     pub config_layer_stack: ConfigLayerStack,
+@@ -4150,6 +4152,7 @@
+         .map_err(std::io::Error::from)?;
+         let otel = otel::resolve_config(cfg.otel.unwrap_or_default(), &mut startup_warnings);
+         let config = Self {
++            experimental_context_gate: None,
+             model,
+             service_tier,
+             review_model,
+--- a/codex-rs/core/src/client.rs
++++ b/codex-rs/core/src/client.rs
+@@ -255,6 +255,7 @@
+ /// call site.
+ #[derive(Debug, Clone)]
+ pub struct ModelClient {
++    context_gate: Option<codex_client::ContextGateConfig>,
+     state: Arc<ModelClientState>,
+     agent_identity_policy: AgentIdentityAuthPolicy,
+     prompt_cache_key_override: Option<String>,
+@@ -481,9 +482,29 @@
+             agent_identity_policy,
+             prompt_cache_key_override: None,
+             free_guardian_enabled: false,
++            context_gate: None,
+             event_sender: None,
+             http_client_factory,
+         }
++    }
++
++    pub(crate) async fn before_context_compaction(&self) -> Result<()> {
++        if let Some(gate) = &self.context_gate {
++            gate.before_compaction().await.map_err(|_| {
++                CodexErr::InvalidRequest(
++                    "ARE requires fresh context before native compaction".into(),
++                )
++            })?;
++        }
++        Ok(())
++    }
++
++    pub(crate) fn with_context_gate(
++        mut self,
++        gate: Option<codex_client::ContextGateConfig>,
++    ) -> Self {
++        self.context_gate = gate;
++        self
+     }
+ 
+     pub(crate) fn with_free_guardian_enabled(mut self, free_guardian_enabled: bool) -> Self {
+@@ -1011,7 +1032,8 @@
+     ///
+     /// WebSocket use is controlled by provider capability and session-scoped fallback state.
+     pub fn responses_websocket_enabled(&self) -> bool {
+-        if !self.state.provider.info().supports_websockets
++        if self.context_gate.is_some()
++            || !self.state.provider.info().supports_websockets
+             || self.state.disable_websockets.load(Ordering::Relaxed)
+         {
+             return false;
+@@ -1124,7 +1146,16 @@
+         &self,
+         api_provider: &ApiProvider,
+         endpoint: &str,
+-    ) -> Result<ReqwestTransport> {
++    ) -> Result<codex_client::ContextGateTransport> {
++        if let Some(gate) = &self.context_gate {
++            if endpoint != ResponsesEndpoint::Responses.path() {
++                return Err(CodexErr::InvalidRequest(
++                    "ARE unsupported auxiliary inference path".into(),
++                ));
++            }
++            return codex_client::ContextGateTransport::gated(gate.clone())
++                .map_err(|_| CodexErr::InvalidRequest("ARE transport unavailable".into()));
++        }
+         let request_url = api_provider.url_for_path(endpoint);
+         let client = create_client_for_route(
+             &self.http_client_factory,
+@@ -1132,7 +1163,9 @@
+             ClientRouteClass::Api,
+         )
+         .map_err(std::io::Error::from)?;
+-        Ok(ReqwestTransport::from_http_client(client))
++        Ok(codex_client::ContextGateTransport::Standard(
++            ReqwestTransport::from_http_client(client),
++        ))
+     }
+ 
+     pub(crate) async fn prewarm_auth(&self) -> Result<()> {
+@@ -1532,7 +1565,8 @@
+     }
+ 
+     fn responses_request_compression(&self, auth: Option<&CodexAuth>) -> Compression {
+-        if self.client.state.enable_request_compression
++        if self.client.context_gate.is_none()
++            && self.client.state.enable_request_compression
+             && auth.is_some_and(CodexAuth::uses_codex_backend)
+             && self.client.state.provider.info().is_openai()
+         {
+@@ -1695,7 +1729,15 @@
+                 Err(err) => {
+                     let response_debug_context =
+                         extract_response_debug_context_from_api_error(&err);
+-                    let err = self.client.state.provider.map_api_error(err);
++                    let err = if self.client.context_gate.is_some()
++                        && matches!(&err, ApiError::Transport(TransportError::Build(_)))
++                    {
++                        CodexErr::InvalidRequest(
++                            "ARE request stopped; recycle or reconcile before continuing".into(),
++                        )
++                    } else {
++                        self.client.state.provider.map_api_error(err)
++                    };
+                     inference_trace_attempt.record_failed(
+                         &err,
+                         response_debug_context.request_id.as_deref(),
+--- a/codex-rs/core/src/session/session.rs
++++ b/codex-rs/core/src/session/session.rs
+@@ -1478,6 +1478,7 @@
+                     attestation_provider,
+                     config.http_client_factory(),
+                 )
++                .with_context_gate(config.experimental_context_gate.clone())
+                 .with_free_guardian_enabled(config.free_guardian_enabled())
+                 .with_session_context(
+                     crate::guardian::prompt_cache_key_override_for_review_session(
+--- a/codex-rs/core/src/session/turn.rs
++++ b/codex-rs/core/src/session/turn.rs
+@@ -1259,6 +1259,15 @@
+     phase: CompactionPhase,
+ ) -> CodexResult<()> {
+     let turn_context = &step_context.turn;
++    if let Err(error) = sess.services.model_client.before_context_compaction().await {
++        sess.track_turn_codex_error(turn_context.as_ref(), &error);
++        sess.send_event(
++            turn_context,
++            EventMsg::Error(error.to_error_event(/*message_prefix*/ None)),
++        )
++        .await;
++        return Err(error);
++    }
+     let _profile_guard = turn_context.turn_timing_state.begin_compaction();
+     if turn_context.config.features.enabled(Feature::TokenBudget) {
+         // Compaction is the reset request, so force a new context window
+--- a/codex-rs/core/src/tasks/compact.rs
++++ b/codex-rs/core/src/tasks/compact.rs
+@@ -32,6 +32,11 @@
+         _input: Vec<TurnInput>,
+         _cancellation_token: CancellationToken,
+     ) -> SessionTaskResult {
++        session
++            .services
++            .model_client
++            .before_context_compaction()
++            .await?;
+         let _profile_guard = ctx.turn_timing_state.begin_compaction();
+         if ctx.config.features.enabled(Feature::TokenBudget) {
+             crate::compact_token_budget::run_manual_compact_task(session, ctx).await?;
+--- /dev/null
++++ b/codex-rs/core/tests/suite/context_gate.rs
+@@ -0,0 +1,277 @@
++//! Opt-in host behavior: permit, deny, disable delta transport, and intercept compaction.
++use codex_client::ContextGateConfig;
++use codex_protocol::protocol::{EventMsg, Op};
++use core_test_support::responses::{self, ev_assistant_message, ev_completed_with_tokens, sse};
++use core_test_support::test_codex::test_codex;
++use core_test_support::wait_for_event;
++use pretty_assertions::assert_eq;
++use serde_json::{Value, json};
++use wiremock::matchers::{method, path};
++use wiremock::{Mock, MockServer, ResponseTemplate};
++
++async fn start(test: &core_test_support::test_codex::TestCodex, text: &str) -> anyhow::Result<()> {
++    test.codex
++        .start_or_steer_turn(codex_core::TurnInputRequest::user_input(vec![
++            codex_protocol::user_input::UserInput::Text {
++                text: text.into(),
++                text_elements: vec![],
++            },
++        ]))
++        .await?;
++    Ok(())
++}
++
++async fn policy(action: &'static str) -> MockServer {
++    let server = MockServer::start().await;
++    Mock::given(method("POST")).and(path("/decision")).respond_with(move |request: &wiremock::Request| {
++        let body: Value = serde_json::from_slice(&request.body).expect("valid offline fixture");
++        ResponseTemplate::new(200).set_body_json(json!({"version":1,"scope":body["scope"],"request_id":body["request_id"],"request_digest":body["request_digest"],"action":action}))
++    }).mount(&server).await;
++    server
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn context_gate_denial_stops_without_provider_request() -> anyhow::Result<()> {
++    let server = responses::start_mock_server().await;
++    let policy = policy("recycle").await;
++    let gate = ContextGateConfig::new(format!("{}/decision", policy.uri()), "scope".into(), 32)
++        .expect("valid offline fixture");
++    let test = test_codex()
++        .with_config(move |config| config.experimental_context_gate = Some(gate))
++        .build_with_auto_env(&server)
++        .await?;
++    start(&test, "bounded fixture").await?;
++    wait_for_event(&test.codex, |event| matches!(event, EventMsg::Error(_))).await;
++    wait_for_event(&test.codex, |event| {
++        matches!(event, EventMsg::TurnComplete(_))
++    })
++    .await;
++    assert_eq!(
++        policy
++            .received_requests()
++            .await
++            .expect("valid offline fixture")
++            .len(),
++        1
++    );
++    assert!(
++        !server
++            .received_requests()
++            .await
++            .expect("valid offline fixture")
++            .iter()
++            .any(|r| r.method == "POST" && r.url.path().ends_with("/responses"))
++    );
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn context_gate_allows_full_http_request_with_output_cap() -> anyhow::Result<()> {
++    let server = responses::start_mock_server().await;
++    let policy = policy("continue").await;
++    let mock = responses::mount_sse_once(
++        &server,
++        sse(vec![
++            ev_assistant_message("m", "fixture"),
++            ev_completed_with_tokens("r", 10),
++        ]),
++    )
++    .await;
++    let gate = ContextGateConfig::new(format!("{}/decision", policy.uri()), "scope".into(), 32)
++        .expect("valid offline fixture");
++    let test = test_codex()
++        .with_config(move |config| {
++            config.experimental_context_gate = Some(gate);
++            config.model_provider.supports_websockets = true;
++        })
++        .build_with_auto_env(&server)
++        .await?;
++    start(&test, "bounded fixture").await?;
++    wait_for_event(&test.codex, |event| {
++        matches!(event, EventMsg::TurnComplete(_))
++    })
++    .await;
++    let sent = mock.single_request().body_json();
++    assert_eq!(sent["max_output_tokens"], 32);
++    assert_eq!(sent["store"], false);
++    let observed: Value = serde_json::from_slice(
++        &policy
++            .received_requests()
++            .await
++            .expect("valid offline fixture")[0]
++            .body,
++    )?;
++    assert_eq!(
++        serde_json::from_str::<Value>(observed["body"].as_str().expect("valid offline fixture"))?,
++        sent
++    );
++    assert!(
++        !server
++            .received_requests()
++            .await
++            .expect("valid offline fixture")
++            .iter()
++            .any(|r| r.headers.contains_key("upgrade"))
++    );
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn context_gate_stops_manual_compaction_even_when_peer_permits() -> anyhow::Result<()> {
++    let server = responses::start_mock_server().await;
++    let policy = policy("continue").await;
++    let gate = ContextGateConfig::new(format!("{}/decision", policy.uri()), "scope".into(), 32)
++        .expect("valid offline fixture");
++    let test = test_codex()
++        .with_config(move |config| config.experimental_context_gate = Some(gate))
++        .build_with_auto_env(&server)
++        .await?;
++    test.codex.submit(Op::Compact).await?;
++    wait_for_event(&test.codex, |event| matches!(event, EventMsg::Error(_))).await;
++    let requests = policy
++        .received_requests()
++        .await
++        .expect("valid offline fixture");
++    assert_eq!(requests.len(), 1);
++    let body: Value = serde_json::from_slice(&requests[0].body)?;
++    assert_eq!(body["kind"], "native_compaction");
++    assert!(
++        !server
++            .received_requests()
++            .await
++            .expect("valid offline fixture")
++            .iter()
++            .any(|r| r.method == "POST")
++    );
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn context_gate_stops_pre_turn_compaction() -> anyhow::Result<()> {
++    let server = responses::start_mock_server().await;
++    let policy = policy("continue").await;
++    let mock = responses::mount_sse_once(
++        &server,
++        sse(vec![
++            ev_assistant_message("m", "fixture"),
++            ev_completed_with_tokens("r", 2_000_000),
++        ]),
++    )
++    .await;
++    let gate = ContextGateConfig::new(format!("{}/decision", policy.uri()), "scope".into(), 32)
++        .expect("valid offline fixture");
++    let test = test_codex()
++        .with_config(move |config| {
++            config.experimental_context_gate = Some(gate);
++            config.model_auto_compact_token_limit = Some(100_000);
++            config.model_context_window = Some(1_000_000);
++        })
++        .build_with_auto_env(&server)
++        .await?;
++    start(&test, "first bounded fixture").await?;
++    wait_for_event(&test.codex, |event| {
++        matches!(event, EventMsg::TurnComplete(_))
++    })
++    .await;
++    start(&test, "next fixture").await?;
++    let event = wait_for_event(&test.codex, |event| matches!(event, EventMsg::Error(_))).await;
++    let EventMsg::Error(error) = event else {
++        unreachable!("error predicate")
++    };
++    assert!(error.message.contains("ARE requires fresh context"));
++    assert_eq!(mock.requests().len(), 1);
++    let requests = policy
++        .received_requests()
++        .await
++        .expect("valid offline fixture");
++    let kinds: Vec<Value> = requests
++        .iter()
++        .map(|r| {
++            serde_json::from_slice::<Value>(&r.body).expect("valid offline fixture")["kind"].clone()
++        })
++        .collect();
++    assert_eq!(kinds, vec![json!("provider"), json!("native_compaction")]);
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn context_gate_rechecks_endpoint_retry_and_stops_outer_retry() -> anyhow::Result<()> {
++    use std::sync::Arc;
++    use std::sync::atomic::{AtomicUsize, Ordering};
++    let server = responses::start_mock_server().await;
++    Mock::given(method("POST"))
++        .and(path("/v1/responses"))
++        .respond_with(ResponseTemplate::new(503))
++        .mount(&server)
++        .await;
++    let policy = MockServer::start().await;
++    let calls = Arc::new(AtomicUsize::new(0));
++    let count = Arc::clone(&calls);
++    Mock::given(method("POST")).respond_with(move |request: &wiremock::Request| {
++        let body: Value = serde_json::from_slice(&request.body).expect("valid offline fixture");
++        let action = if count.fetch_add(1, Ordering::SeqCst) == 0 { "continue" } else { "recycle" };
++        ResponseTemplate::new(200).set_body_json(json!({"version":1,"scope":body["scope"],"request_id":body["request_id"],"request_digest":body["request_digest"],"action":action}))
++    }).mount(&policy).await;
++    let gate = ContextGateConfig::new(format!("{}/decision", policy.uri()), "scope".into(), 32)
++        .expect("valid offline fixture");
++    let test = test_codex()
++        .with_config(move |config| {
++            config.experimental_context_gate = Some(gate);
++            config.model_provider.request_max_retries = Some(2);
++            config.model_provider.stream_max_retries = Some(2);
++        })
++        .build_with_auto_env(&server)
++        .await?;
++    start(&test, "retry fixture").await?;
++    wait_for_event(&test.codex, |event| matches!(event, EventMsg::Error(_))).await;
++    wait_for_event(&test.codex, |event| {
++        matches!(event, EventMsg::TurnComplete(_))
++    })
++    .await;
++    assert_eq!(calls.load(Ordering::SeqCst), 2);
++    assert_eq!(
++        server
++            .received_requests()
++            .await
++            .expect("valid offline fixture")
++            .iter()
++            .filter(|r| r.method == "POST" && r.url.path().ends_with("/responses"))
++            .count(),
++        1
++    );
++    Ok(())
++}
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++#[ignore = "run with the explicit offline ARE Node service runner"]
++async fn context_gate_real_are_peer() -> anyhow::Result<()> {
++    let endpoint = std::env::var("ARE_OFFLINE_TEST_POLICY_ENDPOINT")?;
++    let server = responses::start_mock_server().await;
++    let mock = responses::mount_sse_once(
++        &server,
++        sse(vec![
++            ev_assistant_message("m", "offline canary reply"),
++            ev_completed_with_tokens("r", 10),
++        ]),
++    )
++    .await;
++    let gate = ContextGateConfig::new(endpoint, "fixture-scope".into(), 32)
++        .expect("valid offline fixture");
++    let test = test_codex()
++        .with_config(move |config| {
++            config.experimental_context_gate = Some(gate);
++            config.model = Some("gpt-5.1".into());
++        })
++        .build_with_auto_env(&server)
++        .await?;
++    start(&test, "offline ARE host canary").await?;
++    wait_for_event(&test.codex, |event| {
++        matches!(event, EventMsg::TurnComplete(_))
++    })
++    .await;
++    assert_eq!(mock.single_request().body_json()["model"], "gpt-5.1");
++    test.codex.submit(Op::Compact).await?;
++    wait_for_event(&test.codex, |event| matches!(event, EventMsg::Error(_))).await;
++    assert_eq!(mock.requests().len(), 1);
++    Ok(())
++}
+--- a/codex-rs/core/tests/suite/mod.rs
++++ b/codex-rs/core/tests/suite/mod.rs
+@@ -194,3 +194,5 @@
+ mod windows_sandbox;
+ mod workspace_roots;
+ mod worktree_trust;
++
++mod context_gate;

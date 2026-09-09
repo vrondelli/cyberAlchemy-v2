@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/private/mint/plan/v0.1",
+  "title": "MintPlanV0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "plan_id", "request_id", "manifest_sha256", "template_set_sha256", "status", "target_observation", "stages", "effects", "gates", "blockers"],
+  "properties": {
+    "schema_version": {"const": "mint.plan.v0.1"},
+    "plan_id": {"$ref": "#/$defs/digest"},
+    "request_id": {"type": "string", "minLength": 1},
+    "manifest_sha256": {"$ref": "#/$defs/digest"},
+    "template_set_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+    "status": {"enum": ["ready", "blocked"]},
+    "target_observation": {"$ref": "#/$defs/targetObservation"},
+    "stages": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/stage"}},
+    "effects": {"type": "array", "items": {"$ref": "#/$defs/effect"}},
+    "gates": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/gate"}},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "targetObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_root", "exists", "path", "visibility"],
+      "properties": {
+        "allowed_root": {"type": ["string", "null"]},
+        "exists": {"type": ["boolean", "null"]},
+        "path": {"type": ["string", "null"]},
+        "visibility": {"type": ["string", "null"]}
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "stage", "status"],
+      "properties": {
+        "owner": {"type": "string", "minLength": 1},
+        "stage": {"enum": ["L0", "stage-2", "stage-3", "stage-4", "stage-5"]},
+        "status": {"enum": ["unexecuted", "planned", "blocked", "deferred"]}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate", "status"],
+      "properties": {
+        "gate": {"type": "string", "minLength": 1},
+        "status": {"enum": ["deferred", "blocked"]}
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "stage", "owner", "operation", "target_relative_path", "source_template", "source_sha256", "preconditions", "disposition", "argv"],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 1},
+        "stage": {"enum": ["L0", "stage-2", "stage-3", "stage-4"]},
+        "owner": {"type": "string", "minLength": 1},
+        "operation": {"enum": ["create_file", "external_action"]},
+        "target_relative_path": {"type": ["string", "null"]},
+        "source_template": {"type": ["string", "null"]},
+        "source_sha256": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+        "preconditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "disposition": {"enum": ["planned", "deferred"]},
+        "argv": {"oneOf": [{"type": "array", "items": {"type": "string", "minLength": 1}}, {"type": "null"}]}
+      }
+    }
+  }
+}

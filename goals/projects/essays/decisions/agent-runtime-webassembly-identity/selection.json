@@ -1,0 +1,55 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-WEBASSEMBLY-IDENTITY",
+  "question": "How is each first-vertical WebAssembly component identified, authenticated, and bound to provenance before caching or execution?",
+  "request_digest": "d7760c35bb01cfbc77768f66ecd97e5c2882bbd6422b3df8dc9adc61d4904696",
+  "selected_option_id": "OPT-WASM-ID-OWNER-SIGNED-MANIFEST",
+  "selected_option": "Require an offline owner-signed deterministic manifest binding the component digest, WIT digest and version, capability profile, budget profile, provenance digest, validity interval, and component identity; verify against a versioned local trust store with key rotation and revocation before using a content-addressed cache.",
+  "rationale": "The user explicitly selected OPT-WASM-ID-OWNER-SIGNED-MANIFEST. It keeps first-vertical identity local-first and owner-controlled while binding the exact executable bytes to the already selected interface, capability, budget, and provenance identities.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-WASM-ID-OWNER-SIGNED-MANIFEST",
+    "recorded_at": "2026-09-01T18:14:21+01:00"
+  },
+  "binding_effect": {
+    "webassembly_identity_policy": "offline-owner-signed-deterministic-manifest",
+    "required_semantics": [
+      "one canonical deterministic manifest binds the component identity and version, exact SHA-256 component digest, WIT identity and digest, capability-profile identity and digest, budget-profile identity and digest, build-provenance digest, validity interval, signer-key identity, and revocation generation",
+      "the daemon verifies the manifest signature, canonical bytes, validity interval, signer authorization, revocation state, and every bound digest against a versioned local trust store before cache admission or instantiation",
+      "an unknown, expired, not-yet-valid, unauthorized, or revoked signer, a stale revocation generation, a malformed manifest, or any digest mismatch fails closed",
+      "owner private signing keys never enter the daemon database, component cache, invocation envelope, logs, or evidence ledger and must be held through a separately reviewed protected-key workflow",
+      "trust-root enrollment, signer rotation, revocation, emergency distrust, and trust-store rollback protection are explicit versioned owner operations with durable receipts",
+      "verified component artifacts enter an immutable content-addressed cache through atomic placement keyed by their exact digest and are reverified before each load",
+      "mutable aliases may resolve only to an owner-reviewed manifest identity and can never bypass digest verification or become the executed identity",
+      "each invocation and execution receipt binds the manifest digest, component digest, WIT digest, capability-profile digest, budget-profile digest, provenance digest, trust-store version, and verification result",
+      "signature verification proves only identity and integrity under the selected trust policy; it does not prove component safety, correctness, conformance, acceptance, or execution authority"
+    ],
+    "non_implications": [
+      "this selection does not choose the cryptographic suite, canonical manifest encoding, signing implementation, protected key store, provenance-attestation format, registry, or distribution channel",
+      "this selection does not satisfy the Essays security-owner gate or authorize trust-root enrollment, key creation, signing, installation, caching, component execution, release, or deployment",
+      "a valid signature does not grant filesystem, network, browser, database, tool, credential, publication, or external-effect capability",
+      "cache presence does not make a component current, trusted, authorized, or executable"
+    ]
+  },
+  "owner_gate": {
+    "required_owner": "Essays Project owner plus Essays security owner",
+    "status": "pending",
+    "effect_until_satisfied": "WebAssembly component signing, trust enrollment, installation, caching, and execution prohibited"
+  },
+  "remaining_blockers": [
+    "Essays security-owner review of the owner-signed manifest identity policy and pure-proposal capability profile",
+    "exact cryptographic suite, canonical manifest encoding, protected key custody, rotation, revocation, and provenance-attestation binding",
+    "benchmark and conformance evidence for the balanced WebAssembly ceilings",
+    "Essays security-owner review of the remote authentication binding",
+    "remote capability authorization and grant semantics",
+    "browser driver and effect rules",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Public transparency-log, keyless identity, registry, and distribution policies are deferred beyond the local-first vertical."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

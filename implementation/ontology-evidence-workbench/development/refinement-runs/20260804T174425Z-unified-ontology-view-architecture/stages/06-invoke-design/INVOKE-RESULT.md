@@ -1,0 +1,22 @@
+## Invoke Result
+
+- Mode: design
+- Spell: invoke
+- Canonical ID: invoke
+- Scope: library
+- Phase status: pass
+- Mode contract: `.agents/skills/invoke/design.md`
+- Outputs: `ARCHITECTURE.md`, `SCENE-MODEL.schema.json`, `VIEW-PACK.schema.json`, `UI-API-CONTRACT.md`, `UI-API-INVENTORY.json`, `UX-CONTRACT.md`, `ACCEPTANCE-CONTRACT.md`, `GLOSSARY-CONSISTENCY.md`
+- Design views: context, high-level structure, low-level components, workflow process, decision flow, dependency interface — complete
+- Design selection receipt: `DESIGN-SELECTION-RESULT.json`
+- Design evidence state: design-validator-pass
+- Evidence ceiling: Design validation only; Plan evidence is separate
+- Plan evidence: plan-evidence-pending
+- Template/profile selection: DomainSpec six-view architecture profile plus required UX and validation companions
+- Dispatch techniques: owner boundary, system-agnostic standard, local nuance, recomposition proof, protected-context flag
+- Distill validation: pass after typed-formation and fallback-order repair; one coherent scene/UI-contract/adapter unit with named split boundaries
+- Implementation layering: stage-2 seed; full artifact belongs to Plan
+- Work-pack: n/a
+- Decisions: lossless scene; complete Navigation Frames; 52 typed UI instances plus six canonical Mapping specializations above the Scene seam; 57/57 G3 and 58/58 G4 conformance; OEW dashboard route ownership; complete linear/index proof before React Flow/ELK activation; Cytoscape alternative only after separate conformance; static adapter; source-owned build
+- Unresolved gaps: owner-approved Body War cluster memberships, measured performance budget, representative human comprehension/accessibility evidence
+- Next route: plan after adversarial design review and repair

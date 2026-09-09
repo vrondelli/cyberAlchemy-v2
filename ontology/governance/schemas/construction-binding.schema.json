@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/governance-construction-binding/v1",
+  "title": "Legacy CAV2-D65 Revision 1 Governance Construction Binding Registry",
+  "$comment": "Diagnostic compatibility schema for the superseded stage-admission sequence. It does not implement the CAV2-D65 revision 2 prototype-first contract and cannot support product approval or an authority request.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "bindings", "authority_effect"],
+  "properties": {
+    "schema_version": {"const": "cav2-governance-construction-binding-registry/v1"},
+    "registry_id": {"const": "cav2.governance.d65-construction-bindings"},
+    "bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/binding"}
+    },
+    "authority_effect": {"const": "none"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stageState": {"enum": ["absent", "candidate", "blocked", "not_evaluable", "validated"]},
+    "fileBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "scope_kind", "selector", "sha256", "owner_route"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "scope_kind": {"enum": ["whole-file", "heading-section", "json-record"]},
+        "selector": {"type": ["string", "null"]},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "owner_route": {"type": "string", "minLength": 1}
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "state", "evidence_refs", "blockers"],
+      "properties": {
+        "name": {"enum": ["definition", "product_ontology", "business_ontology", "domainspec_source", "compiled_graph", "system_ontology", "implementation", "static_conformance", "runtime_evidence"]},
+        "state": {"$ref": "#/$defs/stageState"},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["construction_id", "subject_ref", "claimed_through_stage", "file_bindings", "dependency_validations", "domainspec", "implementation", "stages", "owner_routes", "challenge_route", "authority_effect"],
+      "properties": {
+        "construction_id": {"type": "string", "minLength": 1},
+        "subject_ref": {"type": "string", "minLength": 1},
+        "claimed_through_stage": {"enum": ["system_ontology", "implementation", "static_conformance", "runtime_evidence"]},
+        "file_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fileBinding"}},
+        "dependency_validations": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "validator_ref", "expected_status", "expected_material_digest"],
+            "properties": {
+              "id": {"enum": ["capability-ontology", "governance-product-ontology", "governance-authority-ontology"]},
+              "validator_ref": {"type": "string", "minLength": 1},
+              "expected_status": {"const": "PASS"},
+              "expected_material_digest": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        "domainspec": {"type": "object"},
+        "implementation": {"type": "object"},
+        "stages": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/stage"}},
+        "owner_routes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "challenge_route": {"type": "string", "minLength": 1},
+        "authority_effect": {"const": "none"}
+      }
+    }
+  }
+}

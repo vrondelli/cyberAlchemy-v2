@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/private/mint/authority-cedar-projection/v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "package_id", "package_sha256", "semantic_sha256", "language_profile", "policies", "per_unit_parity", "residues", "proof_ceiling"],
+  "properties": {
+    "schema_version": {"const": "mint.authority-cedar-projection.v0.1"},
+    "status": {"enum": ["ready", "partial", "blocked"]},
+    "package_id": {"type": ["string", "null"]},
+    "package_sha256": {"$ref": "#/$defs/digest"},
+    "semantic_sha256": {"$ref": "#/$defs/digest"},
+    "language_profile": {"const": "cedar-internal-subset.v0.1"},
+    "policies": {"type": "array", "items": {"$ref": "#/$defs/policy"}},
+    "per_unit_parity": {"type": "array", "items": {"$ref": "#/$defs/parity"}},
+    "residues": {"type": "array", "items": {"$ref": "#/$defs/residue"}},
+    "proof_ceiling": {"const": "candidate-local internal Cedar-subset structural parity only; no official Cedar evaluation, authorization decision, enforcement, ratification, release, deployment, or production proof"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "ast": {
+      "type": "object", "additionalProperties": false,
+      "required": ["principal_type", "principal_id", "action_type", "action_id", "resource_type", "resource_id", "context_field", "context_value"],
+      "properties": {
+        "principal_type": {"const": "MintAuthorityKind"}, "principal_id": {"type": "string", "minLength": 1},
+        "action_type": {"const": "MintMethod"}, "action_id": {"type": "string", "minLength": 1},
+        "resource_type": {"const": "MintDomain"}, "resource_id": {"type": "string", "minLength": 1},
+        "context_field": {"const": "packageMaturity"}, "context_value": {"const": "candidate"}
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy_id", "semantic_unit_ref", "method_id", "authority_kind_id", "policy", "policy_sha256", "parsed_ast"],
+      "properties": {
+        "policy_id": {"type": "string", "minLength": 1}, "semantic_unit_ref": {"type": "string", "minLength": 1},
+        "method_id": {"type": "string", "minLength": 1}, "authority_kind_id": {"type": "string", "minLength": 1},
+        "policy": {"type": "string", "minLength": 1}, "policy_sha256": {"$ref": "#/$defs/digest"}, "parsed_ast": {"$ref": "#/$defs/ast"}
+      }
+    },
+    "parity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["semantic_unit_ref", "parity_state", "policy_sha256", "residue_refs"],
+      "properties": {
+        "semantic_unit_ref": {"type": "string", "minLength": 1}, "parity_state": {"enum": ["pass", "blocked"]},
+        "policy_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+        "residue_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "residue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["residue_id", "residue_type", "source_operation_ref", "expected_condition", "observed_failure_locus", "reason_or_impossibility", "evidence_ref", "owner_route", "treatment", "action_effect", "promotion_effect"],
+      "properties": {
+        "residue_id": {"type": "string", "minLength": 1}, "residue_type": {"const": "translation"},
+        "source_operation_ref": {"type": "string", "minLength": 1}, "expected_condition": {"type": "string", "minLength": 1},
+        "observed_failure_locus": {"type": "string", "minLength": 1}, "reason_or_impossibility": {"type": "string", "minLength": 1},
+        "evidence_ref": {"type": "string", "minLength": 1}, "owner_route": {"type": "string", "minLength": 1},
+        "treatment": {"const": "type"}, "action_effect": {"const": "defer"}, "promotion_effect": {"const": "block"}
+      }
+    }
+  }
+}

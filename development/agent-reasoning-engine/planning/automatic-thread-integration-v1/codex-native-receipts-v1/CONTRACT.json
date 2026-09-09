@@ -1,0 +1,64 @@
+{
+  "status": "construction-prototype",
+  "authority_effect": "none",
+  "predecessor": "../codex-host-recovery-v1/MANIFEST.json",
+  "definitions": {
+    "durable_receipt": "Native driver writes an exact operation-bound result durably before acknowledging completion.",
+    "uncertain_operation": "Dispatch intent exists without a committed terminal receipt; never automatically replay.",
+    "lost_context": "A previously staged native context absent from the restarted driver; stop and hand over after outstanding operations are reconciled."
+  },
+  "ontology_scaffold": {
+    "entities": [
+      "DriverStore",
+      "OperationIntent",
+      "TerminalReceipt",
+      "DriverRestart",
+      "LostContext"
+    ],
+    "relations": [
+      [
+        "DriverStore",
+        "persists",
+        "OperationIntent"
+      ],
+      [
+        "TerminalReceipt",
+        "settles",
+        "OperationIntent"
+      ],
+      [
+        "DriverRestart",
+        "detects",
+        "LostContext"
+      ]
+    ]
+  },
+  "product_prototype": "Resume the existing ARE supervisor through native-driver restart using persisted receipts and conservative uncertain-outcome handling.",
+  "business_prototype": "Prove native recovery boundaries without model spend.",
+  "domainspec_prototype": {
+    "requirements": [
+      "Exclusive native-store writer",
+      "Atomic checksummed fsync before acknowledgement",
+      "Exact task, context and operation binding",
+      "Persistent dispatch intent before native execution",
+      "No replay of uncertain outcomes",
+      "Recycle lost contexts only after reconciliation",
+      "Preserve prior frozen candidate",
+      "Offline only"
+    ]
+  },
+  "acceptance": [
+    "Baseline native loop completes",
+    "Abrupt native exit after open receipt recovers",
+    "Abrupt native exit after completion receipt recovers without duplicate provider sends",
+    "Abrupt native exit after source seal recovers",
+    "Exit before dispatch without receipt stops as uncertain",
+    "Exit after provider response without completion receipt stops as uncertain",
+    "Corruption and binding drift fail closed"
+  ],
+  "open_questions": [
+    "How will production app-server own these receipts?",
+    "How can external tools and provider outcomes be reconciled using their own durable evidence?",
+    "Which live meter proves request bounds?"
+  ]
+}

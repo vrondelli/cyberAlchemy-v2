@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/private/schemas/people-and-teams/v1",
+  "title": "CyberAlchemy v2 People and Teams business ontology",
+  "$defs": {
+    "text": {"type":"string","minLength":1},
+    "id": {"type":"string","pattern":"^[A-Z0-9][A-Z0-9.-]*[A-Z0-9]$"},
+    "relationTypeId": {"type":"string","pattern":"^[a-z][a-z0-9_]*$"},
+    "sha256": {"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "stringList": {"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/text"}},
+    "sourceRef": {
+      "type":"object","additionalProperties":false,"required":["source_id","selector"],
+      "properties":{"source_id":{"$ref":"#/$defs/id"},"selector":{"$ref":"#/$defs/text"}}
+    },
+    "source": {
+      "type":"object","additionalProperties":false,
+      "required":["source_id","path","scope_kind","selector","expected_digest","owner_route","posture"],
+      "properties": {
+        "source_id":{"$ref":"#/$defs/id"},"path":{"$ref":"#/$defs/text"},
+        "scope_kind":{"enum":["whole-file","heading-section"]},
+        "selector":{"type":["string","null"]},"expected_digest":{"$ref":"#/$defs/sha256"},
+        "owner_route":{"$ref":"#/$defs/text"},"posture":{"$ref":"#/$defs/text"}
+      },
+      "allOf":[
+        {"if":{"properties":{"scope_kind":{"const":"whole-file"}}},"then":{"properties":{"selector":{"type":"null"}}}},
+        {"if":{"properties":{"scope_kind":{"const":"heading-section"}}},"then":{"properties":{"selector":{"type":"string","minLength":1}}}}
+      ]
+    },
+    "sourceRegistry": {
+      "type":"object","additionalProperties":false,"required":["schema_ref","schema_version","sources","authority_effect"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/sourceRegistry"},
+        "schema_version":{"const":"cav2-people-and-teams-sources/v1"},
+        "sources":{"type":"array","minItems":7,"maxItems":7,"items":{"$ref":"#/$defs/source"}},
+        "authority_effect":{"const":"none"}
+      }
+    },
+    "ontologySelection": {
+      "type":"object","additionalProperties":false,"required":["source","confidence","reason","excluded_types"],
+      "properties": {
+        "source":{"const":"explicit"},"confidence":{"const":"exact"},"reason":{"$ref":"#/$defs/text"},
+        "excluded_types":{"const":["system-runtime","business-system-bridge","authority-governance"]}
+      }
+    },
+    "profile": {
+      "type":"object","additionalProperties":false,
+      "required":["schema_ref","schema_version","package_id","ontology_id","title","ontology_type","ontology_type_selection","branch","materialization","package_root","package_owner","meaning_owner","product_ref","parent_product_ref","product_thesis_ref","product_capability_ref","visibility","candidate_status","construction_stage","runtime_registration_status","authority_effect","source_registry","definition_registry","product_thesis","product_capability","obligation_registry","node_registry","relation_registry","residue_registry","schema_path","validator_path","blocked_outputs"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/profile"},
+        "schema_version":{"const":"cav2-people-and-teams-profile/v1"},
+        "package_id":{"const":"cav2.people-and-teams"},"ontology_id":{"const":"cav2.people-and-teams.business"},
+        "title":{"$ref":"#/$defs/text"},"ontology_type":{"const":"business-domain"},
+        "ontology_type_selection":{"$ref":"#/$defs/ontologySelection"},"branch":{"const":"business"},
+        "materialization":{"const":"package-required"},"package_root":{"const":"cyberAlchemy-v2/people-and-teams"},
+        "package_owner":{"const":"CyberAlchemy v2 People and Teams product owner"},"meaning_owner":{"$ref":"#/$defs/text"},
+        "product_ref":{"const":"PT-PRODUCT-PEOPLE-AND-TEAMS"},"parent_product_ref":{"const":"CA2-PRODUCT-CYBERALCHEMY"},
+        "product_thesis_ref":{"const":"PT-THESIS-EXPLICIT-HUMAN-COLLABORATION"},
+        "product_capability_ref":{"const":"CA2-CAP-MODEL-PEOPLE-AND-TEAMS"},
+        "visibility":{"const":"private"},"candidate_status":{"const":"candidate"},
+        "construction_stage":{"const":"business-ontology-candidate"},
+        "runtime_registration_status":{"const":"registered-read-only-candidate"},"authority_effect":{"const":"none"},
+        "source_registry":{"const":"sources.json"},"definition_registry":{"const":"definitions.json"},
+        "product_thesis":{"const":"product-thesis.json"},"product_capability":{"const":"product-capability.json"},
+        "obligation_registry":{"const":"obligations.json"},"node_registry":{"const":"nodes.json"},
+        "relation_registry":{"const":"relations.json"},"residue_registry":{"const":"residue.json"},
+        "schema_path":{"const":"schemas/people-and-teams.schema.json"},"validator_path":{"const":"scripts/validate.py"},
+        "blocked_outputs":{"$ref":"#/$defs/stringList"}
+      }
+    },
+    "canonicalBinding": {
+      "type":"object","additionalProperties":false,"required":["definition_ref","term","source_id","status"],
+      "properties":{"definition_ref":{"type":"string","pattern":"^CAV2-D[0-9]+$"},"term":{"$ref":"#/$defs/text"},"source_id":{"$ref":"#/$defs/id"},"status":{"const":"active"}}
+    },
+    "localTerm": {
+      "type":"object","additionalProperties":false,
+      "required":["term_id","term","status","normative_voice","formal_voice","plain_language_voice","domain_context_voice","boundary","source_refs","promotion_state","authority_effect"],
+      "properties": {
+        "term_id":{"$ref":"#/$defs/id"},"term":{"$ref":"#/$defs/text"},"status":{"const":"candidate-local"},
+        "normative_voice":{"$ref":"#/$defs/text"},"formal_voice":{"$ref":"#/$defs/text"},
+        "plain_language_voice":{"$ref":"#/$defs/text"},"domain_context_voice":{"$ref":"#/$defs/text"},
+        "boundary":{"$ref":"#/$defs/text"},"source_refs":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/sourceRef"}},
+        "promotion_state":{"const":"local-only"},"authority_effect":{"const":"none"}
+      }
+    },
+    "definitionRegistry": {
+      "type":"object","additionalProperties":false,"required":["schema_ref","schema_version","canonical_bindings","local_terms","authority_effect"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/definitionRegistry"},
+        "schema_version":{"const":"cav2-people-and-teams-definitions/v1"},
+        "canonical_bindings":{"type":"array","minItems":5,"maxItems":5,"items":{"$ref":"#/$defs/canonicalBinding"}},
+        "local_terms":{"type":"array","minItems":3,"maxItems":3,"items":{"$ref":"#/$defs/localTerm"}},
+        "authority_effect":{"const":"none"}
+      }
+    },
+    "revision": {
+      "type":"object","additionalProperties":false,"required":["revision","date","change","owner_route"],
+      "properties":{"revision":{"type":"integer","minimum":1},"date":{"type":"string","format":"date"},"change":{"$ref":"#/$defs/text"},"owner_route":{"$ref":"#/$defs/text"}}
+    },
+    "productThesis": {
+      "type":"object","additionalProperties":false,
+      "required":["schema_ref","schema_version","thesis_id","title","product_ref","parent_product_ref","definition_ref","participants","problem","value_proposition","value_mechanism","first_order_principles","intended_outcomes","boundaries","hypotheses","evidence_routes","counterevidence_routes","revision_criteria","owner_route","commitment_state","artifact_authority_state","revision_history","challenge_route","authority_effect","claim_limit"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/productThesis"},
+        "schema_version":{"const":"cav2-people-and-teams-product-thesis/v1"},
+        "thesis_id":{"const":"PT-THESIS-EXPLICIT-HUMAN-COLLABORATION"},"title":{"$ref":"#/$defs/text"},
+        "product_ref":{"const":"PT-PRODUCT-PEOPLE-AND-TEAMS"},"parent_product_ref":{"const":"CA2-PRODUCT-CYBERALCHEMY"},
+        "definition_ref":{"const":"CAV2-D63"},"participants":{"$ref":"#/$defs/stringList"},
+        "problem":{"$ref":"#/$defs/text"},"value_proposition":{"$ref":"#/$defs/text"},"value_mechanism":{"$ref":"#/$defs/text"},
+        "first_order_principles":{"$ref":"#/$defs/stringList"},"intended_outcomes":{"$ref":"#/$defs/stringList"},
+        "boundaries":{"$ref":"#/$defs/stringList"},"hypotheses":{"$ref":"#/$defs/stringList"},
+        "evidence_routes":{"$ref":"#/$defs/stringList"},"counterevidence_routes":{"$ref":"#/$defs/stringList"},
+        "revision_criteria":{"$ref":"#/$defs/stringList"},"owner_route":{"$ref":"#/$defs/text"},
+        "commitment_state":{"const":"committed"},"artifact_authority_state":{"const":"candidate"},
+        "revision_history":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/revision"}},
+        "challenge_route":{"$ref":"#/$defs/text"},"authority_effect":{"const":"none"},"claim_limit":{"$ref":"#/$defs/text"}
+      }
+    },
+    "ownerRoute": {
+      "type":"object","additionalProperties":false,"required":["responsibility","owner","source_refs"],
+      "properties":{"responsibility":{"$ref":"#/$defs/text"},"owner":{"$ref":"#/$defs/text"},"source_refs":{"$ref":"#/$defs/stringList"}}
+    },
+    "lifecyclePosture": {
+      "type":"object","additionalProperties":false,"required":["kind","status","evidence","commitment","provenance","owner","residue_refs"],
+      "properties": {
+        "kind":{"const":"product-capability"},"status":{"const":"candidate"},"evidence":{"$ref":"#/$defs/text"},
+        "commitment":{"const":"not-adopted"},"provenance":{"$ref":"#/$defs/text"},"owner":{"$ref":"#/$defs/text"},
+        "residue_refs":{"$ref":"#/$defs/stringList"}
+      }
+    },
+    "productCapability": {
+      "type":"object","additionalProperties":false,
+      "required":["schema_ref","schema_version","capability_id","definition_ref","product_ref","business_ontology_ref","outcome","outcome_refs","scope","exclusions","participant_refs","consumer_refs","input_contract_refs","output_contract_refs","context_policy_refs","owner_routes","lifecycle_posture","realization_binding_refs","obligation_registry_ref","evidence_refs","revision_history","challenge_route","authority_effect","claim_limit"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/productCapability"},
+        "schema_version":{"const":"cav2-product-capability/v1"},"capability_id":{"const":"CA2-CAP-MODEL-PEOPLE-AND-TEAMS"},
+        "definition_ref":{"const":"CAV2-D67"},"product_ref":{"const":"PT-PRODUCT-PEOPLE-AND-TEAMS"},
+        "business_ontology_ref":{"const":"PT-CAP-MODEL-PEOPLE-AND-TEAMS"},"outcome":{"$ref":"#/$defs/text"},
+        "outcome_refs":{"$ref":"#/$defs/stringList"},"scope":{"$ref":"#/$defs/text"},"exclusions":{"$ref":"#/$defs/stringList"},
+        "participant_refs":{"$ref":"#/$defs/stringList"},"consumer_refs":{"$ref":"#/$defs/stringList"},
+        "input_contract_refs":{"$ref":"#/$defs/stringList"},"output_contract_refs":{"$ref":"#/$defs/stringList"},
+        "context_policy_refs":{"$ref":"#/$defs/stringList"},
+        "owner_routes":{"type":"array","minItems":5,"maxItems":5,"items":{"$ref":"#/$defs/ownerRoute"}},
+        "lifecycle_posture":{"$ref":"#/$defs/lifecyclePosture"},"realization_binding_refs":{"$ref":"#/$defs/stringList"},
+        "obligation_registry_ref":{"const":"CA2-CAP-OBLIGATIONS-PEOPLE-AND-TEAMS"},"evidence_refs":{"$ref":"#/$defs/stringList"},
+        "revision_history":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/revision"}},
+        "challenge_route":{"$ref":"#/$defs/text"},"authority_effect":{"const":"none"},"claim_limit":{"$ref":"#/$defs/text"}
+      }
+    },
+    "node": {
+      "type":"object","additionalProperties":false,
+      "required":["id","label","role","plain_language","claim","source_refs","owner_route","candidate_status","authority_effect","forbidden_collapse"],
+      "properties": {
+        "id":{"$ref":"#/$defs/id"},"label":{"$ref":"#/$defs/text"},
+        "role":{"enum":["product_projection","product","thesis","product_capability","actor","collective_actor","domain_concept","input_contract","output_contract","policy","business_rule","outcome","value_measure"]},
+        "plain_language":{"$ref":"#/$defs/text"},"claim":{"$ref":"#/$defs/text"},
+        "source_refs":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/sourceRef"}},
+        "owner_route":{"$ref":"#/$defs/text"},"candidate_status":{"enum":["candidate","projected"]},
+        "authority_effect":{"const":"none"},"forbidden_collapse":{"$ref":"#/$defs/text"}
+      }
+    },
+    "nodeRegistry": {
+      "type":"object","additionalProperties":false,"required":["schema_ref","schema_version","nodes","authority_effect"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/nodeRegistry"},
+        "schema_version":{"const":"cav2-people-and-teams-nodes/v1"},
+        "nodes":{"type":"array","minItems":21,"maxItems":21,"items":{"$ref":"#/$defs/node"}},
+        "authority_effect":{"const":"none"}
+      }
+    },
+    "relationType": {
+      "type":"object","additionalProperties":false,"required":["id","plain_language","forbidden_collapse"],
+      "properties":{"id":{"$ref":"#/$defs/relationTypeId"},"plain_language":{"$ref":"#/$defs/text"},"forbidden_collapse":{"$ref":"#/$defs/text"}}
+    },
+    "relation": {
+      "type":"object","additionalProperties":false,"required":["id","type","source","target","source_refs","owner_route","authority_effect"],
+      "properties": {
+        "id":{"$ref":"#/$defs/id"},"type":{"$ref":"#/$defs/relationTypeId"},"source":{"$ref":"#/$defs/id"},"target":{"$ref":"#/$defs/id"},
+        "source_refs":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/sourceRef"}},
+        "owner_route":{"$ref":"#/$defs/text"},"authority_effect":{"const":"none"}
+      }
+    },
+    "relationRegistry": {
+      "type":"object","additionalProperties":false,"required":["schema_ref","schema_version","relation_vocabulary","relations","authority_effect"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/relationRegistry"},
+        "schema_version":{"const":"cav2-people-and-teams-relations/v1"},
+        "relation_vocabulary":{"type":"array","minItems":13,"maxItems":13,"items":{"$ref":"#/$defs/relationType"}},
+        "relations":{"type":"array","minItems":26,"maxItems":26,"items":{"$ref":"#/$defs/relation"}},
+        "authority_effect":{"const":"none"}
+      }
+    },
+    "obligation": {
+      "type":"object","additionalProperties":false,
+      "required":["obligation_id","statement","subject_refs","current_status","evidence_state","source_refs","authority_effect"],
+      "properties": {
+        "obligation_id":{"$ref":"#/$defs/id"},"statement":{"$ref":"#/$defs/text"},"subject_refs":{"$ref":"#/$defs/stringList"},
+        "current_status":{"const":"not-assessed"},"evidence_state":{"const":"not_evaluable"},
+        "source_refs":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/sourceRef"}},"authority_effect":{"const":"none"}
+      }
+    },
+    "obligationRegistry": {
+      "type":"object","additionalProperties":false,"required":["schema_ref","schema_version","registry_id","capability_ref","obligations","authority_effect"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/obligationRegistry"},
+        "schema_version":{"const":"cav2-people-and-teams-obligations/v1"},
+        "registry_id":{"const":"CA2-CAP-OBLIGATIONS-PEOPLE-AND-TEAMS"},
+        "capability_ref":{"const":"CA2-CAP-MODEL-PEOPLE-AND-TEAMS"},
+        "obligations":{"type":"array","minItems":8,"maxItems":8,"items":{"$ref":"#/$defs/obligation"}},
+        "authority_effect":{"const":"none"}
+      }
+    },
+    "residue": {
+      "type":"object","additionalProperties":false,"required":["residue_id","status","statement","subject_refs","next_route","authority_effect"],
+      "properties": {
+        "residue_id":{"$ref":"#/$defs/id"},"status":{"const":"open"},"statement":{"$ref":"#/$defs/text"},
+        "subject_refs":{"$ref":"#/$defs/stringList"},"next_route":{"$ref":"#/$defs/text"},"authority_effect":{"const":"none"}
+      }
+    },
+    "residueRegistry": {
+      "type":"object","additionalProperties":false,"required":["schema_ref","schema_version","residue","authority_effect"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/residueRegistry"},
+        "schema_version":{"const":"cav2-people-and-teams-residue/v1"},
+        "residue":{"type":"array","minItems":6,"maxItems":6,"items":{"$ref":"#/$defs/residue"}},
+        "authority_effect":{"const":"none"}
+      }
+    },
+    "validationReceipt": {
+      "type":"object","additionalProperties":false,
+      "required":["schema_ref","schema_version","validated_at","status","package_root","ontology_id","ontology_type","branch","visibility","authority_effect","counts","material_digest","checks","warnings","errors","claim_ceiling"],
+      "properties": {
+        "schema_ref":{"const":"schemas/people-and-teams.schema.json#/$defs/validationReceipt"},
+        "schema_version":{"const":"cav2-people-and-teams-validation/v1"},"validated_at":{"type":"string","format":"date-time"},
+        "status":{"enum":["PASS","BLOCK"]},"package_root":{"const":"cyberAlchemy-v2/people-and-teams"},
+        "ontology_id":{"const":"cav2.people-and-teams.business"},"ontology_type":{"const":"business-domain"},
+        "branch":{"const":"business"},"visibility":{"const":"private"},"authority_effect":{"const":"none"},
+        "counts":{"type":"object"},"material_digest":{"$ref":"#/$defs/sha256"},"checks":{"$ref":"#/$defs/stringList"},
+        "warnings":{"type":"array","items":{"$ref":"#/$defs/text"}},"errors":{"type":"array","items":{"$ref":"#/$defs/text"}},
+        "claim_ceiling":{"$ref":"#/$defs/text"}
+      }
+    }
+  }
+}

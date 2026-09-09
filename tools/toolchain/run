@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Run any repository command with the shared toolchain. Open questions: README.md."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+
+here = Path(__file__).resolve().parent
+lock = json.loads((here / 'lock.json').read_text())
+data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+root = data / 'cyberalchemy/toolchains' / lock['installation_id']
+marker = root / 'installation.json'
+if not marker.exists() or json.loads(marker.read_text())['lock_sha256'] != hashlib.sha256((here / 'lock.json').read_bytes()).hexdigest():
+    sys.exit('Toolchain missing or lock changed. Run: python3 tools/toolchain/bootstrap.py')
+expected_wrapper = hashlib.sha256((here / 'compiler.sh').read_bytes()).hexdigest()
+for name in ['cc', 'gcc', 'c++', 'g++', 'cpp']:
+    wrapper = root / 'bin' / name
+    if not wrapper.is_file() or hashlib.sha256(wrapper.read_bytes()).hexdigest() != expected_wrapper:
+        sys.exit('Compiler wrapper drift. Rerun python3 tools/toolchain/bootstrap.py to repair the owned wrappers.')
+if len(sys.argv) < 2:
+    sys.exit('Usage: tools/toolchain/run COMMAND [ARGUMENTS...]')
+cargo = Path(os.environ.get('CARGO_HOME', str(Path.home() / '.cargo'))) / 'bin'
+env = dict(os.environ)
+env['PATH'] = os.pathsep.join([str(root / 'bin'), str(cargo), env.get('PATH', '/usr/bin:/bin')])
+# Explicit operator selections and nested rust-toolchain.toml files retain precedence.
+env.setdefault('CC', str(root / 'bin/cc'))
+env.setdefault('CXX', str(root / 'bin/c++'))
+os.execvpe(sys.argv[1], sys.argv[1:], env)

@@ -1,0 +1,53 @@
+services:
+  database:
+    image: postgres:17-alpine
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kep
+      POSTGRES_USER: kep
+      POSTGRES_PASSWORD: ${KEP_DB_PASSWORD:?set KEP_DB_PASSWORD outside Git}
+    volumes:
+      - kep-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kep -d kep"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  application:
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 1.0
+    pids_limit: 128
+    build:
+      context: ../../../../../../..
+      dockerfile: cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/hosted-devnet-exchange/v1/implementation/Dockerfile.hosted
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "3", "http://127.0.0.1:8080/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      CA2_KEP_BIND: 0.0.0.0:8080
+      CA2_KEP_DATABASE_URL: postgres://kep:${KEP_DB_PASSWORD}@database/kep
+      CA2_KEP_DEVNET_RPC_URL: https://api.devnet.solana.com
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  kep-postgres:

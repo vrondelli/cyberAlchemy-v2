@@ -1,0 +1,64 @@
+# Prototype model. Git observation is a separately tested adapter.
+domain recent-repository-context "Recover Recent Repository Context"
+owner cyberalchemy-agent-routing-owner
+logic sfol-v1
+
+entity Commit:
+  commitId: identifier required
+  firstParent: string required
+  committedAt: string required
+  subject: string required
+
+entity ChangedFile:
+  path: string required
+  previousPath: string required
+  changeKind: string required
+  fileCommitId: identifier required
+  inScope: boolean required
+  commitOrder: integer required
+
+entity ProjectScope:
+  scopeId: identifier required
+  projectEntryId: string required
+  pathPrefix: string required
+
+entity RecentView:
+  viewId: identifier required
+  head: string required
+  indexedHead: string required
+  worktree: string required
+  indexedWorktree: string required
+  scope: string required
+  indexedScope: string required
+  branch: string required
+  indexedBranch: string required
+  historyBoundary: string required
+  indexedHistoryBoundary: string required
+  schemaVersion: string required
+  indexedSchemaVersion: string required
+  commitLimit: integer required
+  indexedCommitLimit: integer required
+  pathLimit: integer required
+  indexedPathLimit: integer required
+  mutationRequested: boolean required
+
+rule snapshot-current:
+  head == indexedHead and worktree == indexedWorktree and scope == indexedScope and branch == indexedBranch and historyBoundary == indexedHistoryBoundary and schemaVersion == indexedSchemaVersion and commitLimit == indexedCommitLimit and pathLimit == indexedPathLimit
+
+rule bounded-history:
+  commitLimit >= 1 and commitLimit <= 100 and pathLimit >= 1 and pathLimit <= 1000
+
+rule observation-only:
+  mutationRequested == false
+
+query RelevantFiles:
+  source ChangedFile
+  where inScope == true
+  order commitOrder asc
+  limit 1000
+  project path, previousPath, changeKind, fileCommitId
+
+example fresh-view:
+  kind positive
+  expected current
+  rules snapshot-current, bounded-history, observation-only

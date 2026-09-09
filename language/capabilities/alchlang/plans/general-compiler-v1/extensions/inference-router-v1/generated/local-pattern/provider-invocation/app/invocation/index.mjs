@@ -1,0 +1,10 @@
+import {invoke as Input} from '../../modules/Input/app/function/index.mjs';
+import {invoke as Selector} from '../../modules/Selector/app/function/index.mjs';
+import {invoke as Request} from '../../modules/Request/app/function/index.mjs';
+import {invoke as Response} from '../../modules/Response/app/function/index.mjs';
+import {invoke as Completion} from '../../modules/Completion/app/function/index.mjs';
+import {createOutbound} from './runtime.mjs';
+import contract from '../../composition.json' with {type:'json'};
+export const modules={Input,Selector,Request,Response,Completion};
+export const createInvocation=(dependencies,options)=>createOutbound(contract,modules,dependencies,options);
+export {contract};

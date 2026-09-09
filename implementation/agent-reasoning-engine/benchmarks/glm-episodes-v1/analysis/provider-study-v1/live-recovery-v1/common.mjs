@@ -1,0 +1,10 @@
+// Fixed study helpers. Open questions: README.md.
+import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';import {verifyFreeze} from '../controller.mjs';
+export const root=new URL('./',import.meta.url),sha=b=>createHash('sha256').update(b).digest('hex'),read=p=>JSON.parse(readFileSync(p)),need=(x,m)=>{if(!x)throw Error(m);};
+export function verify(){const m=read(new URL('prepared/manifest.json',root));need(verifyFreeze(new URL('../frozen/',root).pathname).digest===m.parent_freeze_digest,'parent drift');for(const f of m.sources)need(sha(readFileSync(new URL(f.path,root)))===f.sha256,'source drift '+f.path);for(const f of m.files)need(sha(readFileSync(new URL('prepared/'+f.path,root)))===f.sha256,'fixture drift '+f.path);return {...m,digest:sha(readFileSync(new URL('prepared/manifest.json',root)))};}
+export function planFor(path){const cases=read(path);return {schema_version:'are.public-case-plan/v1',sources:[{path,sha256:sha(readFileSync(path))}],checks:cases.map((c,i)=>({...c,evidence:[{path,selector:'/'+i,value_sha256:sha(JSON.stringify(c))}]}))};}
+export function exposure(a,selected,task){
+ const prompts=selected.map(s=>({...s,body:JSON.parse(s.prompt)})),eligible=prompts.find(p=>p.body.tools.some(t=>t.function.name==='submit_patch_candidate')),last=prompts.at(-1),answerPresent=p=>p?JSON.stringify(p.body.messages).includes(task.expected):false;
+ const recovered=p=>p.body.messages.some(m=>{try{const o=JSON.parse(m.content);return m.role==='tool'&&o.ok===true&&o.output?.path===task.revision_path&&typeof o.output.call_id==='string'&&o.output.sha256===task.revision_sha256&&o.output.utf8===task.revision_text;}catch{return false;}});
+ return {eligible_sequence:eligible?.sequence??null,masked_at_first_submission_offer:eligible?!answerPresent(eligible):null,answer_present_at_final:answerPresent(last),decisive_recovery_delivered:prompts.some(recovered),decisive_recovery_present_at_final:last?recovered(last):false,revision_ever_delivered:prompts.some(p=>JSON.stringify(p.body.messages).includes(task.revision_text.trim())),recycles:a.recycling?.recycles??null};
+}

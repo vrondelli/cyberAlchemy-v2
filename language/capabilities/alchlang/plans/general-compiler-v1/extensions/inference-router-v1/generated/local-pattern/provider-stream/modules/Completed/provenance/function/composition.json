@@ -1,0 +1,298 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Identity": {
+      "request_id": "String",
+      "model": "String"
+    },
+    "Event": {
+      "stop_reason": "String",
+      "prompt_tokens": "Int?",
+      "completion_tokens": "Int?"
+    },
+    "Input": {
+      "identity": "Identity",
+      "event": "Event"
+    },
+    "Frame": {
+      "request_id": "String",
+      "model": "String",
+      "finish_reason": "String",
+      "usage": "Public__Public__Usage"
+    },
+    "Output": {
+      "status": "String",
+      "value": "Frame"
+    },
+    "Provider__Input": {
+      "answer": "String",
+      "stop_reason": "String",
+      "prompt_tokens": "Int?",
+      "completion_tokens": "Int?"
+    },
+    "Provider__Output": {
+      "status": "String",
+      "text": "String",
+      "finish_reason": "String",
+      "input_tokens": "Int?",
+      "output_tokens": "Int?"
+    },
+    "Public__Input": {
+      "request_id": "String",
+      "model": "String",
+      "result": "Public__Provider__Output"
+    },
+    "Public__Output": {
+      "status": "String",
+      "value": "Public__Public__Input"
+    },
+    "Public__Provider__Input": {
+      "answer": "String",
+      "stop_reason": "String",
+      "prompt_tokens": "Int?",
+      "completion_tokens": "Int?"
+    },
+    "Public__Provider__Output": {
+      "status": "String",
+      "text": "String",
+      "finish_reason": "String",
+      "input_tokens": "Int?",
+      "output_tokens": "Int?"
+    },
+    "Public__Public__Text": {
+      "text": "String"
+    },
+    "Public__Public__Observation": {
+      "value": "Int?",
+      "provenance": "String"
+    },
+    "Public__Public__Usage": {
+      "input_tokens": "Public__Public__Observation",
+      "output_tokens": "Public__Public__Observation"
+    },
+    "Public__Public__Input": {
+      "request_id": "String",
+      "model": "String",
+      "output": "Public__Public__Text",
+      "finish_reason": "String",
+      "usage": "Public__Public__Usage"
+    },
+    "Public__Public__Output": {
+      "status": "String",
+      "value": "Public__Public__Input"
+    }
+  },
+  "roots": {
+    "input": "Input",
+    "normalized": "Provider__Output",
+    "completed": "Public__Output"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "ProviderInput",
+      "kind": "Mapping",
+      "fields": {
+        "answer": {
+          "op": "literal",
+          "value": ""
+        },
+        "stop_reason": {
+          "op": "path",
+          "path": [
+            "input",
+            "event",
+            "stop_reason"
+          ]
+        },
+        "prompt_tokens": {
+          "op": "path",
+          "path": [
+            "input",
+            "event",
+            "prompt_tokens"
+          ]
+        },
+        "completion_tokens": {
+          "op": "path",
+          "path": [
+            "input",
+            "event",
+            "completion_tokens"
+          ]
+        }
+      },
+      "ontology": "ALCH-95BA592D646669FC787B63C3",
+      "meaning": "Validate a completed provider event without inventing response text.",
+      "target": "Provider__Input"
+    },
+    {
+      "id": "NormalizedResult",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "path",
+          "path": [
+            "normalized",
+            "status"
+          ]
+        },
+        "text": {
+          "op": "path",
+          "path": [
+            "normalized",
+            "text"
+          ]
+        },
+        "finish_reason": {
+          "op": "path",
+          "path": [
+            "normalized",
+            "finish_reason"
+          ]
+        },
+        "input_tokens": {
+          "op": "path",
+          "path": [
+            "normalized",
+            "input_tokens"
+          ]
+        },
+        "output_tokens": {
+          "op": "path",
+          "path": [
+            "normalized",
+            "output_tokens"
+          ]
+        }
+      },
+      "ontology": "ALCH-295408FFA4D13D143532E802",
+      "meaning": "Adapt the normalized response to the imported completion module's nominal type.",
+      "target": "Public__Provider__Output"
+    },
+    {
+      "id": "CompletionInput",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "identity",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "identity",
+            "model"
+          ]
+        },
+        "result": {
+          "op": "path",
+          "path": [
+            "NormalizedResult"
+          ]
+        }
+      },
+      "ontology": "ALCH-1AAEF73938F441A078596E3D",
+      "meaning": "Reuse JSON completion observation semantics for the stream.",
+      "target": "Public__Input"
+    },
+    {
+      "id": "Completed",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "completed",
+            "value",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "completed",
+            "value",
+            "model"
+          ]
+        },
+        "finish_reason": {
+          "op": "path",
+          "path": [
+            "completed",
+            "value",
+            "finish_reason"
+          ]
+        },
+        "usage": {
+          "op": "path",
+          "path": [
+            "completed",
+            "value",
+            "usage"
+          ]
+        }
+      },
+      "ontology": "ALCH-1F6674FDDA144B54F1510DAA",
+      "meaning": "Emit completion metadata with the same nullable token observations as JSON.",
+      "target": "Frame"
+    },
+    {
+      "id": "Wrapped",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "Completed"
+          ]
+        }
+      },
+      "ontology": "ALCH-441BB710B7648BC954AFD846",
+      "meaning": "Return the complete stream frame.",
+      "target": "Output"
+    }
+  ],
+  "bindings": [
+    {
+      "name": "normalized",
+      "input": {
+        "mapping": "ProviderInput",
+        "type": "Provider__Input"
+      }
+    },
+    {
+      "name": "completed",
+      "input": {
+        "mapping": "CompletionInput",
+        "type": "Public__Input"
+      }
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "literal",
+        "value": true
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Wrapped"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

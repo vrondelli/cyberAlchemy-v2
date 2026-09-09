@@ -1,0 +1,123 @@
+{
+  "schemas": {
+    "Message": {
+      "role": {
+        "type": "string",
+        "pattern": "^(system|user|assistant)$"
+      },
+      "content": {
+        "type": "string",
+        "pattern": "[\\s\\S]+",
+        "max": 32768
+      }
+    },
+    "Conversation": {
+      "messages": {
+        "type": "list",
+        "items": "Message",
+        "max": 100
+      }
+    },
+    "Routing": {
+      "strategy": {
+        "type": "string",
+        "pattern": "^(balanced|cost|latency)$",
+        "optional": true
+      }
+    },
+    "Parameters": {
+      "max_output_tokens": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000,
+        "optional": true
+      }
+    },
+    "Input": {
+      "task": {
+        "type": "string",
+        "const": "text.generate"
+      },
+      "input": {
+        "type": "Conversation"
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128,
+        "optional": true
+      },
+      "routing": {
+        "type": "Routing",
+        "optional": true
+      },
+      "parameters": {
+        "type": "Parameters",
+        "optional": true
+      },
+      "stream": {
+        "type": "boolean",
+        "optional": true
+      }
+    },
+    "Output": {
+      "status": {
+        "type": "string",
+        "const": "normalized"
+      },
+      "task": {
+        "type": "string",
+        "const": "text.generate"
+      },
+      "messages": {
+        "type": "list",
+        "items": "Message",
+        "max": 100
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128,
+        "optional": true
+      },
+      "strategy": {
+        "type": "string",
+        "pattern": "^(balanced|cost|latency)$"
+      },
+      "max_output_tokens": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "stream": {
+        "type": "boolean"
+      }
+    },
+    "Options": {
+      "routing": {
+        "type": "Routing"
+      },
+      "parameters": {
+        "type": "Parameters"
+      }
+    }
+  },
+  "integrations": {},
+  "flows": {},
+  "endpoint": {
+    "id": "PublicNormalizer",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/internal/public-request",
+    "input": "Input",
+    "output": "Output",
+    "authEnv": "INFERENCE_INTERNAL_TOKEN",
+    "maxBytes": 65536,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "normalized": 200
+    },
+    "errors": {},
+    "result": "PublicRequest"
+  }
+}

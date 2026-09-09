@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/private/mint/authority-markdown-package/v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "package_id", "package_sha256", "semantic_sha256", "files", "b1_b9_parity", "proof_ceiling"],
+  "properties": {
+    "schema_version": {"const": "mint.authority-markdown-package.v0.1"},
+    "status": {"enum": ["ready", "blocked"]},
+    "package_id": {"type": ["string", "null"]},
+    "package_sha256": {"$ref": "#/$defs/digest"},
+    "semantic_sha256": {"$ref": "#/$defs/digest"},
+    "files": {"type": "array", "maxItems": 18, "items": {"$ref": "#/$defs/file"}},
+    "b1_b9_parity": {"type": "array", "maxItems": 9, "items": {"$ref": "#/$defs/parity"}},
+    "proof_ceiling": {"const": "candidate-local Markdown projection only; no apply, ratification, Cedar/FOL correctness, remint, release, deployment, or production proof"}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "ready"}}, "required": ["status"]}, "then": {"properties": {"files": {"minItems": 18}, "b1_b9_parity": {"minItems": 9}}}},
+    {"if": {"properties": {"status": {"const": "blocked"}}, "required": ["status"]}, "then": {"properties": {"files": {"maxItems": 0}, "b1_b9_parity": {"maxItems": 0}}}}
+  ],
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "file": {"type": "object", "additionalProperties": false, "required": ["ordinal", "path", "content", "sha256", "size_bytes"], "properties": {"ordinal": {"type": "integer", "minimum": 1, "maximum": 18}, "path": {"type": "string", "minLength": 1}, "content": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/digest"}, "size_bytes": {"type": "integer", "minimum": 1}}},
+    "parity": {"type": "object", "additionalProperties": false, "required": ["baseline_id", "rule_ref", "markdown_paths", "status"], "properties": {"baseline_id": {"enum": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"]}, "rule_ref": {"type": "string", "minLength": 1}, "markdown_paths": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "status": {"const": "pass"}}}
+  }
+}

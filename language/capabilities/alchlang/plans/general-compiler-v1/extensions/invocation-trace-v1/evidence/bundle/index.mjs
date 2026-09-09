@@ -1,0 +1,11 @@
+import {createBoundary} from './runtime.mjs';
+import {createTracedInvoker} from './trace-runtime.mjs';
+import ontology from './ontology.json' with {type:'json'};
+import manifest from './manifest.json' with {type:'json'};
+import {execute,validateInput} from './behavior.mjs';
+import api from './domain-runtime/domain.js';
+import model from './function.json' with {type:'json'};
+import bindings from './bindings.json' with {type:'json'};
+export const {invoke,handler}=createBoundary(model,bindings,scope=>execute(scope,api),validateInput);
+export const invokeWithTrace=createTracedInvoker(model,bindings,api,execute,validateInput,ontology,{...{"source_sha256":"9b69fecd381350c04d877c95f8cfddba27f80ce1264e9c125f8b312786a55044","ontology_sha256":"cd1ed8735353b3f95e08857a14ddff6566f9e0691ff29df8d6d6672744a3f177","behavior_sha256":"1a8926226334c77a59122a90ae94c3533aa6c629c075a8192e9ff3dab4ed7812","contract_sha256":"47422c4261004c4c4746ef829222d2c3fac3467d385f4e6680a9ffbe0528a537"},manifest},createBoundary);
+export default {fetch:handler};

@@ -1,0 +1,112 @@
+{
+  "schema_version": "cav2-kep-hosted-vps-prebuilt-image-deployment-candidate/v2",
+  "candidate_id": "CA2-CANDIDATE-KEP-HOSTED-DEVNET-PREBUILT-IMAGE-DEPLOYMENT-003",
+  "route_id": "CA2-ROUTE-PUBLISH",
+  "created_at": "2026-09-03",
+  "objective": "Promote the exact accepted and locally conformant hosted KEP image to the existing isolated public Solana Devnet deployment while preserving its database volume, old image, protected environment, and rollback material.",
+  "predecessors": {
+    "accepted_vps_binding": {
+      "decision_path": "../decisions/deployment-implementation-binding-acceptance-003.json",
+      "decision_sha256": "87146a8a7b26e9912ff9ff6776a883c749296f1fed678d3dd53a4f1b4f924f42"
+    },
+    "deployment_conformance": {
+      "path": "evidence/deployment-conformance-assessment-003.json",
+      "sha256": "6dfaf84afc90efe912cbb372c82f8fc5a2827b41bc4071d2d3bd329eefd5aac9",
+      "result": "PASS_BOUNDED"
+    },
+    "predeployment_observation": {
+      "path": "evidence/vps-predeployment-observation-003.json",
+      "sha256": "d0c51977df021611926fa874000dc01f55f236b54612271f52f700f0789e099a",
+      "result": "PASS"
+    }
+  },
+  "target": {
+    "ssh_target": "root@187.77.248.154",
+    "remote_directory": "/srv/kep-hosted-devnet",
+    "public_host": "kep.cyberalchemylab.com",
+    "public_url": "https://kep.cyberalchemylab.com/",
+    "compose_project": "kep-hosted-devnet",
+    "edge_network": "troqar_edge",
+    "solana_rpc_url": "https://api.devnet.solana.com"
+  },
+  "current_state_guard": {
+    "marker_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compose_sha256": "33ab1e1c07582df9c0d7d7dbd0f14d512e60e5185ae633e91c3dc4bdd1bb2dde",
+    "environment_sha256": "0e378cb55319708e25be629565c44e025b169e037380024d0a26b54d8bb8bfee",
+    "environment_mode": "0600",
+    "active_image_tag": "ca2-kep-hosted-devnet:prebuilt-060f9d54b348",
+    "active_image_id": "sha256:6c77327caa228e8bf5d4f344df7b402b861fb9dc3a9c07a501ba1b8952bda3f4",
+    "application_health": "healthy",
+    "database_health": "healthy",
+    "postgres_volume": "kep-hosted-devnet_kep-postgres",
+    "public_root_sha256": "1565cff5f6130c990a49f68ed22b654df4965e3f5250b2310eae9f4147abe0bc",
+    "minimum_available_bytes": 1000000000
+  },
+  "exact_material": {
+    "local_archive_path": "/tmp/ca2-kep-hosted-36d3ececb415a0f8d8a00cecb69918e097ae7e43065ffd150fa78f1ac01f1543.tar.gz",
+    "archive_sha256": "e1b7365bbca50cba0a4d651721be7cb22ec2ad83eafba4c9c8e481e40a959754",
+    "archive_size_bytes": 37643717,
+    "archive_config_blob": "blobs/sha256/9aa794863a8c839dd13d56fb594d997d0e5d6af4a94478fc3fb29303fe4a39e5",
+    "image_tag": "ca2-kep-hosted-devnet:accepted-36d3ececb415a0f8d8a00cecb69918e097ae7e43065ffd150fa78f1ac01f1543",
+    "expected_loaded_image_id": "sha256:9aa794863a8c839dd13d56fb594d997d0e5d6af4a94478fc3fb29303fe4a39e5",
+    "compose_path": "compose.yaml",
+    "compose_sha256": "33ab1e1c07582df9c0d7d7dbd0f14d512e60e5185ae633e91c3dc4bdd1bb2dde",
+    "expected_public_root_sha256": "1dd76c1a232edc23b917308ce95d70493a52369f6e3af65a56ecf48df8583e98"
+  },
+  "remote_paths": {
+    "staged_archive": "/srv/kep-hosted-devnet/artifacts/image-36d3ececb415a0f8d8a00cecb69918e097ae7e43065ffd150fa78f1ac01f1543.tar.gz.next",
+    "staged_compose": "/srv/kep-hosted-devnet/compose.yaml.next",
+    "staged_environment": "/srv/kep-hosted-devnet/.env.next",
+    "rollback_compose": "/srv/kep-hosted-devnet/compose.yaml.rollback-003",
+    "rollback_environment": "/srv/kep-hosted-devnet/.env.rollback-003",
+    "predeployment_database_dump": "/srv/kep-hosted-devnet/artifacts/predeploy-003.dump"
+  },
+  "execution_envelope": {
+    "attempts": 1,
+    "allowed_effects_in_order": [
+      "fail closed unless the current-state guard is still exact",
+      "create one mode-0600 PostgreSQL custom-format predeployment dump on the same VPS without changing database contents",
+      "upload the exact image archive to the exact staged archive path",
+      "upload the exact accepted compose bytes to compose.yaml.next",
+      "copy the protected current environment to .env.next and replace only its KEP_IMAGE value with the exact accepted image tag",
+      "load the exact staged archive once and verify the exact loaded image ID and tag",
+      "copy current compose.yaml and .env to the exact rollback paths while preserving .env mode 0600",
+      "atomically promote compose.yaml.next and .env.next to their active names",
+      "run docker compose up -d --no-build once for only the kep-hosted-devnet project",
+      "perform bounded container-health, public HTTPS, root-byte, TLS, and Solana-Devnet identity reads"
+    ],
+    "preserved_state": [
+      "kep-hosted-devnet_kep-postgres volume",
+      "existing ca2-kep-hosted-devnet:prebuilt-060f9d54b348 image",
+      "rollback compose and protected environment copies",
+      "unrelated VPS containers, networks, volumes, files, and routes"
+    ],
+    "stop_conditions": [
+      "any pre-effect guard mismatch",
+      "any upload, archive, image-load, staging, promotion, activation, health, HTTPS, TLS, network, or root-byte failure",
+      "any ambiguous external effect"
+    ],
+    "retry_policy": "none; stop and report the exact observed residue after the first effectful failure or ambiguity",
+    "forbidden_effects": [
+      "Mainnet or any network other than public Solana Devnet",
+      "paid RPC fallback",
+      "protocol transaction or signature submission",
+      "printing, exporting, replacing, or reusing the database password or any credential",
+      "source rebuild or substitution of archive, image, Compose, target, route, or RPC",
+      "database restore, data deletion, volume removal, image pruning, or destructive migration",
+      "mutation of unrelated VPS services or files",
+      "automatic rollback or retry after a failed or ambiguous effect",
+      "publication, release, Git commit, or Git push"
+    ]
+  },
+  "backup_posture": {
+    "same_vps_predeployment_dump": "required-before-activation",
+    "postgres_volume": "preserved",
+    "offhost_encrypted_backup": "not-observed-and-not-authorized-by-this-envelope",
+    "claim_limit": "This deployment envelope provides same-VPS predeployment residue and preserves the live volume; it does not claim three-layer backup completion or restore verification."
+  },
+  "candidate_status": "awaiting-exact-digest-bound-owner-authorization",
+  "authority_effect": "none",
+  "external_effect": "none",
+  "claim_limit": "Candidate for one exact prebuilt-image promotion to the named existing Solana Devnet VPS. It does not authorize itself, credentials, SSH writes, upload, image load, activation, rollback, retry, transaction submission, publication, release, or any external effect."
+}

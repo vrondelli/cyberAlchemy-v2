@@ -1,0 +1,465 @@
+{
+  "dispatch_id": "dispatch.oewtp.runtime-repair.20260729",
+  "parent_dispatch_id": "dispatch.oewtp.goal-preflight-refresh.20260729T155245Z",
+  "intent": {
+    "raw": "Repair the shared runtime contracts that block WP-OEWTP-001 without creating another package or mutating OEW planning or implementation.",
+    "objective": "Add split material/output admission to Task Session, exact approval scope to Invoke, validate both canonical owners, regenerate bounded mirrors, and stop before OEW planning apply.",
+    "target_artifact": "arcanum/arcana/task-session and arcanum/spells/invoke"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "owner_boundary_check",
+    "artifact_contract_bridge",
+    "concrete_path_evidence",
+    "validation_loop",
+    "residue_ledger"
+  ],
+  "steps": [
+    {
+      "step_id": "repair-task-session-contract",
+      "name": "Repair Task Session split-write admission",
+      "capability_ref": "sigil-development",
+      "mode": "update",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "owner_boundary_check",
+        "artifact_contract_bridge",
+        "concrete_path_evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-contract-review.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "RUNTIME-REPAIR-PLAN.md"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/task-session-change-receipt.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/task-session-change-receipt.json",
+      "stop_conditions": [
+        "Stop if any canonical write falls outside the seven listed Task Session targets.",
+        "Stop if materialWrites and executionOutputs are not disjoint or do not recompose allowedWrites."
+      ]
+    },
+    {
+      "step_id": "validate-task-session-contract",
+      "name": "Validate Task Session schemas, fixtures, and split-write invariants",
+      "capability_ref": "sigil-development",
+      "mode": "validation",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "repair-task-session-contract"
+      ],
+      "techniques": [
+        "validation_loop",
+        "concrete_path_evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/task-session-change-receipt.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/task-session-validation-receipt.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/task-session-validation-receipt.json",
+      "stop_conditions": [
+        "Stop on any schema or fixture failure.",
+        "Stop if standalone non-mutating behavior changes."
+      ]
+    },
+    {
+      "step_id": "repair-invoke-contract",
+      "name": "Repair Invoke exact approval-scope validation",
+      "capability_ref": "spellcraft",
+      "mode": "update",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": [
+        "validate-task-session-contract"
+      ],
+      "techniques": [
+        "owner_boundary_check",
+        "artifact_contract_bridge",
+        "concrete_path_evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/task-session-validation-receipt.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "RUNTIME-REPAIR-PLAN.md"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/invoke-change-receipt.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/invoke-change-receipt.json",
+      "stop_conditions": [
+        "Stop if any canonical write falls outside the five listed Invoke targets.",
+        "Stop if approval remains a superset check instead of exact equality."
+      ]
+    },
+    {
+      "step_id": "validate-invoke-contract",
+      "name": "Validate Invoke material-package fixtures",
+      "capability_ref": "spellcraft",
+      "mode": "validation",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "repair-invoke-contract"
+      ],
+      "techniques": [
+        "validation_loop",
+        "concrete_path_evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/invoke-change-receipt.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/invoke-validation-receipt.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/invoke-validation-receipt.json",
+      "stop_conditions": [
+        "Stop on any existing or added material-package fixture failure."
+      ]
+    },
+    {
+      "step_id": "validate-cross-owner-contract",
+      "name": "Run the combined material-admission lifecycle fixture",
+      "capability_ref": "task-session",
+      "mode": "read-only-validation",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "validate-invoke-contract"
+      ],
+      "techniques": [
+        "artifact_contract_bridge",
+        "validation_loop",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/task-session-validation-receipt.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/invoke-validation-receipt.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/cross-owner-validation-receipt.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/cross-owner-validation-receipt.json",
+      "stop_conditions": [
+        "Stop unless material targets admit and validation-owned outputs remain reserved but absent before apply."
+      ]
+    },
+    {
+      "step_id": "regenerate-native-mirrors",
+      "name": "Dry-run, regenerate, and compare repository-local native mirrors",
+      "capability_ref": "arcanum-bootstrap",
+      "capability_status": "local-extension",
+      "capability_metadata": {
+        "canonical_source": "arcanum/spells/arcanum-bootstrap/README.md",
+        "installed_skill": ".agents/skills/arcanum-bootstrap/SKILL.md",
+        "validation_note": "The installed bootstrap skill is the canonical owner of generated repository-local native skill mirrors."
+      },
+      "mode": "repo-local-bounded-regeneration",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": [
+        "validate-cross-owner-contract"
+      ],
+      "techniques": [
+        "owner_boundary_check",
+        "concrete_path_evidence",
+        "validation_loop"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/cross-owner-validation-receipt.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/mirror-regeneration-receipt.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/mirror-regeneration-receipt.json",
+      "stop_conditions": [
+        "Inspect the bootstrap dry run before regeneration.",
+        "Stop on any generated delta outside the eighteen expected Codex and Claude mirror paths.",
+        "Never edit a generated mirror directly."
+      ]
+    },
+    {
+      "step_id": "verify-runtime-repair",
+      "name": "Verify scope, parity, package inventory, and parent boundary",
+      "capability_ref": "dispatch-spec",
+      "mode": "validation",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "regenerate-native-mirrors"
+      ],
+      "techniques": [
+        "validation_loop",
+        "residue_ledger",
+        "concrete_path_evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/mirror-regeneration-receipt.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "RUNTIME-REPAIR.dispatch.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-repair/runtime-repair-verification.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "runtime-repair/runtime-repair-verification.json",
+      "stop_conditions": [
+        "Stop if scoped diff, mirror parity, package inventory, public/private boundary, or bump-check fails.",
+        "Stop before OEW planning or implementation mutation."
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "G-OEWTP-RUNTIME-REPAIR-AUTHORIZATION",
+      "kind": "human_approval",
+      "owner": "human-prototype-owner",
+      "condition": "The user directly authorizes implementation of the full Goal, including this exact canonical Arcanum target inventory and the eighteen live-validator-required generated mirrors.",
+      "on_fail": "ask"
+    },
+    {
+      "gate_id": "G-OEWTP-RUNTIME-OWNER-BOUNDARIES",
+      "kind": "policy",
+      "owner": "arcanum",
+      "condition": "Task Session changes route through sigil-development, Invoke changes route through spellcraft, and mirrors are regenerated only from canonical source.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEWTP-NO-NEW-PACKAGE",
+      "kind": "validation",
+      "owner": "goal",
+      "condition": "No package.json, lockfile, package root, or Playwright dependency path changes.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEWTP-RUNTIME-REPAIR-VERIFY",
+      "kind": "validation",
+      "owner": "dispatch-spec",
+      "condition": "All owner fixtures, cross-owner lifecycle fixture, mirror parity, scoped diff, public/private boundary, and bump-check pass.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": "dispatch.oewtp.goal-preflight-refresh.20260729T155245Z",
+    "trace_events": [
+      "runtime_repair_authorization_checked",
+      "task_session_contract_changed",
+      "task_session_contract_validated",
+      "invoke_contract_changed",
+      "invoke_contract_validated",
+      "cross_owner_contract_validated",
+      "native_mirrors_regenerated",
+      "runtime_repair_verified",
+      "oew_planning_followup_routed"
+    ],
+    "signal_grouping": "dispatch_id, step_id, gate_id"
+  },
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "The repair is a serial code mutation across two canonical lifecycle owners; implementation code roles are reserved from governed subagent dispatch.",
+    "explanation": "The parent executes the validated sequence after authorization. At most one read-only observer may independently validate receipts and cannot mutate any target.",
+    "context": [
+      "No parallel code mutation is safe or necessary.",
+      "The Task Session change must pass before the Invoke integration fixture.",
+      "The generated mirrors depend on both canonical owners passing."
+    ],
+    "binding_mode": "descriptive",
+    "roles": [],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "requires_user_permission",
+    "receipt_requirements": []
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "B-TASK-SESSION-TO-INVOKE",
+        "kind": "capability_handoff",
+        "from_owner": "sigil-development",
+        "to_owner": "spellcraft",
+        "applies_to_steps": [
+          "repair-invoke-contract",
+          "validate-cross-owner-contract"
+        ],
+        "contract": "Invoke repair consumes a passing Task Session contract receipt; neither owner writes the other canonical package.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "B-CANONICAL-TO-GENERATED",
+        "kind": "state_write",
+        "from_owner": "arcanum",
+        "to_owner": "arcanum-bootstrap",
+        "applies_to_steps": [
+          "regenerate-native-mirrors"
+        ],
+        "contract": "Repository-local mirrors are generated from passing canonical bytes and compared exactly; direct mirror edits are forbidden.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "B-RUNTIME-TO-OEW",
+        "kind": "capability_handoff",
+        "from_owner": "runtime-repair",
+        "to_owner": "invoke-refresh",
+        "applies_to_steps": [
+          "verify-runtime-repair"
+        ],
+        "contract": "Runtime repair verification may route a new OEW planning proposal but cannot apply planning or implementation bytes.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "Sigil Development owns Task Session changes; Spellcraft owns Invoke changes.",
+      "execution": "The parent Goal executes the serial route only after explicit authorization.",
+      "validation": "Owner fixtures, cross-owner validation, Dispatch Spec, mirror comparison, and parent gates remain distinct.",
+      "evidence": "Exact receipts below the current Goal evidence directory.",
+      "memory": "Memory is context only and is not runtime or mutation authority.",
+      "promotion": "No promotion, release, deployment, or production authority is granted."
+    },
+    "receipts": [
+      {
+        "receipt_id": "RECEIPT-OEWTP-TASK-SESSION-VALIDATION",
+        "producer": "sigil-development",
+        "required_fields": [
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "artifacts",
+          "validation_result",
+          "residue"
+        ],
+        "stores": [
+          "runtime-repair/task-session-validation-receipt.json"
+        ],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "RECEIPT-OEWTP-INVOKE-VALIDATION",
+        "producer": "spellcraft",
+        "required_fields": [
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "artifacts",
+          "validation_result",
+          "residue"
+        ],
+        "stores": [
+          "runtime-repair/invoke-validation-receipt.json"
+        ],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "RECEIPT-OEWTP-RUNTIME-REPAIR-VERIFY",
+        "producer": "dispatch-spec",
+        "required_fields": [
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "artifacts",
+          "validation_result",
+          "audit_reference",
+          "handoff_note",
+          "residue"
+        ],
+        "stores": [
+          "runtime-repair/runtime-repair-verification.json"
+        ],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "arcanum/arcana/task-session/**",
+        "owner": "sigil-development",
+        "write_policy": "Only the seven exact canonical targets listed in RUNTIME-REPAIR-PLAN.md."
+      },
+      {
+        "namespace": "arcanum/spells/invoke/**",
+        "owner": "spellcraft",
+        "write_policy": "Only the five exact canonical targets listed in RUNTIME-REPAIR-PLAN.md."
+      },
+      {
+        "namespace": ".agents/skills/task-session/** and .agents/skills/invoke/**",
+        "owner": "arcanum-bootstrap",
+        "write_policy": "Only the eight expected generated paths after dry-run inspection."
+      },
+      {
+        "namespace": "cyberAlchemy-v2/development/ontology-evidence-workbench-thin-prototype/planning/**",
+        "owner": "invoke-refresh",
+        "write_policy": "Read-only throughout this runtime-repair dispatch."
+      },
+      {
+        "namespace": "cyberAlchemy-v2/implementation/ontology-evidence-workbench/**",
+        "owner": "task-session",
+        "write_policy": "Read-only throughout this runtime-repair dispatch."
+      }
+    ],
+    "promotion_splits": []
+  }
+}

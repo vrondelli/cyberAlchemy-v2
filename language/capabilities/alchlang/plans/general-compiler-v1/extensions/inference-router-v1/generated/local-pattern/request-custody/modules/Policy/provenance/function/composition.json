@@ -1,0 +1,424 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Input": {
+      "exists": "Bool",
+      "matches": "Bool",
+      "pending": "Bool",
+      "stream": "Bool",
+      "succeeded": "Bool"
+    },
+    "Output": {
+      "status": "String"
+    }
+  },
+  "roots": {
+    "input": "Input"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Execute",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "execute"
+        }
+      },
+      "ontology": "ALCH-E9A92E3F6B3604B53C327112",
+      "meaning": "Reserve a new tenant key before starting execution.",
+      "target": "Output"
+    },
+    {
+      "id": "Conflict",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "conflict"
+        }
+      },
+      "ontology": "ALCH-543EB385641DB4C87B0FA754",
+      "meaning": "Reject different canonical request bytes for a retained tenant key.",
+      "target": "Output"
+    },
+    {
+      "id": "Pending",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "in_progress"
+        }
+      },
+      "ontology": "ALCH-11BC3FB2075795B7A2E19E1B",
+      "meaning": "Do not start a second execution while the original request is unresolved.",
+      "target": "Output"
+    },
+    {
+      "id": "Stream",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "stream_not_replayable"
+        }
+      },
+      "ontology": "ALCH-15EE538DC82F9E68116E5CB5",
+      "meaning": "Retained streams cannot be replayed or executed again.",
+      "target": "Output"
+    },
+    {
+      "id": "Replay",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "replay"
+        }
+      },
+      "ontology": "ALCH-43035CC9057E942FD1BC09B5",
+      "meaning": "Replay the retained completed JSON result without rerouting.",
+      "target": "Output"
+    },
+    {
+      "id": "Failed",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "previous_failure"
+        }
+      },
+      "ontology": "ALCH-D46E0760E46A0AC0A59CBF55",
+      "meaning": "Preserve a failed attempt instead of implicitly retrying it.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "call",
+        "name": "not",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "exists"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Execute"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "exists"
+            ]
+          },
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "matches"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Conflict"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "exists"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "matches"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "pending"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Pending"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "exists"
+                    ]
+                  },
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "matches"
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "call",
+                "name": "not",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "pending"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "stream"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Stream"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "and",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "exists"
+                        ]
+                      },
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "matches"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "call",
+                    "name": "not",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "pending"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "call",
+                "name": "not",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "stream"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "succeeded"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Replay"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "and",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "exists"
+                        ]
+                      },
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "matches"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "call",
+                    "name": "not",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "pending"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "call",
+                "name": "not",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "stream"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "succeeded"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Failed"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

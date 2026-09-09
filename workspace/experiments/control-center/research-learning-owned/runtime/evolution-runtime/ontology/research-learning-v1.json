@@ -1,0 +1,98 @@
+{
+  "schema_version": "are.research-learning-ontology/v1",
+  "ontology_id": "are.research-learning",
+  "title": "ARE Research Learning Ontology",
+  "research_work_plan": {"path": "../plans/requirement-research-v1.json", "builder": "../src/research-work.mjs#materializeResearchPlan", "inspector": "../bin/research-work.mjs", "automatic_dispatch": false},
+  "projections": [{"schema_version": "are.research-dag/v1", "builder": "../src/research-dag.mjs#materializeResearchDag", "inputs": "verified benchmark registrations plus explicit successor lineage", "edge_direction": "prerequisite-to-dependent", "execution_effect": "none"}],
+  "instance_collections": [{"path": "../research-records", "schema_version": "are.benchmark-research-registration/v1", "loader": "../src/benchmark-registration.mjs#loadBenchmarkRegistrations", "write_policy": "immutable-content-addressed-create-only", "scope": ["requirement-change-001", "requirement-latency-001"]}],
+  "product_capability": {
+    "capability_id": "ARE-CAP-LEARN-FROM-EVIDENCE",
+    "meaning": "Turn measured reasoning failures and corrections into falsifiable hypotheses, reproducible experiments, and inspectable learning decisions."
+  },
+  "definitions": [
+    {
+      "definition_id": "ARE-RL-D01",
+      "term": "Research Hypothesis",
+      "meaning": "A content-addressed, falsifiable explanation for an observed reasoning-engine behavior, including its mechanism, metrics, falsifier, provenance, and experiment template."
+    },
+    {
+      "definition_id": "ARE-RL-D02",
+      "term": "Hypothesis Observation",
+      "meaning": "An immutable supporting, counterevidential, or inconclusive result bound to one hypothesis and one exact evidence source."
+    },
+    {
+      "definition_id": "ARE-RL-D03",
+      "term": "Research Experiment",
+      "meaning": "A reproducible baseline-versus-treatment protocol that names metrics, datasets, repetitions, success criteria, and stop conditions."
+    },
+    {
+      "definition_id": "ARE-RL-D04",
+      "term": "Learning Decision",
+      "meaning": "A deterministic assessment that selects the next research action from accumulated observations without changing the serving engine."
+    },
+    {
+      "definition_id": "ARE-RL-D05",
+      "term": "Improvement Retention",
+      "meaning": "An immutable record that binds one implemented-and-verified improvement candidate to exact implementation bytes, evidence bytes, and its measured comparison so the same current candidate is not rediscovered."
+    },
+    {
+      "definition_id": "ARE-RL-D06",
+      "term": "Failure Hypothesis Projection",
+      "meaning": "A deterministic record that binds an exact failed benchmark result to improvement signals and falsifiable implementation hypotheses without adopting them."
+    },
+    {
+      "definition_id": "ARE-RL-D08",
+      "term": "Research Work Plan",
+      "meaning": "An immutable dependency plan anchored to exact research questions, with owner, lane, stage and evidence criteria per task. Readiness is derived; completion requires a criterion-bound verifier. Work-state events do not dispatch agents or grant effect authority."
+    },
+    {
+      "definition_id": "ARE-RL-D07",
+      "term": "Research DAG",
+      "meaning": "An immutable acyclic projection of research dependencies across exact record versions. Forward edges expose prerequisite order; feedback adds successor records rather than changing historical nodes. Logical order does not assert historical preregistration or proven causality."
+    }
+  ],
+  "nodes": [
+    {"node_id": "FailureHypothesisProjection", "record_schema": "are.failure-hypothesis-projection/v1"},
+    {"node_id": "ResearchHypothesis", "record_schema": "are.research-hypothesis/v1"},
+    {"node_id": "HypothesisObservation", "record_schema": "are.hypothesis-observation/v1"},
+    {"node_id": "ResearchExperiment", "record_schema": "are.research-experiment/v1"},
+    {"node_id": "LearningDecision", "record_schema": "are.learning-decision/v1"},
+    {"node_id": "TechniqueCandidate", "record_schema": "are.technique-candidate/v1"},
+    {"node_id": "VariantComparison", "record_schema": "are.variant-comparison/v1"},
+    {"node_id": "ImprovementRetention", "record_schema": "are.improvement-retention/v1"},
+    {"node_id": "BenchmarkRegistration", "record_schema": "are.benchmark-research-registration/v1"},
+    {"node_id": "ImplementationEvidence", "record_schema": "are.benchmark-implementation-evidence/v1"},
+    {"node_id": "ResearchQuestion", "record_schema": "are.benchmark-research-question/v1"},
+    {"node_id": "ResearchWorkPlan", "record_schema": "are.research-work-plan/v1"},
+    {"node_id": "ResearchWorkState", "record_schema": "are.research-work-state/v1"}
+  ],
+  "relations": [
+    {"relation_id": "failure-projection-creates-hypothesis", "from": "FailureHypothesisProjection", "to": "ResearchHypothesis"},
+    {"relation_id": "observation-tests-hypothesis", "from": "HypothesisObservation", "to": "ResearchHypothesis"},
+    {"relation_id": "experiment-tests-hypothesis", "from": "ResearchExperiment", "to": "ResearchHypothesis"},
+    {"relation_id": "decision-assesses-hypothesis", "from": "LearningDecision", "to": "ResearchHypothesis"},
+    {"relation_id": "supported-hypothesis-proposes-technique", "from": "ResearchHypothesis", "to": "TechniqueCandidate"},
+    {"relation_id": "technique-is-tested-by-comparison", "from": "TechniqueCandidate", "to": "VariantComparison"},
+    {"relation_id": "successful-comparison-can-support-retention", "from": "VariantComparison", "to": "ImprovementRetention"},
+    {"relation_id": "experiment-produces-observation", "from": "ResearchExperiment", "to": "HypothesisObservation"},
+    {"relation_id": "experiment-evaluates-implementation", "from": "ResearchExperiment", "to": "ImplementationEvidence"},
+    {"relation_id": "observation-motivates-question", "from": "HypothesisObservation", "to": "ResearchQuestion"},
+    {"relation_id": "work-plan-addresses-question", "from": "ResearchWorkPlan", "to": "ResearchQuestion"},
+    {"relation_id": "work-state-replays-plan", "from": "ResearchWorkState", "to": "ResearchWorkPlan"}
+  ],
+  "invariants": [
+    "Every observation binds one exact hypothesis and evidence source.",
+    "Research DAG edges point from prerequisite to dependent; descriptive ontology edges are not automatically scheduling dependencies.",
+    "Cross-iteration research lineage must be explicitly supplied with provenance; chronology, similar names and metric changes do not imply lineage.",
+    "DAG cycles, unresolved references and changed selected registration bytes fail closed.",
+    "A research frontier identifies open questions, not permission or readiness to dispatch work.",
+    "Counterevidence is retained and forces hypothesis revision before technique proposal.",
+    "A single anomaly cannot support a technique candidate.",
+    "Declared concept markers are diagnostic evidence, not a semantic oracle.",
+    "Only a current retention whose exact implementation and evidence bindings match may suppress reselection of the same candidate.",
+    "Retention binding drift makes the record stale and returns the candidate to the experiment frontier.",
+    "A passing benchmark creates no failure hypothesis, and a failed benchmark must bind its exact result digest.",
+    "Learning decisions never mutate, activate, publish, or deploy the engine."
+  ],
+  "authority_effect": "none"
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/iolm/candidate-build-receipt/v1",
+  "title": "IOLM Candidate Build Receipt",
+  "description": "Verification evidence for a candidate projection build. It grants no FPR, ontology, release, or publication authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "posture",
+    "authority",
+    "status",
+    "candidate_id",
+    "project_id",
+    "source_set_digest",
+    "compiler",
+    "provenance",
+    "artifacts",
+    "evidence_for",
+    "authority_limits"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "iolm-candidate-build-receipt/v1"},
+    "posture": {"const": "candidate"},
+    "authority": {"const": "candidate-verification-evidence"},
+    "status": {"enum": ["pass", "degraded"]},
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z][A-Za-z0-9-]*)+$"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "source_set_digest": {"$ref": "#/$defs/digest"},
+    "compiler": {"$ref": "#/$defs/compiler"},
+    "provenance": {
+      "type": "object",
+      "required": [
+        "candidate_input_digest",
+        "minted_build_receipt_digest",
+        "minted_source_manifest_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_input_digest": {"$ref": "#/$defs/digest"},
+        "minted_build_receipt_digest": {"$ref": "#/$defs/digest"},
+        "minted_source_manifest_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["candidate_view_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_view_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "evidence_for": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^G-[A-Z0-9-]+$"},
+      "not": {"contains": {"const": "G-DSV2-SG"}}
+    },
+    "authority_limits": {
+      "type": "object",
+      "required": ["fpr_authority", "ontology_authority", "release_admission", "publication_authority"],
+      "additionalProperties": false,
+      "properties": {
+        "fpr_authority": {"const": false},
+        "ontology_authority": {"const": false},
+        "release_admission": {"const": "not-granted"},
+        "publication_authority": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "compiler": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "x-iolm": {
+    "role": "candidate-build-receipt",
+    "authority": "candidate-verification-evidence",
+    "forbidden_gate_evidence": ["G-DSV2-SG"]
+  }
+}

@@ -1,0 +1,154 @@
+{
+  "schema_version": "cav2-kep-deployment-continuation-formal-claims/v3",
+  "claim_set_id": "CA2-KEP-DEVNET-DEPLOYMENT-CONTINUATION-FORMAL-CLAIMS-013",
+  "authority_effect": "none",
+  "selected_dependencies": {
+    "binding_material_digest": "cfe86a38f1ed165c8a41461919ad22e4721718b6a44810f3a2023d9c3f5502bc",
+    "implementation_binding_path": "../../../implementation/rust-binding/successors/013/generated/implementation-binding.json",
+    "implementation_binding_sha256": "c2b4ec1aa42180b7ce46b5566411d2cfd29c4b6607349140cb51057c35c61789",
+    "preacceptance_path": "../../../implementation/rust-binding/successors/013/generated/preacceptance-001.json",
+    "preacceptance_sha256": "4e911d2f8451406ddb9474ea97742b9d9063d6b448c393bb524d9092bf2f777f",
+    "continuation_plan_path": "../../../evidence/deployment-continuation/013/plan.json",
+    "continuation_plan_sha256": "f92c59595d00cab5218f17ddbeaba6e36f7c3ef216f30b2f229b3f7fa0a88fdd",
+    "continuation_envelope_path": "../../../evidence/devnet-trial/013/candidate/deployment-continuation-envelope.json",
+    "continuation_packet_digest": "c8c24779170ee7cf2611e593073703531c8b90c78cb0d2dd59eb163853e2a653",
+    "continuation_validation_path": "../../../evidence/devnet-trial/013/candidate/deployment-continuation-validation.json"
+  },
+  "provider_projections": [
+    {
+      "provider_id": "lean",
+      "projection_scope": "exact bounded continuation plan, transition, and journal semantics",
+      "source_path": "providers/lean/DeploymentContinuation.lean",
+      "source_sha256": "1431e1ac860c8b6b3f6f163fae6d3432d161215b264a30b223d40629eeb4e27f",
+      "config_path": "providers/lean/lean-toolchain",
+      "config_sha256": "3aac669c7a910ec2389f4e4f921b605adf6ebf2d1e0c9b9cd0be4d33f3f5db71"
+    }
+  ],
+  "provider_selection": {
+    "policy": "minimal-adequate-semantic-proof-set",
+    "selected": ["lean"],
+    "rationale": "The expanded Lean projection directly models and proves every current bounded continuation obligation. TLC and Alloy would be corroborating projections, not required dischargers for this exact candidate-local claim."
+  },
+  "claims": [
+    {
+      "claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-NO-REPLAY-013",
+      "semantic_identity": "kep-sol2:reconciled-deployment-continuation-no-replay:v1",
+      "proposition": "For the exact 128-chunk SBF deployment with buffer creation and the contiguous finalized write prefix 0 through 55 already recorded, the selected local plan begins at chunk 56, covers chunks 56 through 127 exactly once, replays no predecessor write, requires 72 write submissions plus one final deployment submission, and schedules zero protocol submissions.",
+      "proof_requirement_ids": ["KEP-SOL2-PROOF-END-TO-END-DEVNET"],
+      "provider": "lean",
+      "theorems": [
+        "exactProgressProducesContinuation",
+        "continuationStartsAtFirstUnwritten",
+        "continuationEndsAtFinalChunk",
+        "continuationWritesExactlyOnce",
+        "continuationDoesNotReplayPrefix",
+        "continuationSubmissionBound",
+        "gappedPrefixIsRejected"
+      ]
+    },
+    {
+      "claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-TEMPORAL-013",
+      "semantic_identity": "kep-sol2:deployment-continuation-transition-safety:v1",
+      "proposition": "In the exact bounded continuation model, prefix verification precedes signing, only one semantic effect may be in flight, ambiguity stops signing and finalization, final deployment is unavailable until every remaining write is finalized, and modeled transitions preserve zero protocol execution.",
+      "proof_requirement_ids": ["KEP-SOL2-PROOF-END-TO-END-DEVNET"],
+      "provider": "lean",
+      "theorems": [
+        "prefixVerificationRequiredBeforeSigning",
+        "oneContinuationEffectAtATime",
+        "ambiguousEffectStopsContinuation",
+        "finalDeployRejectedBeforeAllWritesFinalize",
+        "finalDeployAllowedAfterAllWritesFinalize",
+        "modeledTransitionsPreserveZeroProtocolExecution"
+      ]
+    },
+    {
+      "claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-STRUCTURE-013",
+      "semantic_identity": "kep-sol2:deployment-continuation-journal-structure:v1",
+      "proposition": "The exact bounded successor journal leaves the predecessor record unchanged, is separately identified and bound to the predecessor digest, assigns one unique signature per successor semantic effect, overlaps no predecessor effect, and preserves the deployment identities.",
+      "proof_requirement_ids": ["KEP-SOL2-PROOF-END-TO-END-DEVNET"],
+      "provider": "lean",
+      "theorems": [
+        "predecessorRemainsImmutable",
+        "successorJournalIsSeparateAndBoundToPredecessor",
+        "successorHasOneUniqueSignaturePerSemanticEffect",
+        "successorEffectsDoNotOverlapPredecessorEffects",
+        "deploymentIdentitiesRemainStable"
+      ]
+    }
+  ],
+  "required_obligations": [
+    {
+      "obligation_id": "CONTINUATION-EXACT-ARITHMETIC",
+      "semantics": "The plan covers chunks 56 through 127 exactly once and has exactly 73 deployment submissions.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-NO-REPLAY-013", "theorems": ["exactProgressProducesContinuation", "continuationStartsAtFirstUnwritten", "continuationEndsAtFinalChunk", "continuationWritesExactlyOnce", "continuationSubmissionBound"]}],
+      "adequacy": "Closed evaluation of the exact candidate plan and submission cardinality."
+    },
+    {
+      "obligation_id": "CONTINUATION-PREFIX-FAIL-CLOSED",
+      "semantics": "A gapped predecessor prefix is rejected and no effect may be signed before prefix verification.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-TEMPORAL-013", "theorems": ["prefixVerificationRequiredBeforeSigning"]}, {"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-NO-REPLAY-013", "theorems": ["gappedPrefixIsRejected"]}],
+      "adequacy": "Both invalid prefix shape and pre-verification signing are represented as no-plan or no-transition results."
+    },
+    {
+      "obligation_id": "CONTINUATION-ONE-EFFECT-AT-A-TIME",
+      "semantics": "A second continuation effect cannot start while another effect is in flight.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-TEMPORAL-013", "theorems": ["oneContinuationEffectAtATime"]}],
+      "adequacy": "The exact transition function returns no successor for concurrent effect signing."
+    },
+    {
+      "obligation_id": "CONTINUATION-AMBIGUITY-STOPS",
+      "semantics": "An ambiguous in-flight effect permits neither another signing action nor finalization.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-TEMPORAL-013", "theorems": ["ambiguousEffectStopsContinuation"]}],
+      "adequacy": "The model proves both relevant successor operations return none after ambiguity."
+    },
+    {
+      "obligation_id": "CONTINUATION-FINAL-DEPLOY-ORDER",
+      "semantics": "Final deployment is rejected before all remaining writes finalize and becomes eligible only after the exact remaining write list is finalized.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-TEMPORAL-013", "theorems": ["finalDeployRejectedBeforeAllWritesFinalize", "finalDeployAllowedAfterAllWritesFinalize"]}],
+      "adequacy": "Both negative and positive boundaries of the exact deploy transition are proved."
+    },
+    {
+      "obligation_id": "CONTINUATION-ZERO-PROTOCOL-EXECUTION",
+      "semantics": "The continuation plan and modeled continuation states contain zero protocol execution.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-NO-REPLAY-013", "theorems": ["continuationSubmissionBound"]}, {"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-TEMPORAL-013", "theorems": ["modeledTransitionsPreserveZeroProtocolExecution"]}],
+      "adequacy": "The plan cardinality and exact modeled transition states independently retain zero protocol execution."
+    },
+    {
+      "obligation_id": "CONTINUATION-IMMUTABLE-PREDECESSOR-SEPARATE-JOURNAL",
+      "semantics": "The predecessor remains unchanged and a separately identified successor journal binds its digest.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-STRUCTURE-013", "theorems": ["predecessorRemainsImmutable", "successorJournalIsSeparateAndBoundToPredecessor"]}],
+      "adequacy": "The exact predecessor value and successor binding fields are proved directly."
+    },
+    {
+      "obligation_id": "CONTINUATION-ONE-SIGNATURE-PER-EFFECT",
+      "semantics": "Every successor semantic effect has exactly one distinct signature.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-STRUCTURE-013", "theorems": ["successorHasOneUniqueSignaturePerSemanticEffect"]}],
+      "adequacy": "The proof establishes aligned effect/signature cardinality, effect order, and signature uniqueness."
+    },
+    {
+      "obligation_id": "CONTINUATION-NO-PREDECESSOR-OVERLAP-OR-REPLAY",
+      "semantics": "No successor journal semantic effect overlaps a predecessor effect.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-NO-REPLAY-013", "theorems": ["continuationDoesNotReplayPrefix"]}, {"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-STRUCTURE-013", "theorems": ["successorEffectsDoNotOverlapPredecessorEffects"]}],
+      "adequacy": "Both chunk-index and typed semantic-effect representations exclude predecessor replay."
+    },
+    {
+      "obligation_id": "CONTINUATION-STABLE-DEPLOYMENT-IDENTITIES",
+      "semantics": "Payer, program, and buffer identities are unchanged between predecessor and successor journal.",
+      "evidence_refs": [{"claim_id": "CA2-FC-KEP-DEPLOYMENT-CONTINUATION-STRUCTURE-013", "theorems": ["deploymentIdentitiesRemainStable"]}],
+      "adequacy": "The exact typed identity record equality is proved."
+    }
+  ],
+  "aggregate_residues": [
+    {
+      "residue_id": "rust-model-preservation",
+      "status": "not_evaluable",
+      "causal_blocker": "No exact evidence currently proves that candidate 013 Rust preserves the bounded formal obligations."
+    },
+    {
+      "residue_id": "finalized-devnet-observation",
+      "status": "not_evaluable",
+      "causal_blocker": "Deployment continuation and finalized Devnet observation are neither authorized nor executed by this formal-evidence run."
+    }
+  ],
+  "claim_ceiling": "Candidate-local bounded formal model evidence only. Complete formal-obligation coverage does not prove Rust preservation or finalized Devnet behavior, accept or admit candidate 013, or authorize credentials, RPC, signing, submissions, deployment, protocol execution, publication, release, Mainnet, or production use."
+}

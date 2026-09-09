@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/private/mint/authority-package/v0.1",
+  "title": "MintAuthorityPackageV0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "package_id", "package_maturity", "domain_ref", "visibility",
+    "source_binding_refs", "record_inventory", "source_bindings", "definitions",
+    "constitutions", "rules", "authority_kinds", "methods", "decisions",
+    "promotion_transitions", "governed_actions", "residues",
+    "projection_declarations", "source_set_sha256", "canonical_record_set_sha256",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {"const": "authority-package.v0.1"},
+    "package_id": {"$ref": "#/$defs/id"},
+    "package_maturity": {"enum": ["draft", "candidate", "deprecated", "retired"]},
+    "domain_ref": {"$ref": "#/$defs/id"},
+    "visibility": {"const": "private"},
+    "source_binding_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+    "record_inventory": {"$ref": "#/$defs/recordInventory"},
+    "source_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceBinding"}},
+    "definitions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/definition"}},
+    "constitutions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/constitution"}},
+    "rules": {"type": "array", "minItems": 9, "items": {"$ref": "#/$defs/rule"}},
+    "authority_kinds": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/authorityKind"}},
+    "methods": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/method"}},
+    "decisions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/decision"}},
+    "promotion_transitions": {"type": "array", "items": {"$ref": "#/$defs/promotionTransition"}},
+    "governed_actions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/governedAction"}},
+    "residues": {"type": "array", "items": {"$ref": "#/$defs/residue"}},
+    "projection_declarations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/projectionDeclaration"}},
+    "source_set_sha256": {"$ref": "#/$defs/digest"},
+    "canonical_record_set_sha256": {"$ref": "#/$defs/digest"},
+    "proof_ceiling": {"const": "candidate-local semantic package only; no ratification, render, apply, remint, projection correctness, release, deployment, or production proof"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9._:-]*$"},
+    "text": {"type": "string", "minLength": 1},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "idSet": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "idSetNonEmpty": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_kind", "lifecycle_status", "evidence_state", "commitment_state", "provenance_refs", "owner_route", "residue_refs"],
+      "properties": {
+        "artifact_kind": {"$ref": "#/$defs/text"},
+        "lifecycle_status": {"$ref": "#/$defs/text"},
+        "evidence_state": {"enum": ["unevidenced", "authored", "validated", "observed", "contradicted"]},
+        "commitment_state": {"enum": ["provisional", "committed", "withdrawn"]},
+        "provenance_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "owner_route": {"$ref": "#/$defs/text"},
+        "residue_refs": {"$ref": "#/$defs/idSet"}
+      }
+    },
+    "recordInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["definitions", "constitutions", "rules", "authority_kinds", "methods", "decisions", "promotion_transitions", "governed_actions", "residues", "projection_declarations"],
+      "properties": {
+        "definitions": {"$ref": "#/$defs/idSetNonEmpty"},
+        "constitutions": {"$ref": "#/$defs/idSetNonEmpty"},
+        "rules": {"$ref": "#/$defs/idSetNonEmpty"},
+        "authority_kinds": {"$ref": "#/$defs/idSetNonEmpty"},
+        "methods": {"$ref": "#/$defs/idSetNonEmpty"},
+        "decisions": {"$ref": "#/$defs/idSetNonEmpty"},
+        "promotion_transitions": {"$ref": "#/$defs/idSet"},
+        "governed_actions": {"$ref": "#/$defs/idSetNonEmpty"},
+        "residues": {"$ref": "#/$defs/idSet"},
+        "projection_declarations": {"$ref": "#/$defs/idSetNonEmpty"}
+      }
+    },
+    "sourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_binding_id", "locator", "selector", "sha256", "source_kind", "visibility", "authority_effect", "owning_record_refs", "owning_action_refs"],
+      "properties": {
+        "source_binding_id": {"$ref": "#/$defs/id"},
+        "locator": {"$ref": "#/$defs/text"},
+        "selector": {"$ref": "#/$defs/text"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "source_kind": {"enum": ["private-local", "private-uri", "public-reference"]},
+        "visibility": {"const": "private"},
+        "authority_effect": {"const": "none"},
+        "owning_record_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "owning_action_refs": {"$ref": "#/$defs/idSetNonEmpty"}
+      }
+    },
+    "definition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["definition_id", "term", "normative_meaning", "boundary", "schema_ref", "definition_lifecycle", "source_binding_refs", "owner_route", "last_action_ref", "lifecycle"],
+      "properties": {
+        "definition_id": {"$ref": "#/$defs/id"}, "term": {"$ref": "#/$defs/text"},
+        "normative_meaning": {"$ref": "#/$defs/text"}, "boundary": {"$ref": "#/$defs/text"},
+        "schema_ref": {"$ref": "#/$defs/id"},
+        "definition_lifecycle": {"enum": ["proposed", "active", "deprecated", "retired"]},
+        "source_binding_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "owner_route": {"$ref": "#/$defs/text"},
+        "last_action_ref": {"$ref": "#/$defs/id"}, "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "baselineItem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["baseline_id", "position", "rule_ref"],
+      "properties": {
+        "baseline_id": {"enum": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"]},
+        "position": {"type": "integer", "minimum": 1, "maximum": 9},
+        "rule_ref": {"$ref": "#/$defs/id"}
+      }
+    },
+    "constitution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["constitution_id", "domain_ref", "baseline_version", "rule_refs", "baseline_inventory", "source_binding_refs", "last_action_ref", "lifecycle"],
+      "properties": {
+        "constitution_id": {"$ref": "#/$defs/id"}, "domain_ref": {"$ref": "#/$defs/id"},
+        "baseline_version": {"$ref": "#/$defs/text"}, "rule_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "baseline_inventory": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/baselineItem"}},
+        "source_binding_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "last_action_ref": {"$ref": "#/$defs/id"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "rule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rule_id", "constitution_ref", "baseline_id", "normative_rule", "validation_mode", "rule_lifecycle", "enforcement_state", "definition_refs", "last_action_ref", "lifecycle"],
+      "properties": {
+        "rule_id": {"$ref": "#/$defs/id"}, "constitution_ref": {"$ref": "#/$defs/id"},
+        "baseline_id": {"enum": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9"]},
+        "normative_rule": {"$ref": "#/$defs/text"}, "validation_mode": {"$ref": "#/$defs/text"},
+        "rule_lifecycle": {"enum": ["proposed", "active", "deprecated", "retired"]},
+        "enforcement_state": {"enum": ["documentary", "validator-backed", "runtime-enforced"]},
+        "definition_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "last_action_ref": {"$ref": "#/$defs/id"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "authorityKind": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authority_kind_id", "scope", "authority_effect", "authority_kind_lifecycle", "ratification_state", "method_refs", "owner_gate_ref", "last_action_ref", "lifecycle"],
+      "properties": {
+        "authority_kind_id": {"$ref": "#/$defs/id"}, "scope": {"$ref": "#/$defs/text"},
+        "authority_effect": {"const": "none"},
+        "authority_kind_lifecycle": {"enum": ["proposed", "active", "deprecated", "retired"]},
+        "ratification_state": {"enum": ["proposed", "ratified", "rejected", "retired"]},
+        "method_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "owner_gate_ref": {"$ref": "#/$defs/id"},
+        "last_action_ref": {"$ref": "#/$defs/id"}, "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "method": {
+      "type": "object", "additionalProperties": false,
+      "required": ["method_id", "trigger", "input_refs", "output_refs", "validation_contract_ref", "authority_kind_refs", "source_binding_refs", "last_action_ref", "lifecycle"],
+      "properties": {
+        "method_id": {"$ref": "#/$defs/id"}, "trigger": {"$ref": "#/$defs/text"},
+        "input_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "output_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "validation_contract_ref": {"$ref": "#/$defs/id"}, "authority_kind_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "source_binding_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "last_action_ref": {"$ref": "#/$defs/id"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["decision_id", "question", "selected_option", "alternatives", "rationale", "decision_state", "owner_ref", "evidence_refs", "supersedes_refs", "last_action_ref", "lifecycle"],
+      "properties": {
+        "decision_id": {"$ref": "#/$defs/id"}, "question": {"$ref": "#/$defs/text"},
+        "selected_option": {"$ref": "#/$defs/text"},
+        "alternatives": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "rationale": {"$ref": "#/$defs/text"},
+        "decision_state": {"enum": ["draft", "pending", "accepted", "rejected", "superseded"]},
+        "owner_ref": {"$ref": "#/$defs/id"}, "evidence_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "supersedes_refs": {"$ref": "#/$defs/idSet"}, "last_action_ref": {"$ref": "#/$defs/id"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "promotionTransition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["transition_id", "subject_ref", "before_posture", "after_posture", "requested_effect", "owner_gate_decision_ref", "owner_receipt_ref", "last_action_ref", "lifecycle"],
+      "properties": {
+        "transition_id": {"$ref": "#/$defs/id"}, "subject_ref": {"$ref": "#/$defs/id"},
+        "before_posture": {"$ref": "#/$defs/text"}, "after_posture": {"$ref": "#/$defs/text"},
+        "requested_effect": {"enum": ["ratify", "promote", "deprecate", "retire"]},
+        "owner_gate_decision_ref": {"$ref": "#/$defs/id"}, "owner_receipt_ref": {"$ref": "#/$defs/id"},
+        "last_action_ref": {"$ref": "#/$defs/id"}, "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    },
+    "facet": {
+      "type": "object", "additionalProperties": false, "required": ["state", "ref"],
+      "properties": {"state": {"enum": ["bound", "created", "missing_with_residue"]}, "ref": {"$ref": "#/$defs/id"}}
+    },
+    "facets": {
+      "type": "object", "additionalProperties": false,
+      "required": ["classification", "schema", "human_continuation", "machine_checkable"],
+      "properties": {
+        "classification": {"$ref": "#/$defs/facet"}, "schema": {"$ref": "#/$defs/facet"},
+        "human_continuation": {"$ref": "#/$defs/facet"}, "machine_checkable": {"$ref": "#/$defs/facet"}
+      }
+    },
+    "governedAction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["action_id", "action_kind", "subject_refs", "actor_ref", "owner_route", "trigger_ref", "input_refs", "output_refs", "downstream_effect", "facets", "residue_refs", "lifecycle", "evidence_refs"],
+      "properties": {
+        "action_id": {"$ref": "#/$defs/id"},
+        "action_kind": {"enum": ["create", "change", "route", "validate", "promote", "implement", "interpret"]},
+        "subject_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "actor_ref": {"$ref": "#/$defs/id"},
+        "owner_route": {"$ref": "#/$defs/text"}, "trigger_ref": {"$ref": "#/$defs/id"},
+        "input_refs": {"$ref": "#/$defs/idSetNonEmpty"}, "output_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "downstream_effect": {"enum": ["continue", "defer", "block"]}, "facets": {"$ref": "#/$defs/facets"},
+        "residue_refs": {"$ref": "#/$defs/idSet"}, "lifecycle": {"$ref": "#/$defs/lifecycle"},
+        "evidence_refs": {"$ref": "#/$defs/idSetNonEmpty"}
+      }
+    },
+    "residue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["residue_id", "residue_type", "source_operation_ref", "expected_condition", "observed_failure_locus", "reason_or_impossibility", "evidence_ref", "owner_route", "treatment", "action_effect", "promotion_effect"],
+      "properties": {
+        "residue_id": {"$ref": "#/$defs/id"},
+        "residue_type": {"enum": ["missing_action_facet", "schema", "instance", "translation", "authority", "validation", "owner_route"]},
+        "facet_name": {"enum": ["classification", "schema", "human_continuation", "machine_checkable"]},
+        "source_operation_ref": {"$ref": "#/$defs/id"}, "expected_condition": {"$ref": "#/$defs/text"},
+        "observed_failure_locus": {"$ref": "#/$defs/text"}, "reason_or_impossibility": {"$ref": "#/$defs/text"},
+        "evidence_ref": {"$ref": "#/$defs/id"}, "owner_route": {"$ref": "#/$defs/text"},
+        "treatment": {"enum": ["repair", "type", "gate", "climb", "accept", "defer"]},
+        "action_effect": {"enum": ["continue", "defer", "block"]},
+        "promotion_effect": {"enum": ["allow", "defer", "block", "not_applicable"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"residue_type": {"const": "missing_action_facet"}}, "required": ["residue_type"]},
+          "then": {"required": ["facet_name"]},
+          "else": {"not": {"required": ["facet_name"]}}
+        }
+      ]
+    },
+    "excludedRecord": {
+      "type": "object", "additionalProperties": false, "required": ["record_ref", "residue_ref"],
+      "properties": {"record_ref": {"$ref": "#/$defs/id"}, "residue_ref": {"$ref": "#/$defs/id"}}
+    },
+    "unitParity": {
+      "type": "object", "additionalProperties": false, "required": ["semantic_unit_ref", "parity_state", "residue_refs"],
+      "properties": {
+        "semantic_unit_ref": {"$ref": "#/$defs/id"}, "parity_state": {"enum": ["pass", "fail", "blocked", "not_applicable"]},
+        "residue_refs": {"$ref": "#/$defs/idSet"}
+      }
+    },
+    "projectionDeclaration": {
+      "type": "object", "additionalProperties": false,
+      "required": ["projection_id", "target", "support_state", "mapping_version", "semantic_unit_refs", "included_record_refs", "excluded_record_refs", "per_unit_parity", "output_contract_ref", "lifecycle"],
+      "properties": {
+        "projection_id": {"$ref": "#/$defs/id"}, "target": {"enum": ["markdown", "cedar", "fol"]},
+        "support_state": {"enum": ["supported", "partial", "not_applicable", "deferred"]},
+        "mapping_version": {"$ref": "#/$defs/text"}, "semantic_unit_refs": {"$ref": "#/$defs/idSetNonEmpty"},
+        "included_record_refs": {"$ref": "#/$defs/idSet"},
+        "excluded_record_refs": {"type": "array", "items": {"$ref": "#/$defs/excludedRecord"}},
+        "per_unit_parity": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/unitParity"}},
+        "output_contract_ref": {"$ref": "#/$defs/id"}, "lifecycle": {"$ref": "#/$defs/lifecycle"}
+      }
+    }
+  }
+}

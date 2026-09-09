@@ -1,0 +1,526 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "records": {
+    "RouteAvailabilityFacts": {
+      "registry_declared": "Bool",
+      "lifecycle_available": "Bool",
+      "capability_required": "Bool",
+      "capability_available": "Bool",
+      "route_identity_matches": "Bool"
+    },
+    "RouteAvailabilityDecision": {
+      "status": "String",
+      "repair_focus": "String",
+      "authority_effect": "String"
+    }
+  },
+  "roots": {
+    "input": "RouteAvailabilityFacts"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "RegistryUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "unavailable"
+        },
+        "repair_focus": {
+          "op": "literal",
+          "value": "registry"
+        },
+        "authority_effect": {
+          "op": "literal",
+          "value": "none"
+        }
+      },
+      "ontology": "ARE-ROUTE-AVAILABILITY-REGISTRY-UNAVAILABLE",
+      "meaning": "A module cannot introduce a route that the verified route registry does not declare.",
+      "target": "RouteAvailabilityDecision"
+    },
+    {
+      "id": "LifecycleUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "unavailable"
+        },
+        "repair_focus": {
+          "op": "literal",
+          "value": "lifecycle"
+        },
+        "authority_effect": {
+          "op": "literal",
+          "value": "none"
+        }
+      },
+      "ontology": "ARE-ROUTE-AVAILABILITY-LIFECYCLE-UNAVAILABLE",
+      "meaning": "A registered route with a blocked lifecycle remains unavailable regardless of module presence.",
+      "target": "RouteAvailabilityDecision"
+    },
+    {
+      "id": "CapabilityUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "unavailable"
+        },
+        "repair_focus": {
+          "op": "literal",
+          "value": "module-capability"
+        },
+        "authority_effect": {
+          "op": "literal",
+          "value": "none"
+        }
+      },
+      "ontology": "ARE-ROUTE-AVAILABILITY-CAPABILITY-UNAVAILABLE",
+      "meaning": "A module-bound route is unavailable when its exact declared capability cannot answer.",
+      "target": "RouteAvailabilityDecision"
+    },
+    {
+      "id": "IdentityUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "unavailable"
+        },
+        "repair_focus": {
+          "op": "literal",
+          "value": "route-identity"
+        },
+        "authority_effect": {
+          "op": "literal",
+          "value": "none"
+        }
+      },
+      "ontology": "ARE-ROUTE-AVAILABILITY-IDENTITY-UNAVAILABLE",
+      "meaning": "A module response for a different route cannot satisfy the declared route binding.",
+      "target": "RouteAvailabilityDecision"
+    },
+    {
+      "id": "RouteAvailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "available"
+        },
+        "repair_focus": {
+          "op": "literal",
+          "value": "none"
+        },
+        "authority_effect": {
+          "op": "literal",
+          "value": "none"
+        }
+      },
+      "ontology": "ARE-ROUTE-AVAILABILITY-AVAILABLE",
+      "meaning": "The registered route is lifecycle-available and any declared module capability answered for the same route.",
+      "target": "RouteAvailabilityDecision"
+    },
+    {
+      "id": "RegistryIsMissing",
+      "kind": "Rule",
+      "ontology": "ARE-ROUTE-AVAILABILITY-REGISTRY-MISSING",
+      "meaning": "Registry declaration precedes every module availability claim.",
+      "expression": {
+        "op": "call",
+        "name": "eq",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "registry_declared"
+            ]
+          },
+          {
+            "op": "literal",
+            "value": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "LifecycleIsBlocked",
+      "kind": "Rule",
+      "ontology": "ARE-ROUTE-AVAILABILITY-LIFECYCLE-BLOCKED",
+      "meaning": "Registry lifecycle blocking cannot be overridden by a module.",
+      "expression": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "registry_declared"
+            ]
+          },
+          {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "lifecycle_available"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "RequiredCapabilityIsMissing",
+      "kind": "Rule",
+      "ontology": "ARE-ROUTE-AVAILABILITY-REQUIRED-CAPABILITY-MISSING",
+      "meaning": "An explicitly module-bound route requires an available capability receipt.",
+      "expression": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "registry_declared"
+                    ]
+                  },
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "lifecycle_available"
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "capability_required"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "capability_available"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "RouteIdentityDiffers",
+      "kind": "Rule",
+      "ontology": "ARE-ROUTE-AVAILABILITY-IDENTITY-DIFFERS",
+      "meaning": "The available capability result must name the exact registered route.",
+      "expression": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "and",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "registry_declared"
+                        ]
+                      },
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "lifecycle_available"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "capability_required"
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "capability_available"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "route_identity_matches"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "RegistryRouteIsAvailable",
+      "kind": "Rule",
+      "ontology": "ARE-ROUTE-AVAILABILITY-REGISTRY-ROUTE-AVAILABLE",
+      "meaning": "A route without a module binding uses only its declared registry lifecycle.",
+      "expression": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "registry_declared"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "lifecycle_available"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "capability_required"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ModuleRouteIsAvailable",
+      "kind": "Rule",
+      "ontology": "ARE-ROUTE-AVAILABILITY-MODULE-ROUTE-AVAILABLE",
+      "meaning": "A module-bound route is available only after an exact matching capability response.",
+      "expression": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "and",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "registry_declared"
+                        ]
+                      },
+                      {
+                        "op": "path",
+                        "path": [
+                          "input",
+                          "lifecycle_available"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "capability_required"
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "capability_available"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "route_identity_matches"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "RegistryIsMissing"
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "RegistryUnavailable"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "LifecycleIsBlocked"
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "LifecycleUnavailable"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "RequiredCapabilityIsMissing"
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "CapabilityUnavailable"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "RouteIdentityDiffers"
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "IdentityUnavailable"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "RegistryRouteIsAvailable"
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "RouteAvailable"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "ModuleRouteIsAvailable"
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "RouteAvailable"
+        ]
+      }
+    }
+  ],
+  "output": "RouteAvailabilityDecision"
+}

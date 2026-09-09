@@ -1,0 +1,366 @@
+--- a/codex-rs/http-client/src/lib.rs
++++ b/codex-rs/http-client/src/lib.rs
+@@ -6,6 +6,7 @@
+ mod error;
+ mod outbound_proxy;
+ mod request;
++mod request_gate;
+ mod route_aware_client_pool;
+ mod route_aware_redirect;
+ mod tls_backend_fallback;
+@@ -57,3 +58,7 @@
+ pub use crate::transport::HttpTransport;
+ pub use crate::transport::ReqwestTransport;
+ pub use crate::transport::StreamResponse;
++
++pub use crate::request_gate::GateDenied;
++pub use crate::request_gate::GatedReqwestTransport;
++pub use crate::request_gate::RequestGate;
+--- /dev/null
++++ b/codex-rs/http-client/src/request_gate.rs
+@@ -0,0 +1,90 @@
++//! Opt-in gate at the HTTP attempt boundary. Host lifecycle wiring is separate.
++
++use crate::HttpClient;
++use crate::HttpTransport;
++use crate::Request;
++use crate::RequestCompression;
++use crate::ReqwestTransport;
++use crate::Response;
++use crate::StreamResponse;
++use crate::TransportError;
++use std::future::Future;
++use std::time::Duration;
++
++/// Authorizes exactly one immutable, prepared HTTP request per invocation.
++///
++/// The host implementation must account for full logical context, output reservation,
++/// and concurrent requests. HTTP body length alone is not a token bound. Requests
++/// may contain credentials; implementations must not log their headers or bodies.
++pub trait RequestGate: Send + Sync {
++    fn authorize(&self, request: &Request) -> impl Future<Output = Result<(), GateDenied>> + Send;
++}
++
++/// A denial carries no provider or credential data and cannot become a retryable HTTP error.
++#[derive(Debug, Clone, Copy)]
++pub struct GateDenied;
++
++/// A transport that awaits the gate before each execute or stream call.
++///
++/// This dedicated client disables redirects and internal retries. It does not use
++/// host proxy routing, WebSockets, or compaction hooks and is not selected by default.
++pub struct GatedReqwestTransport<G> {
++    transport: ReqwestTransport,
++    gate: G,
++    gate_timeout: Duration,
++}
++
++impl<G: RequestGate> GatedReqwestTransport<G> {
++    pub fn new(gate: G, gate_timeout: Duration) -> Result<Self, TransportError> {
++        if gate_timeout.is_zero() {
++            return Err(TransportError::Build(
++                "request gate timeout must be positive".into(),
++            ));
++        }
++        let client = reqwest::Client::builder()
++            .redirect(reqwest::redirect::Policy::none())
++            .retry(reqwest::retry::never())
++            .no_proxy()
++            .build()
++            .map_err(|_| TransportError::Build("request gate client construction failed".into()))?;
++        Ok(Self {
++            transport: ReqwestTransport::from_http_client(HttpClient::new_without_request_logging(
++                client,
++            )),
++            gate,
++            gate_timeout,
++        })
++    }
++
++    async fn authorize(&self, request: Request) -> Result<Request, TransportError> {
++        if request.compression != RequestCompression::None
++            || request.headers.contains_key(http::header::CONTENT_ENCODING)
++        {
++            return Err(TransportError::Build(
++                "request gate requires uncompressed input".into(),
++            ));
++        }
++        let request = request
++            .into_prepared()
++            .map_err(|_| TransportError::Build("request gate input preparation failed".into()))?;
++        match tokio::time::timeout(self.gate_timeout, self.gate.authorize(&request)).await {
++            Ok(Ok(())) => Ok(request),
++            Ok(Err(GateDenied)) => Err(TransportError::Build("request gate denied attempt".into())),
++            Err(_) => Err(TransportError::Build("request gate timed out".into())),
++        }
++    }
++}
++
++impl<G: RequestGate> HttpTransport for GatedReqwestTransport<G> {
++    async fn execute(&self, request: Request) -> Result<Response, TransportError> {
++        self.transport.execute(self.authorize(request).await?).await
++    }
++
++    async fn stream(&self, request: Request) -> Result<StreamResponse, TransportError> {
++        self.transport.stream(self.authorize(request).await?).await
++    }
++}
++
++#[cfg(test)]
++#[path = "request_gate_tests.rs"]
++mod tests;
+--- /dev/null
++++ b/codex-rs/http-client/src/request_gate_tests.rs
+@@ -0,0 +1,252 @@
++use super::*;
++use bytes::Bytes;
++use futures::StreamExt;
++use http::Method;
++use std::sync::Arc;
++use std::sync::Mutex;
++use std::sync::atomic::AtomicUsize;
++use std::sync::atomic::Ordering;
++use tokio::io::AsyncReadExt;
++use tokio::io::AsyncWriteExt;
++use tokio::net::TcpListener;
++use tokio::task::JoinHandle;
++
++struct Server {
++    url: String,
++    calls: Arc<AtomicUsize>,
++    bodies: Arc<Mutex<Vec<Vec<u8>>>>,
++    task: JoinHandle<()>,
++}
++
++impl Drop for Server {
++    fn drop(&mut self) {
++        self.task.abort();
++    }
++}
++
++async fn server(status: &str) -> Server {
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let url = format!("http://{}", listener.local_addr().unwrap());
++    let response = format!(
++        "HTTP/1.1 {status}\r\nLocation: {url}/redirected\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
++    );
++    let calls = Arc::new(AtomicUsize::new(0));
++    let bodies = Arc::new(Mutex::new(Vec::new()));
++    let count = Arc::clone(&calls);
++    let received = Arc::clone(&bodies);
++    let task = tokio::spawn(async move {
++        while let Ok((mut socket, _)) = listener.accept().await {
++            count.fetch_add(1, Ordering::SeqCst);
++            let mut buffer = Vec::new();
++            let mut chunk = [0; 4096];
++            loop {
++                let size = socket.read(&mut chunk).await.unwrap();
++                if size == 0 {
++                    break;
++                }
++                buffer.extend_from_slice(&chunk[..size]);
++                if let Some(end) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
++                    let headers = String::from_utf8_lossy(&buffer[..end]);
++                    let length = headers
++                        .lines()
++                        .find_map(|line| {
++                            let (name, value) = line.split_once(':')?;
++                            name.eq_ignore_ascii_case("content-length")
++                                .then(|| value.trim().parse::<usize>().unwrap())
++                        })
++                        .unwrap_or(0);
++                    if buffer.len() >= end + 4 + length {
++                        received.lock().unwrap().push(buffer[end + 4..].to_vec());
++                        break;
++                    }
++                }
++            }
++            let _ = socket.write_all(response.as_bytes()).await;
++        }
++    });
++    Server {
++        url,
++        calls,
++        bodies,
++        task,
++    }
++}
++
++struct QuotaGate {
++    calls: Arc<AtomicUsize>,
++    maximum: usize,
++    bodies: Arc<Mutex<Vec<Bytes>>>,
++}
++
++impl RequestGate for QuotaGate {
++    async fn authorize(&self, request: &Request) -> Result<(), GateDenied> {
++        self.bodies
++            .lock()
++            .unwrap()
++            .push(request.prepare_body_for_send().unwrap().body_bytes());
++        if self.calls.fetch_add(1, Ordering::SeqCst) < self.maximum {
++            Ok(())
++        } else {
++            Err(GateDenied)
++        }
++    }
++}
++
++fn transport(maximum: usize) -> (GatedReqwestTransport<QuotaGate>, Arc<AtomicUsize>) {
++    let calls = Arc::new(AtomicUsize::new(0));
++    let gate = QuotaGate {
++        calls: Arc::clone(&calls),
++        maximum,
++        bodies: Arc::default(),
++    };
++    (
++        GatedReqwestTransport::new(gate, Duration::from_secs(1)).unwrap(),
++        calls,
++    )
++}
++
++fn request(server: &Server) -> Request {
++    Request::new(Method::POST, server.url.clone())
++        .with_json(&serde_json::json!({"input":"synthetic context", "max_output_tokens":8}))
++}
++
++#[tokio::test]
++async fn denials_prevent_both_dispatch_paths() {
++    let server = server("200 OK").await;
++    let (transport, calls) = transport(0);
++    assert!(matches!(
++        transport.execute(request(&server)).await,
++        Err(TransportError::Build(_))
++    ));
++    assert!(matches!(
++        transport.stream(request(&server)).await,
++        Err(TransportError::Build(_))
++    ));
++    assert_eq!(calls.load(Ordering::SeqCst), 2);
++    assert_eq!(server.calls.load(Ordering::SeqCst), 0);
++}
++
++#[tokio::test]
++async fn gate_observes_exact_dispatched_body_on_both_paths() {
++    let server = server("200 OK").await;
++    let (transport, calls) = transport(2);
++    assert_eq!(
++        transport.execute(request(&server)).await.unwrap().body,
++        Bytes::from_static(b"ok")
++    );
++    let chunks: Vec<_> = transport
++        .stream(request(&server))
++        .await
++        .unwrap()
++        .bytes
++        .collect()
++        .await;
++    assert_eq!(
++        chunks
++            .into_iter()
++            .map(Result::unwrap)
++            .flatten()
++            .collect::<Vec<_>>(),
++        b"ok"
++    );
++    assert_eq!(calls.load(Ordering::SeqCst), 2);
++    let observed: Vec<Vec<u8>> = transport
++        .gate
++        .bodies
++        .lock()
++        .unwrap()
++        .iter()
++        .map(|body| body.to_vec())
++        .collect();
++    assert_eq!(observed, *server.bodies.lock().unwrap());
++}
++
++#[tokio::test]
++async fn repeated_request_cannot_reuse_previous_permission() {
++    let server = server("200 OK").await;
++    let (transport, calls) = transport(1);
++    let request = request(&server);
++    transport.execute(request.clone()).await.unwrap();
++    assert!(matches!(
++        transport.stream(request).await,
++        Err(TransportError::Build(_))
++    ));
++    assert_eq!(calls.load(Ordering::SeqCst), 2);
++    assert_eq!(server.calls.load(Ordering::SeqCst), 1);
++}
++
++#[tokio::test]
++async fn redirects_and_retryable_statuses_never_dispatch_internally() {
++    for status in [
++        "307 Temporary Redirect",
++        "429 Too Many Requests",
++        "503 Service Unavailable",
++    ] {
++        let server = server(status).await;
++        let (transport, calls) = transport(2);
++        assert!(matches!(
++            transport.execute(request(&server)).await,
++            Err(TransportError::Http { .. })
++        ));
++        assert!(matches!(
++            transport.stream(request(&server)).await,
++            Err(TransportError::Http { .. })
++        ));
++        assert_eq!(calls.load(Ordering::SeqCst), 2, "{status}");
++        assert_eq!(server.calls.load(Ordering::SeqCst), 2, "{status}");
++    }
++}
++
++#[tokio::test]
++async fn compressed_inputs_stop_before_gate_and_network() {
++    let server = server("200 OK").await;
++    let (transport, calls) = transport(10);
++    let mut compressed = request(&server);
++    compressed.compression = RequestCompression::Zstd;
++    let prepared = compressed.clone().into_prepared().unwrap();
++    for request in [compressed, prepared] {
++        assert!(matches!(
++            transport.execute(request).await,
++            Err(TransportError::Build(_))
++        ));
++    }
++    assert_eq!(calls.load(Ordering::SeqCst), 0);
++    assert_eq!(server.calls.load(Ordering::SeqCst), 0);
++}
++
++struct WaitingGate;
++impl RequestGate for WaitingGate {
++    async fn authorize(&self, _request: &Request) -> Result<(), GateDenied> {
++        std::future::pending().await
++    }
++}
++
++#[tokio::test]
++async fn gate_timeout_prevents_network() {
++    let server = server("200 OK").await;
++    let transport = GatedReqwestTransport::new(WaitingGate, Duration::from_millis(20)).unwrap();
++    assert!(matches!(
++        transport.execute(request(&server)).await,
++        Err(TransportError::Build(_))
++    ));
++    assert!(matches!(
++        transport.stream(request(&server)).await,
++        Err(TransportError::Build(_))
++    ));
++    assert_eq!(server.calls.load(Ordering::SeqCst), 0);
++}
++
++#[tokio::test]
++async fn cancelling_pending_gate_prevents_network() {
++    let server = server("200 OK").await;
++    let transport = GatedReqwestTransport::new(WaitingGate, Duration::from_secs(10)).unwrap();
++    assert!(
++        tokio::time::timeout(
++            Duration::from_millis(20),
++            transport.execute(request(&server))
++        )
++        .await
++        .is_err()
++    );
++    assert_eq!(server.calls.load(Ordering::SeqCst), 0);
++}

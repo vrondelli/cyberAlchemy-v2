@@ -1,0 +1,246 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Provider": {
+      "binding_id": "String",
+      "binding_version": "String",
+      "model": "String",
+      "enabled": "Bool",
+      "tenant_allowed": "Bool",
+      "task": "String",
+      "context_limit": "Int",
+      "output_limit": "Int",
+      "streaming": "Bool",
+      "rank": "Int"
+    },
+    "SummaryInput": {
+      "providers": "Provider[]",
+      "model": "String"
+    },
+    "Model": {
+      "id": "String",
+      "task": "String",
+      "context_limit": "Int",
+      "output_limit": "Int",
+      "streaming": "Bool"
+    },
+    "Output": {
+      "status": "String",
+      "value": "Model"
+    }
+  },
+  "roots": {
+    "input": "SummaryInput"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Bindings",
+      "kind": "Query",
+      "ontology": "ALCH-D0C20CE76F4353C82C069BD1",
+      "meaning": "Group enabled offerings by the selected public alias.",
+      "binding": "row",
+      "source": {
+        "op": "path",
+        "path": [
+          "input",
+          "providers"
+        ]
+      },
+      "where": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "row",
+              "enabled"
+            ]
+          },
+          {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "row",
+                  "model"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "model"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "select": {
+        "op": "path",
+        "path": [
+          "row"
+        ]
+      }
+    },
+    {
+      "id": "Summary",
+      "kind": "Mapping",
+      "fields": {
+        "id": {
+          "op": "path",
+          "path": [
+            "input",
+            "model"
+          ]
+        },
+        "task": {
+          "op": "literal",
+          "value": "text.generate"
+        },
+        "context_limit": {
+          "op": "call",
+          "name": "first",
+          "args": [
+            {
+              "op": "call",
+              "name": "sort",
+              "args": [
+                {
+                  "op": "call",
+                  "name": "column",
+                  "args": [
+                    {
+                      "op": "path",
+                      "path": [
+                        "Bindings"
+                      ]
+                    },
+                    {
+                      "op": "literal",
+                      "value": "context_limit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "output_limit": {
+          "op": "call",
+          "name": "first",
+          "args": [
+            {
+              "op": "call",
+              "name": "sort",
+              "args": [
+                {
+                  "op": "call",
+                  "name": "column",
+                  "args": [
+                    {
+                      "op": "path",
+                      "path": [
+                        "Bindings"
+                      ]
+                    },
+                    {
+                      "op": "literal",
+                      "value": "output_limit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "streaming": {
+          "op": "exists",
+          "binding": "row",
+          "collection": {
+            "op": "path",
+            "path": [
+              "Bindings"
+            ]
+          },
+          "where": {
+            "op": "path",
+            "path": [
+              "row",
+              "streaming"
+            ]
+          }
+        }
+      },
+      "ontology": "ALCH-3EBFEB91F20462C9AED995B4",
+      "meaning": "Advertise independent minimum limits and any streaming support, excluding private fields.",
+      "target": "Model"
+    },
+    {
+      "id": "Wrapped",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "Summary"
+          ]
+        }
+      },
+      "ontology": "ALCH-F02D16459DE941C43854F4D5",
+      "meaning": "Return the public summary.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [
+    {
+      "condition": {
+        "op": "call",
+        "name": "gt",
+        "args": [
+          {
+            "op": "call",
+            "name": "count",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "Bindings"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "literal",
+            "value": 0
+          }
+        ]
+      },
+      "code": "QUERY_ITEM_MISSING"
+    }
+  ],
+  "results": [
+    {
+      "condition": {
+        "op": "literal",
+        "value": true
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Wrapped"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

@@ -1,0 +1,764 @@
+{
+  "authority_effect": "none",
+  "nodes": [
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "The same request key may not reserve twice.",
+        "predicate": "request-key-idempotent"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "idempotency-invariant",
+      "selector": "inventory-reservation:idempotency-invariant"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Inventory was reserved.",
+        "event_type": "inventory-reserved",
+        "occurred_at_policy": "required",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "required": true,
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          }
+        },
+        "payload": [
+          {
+            "field_id": "stock-item-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "request-key",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          },
+          {
+            "field_id": "quantity",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          }
+        ],
+        "version": "1"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Event",
+      "meta_type_id": "DS-D1.12",
+      "node_id": "inventory-reserved",
+      "selector": "inventory-reservation:inventory-reserved"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "The availability observation owner must be resolved.",
+        "predicate": "observation-owner-known"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "observation-owner-resolved",
+      "selector": "inventory-reservation:observation-owner-resolved"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "A reservation quantity must be positive.",
+        "predicate": "quantity-greater-than-zero"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "positive-quantity",
+      "selector": "inventory-reservation:positive-quantity"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Active reservations may not exceed available quantity.",
+        "predicate": "quantity-within-availability"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "quantity-invariant",
+      "selector": "inventory-reservation:quantity-invariant"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Release an active reservation.",
+        "effects": [
+          "reservation-released"
+        ],
+        "failure_continuation": "return-not-found",
+        "guard": "reservation-exists",
+        "reads": [
+          "stock-item"
+        ],
+        "writes": [
+          "stock-item.available-quantity"
+        ]
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {
+        "creation_targets": []
+      },
+      "kind": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "node_id": "release-reservation",
+      "selector": "inventory-reservation:release-reservation"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Only an active reservation may be released.",
+        "predicate": "reservation-is-active"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "reservation-exists",
+      "selector": "inventory-reservation:reservation-exists"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Inventory reservation lifecycle.",
+        "initial": "requested",
+        "states": [
+          "requested",
+          "reserved",
+          "rejected",
+          "released"
+        ],
+        "transitions": [
+          {
+            "effect_event_ref": "inventory-reservation:inventory-reserved",
+            "guard_ref": "inventory-reservation:quantity-invariant",
+            "source_state": "requested",
+            "target_state": "reserved",
+            "transition_id": "reserve"
+          },
+          {
+            "effect_event_ref": null,
+            "guard_ref": null,
+            "source_state": "requested",
+            "target_state": "rejected",
+            "transition_id": "reject"
+          },
+          {
+            "effect_event_ref": "inventory-reservation:reservation-released",
+            "guard_ref": "inventory-reservation:reservation-exists",
+            "source_state": "reserved",
+            "target_state": "released",
+            "transition_id": "release"
+          }
+        ]
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "State Machine",
+      "meta_type_id": "DS-D1.14",
+      "node_id": "reservation-lifecycle",
+      "selector": "inventory-reservation:reservation-lifecycle"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "A reservation was released.",
+        "event_type": "reservation-released",
+        "occurred_at_policy": "required",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "required": true,
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          }
+        },
+        "payload": [
+          {
+            "field_id": "stock-item-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "request-key",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          },
+          {
+            "field_id": "quantity",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          }
+        ],
+        "version": "1"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Event",
+      "meta_type_id": "DS-D1.12",
+      "node_id": "reservation-released",
+      "selector": "inventory-reservation:reservation-released"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Attempt to reserve inventory.",
+        "effects": [
+          "inventory-reserved"
+        ],
+        "failure_continuation": "return-denied-or-blocked",
+        "guard": "positive-quantity+quantity-invariant+idempotency-invariant+observation-owner-resolved",
+        "reads": [
+          "stock-item"
+        ],
+        "writes": [
+          "stock-item.available-quantity"
+        ]
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {
+        "creation_targets": []
+      },
+      "kind": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "node_id": "reserve-inventory",
+      "selector": "inventory-reservation:reserve-inventory"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "The item whose finite availability is reserved.",
+        "fields": [
+          {
+            "field_id": "stock-item-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "available-quantity",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          },
+          {
+            "field_id": "status",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          }
+        ],
+        "identity_field": "stock-item-id"
+      },
+      "feature_id": "inventory-reservation",
+      "generated_relationship_projections": {},
+      "kind": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "node_id": "stock-item",
+      "selector": "inventory-reservation:stock-item"
+    }
+  ],
+  "project_id": "inventory-reservation",
+  "project_root": ".",
+  "relationships": [
+    {
+      "edge_id": "idempotency-invariant-enforces-reserve-inventory",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Rule",
+        "node_id": "idempotency-invariant"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      }
+    },
+    {
+      "edge_id": "inventory-reserved-transitions-reservation-lifecycle",
+      "relationship": "transitions",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Event",
+        "node_id": "inventory-reserved"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "State Machine",
+        "node_id": "reservation-lifecycle"
+      }
+    },
+    {
+      "edge_id": "observation-owner-resolved-enforces-reserve-inventory",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Rule",
+        "node_id": "observation-owner-resolved"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      }
+    },
+    {
+      "edge_id": "positive-quantity-enforces-reserve-inventory",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Rule",
+        "node_id": "positive-quantity"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      }
+    },
+    {
+      "edge_id": "quantity-invariant-enforces-reserve-inventory",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Rule",
+        "node_id": "quantity-invariant"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      }
+    },
+    {
+      "edge_id": "release-reservation-produces-reservation-released",
+      "relationship": "produces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "release-reservation"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Event",
+        "node_id": "reservation-released"
+      }
+    },
+    {
+      "edge_id": "release-reservation-reads-stock-item",
+      "relationship": "reads",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "release-reservation"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Entity",
+        "node_id": "stock-item"
+      }
+    },
+    {
+      "edge_id": "reservation-exists-enforces-release-reservation",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Rule",
+        "node_id": "reservation-exists"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "release-reservation"
+      }
+    },
+    {
+      "edge_id": "reservation-released-transitions-reservation-lifecycle",
+      "relationship": "transitions",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Event",
+        "node_id": "reservation-released"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "State Machine",
+        "node_id": "reservation-lifecycle"
+      }
+    },
+    {
+      "edge_id": "reserve-inventory-produces-inventory-reserved",
+      "relationship": "produces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Event",
+        "node_id": "inventory-reserved"
+      }
+    },
+    {
+      "edge_id": "reserve-inventory-reads-stock-item",
+      "relationship": "reads",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Entity",
+        "node_id": "stock-item"
+      }
+    },
+    {
+      "edge_id": "stock-item-emits-inventory-reserved",
+      "relationship": "emits",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Entity",
+        "node_id": "stock-item"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Event",
+        "node_id": "inventory-reserved"
+      }
+    },
+    {
+      "edge_id": "stock-item-emits-reservation-released",
+      "relationship": "emits",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Entity",
+        "node_id": "stock-item"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Event",
+        "node_id": "reservation-released"
+      }
+    },
+    {
+      "edge_id": "stock-item-performs-release-reservation",
+      "relationship": "performs",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Entity",
+        "node_id": "stock-item"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "release-reservation"
+      }
+    },
+    {
+      "edge_id": "stock-item-performs-reserve-inventory",
+      "relationship": "performs",
+      "scope": "feature",
+      "source": {
+        "feature_id": "inventory-reservation",
+        "kind": "Entity",
+        "node_id": "stock-item"
+      },
+      "target": {
+        "feature_id": "inventory-reservation",
+        "kind": "Operation",
+        "node_id": "reserve-inventory"
+      }
+    }
+  ],
+  "schema_version": "domainspec.compiled-project-graph/v1-candidate",
+  "source_manifest": {
+    "aggregate_sha256": "881d4abe39eae20d59ff6b67f0e11bbfd98485641aab5dba2674c72ed885568f",
+    "authority_effect": "none",
+    "manifest_sha256": "b202fc095e19f313fdd223828053535b2172156a28084f0c5afc766f9d91d315",
+    "project_id": "inventory-reservation",
+    "schema_version": "domainspec.stable-foundation-cli.source-manifest/v1",
+    "source_count": 28,
+    "sources": [
+      {
+        "feature_id": null,
+        "relative_path": "project.json",
+        "sha256": "31a2068b15a6155ed3f30d920d97db6780bc4c53d903b08567db11182becbe72",
+        "size_bytes": 167,
+        "source_id": "project",
+        "source_type": "project"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/idempotency-invariant-enforces-reserve-inventory.json",
+        "sha256": "d74f7b614ba6e5cddacb9342f848b72f291c5871eb8e8cd68ecfcf1762c308e9",
+        "size_bytes": 289,
+        "source_id": "inventory-reservation:idempotency-invariant-enforces-reserve-inventory",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/inventory-reserved-transitions-reservation-lifecycle.json",
+        "sha256": "61861bdf78b4667526b5b365e57e24c2fe4ecd0487302906fbb9196dfbc22137",
+        "size_bytes": 297,
+        "source_id": "inventory-reservation:inventory-reserved-transitions-reservation-lifecycle",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/observation-owner-resolved-enforces-reserve-inventory.json",
+        "sha256": "83cbc9230d9e5cc717ebd287d67040b6da2167688f3b265e77b8f697c9838ba1",
+        "size_bytes": 299,
+        "source_id": "inventory-reservation:observation-owner-resolved-enforces-reserve-inventory",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/positive-quantity-enforces-reserve-inventory.json",
+        "sha256": "f64b1e0daa25d5da5278d4d82d49e6dd425a6ea3a898b1ec821e845f76a04e66",
+        "size_bytes": 281,
+        "source_id": "inventory-reservation:positive-quantity-enforces-reserve-inventory",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/quantity-invariant-enforces-reserve-inventory.json",
+        "sha256": "b7c1fa93e8a5a5d54b82caaf940656a893a0532c88653b62442fc87b22ff558f",
+        "size_bytes": 283,
+        "source_id": "inventory-reservation:quantity-invariant-enforces-reserve-inventory",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/release-reservation-produces-reservation-released.json",
+        "sha256": "565c1b881741caa53ff5e16ee194696d6a3690ef8ba53cdc17e720d05584ea7f",
+        "size_bytes": 291,
+        "source_id": "inventory-reservation:release-reservation-produces-reservation-released",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/release-reservation-reads-stock-item.json",
+        "sha256": "4f73af3f2917da5d8b769118d45da40b453f8db43f3de4b97d3d0490eea642b8",
+        "size_bytes": 265,
+        "source_id": "inventory-reservation:release-reservation-reads-stock-item",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/reservation-exists-enforces-release-reservation.json",
+        "sha256": "f97c48dbc7d28afefc3a1341eb558bf13fbee5233fa7ff5c5e08e2791c9f9110",
+        "size_bytes": 287,
+        "source_id": "inventory-reservation:reservation-exists-enforces-release-reservation",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/reservation-released-transitions-reservation-lifecycle.json",
+        "sha256": "950f4e04f929fdaef5bc499667a0136e527dc2d081f090788a05e03e7d9d760f",
+        "size_bytes": 301,
+        "source_id": "inventory-reservation:reservation-released-transitions-reservation-lifecycle",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/reserve-inventory-produces-inventory-reserved.json",
+        "sha256": "33038c9c5a6e62f2e9ca4c01e9298fe18fba28266405ebebb4a5a49b6a3eec0b",
+        "size_bytes": 283,
+        "source_id": "inventory-reservation:reserve-inventory-produces-inventory-reserved",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/reserve-inventory-reads-stock-item.json",
+        "sha256": "3c0e90e5d0c0b28b0c67041b4f6b53e1bea6aefdd566b4238412dd462ad355dc",
+        "size_bytes": 261,
+        "source_id": "inventory-reservation:reserve-inventory-reads-stock-item",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/stock-item-emits-inventory-reserved.json",
+        "sha256": "020da21dfbcc165d53340890bfbe85fb248161921182ca9616f7bf8d7f34c807",
+        "size_bytes": 263,
+        "source_id": "inventory-reservation:stock-item-emits-inventory-reserved",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/stock-item-emits-reservation-released.json",
+        "sha256": "8996f1710a332bbfbd0870407b73f52320344edff684764b3104a74a03af4038",
+        "size_bytes": 267,
+        "source_id": "inventory-reservation:stock-item-emits-reservation-released",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/stock-item-performs-release-reservation.json",
+        "sha256": "e4a38642ecaf3ba1020138f990c5bc937a49cfdbd9e505f1c7628aea099d605c",
+        "size_bytes": 271,
+        "source_id": "inventory-reservation:stock-item-performs-release-reservation",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/edges/stock-item-performs-reserve-inventory.json",
+        "sha256": "95bd768036026a67280c261c6930fb579236cc0db90d8c70cd302c62c75c5421",
+        "size_bytes": 267,
+        "source_id": "inventory-reservation:stock-item-performs-reserve-inventory",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/feature.json",
+        "sha256": "d83bd4485a9092a8d4956c16e111acf0d3148bd8cd186e14382df5b705ae71b5",
+        "size_bytes": 1191,
+        "source_id": "inventory-reservation",
+        "source_type": "feature"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/idempotency-invariant.json",
+        "sha256": "9cb37c5cdd824f0b201b283162f4c4f64025d470f6a55edd57be51f3fb639a2b",
+        "size_bytes": 267,
+        "source_id": "inventory-reservation:idempotency-invariant",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/inventory-reserved.json",
+        "sha256": "947c9b7262504a32aceec7088fb97a6cfbcc80039616f33772d4be4bfcb5db4b",
+        "size_bytes": 994,
+        "source_id": "inventory-reservation:inventory-reserved",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/observation-owner-resolved.json",
+        "sha256": "5285c0448df2d013dda9a7a1956679a82a4e6d62a8db9b3e41f1e928d87c3d11",
+        "size_bytes": 282,
+        "source_id": "inventory-reservation:observation-owner-resolved",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/positive-quantity.json",
+        "sha256": "50b03ca9a1cdb07d130438a2fa8a961959a8ba50040fcf1163b6649474c66ee7",
+        "size_bytes": 264,
+        "source_id": "inventory-reservation:positive-quantity",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/quantity-invariant.json",
+        "sha256": "51f202e3c900554050762a476416cbb6e09cec7088c1c4b9c7d89479a6512e40",
+        "size_bytes": 281,
+        "source_id": "inventory-reservation:quantity-invariant",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/release-reservation.json",
+        "sha256": "23c3d40ae377c11f3604fe2114f24ae3e43ddacbaf1b95610e298e8e51c0c532",
+        "size_bytes": 452,
+        "source_id": "inventory-reservation:release-reservation",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/reservation-exists.json",
+        "sha256": "d1dcc39f705fdfcac1042d4bc1c7ffe36183949f9302cba92f4f4b6df59dd9a8",
+        "size_bytes": 263,
+        "source_id": "inventory-reservation:reservation-exists",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/reservation-lifecycle.json",
+        "sha256": "b097752346deef6ff827d2fe5ddf90376a12e847a3e822d0080e21eed44a8d29",
+        "size_bytes": 1082,
+        "source_id": "inventory-reservation:reservation-lifecycle",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/reservation-released.json",
+        "sha256": "534a06c5df0358afc584f9d786b47a7551c95f4a598cace5d3aabb2e3779c759",
+        "size_bytes": 1002,
+        "source_id": "inventory-reservation:reservation-released",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/reserve-inventory.json",
+        "sha256": "fded6e479ab2e96660047f787687b8b76fcf85447a6a5a9abd68a2ec6224b187",
+        "size_bytes": 522,
+        "source_id": "inventory-reservation:reserve-inventory",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "inventory-reservation",
+        "relative_path": "specs/inventory-reservation/nodes/stock-item.json",
+        "sha256": "7f616b3632b7688ea5f96f4be5c508df4a2cc20aa5188abc9c94d7340abf4928",
+        "size_bytes": 787,
+        "source_id": "inventory-reservation:stock-item",
+        "source_type": "node"
+      }
+    ],
+    "total_size_bytes": 11759
+  }
+}

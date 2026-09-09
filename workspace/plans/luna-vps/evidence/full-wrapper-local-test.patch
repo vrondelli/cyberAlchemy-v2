@@ -1,0 +1,95 @@
+--- native-canary-base.mjs
++++ full-wrapper-local-test.mjs
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env node
++import {loadRepositoryProfile,createCodexAppServerWrapper,deriveGatewayReasoningStateProfile} from "/home/vrondelli/projects/cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/index.mjs";
+ import assert from "node:assert/strict";
+ import {createHash, randomBytes} from "node:crypto";
+ import {createServer} from "node:http";
+@@ -8,13 +8,15 @@
+ import {resolve, dirname} from "node:path";
+ import {fileURLToPath} from "node:url";
+ import {createInterface} from "node:readline";
+-import {createHookEventSession} from "../src/hook-event-session.mjs";
+-import {createGatewaySessionClient} from "../src/gateway-session-client.mjs";
+-import {startHookCallbackBridge} from "../src/hook-callback-bridge.mjs";
+-import {createPersistentGateway} from "../packages/codex-app-server-wrapper/src/gateway.mjs";
++import {createHookEventSession} from "/home/vrondelli/projects/cyberAlchemy-v2/implementation/agent-reasoning-engine/src/hook-event-session.mjs";
++import {createGatewaySessionClient} from "/home/vrondelli/projects/cyberAlchemy-v2/implementation/agent-reasoning-engine/src/gateway-session-client.mjs";
++import {startHookCallbackBridge} from "/home/vrondelli/projects/cyberAlchemy-v2/implementation/agent-reasoning-engine/src/hook-callback-bridge.mjs";
++import {createPersistentGateway} from "/home/vrondelli/projects/cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/gateway.mjs";
+ 
+-const product = fileURLToPath(new URL("../", import.meta.url));
++const product = "/home/vrondelli/projects/cyberAlchemy-v2/implementation/agent-reasoning-engine";
+ const checkout = resolve(product, "../..");
++const loaded = loadRepositoryProfile("/tmp/ca2-vps-profile.json", resolve(checkout,".."));
++assert.equal(loaded.ok,true,JSON.stringify(loaded.reason_codes));
+ const sha = value => createHash("sha256").update(value).digest("hex");
+ const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+ const binary = process.argv[2];
+@@ -28,6 +30,7 @@
+   trust_scope: "inspected disposable config; explicit thread/start.config.bypass_hook_trust; no persisted trust",
+   native_delivery_verified: false, turns: [], open_questions_ref: "../NATIVE-HOST-TEST.md#open-questions"};
+ if (gatewayMode) report.open_questions_ref = "../NATIVE-GATEWAY.md#open-questions";
++report.test_variant = "full-repository-wrapper-host-candidate";
+ report.mode = gatewayMode ? "native-gateway-events" : eventsMode ? "request-bound-events" : "prompt-only";
+ let scratch, child, server, gateway, gatewayClient, bridge;
+ const upstreamTerminals = [], upstreamRequests = [];
+@@ -163,12 +166,18 @@
+     gateway = createPersistentGateway({listen_path: resolve(scratch, "gateway.sock"),
+       backend: {mode: "direct-stdio", command: executable, command_prefix_args: ["--dangerously-bypass-hook-trust"]},
+       spawn_impl: spawnNative,
+-      wrapper_factory: () => ({
+-        processClientMessage: async message => {upstreamRequests.push(message);return {to_server: [message], to_client: []};},
+-        processServerMessage: async message => ({to_server: [], to_client: [message]}),
+-      })});
++      session_store_path: resolve(scratch,"gateway-sessions.jsonl"),
++      max_clients: loaded.value.gateway.max_clients,
++      authorize_client: ({consumer_id,lane}) => loaded.value.gateway.allowed_clients.some(value=>value.consumer_id===consumer_id && value.lane===lane),
++      wrapper_factory: ({consumer_id}) => {
++        const profile=structuredClone(loaded.value);
++        profile.turn_bindings.default.consumer_ref=consumer_id;
++        profile.reasoning_state=deriveGatewayReasoningStateProfile(loaded.value,consumer_id,resolve(scratch,"reasoning-state"));
++        const wrapper=createCodexAppServerWrapper({loaded_profile:profile,decision_profile:loaded.decision_profile,definition_catalog:loaded.definition_catalog,ontology_snapshot:loaded.ontology_snapshot,source_snapshot:loaded.source_snapshot,context_source_provider:loaded.context_source_provider,semantic_profile:loaded.semantic_profile});
++        return {...wrapper,processClientMessage: async message => {upstreamRequests.push(message);return wrapper.processClientMessage(message);}};
++      }});
+     await gateway.start();
+-    gatewayClient = createGatewaySessionClient({socket_path: resolve(scratch, "gateway.sock"), consumer_id: "native-gateway-canary", lane: "interaction-bound"});
++    gatewayClient = createGatewaySessionClient({socket_path: resolve(scratch, "gateway.sock"), consumer_id: "codex:luna-pilot", lane: "interaction-bound"});
+     gatewayClient.events.on("notification", message => notifications.push(message));
+     gatewayClient.events.on("hook-observation", (result, message) => nativeCompletions.push({thread: message.params.threadId, turn: message.params.turn.id, result}));
+     bridge = await startHookCallbackBridge({client: gatewayClient});
+@@ -210,7 +219,7 @@
+         baseInstructions: eventsMode ? "Synthetic local test; the fixture may request one fixed printf command in the read-only workspace." : "Synthetic transport test. The provider returns fixed text and no tool calls."});
+       threadId = started.thread.id;
+     }
+-    const prompt = index === 1 ? "next" : "Explain the repository routing architecture";
++    const prompt = "Explain the repository routing architecture";
+     const turnParams = {threadId, input: [{type: "text", text: prompt}]};
+     const turnKey = `native-turn-${index}`;
+     const started = await rpc("turn/start", turnParams, turnKey);
+@@ -250,13 +259,13 @@
+     assert.ok(captured.callbacks.some(row => row.event.turn_id === turnId && row.event.session_id === threadId), "native.callback-after-provider");
+     assert.ok(JSON.stringify(captured.body.input).includes(JSON.stringify(context).slice(1, -1)), "native.context-not-on-wire");
+     const material = JSON.parse(context.split("\n").at(-1));
+-    assert.equal(material.engine_kind, index === 1 ? "block" : "direct");
++    assert.equal(material.engine_kind, "direct");
+     report.turns.push({thread_id: threadId, turn_id: turnId, prompt_sha256: sha(prompt), context_sha256: sha(context),
+       receipt_digest: material.receipt.receipt_digest, callback_before_provider: true, exact_context_on_wire: true, completed: true, engine_kind: material.engine_kind});
+     if (eventsMode) {
+       const terminal = nativeCompletions.find(row => row.thread === threadId && row.turn === turnId)?.result;
+       assert.ok(terminal?.ok, `native.completion-binding-failed:${JSON.stringify(terminal?.reason_codes)}`);
+-      assert.equal(terminal.kind, index === 1 ? "block" : "complete");
++      assert.equal(terminal.kind, "complete");
+       assert.equal(terminal.completion_scope, "native-turn-only");
+       const stops = turnCallbacks.filter(row => row.event.hook_event_name === "Stop");
+       assert.equal(stops.length, 1);assert.equal(stops[0].status, 0);assert.deepEqual(JSON.parse(stops[0].output), {});
+@@ -284,7 +293,7 @@
+     assert.equal(gateway.inspect().sessions.length, 1);
+     assert.equal(gatewayClient.inspect().generation, 2);
+     report.gateway = {client_generations: 2, native_turn_dispatches: 3, replay_without_redispatch: true,
+-      terminal_delivery: "gateway-rpc-only", wrapper_scope: "pass-through transport; ARE decisions through hook adapter", authority_effect: "none"};
++      terminal_delivery: "gateway-rpc-only", wrapper_scope: "full repository wrapper plus hook adapter; dedicated pilot client", authority_effect: "none"};
+   }
+   report.native_delivery_verified = true; report.status = "PASS";
+ } catch (error) {

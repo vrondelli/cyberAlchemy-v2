@@ -1,0 +1,580 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "records": {
+    "Provider": {
+      "binding_id": "String",
+      "binding_version": "String",
+      "model": "String",
+      "enabled": "Bool",
+      "tenant_allowed": "Bool",
+      "task": "String",
+      "context_limit": "Int",
+      "output_limit": "Int",
+      "streaming": "Bool",
+      "rank": "Int"
+    },
+    "Catalog": {
+      "tenant_id": "String",
+      "policy_version": "String",
+      "providers": "Provider[]"
+    },
+    "RoutingRequest": {
+      "request_id": "String",
+      "tenant_id": "String",
+      "task": "String",
+      "model": "String?",
+      "required_context_tokens": "Int",
+      "max_output_tokens": "Int",
+      "stream": "Bool"
+    },
+    "Envelope": {
+      "request": "RoutingRequest",
+      "catalog": "Catalog?"
+    },
+    "Decision": {
+      "request_id": "String",
+      "status": "String",
+      "policy_version": "String",
+      "binding_id": "String?",
+      "binding_version": "String?",
+      "model": "String?"
+    }
+  },
+  "roots": {
+    "input": "Envelope",
+    "catalog": "Catalog"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Eligible",
+      "kind": "Query",
+      "ontology": "ALCH-30A96BB3A65BE6D6D7169B14",
+      "meaning": "Filter enabled tenant-permitted task bindings by explicit alias, streaming and token limits.",
+      "binding": "row",
+      "source": {
+        "op": "path",
+        "path": [
+          "catalog",
+          "providers"
+        ]
+      },
+      "where": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "call",
+                "name": "and",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "and",
+                    "args": [
+                      {
+                        "op": "call",
+                        "name": "and",
+                        "args": [
+                          {
+                            "op": "call",
+                            "name": "and",
+                            "args": [
+                              {
+                                "op": "path",
+                                "path": [
+                                  "row",
+                                  "enabled"
+                                ]
+                              },
+                              {
+                                "op": "path",
+                                "path": [
+                                  "row",
+                                  "tenant_allowed"
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "op": "call",
+                            "name": "eq",
+                            "args": [
+                              {
+                                "op": "path",
+                                "path": [
+                                  "row",
+                                  "task"
+                                ]
+                              },
+                              {
+                                "op": "path",
+                                "path": [
+                                  "input",
+                                  "request",
+                                  "task"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "op": "call",
+                        "name": "eq",
+                        "args": [
+                          {
+                            "op": "path",
+                            "path": [
+                              "row",
+                              "model"
+                            ]
+                          },
+                          {
+                            "op": "call",
+                            "name": "coalesce",
+                            "args": [
+                              {
+                                "op": "path",
+                                "path": [
+                                  "input",
+                                  "request",
+                                  "model"
+                                ]
+                              },
+                              {
+                                "op": "path",
+                                "path": [
+                                  "row",
+                                  "model"
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "op": "call",
+                    "name": "or",
+                    "args": [
+                      {
+                        "op": "call",
+                        "name": "not",
+                        "args": [
+                          {
+                            "op": "path",
+                            "path": [
+                              "input",
+                              "request",
+                              "stream"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "op": "path",
+                        "path": [
+                          "row",
+                          "streaming"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "op": "call",
+                "name": "gte",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "row",
+                      "context_limit"
+                    ]
+                  },
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "request",
+                      "required_context_tokens"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "gte",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "row",
+                  "output_limit"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "request",
+                  "max_output_tokens"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "select": {
+        "op": "path",
+        "path": [
+          "row"
+        ]
+      }
+    },
+    {
+      "id": "BestRank",
+      "kind": "Query",
+      "ontology": "ALCH-95CC7A8DB09B3E994872324D",
+      "meaning": "Retain every eligible binding at the minimum configured strategy rank.",
+      "binding": "row",
+      "source": {
+        "op": "path",
+        "path": [
+          "Eligible"
+        ]
+      },
+      "where": {
+        "op": "forall",
+        "binding": "other",
+        "collection": {
+          "op": "path",
+          "path": [
+            "Eligible"
+          ]
+        },
+        "where": {
+          "op": "call",
+          "name": "gte",
+          "args": [
+            {
+              "op": "path",
+              "path": [
+                "other",
+                "rank"
+              ]
+            },
+            {
+              "op": "path",
+              "path": [
+                "row",
+                "rank"
+              ]
+            }
+          ]
+        }
+      },
+      "select": {
+        "op": "path",
+        "path": [
+          "row"
+        ]
+      }
+    },
+    {
+      "id": "Winner",
+      "kind": "Query",
+      "ontology": "ALCH-EACAD79F013461561EA2EF67",
+      "meaning": "Break rank ties by sorted stable binding identifier, independent of catalog order.",
+      "binding": "row",
+      "source": {
+        "op": "path",
+        "path": [
+          "BestRank"
+        ]
+      },
+      "where": {
+        "op": "call",
+        "name": "eq",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "row",
+              "binding_id"
+            ]
+          },
+          {
+            "op": "call",
+            "name": "first",
+            "args": [
+              {
+                "op": "call",
+                "name": "sort",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "column",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "BestRank"
+                        ]
+                      },
+                      {
+                        "op": "literal",
+                        "value": "binding_id"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "select": {
+        "op": "path",
+        "path": [
+          "row"
+        ]
+      }
+    },
+    {
+      "id": "Available",
+      "kind": "Rule",
+      "ontology": "ALCH-868AE0A5382C8F704A3551EF",
+      "meaning": "A provider satisfies the hard constraints.",
+      "expression": {
+        "op": "exists",
+        "binding": "row",
+        "collection": {
+          "op": "path",
+          "path": [
+            "Winner"
+          ]
+        },
+        "where": {
+          "op": "literal",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "Selected",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "request",
+            "request_id"
+          ]
+        },
+        "status": {
+          "op": "literal",
+          "value": "selected"
+        },
+        "policy_version": {
+          "op": "path",
+          "path": [
+            "catalog",
+            "policy_version"
+          ]
+        },
+        "binding_id": {
+          "op": "path",
+          "path": [
+            "row",
+            "binding_id"
+          ]
+        },
+        "binding_version": {
+          "op": "path",
+          "path": [
+            "row",
+            "binding_version"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "row",
+            "model"
+          ]
+        }
+      },
+      "ontology": "ALCH-0C0054CF24533B5931BB45AC",
+      "meaning": "Pin the selected public alias, private binding version and policy version for the host.",
+      "input": {
+        "name": "row",
+        "type": "Provider"
+      },
+      "target": "Decision"
+    },
+    {
+      "id": "Unavailable",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "request",
+            "request_id"
+          ]
+        },
+        "status": {
+          "op": "literal",
+          "value": "unavailable"
+        },
+        "policy_version": {
+          "op": "path",
+          "path": [
+            "catalog",
+            "policy_version"
+          ]
+        }
+      },
+      "ontology": "ALCH-C3B6A87F58A6F5AD39ECE2FB",
+      "meaning": "No eligible binding; do not substitute a forbidden or incompatible provider.",
+      "target": "Decision"
+    }
+  ],
+  "assertions": [
+    {
+      "condition": {
+        "op": "call",
+        "name": "eq",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "catalog",
+              "tenant_id"
+            ]
+          },
+          {
+            "op": "path",
+            "path": [
+              "input",
+              "request",
+              "tenant_id"
+            ]
+          }
+        ]
+      },
+      "code": "CATALOG_TENANT_MISMATCH"
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "eq",
+        "args": [
+          {
+            "op": "call",
+            "name": "count",
+            "args": [
+              {
+                "op": "call",
+                "name": "distinct",
+                "args": [
+                  {
+                    "op": "call",
+                    "name": "column",
+                    "args": [
+                      {
+                        "op": "path",
+                        "path": [
+                          "catalog",
+                          "providers"
+                        ]
+                      },
+                      {
+                        "op": "literal",
+                        "value": "binding_id"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "count",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "catalog",
+                  "providers"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "code": "DUPLICATE_BINDING"
+    }
+  ],
+  "results": [
+    {
+      "condition": {
+        "op": "path",
+        "path": [
+          "Available"
+        ]
+      },
+      "value": {
+        "op": "call",
+        "name": "Selected",
+        "args": [
+          {
+            "op": "call",
+            "name": "one",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "Winner"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "not",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "Available"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Unavailable"
+        ]
+      }
+    }
+  ],
+  "output": "Decision"
+}

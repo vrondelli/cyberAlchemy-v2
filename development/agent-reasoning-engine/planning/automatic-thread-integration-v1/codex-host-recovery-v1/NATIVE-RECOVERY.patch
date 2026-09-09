@@ -1,0 +1,162 @@
+--- a/codex-rs/core/tests/suite/mod.rs
++++ b/codex-rs/core/tests/suite/mod.rs
+@@ -196,3 +196,4 @@
+ mod worktree_trust;
+ 
+ mod context_gate;
++mod context_recovery;
+--- /dev/null
++++ b/codex-rs/core/tests/suite/context_recovery.rs
+@@ -0,0 +1,152 @@
++//! Explicit offline supervisor peer: real native contexts, no live provider.
++use codex_client::ContextGateConfig;
++use codex_protocol::protocol::{EventMsg, Op};
++use core_test_support::responses::{self, ev_assistant_message, ev_completed_with_tokens, sse};
++use core_test_support::test_codex::{TestCodex, test_codex};
++use core_test_support::wait_for_event;
++use pretty_assertions::assert_eq;
++use serde_json::{Value, json};
++use std::collections::HashMap;
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++#[ignore = "requires the explicit offline recovery supervisor"]
++async fn context_recovery_native_supervisor() -> anyhow::Result<()> {
++    let endpoint = std::env::var("ARE_OFFLINE_RECOVERY_COORDINATOR")?;
++    anyhow::ensure!(endpoint.starts_with("http://127.0.0.1:"));
++    let client = codex_client::HttpClientBuilder::new()
++        .without_redirects()
++        .without_request_logging()
++        .build_direct()?;
++    let server = responses::start_mock_server().await;
++    let mock = responses::mount_sse_sequence(
++        &server,
++        vec![
++            sse(vec![
++                ev_assistant_message("m", "offline-recovery-result"),
++                ev_completed_with_tokens("r", 10),
++            ]);
++            6
++        ],
++    )
++    .await;
++    let mut contexts: HashMap<String, (TestCodex, String, bool)> = HashMap::new();
++    let mut reply = json!({"ready":true});
++    loop {
++        let command: Value = client
++            .post(&endpoint)
++            .json(&reply)
++            .send()
++            .await?
++            .error_for_status()?
++            .json()
++            .await?;
++        let kind = command["kind"].as_str().expect("fixture command kind");
++        match kind {
++            "open" => {
++                let handover = command["handover_id"].as_str().expect("handover");
++                let text = command["capsule_text"].as_str().expect("capsule");
++                anyhow::ensure!(text.len() <= 4096, "bounded native fixture capsule");
++                if !contexts.contains_key(handover) {
++                    let gate = ContextGateConfig::new(
++                        command["policy_endpoint"].as_str().expect("policy").into(),
++                        command["scope"].as_str().expect("scope").into(),
++                        32,
++                    )
++                    .expect("offline gate");
++                    let test = test_codex()
++                        .with_config(move |config| {
++                            config.experimental_context_gate = Some(gate);
++                            config.model = Some("gpt-5.1".into());
++                        })
++                        .build_with_auto_env(&server)
++                        .await?;
++                    test.codex.inject_response_items(vec![serde_json::from_value(json!({
++                        "type":"message", "role":"user", "content":[{"type":"input_text","text":text}]
++                    }))?]).await?;
++                    contexts.insert(handover.into(), (test, text.into(), false));
++                }
++                let (test, restored, sealed) = &contexts[handover];
++                assert_eq!(restored, text);
++                assert!(!sealed);
++                let history = test.codex.conversation_history_snapshot().await;
++                let items: Vec<Value> = history
++                    .items()
++                    .map(serde_json::to_value)
++                    .collect::<Result<_, _>>()?;
++                assert!(!items.iter().any(|item| item["role"] == "assistant"));
++                assert_eq!(
++                    items
++                        .iter()
++                        .filter(
++                            |item| item["content"].as_array().is_some_and(|content| content
++                                .iter()
++                                .any(|part| part["text"].as_str() == Some(text)))
++                        )
++                        .count(),
++                    1
++                );
++                reply = json!({"context_id":test.session_configured.session_id.to_string(),"restored":true,"fresh_history":true});
++            }
++            "step" => {
++                let handover = command["handover_id"].as_str().expect("handover");
++                let (test, capsule, sealed) = &contexts[handover];
++                assert!(!sealed);
++                let before = mock.requests().len();
++                test.codex
++                    .start_or_steer_turn(codex_core::TurnInputRequest::user_input(vec![
++                        codex_protocol::user_input::UserInput::Text {
++                            text: command["input"].as_str().expect("input").into(),
++                            text_elements: vec![],
++                        },
++                    ]))
++                    .await?;
++                let event = wait_for_event(&test.codex, |e| {
++                    matches!(e, EventMsg::Error(_) | EventMsg::TurnComplete(_))
++                })
++                .await;
++                let stopped = matches!(event, EventMsg::Error(_));
++                if stopped {
++                    wait_for_event(&test.codex, |e| matches!(e, EventMsg::TurnComplete(_))).await;
++                }
++                let requests = mock.requests();
++                if stopped {
++                    assert_eq!(requests.len(), before);
++                } else {
++                    assert_eq!(requests.len(), before + 1);
++                    let body = requests
++                        .last()
++                        .expect("native provider request")
++                        .body_json();
++                    assert_eq!(body["max_output_tokens"], 32);
++                    assert_eq!(body["store"], false);
++                    let input = body["input"].as_array().expect("full input");
++                    let restored = input
++                        .iter()
++                        .filter(|item| {
++                            item["content"].as_array().is_some_and(|content| {
++                                content
++                                    .iter()
++                                    .any(|part| part["text"].as_str() == Some(capsule))
++                            })
++                        })
++                        .count();
++                    assert_eq!(restored, 1);
++                }
++                reply = json!({"stopped":stopped,"provider_calls":requests.len()-before,"context_id":test.session_configured.session_id.to_string()});
++            }
++            "seal" => {
++                let handover = command["handover_id"].as_str().expect("handover");
++                let (test, _, sealed) = contexts.get_mut(handover).expect("source context");
++                if !*sealed {
++                    test.codex.submit(Op::Shutdown).await?;
++                    wait_for_event(&test.codex, |e| matches!(e, EventMsg::ShutdownComplete)).await;
++                    *sealed = true;
++                }
++                reply = json!({"sealed":true,"pending":0,"uncertain":0});
++            }
++            "finish" => break,
++            other => anyhow::bail!("unsupported fixture command {other}"),
++        }
++    }
++    Ok(())
++}

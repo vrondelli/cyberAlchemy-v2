@@ -1,0 +1,2 @@
+import type { FocusScene } from "../contracts/scene";
+export function ClusterOverview({ scene, title }: { readonly scene: FocusScene; readonly title: string }) { return <div className="scene-heading"><div><span className="eyebrow">Bounded scene</span><h2>{title}</h2></div><p><strong>{scene.nodes.length}</strong> visible of <strong>{scene.nodes.length + scene.omittedNodeIds.length}</strong> connected nodes</p></div>; }

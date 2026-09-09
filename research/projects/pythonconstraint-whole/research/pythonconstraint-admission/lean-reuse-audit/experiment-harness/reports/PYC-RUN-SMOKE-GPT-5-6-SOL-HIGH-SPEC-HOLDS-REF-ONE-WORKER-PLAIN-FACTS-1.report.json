@@ -1,0 +1,109 @@
+{
+  "schema_version": "pyc-proof-agent-run-report/v1",
+  "run_id": "PYC-RUN-SMOKE-GPT-5-6-SOL-HIGH-SPEC-HOLDS-REF-ONE-WORKER-PLAIN-FACTS-1",
+  "recorded_at": "2026-09-01",
+  "QUALITY_BAR_STATUS": "pass-with-telemetry-residue",
+  "ANTI_PATTERN_HITS_JSON": [],
+  "WORKFLOW_GAPS_JSON": [
+    "exact root-orchestrator model identity unavailable",
+    "worker-active time unavailable",
+    "input and output token counts unavailable"
+  ],
+  "source": {
+    "vero_commit": "0a7325df9e9e6dbc275c0ad483b3d1cbe38d9b09",
+    "run_manifest_sha256": "d81f0213bb95c13249f0d7b3d26e389aeabc4d5d4c30d796b78b2f40d6d71466",
+    "run_yaml_sha256": "54b96e2e2117b718f86c8d589d6d40753aa6055f90045d1ee687b53ada1bce18",
+    "instruction_sha256": "7a38e4a7aece0cc3dedd8820666df53ded1c7b1591ec868ff5871b106674e486",
+    "candidate_delta_sha256": "7a9b0dc5acfe1ed2218d57bdae84f9072086dca063b4e797830a23c64b02bac2",
+    "artifact_sha256": "f765874c9f934c8dde623bb3aa2601bee9a26714af503c29745b214accaf145b",
+    "native_report_sha256": "27eed94b611db84db8353e7b82445959612527bfc9d3ffa563902abbf58f14b8",
+    "eval_manifest_sha256": "41bf3d3966c79538a40ed405b8b01fc75c8983007dc0cab44e4c397824eeb9e1"
+  },
+  "worker_receipt": {
+    "worker_session_id": "/root/pyc_smoke_plain",
+    "joined": true,
+    "closed": true,
+    "changed_files": ["Pythonconstraint/Impl/Csp.lean", "Pythonconstraint/Proof/Csp.lean"],
+    "reported_build_exit": 0,
+    "reported_proof_module_exit": 0,
+    "blocker": null
+  },
+  "independent_delta_audit": {
+    "status": "pass",
+    "scope_violations": 0,
+    "marker_drift": false,
+    "forbidden_token_hits": [],
+    "changed_slots": [
+      "code_aux def=holds",
+      "code def=holds",
+      "code_aux def=getSolutions",
+      "code def=getSolutions",
+      "code def=getSolution",
+      "code def=solutionCount",
+      "proof_aux def=prove_holds_ref",
+      "proof def=prove_holds_ref kind=prove target=spec_holds_ref"
+    ]
+  },
+  "native_grader": {
+    "benchmark_id": "pythonconstraint",
+    "mode": "codeproof",
+    "build_ok": true,
+    "total_specs": 20,
+    "passed_specs": 1,
+    "unfilled_specs": 19,
+    "failed_specs": 0,
+    "joint_passed": false,
+    "selected_spec": {
+      "name": "spec_holds_ref",
+      "status": "passed",
+      "filled_kind": "prove",
+      "theorem": "prove_holds_ref",
+      "axiom_status": "clean",
+      "axioms": ["propext", "Quot.sound"],
+      "tainted_tokens": []
+    }
+  },
+  "filled_slots": [
+    {
+      "file": "Pythonconstraint/Impl/Csp.lean",
+      "slot": "code_aux def=holds",
+      "body": "def lookup : Assignment → Nat → Nat\n  | [], _ => 0\n  | (v', x) :: rest, v => if v' = v then x else lookup rest v\n\ndef values (a : Assignment) (vars : List Nat) : List Nat :=\n  vars.map (lookup a)\n\ndef sumList (xs : List Nat) : Nat :=\n  xs.foldl (· + ·) 0\n\ndef allDistinct : List Nat → Bool\n  | [] => true\n  | x :: xs => (! xs.contains x) && allDistinct xs\n\ndef allInSet (xs s : List Nat) : Bool :=\n  xs.all (fun x => s.contains x)\n"
+    },
+    {
+      "file": "Pythonconstraint/Impl/Csp.lean",
+      "slot": "code def=holds",
+      "body": "  fun c a =>\n    match c with\n    | .allDifferent vars => allDistinct (values a vars)\n    | .exactSum vars k => sumList (values a vars) == k\n    | .maxSum vars k => sumList (values a vars) ≤ k\n    | .minSum vars k => k ≤ sumList (values a vars)\n    | .inSet vars s => allInSet (values a vars) s\n"
+    },
+    {
+      "file": "Pythonconstraint/Impl/Csp.lean",
+      "slot": "code_aux def=getSolutions",
+      "body": "def enumerate : List (List Nat) → Nat → List Assignment\n  | [], _ => [[]]\n  | dom :: rest, idx =>\n    let tails := enumerate rest (idx + 1)\n    dom.flatMap (fun v => tails.map (fun t => (idx, v) :: t))\n"
+    },
+    {
+      "file": "Pythonconstraint/Impl/Csp.lean",
+      "slot": "code def=getSolutions",
+      "body": "  fun domains constraints =>\n    match domains with\n    | [] => []\n    | _ => (enumerate domains 0).filter (fun a => constraints.all (fun c => holds c a))\n"
+    },
+    {
+      "file": "Pythonconstraint/Impl/Csp.lean",
+      "slot": "code def=getSolution",
+      "body": "  fun domains constraints => (getSolutions domains constraints).head?\n"
+    },
+    {
+      "file": "Pythonconstraint/Impl/Csp.lean",
+      "slot": "code def=solutionCount",
+      "body": "  fun domains constraints => (getSolutions domains constraints).length\n"
+    },
+    {
+      "file": "Pythonconstraint/Proof/Csp.lean",
+      "slot": "proof_aux def=prove_holds_ref",
+      "body": "theorem pyc_lookup_eq_refLookup (a : Pythonconstraint.Assignment) (v : Nat) :\n    Pythonconstraint.lookup a v = Pythonconstraint.refLookup a v := by\n  induction a with\n  | nil => rfl\n  | cons p rest ih =>\n      cases p with\n      | mk v' x => simp [Pythonconstraint.lookup, Pythonconstraint.refLookup, ih]\n\ntheorem pyc_values_eq_refValues (a : Pythonconstraint.Assignment) (vars : List Nat) :\n    Pythonconstraint.values a vars = Pythonconstraint.refValues a vars := by\n  simp [Pythonconstraint.values, Pythonconstraint.refValues, pyc_lookup_eq_refLookup]\n\ntheorem pyc_sumList_eq_refSumList (xs : List Nat) :\n    Pythonconstraint.sumList xs = Pythonconstraint.refSumList xs := by\n  rfl\n\ntheorem pyc_allDistinct_eq_refAllDistinct (xs : List Nat) :\n    Pythonconstraint.allDistinct xs = Pythonconstraint.refAllDistinct xs := by\n  induction xs with\n  | nil => rfl\n  | cons x xs ih =>\n      simp [Pythonconstraint.allDistinct, Pythonconstraint.refAllDistinct, ih]\n\ntheorem pyc_allInSet_eq_refAllInSet (xs s : List Nat) :\n    Pythonconstraint.allInSet xs s = Pythonconstraint.refAllInSet xs s := by\n  rfl\n"
+    },
+    {
+      "file": "Pythonconstraint/Proof/Csp.lean",
+      "slot": "proof def=prove_holds_ref kind=prove target=spec_holds_ref",
+      "body": "  intro c a\n  cases c <;>\n    simp [canonical, Pythonconstraint.holds, Pythonconstraint.holdsRef,\n      pyc_values_eq_refValues, pyc_sumList_eq_refSumList,\n      pyc_allDistinct_eq_refAllDistinct, pyc_allInSet_eq_refAllInSet]\n"
+    }
+  ],
+  "claim_ceiling": "One plain-facts smoke cell passed one selected Vero specification. The result does not compare contexts, models, worker counts, or scheduling regimes."
+}

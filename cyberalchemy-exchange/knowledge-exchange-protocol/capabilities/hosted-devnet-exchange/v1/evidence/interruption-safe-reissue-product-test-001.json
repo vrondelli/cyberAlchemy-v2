@@ -1,0 +1,54 @@
+{
+  "receipt_id": "CA2-TEST-KEP-HOSTED-INTERRUPTION-SAFE-REISSUE-001",
+  "observed_at": "2026-09-04T07:05:45+01:00",
+  "candidate_id": "CA2-CANDIDATE-KEP-HOSTED-INTERRUPTION-SAFE-REISSUE-001",
+  "material_digest": "f7a1c95eaf8623f36bab3885d50a139e9a96ca37e77042a0d67bd26328bfe24c",
+  "assessment": "pass",
+  "checks": [
+    {
+      "check": "hosted Rust suite with UI feature",
+      "result": "pass",
+      "evidence": "cargo test --features ui passed the interface asset test and both third-party vertical tests; the PostgreSQL test remained explicitly ignored in this general run."
+    },
+    {
+      "check": "exact finalized fulfillment replay",
+      "result": "pass",
+      "evidence": "The first fulfillment finalized revision 2; an exact replay returned the same finalized result without another persistence write, while a replay with a different signature returned conflict."
+    },
+    {
+      "check": "browser interruption and reconciliation suite",
+      "result": "pass",
+      "evidence": "10 tests passed, including immediate submitted-signature capture, saved-signature finalized inspection, and refusal to resubmit when finality is not proven."
+    },
+    {
+      "check": "disposable PostgreSQL lifecycle and restart recovery",
+      "result": "pass",
+      "evidence": "One isolated PostgreSQL run passed registration, artifact initialization, grant, reissue request, fulfillment, exact replay, and restart recovery; it observed exactly 7 state events and no eighth event for replay, with recovered artifact revision 2 and recipient key version 2."
+    },
+    {
+      "check": "bounded dependency behavior",
+      "result": "pass",
+      "evidence": "Hosted HTTP calls have a 15 second browser bound; Solana RPC finality calls have a 5 second connect bound and 20 second overall bound; the read-only deployment preflight has bounded SSH and PostgreSQL execution."
+    },
+    {
+      "check": "generated browser bundle",
+      "result": "pass",
+      "evidence": "The generated static asset matched the exact current UI sources."
+    },
+    {
+      "check": "format, shell, and prototype syntax",
+      "result": "pass",
+      "evidence": "cargo fmt --check, shell syntax validation, and JSON parsing passed for the exact postimage."
+    }
+  ],
+  "diagnostics": [
+    {
+      "observation": "The first disposable PostgreSQL attempt connected to the temporary initialization server and reset during its restart window.",
+      "classification": "operational readiness race",
+      "resolution": "The product test was rerun only after a stable SQL readiness check and PostgreSQL final-server restart evidence; that isolated run passed."
+    }
+  ],
+  "external_effects": "none; tests used local files, mocked HTTP and RPC, and one disposable loopback PostgreSQL instance",
+  "product_approval": "not_requested",
+  "claim_ceiling": "Current local product-test evidence for the exact material digest only; no live failure injection, product approval, deployment, Devnet transaction, publication, or release."
+}

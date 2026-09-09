@@ -1,0 +1,286 @@
+<!doctype html><html lang="en" data-copy-version="1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KEP · White paper</title><link rel="icon" href="/assets/kep-logo-light-v2.svg"><link rel="stylesheet" href="/assets/style.css"><link rel="stylesheet" href="/assets/brand.css"><link rel="stylesheet" href="/assets/design-system.css"><link rel="stylesheet" href="/assets/white-paper.css"></head><body data-view="paper"><a class="skip-link" href="#paper-title">Skip to white paper</a><header class="paper-site-header"><a class="brand" href="/" aria-label="KEP home"><img src="/assets/kep-logo-light-v2.svg" alt="KEP"></a><nav aria-label="Main navigation"><a href="/">Home</a><a class="nav-explore" href="/console-experience/">Console →</a></nav></header><main id="top">    <section id="paper-view" class="site-view paper-view" aria-labelledby="paper-title">
+      <aside class="paper-toc" aria-label="White paper contents">
+        <span>White Paper</span>
+        <nav>
+          <a href="#paper-abstract">Abstract</a>
+          <a href="#paper-cryptography">Cryptography & custody</a>
+          <a href="#paper-problem">The problem</a>
+          <a href="#paper-model">Core model</a>
+          <a href="#paper-types">Type model</a>
+          <a href="#paper-logic">Protocol logic</a>
+          <a href="#paper-architecture">Architecture</a>
+          <a href="#paper-flow">Protocol flow</a>
+          <a href="#paper-correctness">Correctness evidence</a>
+          <a href="#paper-boundary">Claim boundary</a>
+        </nav>
+        <button class="paper-explore" type="button" data-view-target="explore">Explore KEP →</button>
+      </aside>
+      <article class="paper-article">
+        <header>
+          <span class="paper-label">White paper overview</span>
+          <h1 id="paper-title" class="paper-brand-title"><img src="/assets/kep-logo-light-v2.svg" width="310" height="104" alt="KEP"><span>Knowledge Expansion Protocol</span></h1>
+          <p class="paper-deck">The evidence-bound protocol beneath CyberAlchemy Exchange, expanding access to encrypted knowledge without erasing its origin.</p>
+          <div class="paper-meta"><span>CyberAlchemy Exchange</span><span>Development evidence · 6 Sep 2026</span></div>
+        </header>
+        <details class="paper-mobile-contents"><summary>Contents</summary><nav aria-label="Paper sections">
+          <a href="#paper-abstract">Abstract</a>
+          <a href="#paper-cryptography">Cryptography & custody</a>
+          <a href="#paper-problem">The problem</a>
+          <a href="#paper-model">Core model</a>
+          <a href="#paper-types">Type model</a>
+          <a href="#paper-logic">Protocol logic</a>
+          <a href="#paper-architecture">Architecture</a>
+          <a href="#paper-flow">Protocol flow</a>
+          <a href="#paper-correctness">Correctness evidence</a>
+          <a href="#paper-boundary">Claim boundary</a>
+        </nav></details>
+
+        <section id="paper-abstract">
+          <h2>Abstract</h2>
+          <p>Digital knowledge can be copied without being surrendered. KEP models that fact as an expansion of an owner set: <code>{ A }</code> becomes <code>{ A, B }</code>. A remains associated with the artifact while B receives independently controlled access.</p>
+          <p>The knowledge stays encrypted off-chain. A’s browser encrypts it, B’s browser decrypts it, and Durable Storage retains only ciphertext and sealed recipient envelopes. Solana never encrypts or decrypts knowledge; it records identities, protocol membership, commitments, revisions, and replay protection.</p>
+          <blockquote>Sharing is represented as a bounded, auditable expansion of access—not an exclusive transfer.</blockquote>
+        </section>
+
+        <section id="paper-cryptography">
+          <span class="paper-section-kicker">Cryptography and custody</span>
+          <h2>Who encrypts, what is stored, and what Solana proves</h2>
+          <p>Cryptographic ability and protocol authorization are separate. The participants hold the secrets. The hosted service stores sealed material. Solana records which recipient and envelope commitment the protocol recognizes.</p>
+          <figure class="paper-figure crypto-figure">
+            <div class="crypto-pipeline" role="img" aria-label="A encrypts knowledge and creates B's envelope, sealed material is stored off-chain, Solana records commitments, and B decrypts locally">
+              <article><span>01 · A’s browser</span><strong>Encrypt and seal</strong><small>Plaintext V + random content key K → ciphertext C. HPKE seals K to B’s public key → envelope E<sub>B</sub>.</small></article>
+              <i aria-hidden="true">→</i>
+              <article><span>02 · Off-chain storage</span><strong>Retain sealed bytes</strong><small>Ciphertext C and envelope E<sub>B</sub> are stored and verified. No plaintext, K, or private key is retained.</small></article>
+              <i aria-hidden="true">→</i>
+              <article><span>03 · B’s browser</span><strong>Open and decrypt</strong><small>B’s private key opens E<sub>B</sub> to recover K. K decrypts C locally back to V.</small></article>
+            </div>
+            <div class="solana-proof"><span>Solana receives</span><strong>hash(C) · hash(E<sub>B</sub>) · A/B membership · revision · replay identity</strong><small>Never V, C, E<sub>B</sub>, K, or a participant private key.</small></div>
+            <figcaption><b>Solana recognizes access; it does not perform decryption.</b> Finalized state tells the service which prepared envelope may be released. Only B’s private encryption key makes that envelope usable.</figcaption>
+          </figure>
+
+          <details class="paper-disclosure"><summary>Cryptography and custody details</summary>
+          <div class="custody-table-wrap" role="region" aria-label="Cryptography custody comparison" tabindex="0">
+            <table class="custody-table">
+              <thead><tr><th>Component</th><th>Can see</th><th>Performs</th><th>Never receives</th></tr></thead>
+              <tbody>
+                <tr><th>A’s client</th><td>Plaintext, content key, B’s public key</td><td>Encrypts V and creates B’s envelope</td><td>B’s private key</td></tr>
+                <tr><th>Hosted storage</th><td>Ciphertext, sealed envelopes, public metadata</td><td>Persists and verifies sealed material</td><td>Plaintext, content key, private keys</td></tr>
+                <tr><th>Solana</th><td>Membership, commitments, revision, replay identity</td><td>Validates and records the public transition</td><td>Ciphertext, envelope bytes, content key, plaintext</td></tr>
+                <tr><th>B’s client</th><td>Ciphertext, B’s envelope, B’s private key</td><td>Opens the envelope and decrypts locally</td><td>A’s private material</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="envelope-explainer">
+            <article><span>Artifact encryption</span><strong>XChaCha20-Poly1305</strong><p>A random 32-byte content key encrypts the artifact. The same authenticated ciphertext is shared with every authorized recipient.</p></article>
+            <article><span>Recipient envelope</span><strong>RFC 9180 HPKE</strong><p>B’s X25519 public key seals the content key into recipient-specific bytes bound to the artifact, epoch, policy, key binding, and envelope revision.</p></article>
+            <article><span>Authorization</span><strong>Wallet signature + policy</strong><p>HPKE Base mode does not authenticate A. A’s signing-key binding, wallet signature, propagation policy, and Solana program checks authorize the grant separately.</p></article>
+          </div>
+          <p class="paper-clarification"><b>This is public-key encryption, not a traditional certificate-authority PKI.</b> The protocol binds a stable Knowledge Identity to a versioned encryption public key. The envelope carries an encrypted content key—not a generic “decryption key.”</p>
+          </details>
+          <aside class="paper-residue"><strong>Reissue still has a custody requirement.</strong><p>To create a replacement envelope, A or another policy-authorized fulfiller must be able to recover the existing content key and seal it to B’s replacement public key. The browser trial demonstrates this locally; durable production recovery and custody of that key remain unresolved architecture obligations.</p></aside>
+        </section>
+
+        <section id="paper-problem">
+          <h2>The problem</h2>
+          <p>Files are easy to copy, but proving who authorized access, what exact version was shared, and whether the recipient can still recover it is much harder. Conventional transfer language also suggests that the originator gives something up.</p>
+          <div class="paper-list">
+            <p><b>Origin must persist.</b> Adding B must not remove A.</p>
+            <p><b>Knowledge must stay private.</b> Neither chain nor service should receive plaintext.</p>
+            <p><b>Access needs evidence.</b> A prepared envelope is not releasable until its matching Solana commitment is finalized and reconciled.</p>
+            <p><b>Keys will fail.</b> B needs a reissue path that does not create a second grant or alter the owner set.</p>
+          </div>
+        </section>
+
+        <section id="paper-model">
+          <h2>Core model</h2>
+          <div class="paper-equation" role="img" aria-label="A authorizes B and owner set A becomes owner set A and B">
+            <span>A authorizes B</span><i>→</i><strong>owners(V) = { A, B }</strong>
+          </div>
+          <dl class="paper-definitions">
+            <div><dt>Knowledge Artifact Version</dt><dd>The immutable content instance whose commitments are exchanged.</dd></div>
+            <div><dt>Stable Knowledge Identity</dt><dd>The protocol identity, distinct from wallet signing and encryption keys.</dd></div>
+            <div><dt>Propagation Policy</dt><dd>The immutable rules attached to one artifact version.</dd></div>
+            <div><dt>Encryption Epoch</dt><dd>The cryptographic generation of the encrypted artifact.</dd></div>
+            <div><dt>Recipient Key Envelope</dt><dd>HPKE-sealed bytes containing the content key for one recipient’s versioned X25519 public-key binding.</dd></div>
+          </dl>
+          <figure class="paper-figure paper-figure-expansion">
+            <svg viewBox="0 0 760 300" role="img" aria-labelledby="expansion-title expansion-desc">
+              <title id="expansion-title">Knowledge access expands from A to A and B</title>
+              <desc id="expansion-desc">A sealed artifact remains fixed while finalized Solana state records B beside A and the service releases only B's separately encrypted key envelope.</desc>
+              <defs>
+                <linearGradient id="artifact-glow" x1="0" x2="1">
+                  <stop offset="0" stop-color="#d10d25"/><stop offset="1" stop-color="#ef7a2d"/>
+                </linearGradient>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#d10d25"/></marker>
+              </defs>
+              <rect class="diagram-surface" x="1" y="1" width="758" height="298" rx="20"/>
+              <g class="diagram-node diagram-identity" transform="translate(44 89)">
+                <circle cx="42" cy="42" r="40"/><text x="42" y="49" text-anchor="middle">A</text>
+                <text class="diagram-caption" x="42" y="103" text-anchor="middle">originator</text>
+              </g>
+              <path class="diagram-link" d="M132 131 H257" marker-end="url(#arrow-red)"/>
+              <g class="diagram-artifact" transform="translate(275 55)">
+                <rect width="210" height="152" rx="15"/>
+                <path d="M26 41 H184 M26 65 H142 M26 89 H169"/>
+                <text x="105" y="122" text-anchor="middle">Artifact V</text>
+                <text class="diagram-caption" x="105" y="141" text-anchor="middle">ciphertext unchanged</text>
+              </g>
+              <path class="diagram-link" d="M503 105 C554 42 608 42 645 70" marker-end="url(#arrow-red)"/>
+              <path class="diagram-link" d="M503 158 C554 223 608 223 645 199" marker-end="url(#arrow-red)"/>
+              <g class="diagram-node diagram-owner" transform="translate(646 38)"><circle cx="34" cy="34" r="32"/><text x="34" y="41" text-anchor="middle">A</text></g>
+              <g class="diagram-node diagram-owner" transform="translate(646 174)"><circle cx="34" cy="34" r="32"/><text x="34" y="41" text-anchor="middle">B</text></g>
+              <text class="diagram-caption" x="680" y="126" text-anchor="middle">separate envelopes</text>
+              <g class="diagram-pill" transform="translate(276 236)"><rect width="209" height="36" rx="18"/><text x="105" y="23" text-anchor="middle">finalized → owners { A, B }</text></g>
+            </svg>
+            <figcaption><b>Expansion, not transfer.</b> The artifact and its origin remain fixed. Solana records B as a recognized protocol member and B’s envelope commitment; the service then releases only B’s prepared envelope.</figcaption>
+          </figure>
+        </section>
+
+        <section id="paper-types">
+          <span class="paper-section-kicker">Implemented vocabulary</span>
+          <h2>Type model</h2>
+          <p>The hosted protocol is not one unstructured record. Its Rust model separates identity, immutable artifact content, prepared intent, recipient material, reissue, and the access projection returned after authorization.</p>
+          <figure class="paper-figure paper-type-figure">
+            <div class="type-graph" role="img" aria-label="Implemented KEP type relationships">
+              <article class="type-card type-card-origin"><span>identity</span><strong data-no-i18n>KnowledgeIdentity</strong><small data-no-i18n>identity_id · wallet_public_key · encryption_public_key · key_version</small></article>
+              <i class="type-edge">authors</i>
+              <article class="type-card type-card-artifact"><span>aggregate</span><strong data-no-i18n>Artifact</strong><small data-no-i18n>version · policy · epoch · ciphertext · owners · revision</small></article>
+              <i class="type-edge">binds</i>
+              <article class="type-card"><span>intent</span><strong data-no-i18n>PreparedGrant</strong><small data-no-i18n>recipient · expected_revision · envelope · status</small></article>
+              <article class="type-card type-card-envelope"><span>per owner</span><strong data-no-i18n>RecipientEnvelope</strong><small data-no-i18n>recipient_id · key_version · sealed bytes · digest</small></article>
+              <i class="type-edge type-edge-projects">projects</i>
+              <article class="type-card type-card-result"><span>authorized read</span><strong data-no-i18n>AccessResponse</strong><small data-no-i18n>ciphertext · recipient envelope · epoch · revision</small></article>
+              <i class="type-edge type-edge-revises">revises</i>
+              <article class="type-card type-card-reissue"><span>recovery intent</span><strong data-no-i18n>ReissueRequest</strong><small data-no-i18n>previous key · replacement key · expected_revision · status</small></article>
+            </div>
+            <figcaption><b>Types carry boundaries.</b> A wallet key authorizes an operation; an encryption key protects access; neither is the stable Knowledge Identity itself.</figcaption>
+          </figure>
+          <div class="paper-model-notes">
+            <p><b>Stable identity.</b> One protocol identifier may survive wallet or encryption-key changes.</p>
+            <p><b>Immutable knowledge version.</b> The ciphertext commitment, policy, and encryption epoch identify what was shared.</p>
+            <p><b>Revisioned access.</b> Grants and reissues name the revision they expect, preventing stale intent from silently applying later.</p>
+          </div>
+        </section>
+
+        <section id="paper-logic">
+          <span class="paper-section-kicker">State transition rules</span>
+          <h2>Protocol logic</h2>
+          <p>Each transition is deliberately narrow. A request first creates intent; only a matching finalized Solana observation may change the hosted access projection.</p>
+          <div class="logic-model" aria-label="KEP protocol invariants">
+            <article><span>01 · Prepare</span><code data-no-i18n>owners′ = owners<br>revision′ = revision<br>access(B) = false</code><p>Preparing a grant records exact intent, but creates no owner or retrieval effect.</p></article>
+            <article><span>02 · Finalize</span><code data-no-i18n>finalized(tx) ∧ matches(tx, grant)<br>owners′ = owners ∪ { B }<br>revision′ = revision + 1</code><p>Only the expected program, artifact, recipient, envelope commitment, and revision authorize release of B’s prepared material.</p></article>
+            <article><span>03 · Reissue</span><code data-no-i18n>owners′ = owners<br>V′ = V · policy′ = policy · epoch′ = epoch<br>binding′[B] &gt; binding[B]<br>envelope′[B] = replacement · revision′ = revision + 1</code><p>Recovery replaces B’s active envelope while the artifact and ownership relation stay fixed.</p></article>
+          </div>
+          <div class="logic-guarantees">
+            <span><b>No plaintext crossing</b><small data-no-i18n>server_state ∩ secrets = ∅</small></span>
+            <span><b>Envelope isolation</b><small data-no-i18n>access(i) → envelope(i), never envelope(j)</small></span>
+            <span><b>No knowledge price</b><small data-no-i18n>consideration_lamports = 0</small></span>
+          </div>
+        </section>
+
+        <section id="paper-architecture">
+          <h2>Architecture</h2>
+          <figure class="paper-figure architecture-figure">
+            <div class="architecture-map" role="img" aria-label="KEP architecture and data boundaries">
+              <article class="architecture-lane lane-private"><span>Participant-controlled</span><strong>Browser cryptography</strong><small>plaintext · content key · private encryption key · wallet approval</small></article>
+              <div class="architecture-crossing"><b>signed intent →</b><small>ciphertext + public keys + commitments</small><i>← owner-scoped sealed material</i></div>
+              <article class="architecture-lane lane-service"><span>Hosted coordination</span><strong>Rust HTTP service</strong><small>wallet verification · state guards · finalized observation</small></article>
+              <div class="architecture-split">
+                <article><span>Durable record</span><strong>SQL repository</strong><small>snapshot · append-only journal · encrypted archive</small></article>
+                <article><span>Public evidence</span><strong>Solana Devnet</strong><small>owners · commitments · replay identity · revision</small></article>
+              </div>
+            </div>
+            <figcaption><b>Four bounded responsibilities.</b> The client holds secrets, the service coordinates, SQL retains sealed records, and Solana supplies finalized public evidence.</figcaption>
+          </figure>
+          <p>The browser owns plaintext, the content key, and private encryption keys. The hosted service verifies signed intent, stores ciphertext and sealed envelopes, and observes finality. Solana coordinates recognized protocol membership and commitment revisions but cannot decrypt. SQL-backed durable storage provides the portable record layer; independent backup, restore, and content-key recovery remain production obligations.</p>
+        </section>
+
+        <section id="paper-flow">
+          <h2>Protocol flow</h2>
+          <figure class="paper-figure lifecycle-figure">
+            <div class="lifecycle-map" role="img" aria-label="KEP grant and reissue lifecycle">
+              <span class="lifecycle-person">A</span>
+              <article><b>Seal</b><small>Artifact V</small></article><i>→</i>
+              <article><b>Prepare</b><small>Grant for B</small></article><i>→</i>
+              <article class="lifecycle-finality"><b>Finalize</b><small>Solana observation</small></article><i>→</i>
+              <article class="lifecycle-active"><b>Access</b><small data-no-i18n>{ A, B }</small></article>
+              <span class="lifecycle-person">B</span>
+              <div class="lifecycle-reissue"><span>B requests a new key binding</span><i>→</i><span>A seals a replacement envelope</span><i>→</i><span>Finalized revision + 1</span></div>
+            </div>
+            <figcaption><b>Two gates, one membership relation.</b> Grant finality recognizes B and authorizes envelope release; successful local decryption establishes usable access. Reissue finality changes B’s recognized envelope commitment without adding B again.</figcaption>
+          </figure>
+          <ol class="paper-sequence">
+            <li><span>01</span><div><b>Establish identity</b><p>A and B bind independently controlled wallets to encryption public keys.</p></div></li>
+            <li><span>02</span><div><b>Seal the artifact</b><p>A encrypts one exact artifact version in the browser and stores only sealed material.</p></div></li>
+            <li><span>03</span><div><b>Prepare and submit</b><p>A prepares B’s envelope, submits the grant, then waits for finalized state.</p></div></li>
+            <li><span>04</span><div><b>Release and decrypt</b><p>The service reconciles matching finalized state, releases only B’s envelope, and B decrypts locally with B’s private key.</p></div></li>
+            <li><span>05</span><div><b>Reissue when recoverable</b><p>B may request a replacement envelope. An authorized fulfiller must recover the unchanged content key; artifact, policy, epoch, and members remain fixed.</p></div></li>
+            <li><span>06</span><div><b>Inspect bounded evidence</b><p>The result proves only the exact state and byte relationships checked by this flow.</p></div></li>
+          </ol>
+          <button class="paper-cta" type="button" data-view-target="explore">Run the KEP process <span>→</span></button>
+        </section>
+
+        <section id="paper-development" class="paper-section">
+          <h2>Your account, your originals.</h2>
+          <p>The console uses wallet-signed requests and an encrypted account backup. Keep the recovery file privately: wallet access alone cannot restore your encryption keys.</p>
+          <p>Original files up to 10 MB stay encrypted. The first verified download acknowledgement starts a one-year expiry timer; each later acknowledged download resets it. Before the first, there is no deadline. Extraction remains planned provenance.</p>
+          <details><summary>What the local tests establish</summary>
+            <p>Recovery restored an identical original. Interrupted saves and download acknowledgements were retried; stale account saves were rejected. A later PostgreSQL repair rejects a second writer and fences writes after connection loss. Browser tests preceded that repair, so a combined run remains due.</p>
+            <p>Download acknowledgement is not proof of saving to disk. A recovery file is not a payload backup. Lost recovery secrets, independent backup deletion, real wallet compatibility, and live-chain testing remain open. A disconnected service can still return stale reads.</p>
+          </details>
+          <a href="/console-experience/">Open the connected console →</a>
+        </section>
+
+        <section id="paper-correctness">
+          <span class="paper-section-kicker">Correctness evidence</span>
+          <h2>What supports the design?</h2>
+          <p>Evidence for specific properties, each tied to its tested source snapshot.</p>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Protocol model</span><span class="evidence-result">Lean theorem checked twice</span><small class="evidence-limit">Historical model · no implementation refinement</small></summary>
+            <p>The modeled grant preserves A, adds B, binds the envelope commitment, advances revision, consumes replay identity, and keeps consideration zero.</p>
+            <p><strong>Scope:</strong> Historical formal-model receipt. No proof that Rust or Solana faithfully implements the model.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-LEAN-EVIDENCE<br>SHA-256: <code class="receipt-digest">dd054c07a433ef8aa156b769ccbd7bbce205778db7ae1cb2620ca494a868f34f</code></small></p></details>
+          </details>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Broader formal checks</span><span class="evidence-result">7 claims · 15 deterministic projections</span><small class="evidence-limit">Historical bounded models · no end-to-end proof</small></summary>
+            <p>Recorded bounded checks across Lean, TLC, and Alloy cover encoding, storage gating, grant, activation, reissue, cost separation, and secret placement.</p>
+            <p><strong>Scope:</strong> Historical EVF PASS_BOUNDED. Model assumptions and finite bounds apply; no end-to-end implementation refinement.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-EVF-FORMAL-RECEIPT-V2<br>SHA-256: <code class="receipt-digest">3c8553c4fe1694ca8e4021c2178e4628bfa0eeef3177b5ec0434c89e79933b38</code></small></p></details>
+          </details>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Checkpoint recovery</span><span class="evidence-result">34 JavaScript tests passed</span><small class="evidence-limit">Local tests · no live-chain submission</small></summary>
+            <p>Six added regressions exercise checkpoint failure and submission ambiguity. Known pre-submission failures can retry; restored uncertain submissions stay blocked.</p>
+            <p><strong>Scope:</strong> September 6 local test run. No live-chain submission or arbitrary crash-recovery proof.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-SEP6-CHECKPOINT<br>SHA-256: <code class="receipt-digest">e881a83ed844cefec73dc3d633de317ab8a04a97740d50c661a4ad16b3714499</code></small></p></details>
+          </details>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Original-file recovery</span><span class="evidence-result">Identical original recovered</span><small class="evidence-limit">Test signer · before writer repair</small></summary>
+            <p>An isolated browser restored identity and a 10,246-byte original with the same SHA-256 digest, and retried interrupted saves and download acknowledgements.</p>
+            <p><strong>Scope:</strong> September 6 browser run before the writer repair. Test signer only; no wallet-extension or memory-zeroization proof.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-SEP6-BROWSER-RECOVERY<br>SHA-256: <code class="receipt-digest">558db330165db86d529446d8c5484dfc152b9f1b81c3a6352c701c7e835f4982</code></small></p></details>
+          </details>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Lost responses and stale tabs</span><span class="evidence-result">Retry preserved revision · stale save rejected</span><small class="evidence-limit">One process · no divergent-edit merge</small></summary>
+            <p>After a committed response was dropped, retry used the same ciphertext and revision. A competing stale tab received HTTP 409; explicit discard and recovery succeeded.</p>
+            <p><strong>Scope:</strong> One backend process, before the writer repair. Divergent-edit merging and backend crashes were not tested.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-SEP6-COMMIT-TABS<br>SHA-256: <code class="receipt-digest">d2275ad2052c1cef2f0a893acb7b9bb62c865fda9a98789fa7b905e46fe3e635</code></small></p></details>
+          </details>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Database writer exclusion</span><span class="evidence-result">9 Rust + 4 PostgreSQL tests passed</span><small class="evidence-limit">Participating writers · stale reads remain possible</small></summary>
+            <p>The repair checks second-writer rejection, takeover after shutdown, and failure of stale writes after connection loss. A separate process test confirmed startup exclusion and takeover.</p>
+            <p><strong>Scope:</strong> September 6 repair run. Participating upgraded writers only; disconnected reads can remain stale.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-SEP6-SINGLE-WRITER<br>SHA-256: <code class="receipt-digest">c5fcaf03a99e5708570fd072535e5501a14955f2eda8d7469d3511a25526378a</code></small></p></details>
+          </details>
+          <details class="paper-evidence-row"><summary><span class="evidence-title">Independent review</span><span class="evidence-result">Candidate 011 · bounded pass</span><small class="evidence-limit">Historical candidate · ten medium residues</small></summary>
+            <p>Review 009 recorded zero unresolved high or critical findings and ten carried medium residues for its exact frozen candidate.</p>
+            <p><strong>Scope:</strong> Historical candidate review, not a review of the current hosted console or a production security clearance.</p>
+            <details class="paper-receipt"><summary>Inspect receipt</summary><p><small>Receipt: LOCAL-EVF-INDEPENDENT-REVIEW-009<br>SHA-256: <code class="receipt-digest">9ad256e4b2803f1efccd122529dc7bf06b469bba7b86d355b0d33c5609ccb875</code></small></p></details>
+          </details>
+          <details class="paper-disclosure"><summary>Still open</summary><p><strong>Still unproved:</strong> a combined browser journey after the writer repair, exact Rust-to-model refinement, real wallet compatibility, independent backup recovery, and production security. Hash matching establishes which receipt was inspected; it does not independently verify the receipt’s experiment.</p></details>
+        </section>
+
+        <section id="paper-boundary" class="claim-boundary">
+          <span>Present claim boundary</span>
+          <h2>What the evidence establishes.</h2>
+          <p>Selected properties have evidence. Full-system correctness and production readiness remain unproved.</p>
+          <details class="paper-disclosure"><summary>Remaining work and claim limits</summary><p>This overview does not establish legal ownership, licensing rights, marketplace value, production security, Mainnet readiness, or publication approval. The current source is not one frozen product candidate, the hosted binding has drifted from accepted bytes, and historical residuality counts describe their original snapshots. The next construction step is a combined recovery run against one frozen product candidate. Production still requires security review, wallet compatibility testing, independent backup and content-key recovery, a separately authorized hosted two-party trial, operational infrastructure, and legal and user research.</p></details>
+        </section>
+      </article>
+    </section>
+
+</main><footer class="paper-site-footer">CyberAlchemy Lab · Solana Devnet</footer></body></html>

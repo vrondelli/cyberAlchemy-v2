@@ -1,0 +1,49 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-DESKTOP-HOST",
+  "question": "Which desktop host presents the Essays UI while preserving the daemon as the only accepted-state semantic authority?",
+  "request_digest": "d964e7903ae59a45566d1179d6c59cc1937978c55f488cc8bc18a9b0c4cce9d2",
+  "selected_option_id": "OPT-DESKTOP-TAURI",
+  "selected_option": "Tauri v2 as a thin Rust-owned desktop shell over the daemon protocol, using packaged local UI assets, restrictive content policy, explicit window and WebView capabilities, and no accepted-state semantics in the shell.",
+  "rationale": "The user explicitly selected OPT-DESKTOP-TAURI after the gate presented Tauri, a custom Wry shell, and Electron. Tauri preserves a Rust-owned native boundary and OS WebView footprint while avoiding the bespoke desktop lifecycle and security surface of a direct Wry shell.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-DESKTOP-TAURI",
+    "recorded_at": "2026-09-01T16:52:48+01:00"
+  },
+  "binding_effect": {
+    "desktop_host": "tauri-v2-thin-client",
+    "required_semantics": [
+      "the Tauri shell is a replaceable client and never implements accepted-state lifecycle, policy, revision, idempotency, capability, or effect rules",
+      "the shell communicates with the supervised daemon through the selected versioned local framed-JSON protocol",
+      "production windows load packaged local application assets; remote code execution in the privileged application WebView is prohibited",
+      "content security policy, navigation, new-window creation, external URL opening, custom protocols, downloads, and WebView permissions are deny-by-default and explicitly allowlisted",
+      "Tauri window and WebView capabilities expose only the narrow commands required by the focused writing client",
+      "the frontend has no ambient filesystem, process, shell, secret, credential, database, browser-driver, or network authority",
+      "all frontend messages are schema-validated and bound to the originating window or WebView before translation to canonical daemon requests",
+      "the supervised browser driver remains outside the Tauri application WebView and crosses its own explicit effect gate",
+      "OS-WebView differences are covered by platform-specific conformance evidence rather than assumed parity"
+    ],
+    "non_implications": [
+      "Tauri capabilities are a desktop containment layer and do not grant Essays semantic authority",
+      "selecting Tauri does not select the frontend framework, exact crates, plugin set, updater, signing, packaging, installer, or release channel",
+      "selecting Tauri does not make its WebView the supervised browser automation target",
+      "selecting Tauri does not authorize implementation, installation, network access, browser effects, publication, release, or deployment",
+      "the desktop selection does not prove startup speed, memory use, cross-platform parity, accessibility, security, or conformance"
+    ]
+  },
+  "remaining_blockers": [
+    "Essays security-owner review of the remote authentication binding",
+    "remote capability authorization and grant semantics",
+    "WebAssembly posture",
+    "browser driver and effect rules",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Frontend framework, exact Tauri and plugin versions, capability files, CSP bytes, custom protocol, daemon discovery UX, updater, signing, installers, and OS-WebView minimum versions are later implementation, security, platform, and release bindings."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.dev/private/oew/l1-build-handle/v1",
+  "title": "OEW L1 Final Build Handle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "handle",
+    "result",
+    "lock",
+    "producer",
+    "upstream",
+    "verified_toolchain",
+    "feature_inputs",
+    "effective_workspace",
+    "mode",
+    "workroot",
+    "install",
+    "patch",
+    "dashboard_test",
+    "dashboard_build",
+    "output",
+    "protected_set",
+    "cleanup",
+    "residue",
+    "package_registry",
+    "browser_acceptance_claim",
+    "manual_ux_claim",
+    "release_claim",
+    "production_claim",
+    "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {"const": "oew.l1-build-handle.v1"},
+    "handle": {"const": "oew-l1-build-handle/v1"},
+    "result": {"const": "pass"},
+    "lock": {"$ref": "#/$defs/artifact"},
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "script"],
+      "properties": {
+        "id": {"const": "materialize-l1-build"},
+        "script": {"$ref": "#/$defs/image"}
+      }
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "lock", "source_archive", "retained_l0_receipt"],
+      "properties": {
+        "commit": {"pattern": "^[a-f0-9]{40}$"},
+        "lock": {"$ref": "#/$defs/artifact"},
+        "source_archive": {"$ref": "#/$defs/artifact"},
+        "retained_l0_receipt": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "verified_toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producer_handle", "independent_verification", "node", "pnpm"],
+      "properties": {
+        "producer_handle": {"$ref": "#/$defs/artifact"},
+        "independent_verification": {"$ref": "#/$defs/artifact"},
+        "node": {"$ref": "#/$defs/tool"},
+        "pnpm": {"$ref": "#/$defs/tool"}
+      }
+    },
+    "feature_inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "swu_007_receipt",
+        "swu_008f_receipt",
+        "swu_007_manifest",
+        "swu_008f_manifest",
+        "files",
+        "entrypoint_patch"
+      ],
+      "properties": {
+        "swu_007_receipt": {"$ref": "#/$defs/artifact"},
+        "swu_008f_receipt": {"$ref": "#/$defs/artifact"},
+        "swu_007_manifest": {"$ref": "#/$defs/artifact"},
+        "swu_008f_manifest": {"$ref": "#/$defs/artifact"},
+        "files": {
+          "type": "array",
+          "minItems": 30,
+          "maxItems": 30,
+          "items": {"$ref": "#/$defs/artifact"}
+        },
+        "entrypoint_patch": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "effective_workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "lock", "workspace", "dashboard_package"],
+      "properties": {
+        "package": {"$ref": "#/$defs/image"},
+        "lock": {"$ref": "#/$defs/image"},
+        "workspace": {"$ref": "#/$defs/image"},
+        "dashboard_package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256", "size_bytes", "name", "test_script", "build_script"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "sha256": {"$ref": "#/$defs/digest"},
+            "size_bytes": {"type": "integer", "minimum": 1},
+            "name": {"const": "@understand-anything/dashboard"},
+            "test_script": {"const": "vitest run"},
+            "build_script": {"const": "tsc -b && vite build"}
+          }
+        }
+      }
+    },
+    "mode": {"$ref": "#/$defs/mode"},
+    "workroot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "digest_named", "outside_repository", "fresh"],
+      "properties": {
+        "name": {"pattern": "^oew-l1-build-[a-f0-9]{16}$"},
+        "digest_named": {"const": true},
+        "outside_repository": {"const": true},
+        "fresh": {"const": true}
+      }
+    },
+    "install": {"$ref": "#/$defs/command"},
+    "patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "preimage_sha256",
+        "postimage_sha256",
+        "applied_once",
+        "reapply_rejected",
+        "reapply_exit_code"
+      ],
+      "properties": {
+        "target": {"type": "string", "minLength": 1},
+        "preimage_sha256": {"$ref": "#/$defs/digest"},
+        "postimage_sha256": {"$ref": "#/$defs/digest"},
+        "applied_once": {"const": true},
+        "reapply_rejected": {"const": true},
+        "reapply_exit_code": {"type": "integer", "minimum": 1}
+      }
+    },
+    "dashboard_test": {"$ref": "#/$defs/command"},
+    "dashboard_build": {
+      "allOf": [
+        {"$ref": "#/$defs/command"},
+        {
+          "type": "object",
+          "required": ["expanded_script"],
+          "properties": {"expanded_script": {"const": "tsc -b && vite build"}}
+        }
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "directory",
+        "tree_sha256",
+        "file_count",
+        "total_size_bytes",
+        "archive",
+        "immutable",
+        "storage_class",
+        "content_addressed_path",
+        "creation_policy",
+        "overwrite_policy",
+        "expected_residue"
+      ],
+      "properties": {
+        "directory": {"const": "understand-anything-plugin/packages/dashboard/dist"},
+        "tree_sha256": {"$ref": "#/$defs/digest"},
+        "file_count": {"type": "integer", "minimum": 1},
+        "total_size_bytes": {"type": "integer", "minimum": 1},
+        "archive": {"$ref": "#/$defs/artifact"},
+        "immutable": {"const": true},
+        "storage_class": {"const": "content-addressed-external-cache"},
+        "content_addressed_path": {"const": true},
+        "creation_policy": {"const": "create-if-absent-after-digest-verification"},
+        "overwrite_policy": {"const": "never-overwrite-existing-mismatched-bytes"},
+        "expected_residue": {"const": "retained-for-SWU-OEW-014"}
+      }
+    },
+    "protected_set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "before",
+        "contract_sha256",
+        "compiler_sha256",
+        "set_digest",
+        "entry_count",
+        "equal_current"
+      ],
+      "properties": {
+        "before": {"$ref": "#/$defs/artifact"},
+        "contract_sha256": {"$ref": "#/$defs/digest"},
+        "compiler_sha256": {"$ref": "#/$defs/digest"},
+        "set_digest": {"$ref": "#/$defs/digest"},
+        "entry_count": {"type": "integer", "minimum": 1},
+        "equal_current": {"const": true}
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finally_executed",
+        "workroot_removed",
+        "workroot_absent",
+        "store_absent",
+        "owned_ports",
+        "ports_open_after_cleanup"
+      ],
+      "properties": {
+        "finally_executed": {"const": true},
+        "workroot_removed": {"const": true},
+        "workroot_absent": {"const": true},
+        "store_absent": {"const": true},
+        "owned_ports": {"type": "array", "maxItems": 0},
+        "ports_open_after_cleanup": {"type": "array", "maxItems": 0}
+      }
+    },
+    "residue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unexpected_paths",
+        "expected_external_artifacts",
+        "retained",
+        "result"
+      ],
+      "properties": {
+        "unexpected_paths": {"type": "array", "maxItems": 0},
+        "expected_external_artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "retained": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "result": {"const": "pass"}
+      }
+    },
+    "package_registry": {"$ref": "#/$defs/artifact"},
+    "browser_acceptance_claim": {"const": false},
+    "manual_ux_claim": {"const": false},
+    "release_claim": {"const": false},
+    "production_claim": {"const": false},
+    "authority_effect": {"const": "none"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "path", "sha256"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "frozen_lockfile",
+        "ignore_scripts",
+        "isolated_store",
+        "workspace_fallback",
+        "global_fallback"
+      ],
+      "properties": {
+        "kind": {"const": "online"},
+        "frozen_lockfile": {"const": true},
+        "ignore_scripts": {"const": true},
+        "isolated_store": {"const": true},
+        "workspace_fallback": {"const": false},
+        "global_fallback": {"const": false}
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "exit_code",
+        "stdout_sha256",
+        "stderr_sha256",
+        "result"
+      ],
+      "properties": {
+        "command": {"type": "string", "minLength": 1},
+        "exit_code": {"const": 0},
+        "stdout_sha256": {"$ref": "#/$defs/digest"},
+        "stderr_sha256": {"$ref": "#/$defs/digest"},
+        "result": {"const": "pass"},
+        "expanded_script": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

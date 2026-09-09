@@ -1,0 +1,59 @@
+{
+  "schema_version": "cav2-kep-dst3-implementation-binding/v1",
+  "binding_id": "CA2-BINDING-KEP-DST3-RUST-POSTGRES-001",
+  "route_id": "CA2-ROUTE-IMPLEMENT",
+  "lifecycle_status": "implementation-candidate",
+  "predecessor": {
+    "system_ontology_admission_path": "../decisions/system-ontology-admission-001.json",
+    "system_ontology_admission_sha256": "1ebb78b81ce01b9948f7b808569bd220f5c51947e78ebb9419c8872217cc7565",
+    "system_ontology_id": "CA2-SYSTEM-ONTOLOGY-KEP-DST-SQL-THREE-LAYER",
+    "system_ontology_sha256": "3193e49df81e492e1675d4f557a7b1e020124e9cd513b0d8e7fdd42cbe992755",
+    "compiled_graph_sha256": "d19dd666a9ef7fe79fd5d94a20ac5046dff0c029512bae42b3ebb975cbb76f85"
+  },
+  "implementation_manifest": [
+    {"path":"Cargo.lock","sha256":"f2e07839678f0109a17a088c4450db47143ac92b3faf2cbb66b9c6b7852441c2"},
+    {"path":"Cargo.toml","sha256":"c10d855f2d8b0556d66ee7b9ecbe394920695080f425dc89b43134140af09d65"},
+    {"path":"README.md","sha256":"770151eadedb52bfe1b7d5b0fcea6bad3a65a30a75fc6135154c4b65b5469d97"},
+    {"path":"docker-compose.yml","sha256":"42b5e218a4945695610db491841d83ff7f73f31b187e3c7a832c3e36c5b34504"},
+    {"path":"docker/postgres/Dockerfile","sha256":"5463f740f829577ece193bebdf9f0a0c40017a47c1b3de394ba2683c84be3ab0"},
+    {"path":"sql/contract.sql","sha256":"68959b676a3b82f55c2cfc06bff8d7463c66b5b1e06cf7302b7f20a7ec4d32e2"},
+    {"path":"sql/postgresql/001_init.sql","sha256":"a1a2822ff4d081c53f4e934690a415e80e448ba9a3dd86395904e65b8984f11c"},
+    {"path":"src/adapters/archive.rs","sha256":"c9e8adafc5e8b6979f32ef30ebaa4827d3af68b710167c98a58c32344c155bad"},
+    {"path":"src/adapters/mod.rs","sha256":"7f64033e6ce9049444a3ea819232db28a715fffb717de4b30a0dbdbaf436762f"},
+    {"path":"src/adapters/postgres.rs","sha256":"dbb63f44106b68660005ba4183edc649f3232c763948dfce7a71722002bb92f3"},
+    {"path":"src/core.rs","sha256":"466c35590b53bc9cc25b93a5b791f26b3dac4e4a2e63e0498f15987649adf6db"},
+    {"path":"src/lib.rs","sha256":"aea8a21912f55f78fa8b5fc61c41940d493795d859fbaf16667992f37035a9d7"},
+    {"path":"tests/postgres_integration.rs","sha256":"3c4fb829a500576aa6750644e1f00cb87e4cccbdf50a3ef31b0a886a4110e8f1"},
+    {"path":"tests/three_layer.rs","sha256":"a2af28b3c4f3a42a87c8af70b919b17cb0df0f0c69996d342bf24d00d4870013"},
+    {"path":"validate.py","sha256":"e178acd2f9d5c22b3ac877e5fcbe7e19e666eb9981e76a2cd17b7a3c206bb623"}
+  ],
+  "system_bindings": {
+    "sql-three-layer-recovery:sql-portability-contract": ["src/core.rs", "sql/contract.sql"],
+    "sql-three-layer-recovery:postgresql-adapter": ["src/adapters/postgres.rs", "sql/postgresql/001_init.sql"],
+    "sql-three-layer-recovery:operational-sql-layer": ["src/core.rs", "src/adapters/postgres.rs"],
+    "sql-three-layer-recovery:recovery-journal-layer": ["src/core.rs", "src/adapters/postgres.rs", "sql/postgresql/001_init.sql"],
+    "sql-three-layer-recovery:immutable-archive-layer": ["src/core.rs", "src/adapters/archive.rs"],
+    "sql-three-layer-recovery:protect-three-layers": ["src/core.rs", "tests/three_layer.rs"],
+    "sql-three-layer-recovery:recover-from-journal": ["src/core.rs", "tests/postgres_integration.rs"],
+    "sql-three-layer-recovery:recover-from-archive": ["src/core.rs", "tests/three_layer.rs", "tests/postgres_integration.rs"],
+    "sql-three-layer-recovery:verify-restoration": ["src/core.rs", "tests/three_layer.rs", "tests/postgres_integration.rs"],
+    "sql-three-layer-recovery:docker-test-environment": ["docker/postgres/Dockerfile", "docker-compose.yml"]
+  },
+  "proof_bindings": {
+    "DST3-PROOF-EXACT-THREE-LAYER-WRITE": ["tests/three_layer.rs#protection_requires_exactly_three_verified_layers"],
+    "DST3-PROOF-THREE-DOMAIN-CLOSURE": ["tests/three_layer.rs#shared_failure_domain_is_rejected_before_work"],
+    "DST3-PROOF-PRIMARY-RECOVERY": ["tests/postgres_integration.rs#postgres_primary_and_journal_prove_verified_restore"],
+    "DST3-PROOF-JOURNAL-FALLBACK": ["tests/postgres_integration.rs#postgres_primary_and_journal_prove_verified_restore"],
+    "DST3-PROOF-ARCHIVE-IMMUTABILITY": ["tests/three_layer.rs#file_archive_refuses_mutated_existing_identity_path"],
+    "DST3-PROOF-CORRUPTION-REJECTED": ["tests/three_layer.rs#file_archive_refuses_mutated_existing_identity_path"],
+    "DST3-PROOF-RESTORE-EVIDENCE-BOUND": ["tests/three_layer.rs#journal_restores_and_verifies_missing_operational_object"],
+    "DST3-PROOF-SQL-PORTABILITY": ["tests/three_layer.rs#portable_core_contains_no_postgresql_dependency"],
+    "DST3-PROOF-POSTGRES-INTEGRATION": ["tests/postgres_integration.rs#postgres_primary_and_journal_prove_verified_restore"]
+  },
+  "portable_contract": "OperationalSqlLayer, RecoveryJournalLayer, and ImmutableArchiveLayer contain no PostgreSQL type or dialect. New SQL adapters implement the first two traits without changing qualified object identity or recovery policy.",
+  "first_adapter": "PostgreSQL 17 local reference adapter",
+  "bounded_environment": "Docker Compose with two PostgreSQL services and distinct named volumes plus an SQL-independent host archive path",
+  "claim_limit": "Bounded reference implementation candidate only. Local volumes and declared failure-domain identifiers do not establish production independence, availability, retention, security, RPO, RTO, publication, deployment, or external effect.",
+  "authority_effect": "none",
+  "external_effect": "none"
+}

@@ -1,0 +1,61 @@
+{
+  "schema_version": "cav2-kep-adversarial-path-model/v1",
+  "model_id": "CA2-KEP-DEVNET-CONTINUATION-013-ADVERSARIAL-V1",
+  "finite_universe": {
+    "semantics": "Exactly the fifteen declared equivalence-class representatives below; deterministic enumeration is exhaustive only for this bounded universe, not for all runtime behavior.",
+    "path_count": 15,
+    "stable_order": "lexicographic path_id"
+  },
+  "boundary": {
+    "in_scope": "Candidate-013 SBF deployment continuation from a digest-bound finalized predecessor journal through bounded signing, submission, observation, reconciliation, and successor-journal recording.",
+    "out_of_scope": "Public handoff, recipient envelope authorization, Rust-browser HPKE parity, browser ciphertext/context parity, and browser/custom-program protocol discriminants.",
+    "unknown_policy": "Any reachable unclassified failure maps to PATH-013-015, stops effects, and remains uncovered until explicitly classified."
+  },
+  "baseline": {
+    "claims_path": "claims.json",
+    "claims_schema_version": "cav2-kep-deployment-continuation-formal-claims/v3",
+    "claims_sha256": "c61b98d397eaf3af9918f30f66ad4d6239e031e90262cec005fb12b7963837f0",
+    "aggregate_receipt_path": "generated/provider-receipt.json",
+    "aggregate_receipt_schema_version": "cav2-kep-deployment-continuation-aggregate-receipt/v3",
+    "aggregate_receipt_sha256": "be930df2a4180815f624c56367eb38a79caf78ba18fdf8296838084ddaa44c72"
+  },
+  "specialization": {
+    "path": "cyberAlchemy-v2/implementation/domainspec-v2/development/evolvable-validation-framework/residuality-specialization-candidate-v1/profile.json",
+    "sha256": "6a2c0b2ef2c67ec387de1accb292c887a2191a20644a4a3f1235ee9bb849eef1",
+    "status_requirement": "prototype-candidate-unapproved",
+    "authority_effect": "none"
+  },
+  "attractors": [
+    {"id": "A1-DEPENDENCY-FRESHNESS-FINALITY", "desired_residue": "No signature before current dependency and finality are established."},
+    {"id": "A2-AMBIGUITY-REPLAY-IDEMPOTENCY", "desired_residue": "Unknown effects reconcile before retry; duplicate semantic effects remain forbidden."},
+    {"id": "A3-AUTHORITY-IDENTITY-ACCOUNT", "desired_residue": "Mismatched authority, identity, owner, PDA, epoch, or version fails before signing."},
+    {"id": "A4-BOUNDARY-ENCODING-INTEROPERABILITY", "desired_residue": "Malformed or incompatible deployment-boundary data is rejected without effect."},
+    {"id": "A5-CRYPTO-CONTEXT-INTEGRITY", "desired_residue": "Cryptographic cross-runtime concerns remain outside this deployment-only boundary and visible as wider-KEP residue."},
+    {"id": "A6-JOURNAL-CONTINUITY-ORDER-RECOVERY", "desired_residue": "Restart reconstructs one ordered effect history or stops on discontinuity."},
+    {"id": "A7-UNKNOWN-FAIL-CLOSED", "desired_residue": "Unclassified reachable failure stops effects and blocks readiness."}
+  ],
+  "paths": [
+    {"path_id":"PATH-013-001","failure_class":"stale-or-missing-blockhash","applicability":"reachable","safety_relevant":true,"properties":["safety","liveness"],"dimensions":{"state":"effect_ready","transition":"sign","failure_timing":"pre-sign","effect_knowledge":"known-no-effect"},"attractor":"A1-DEPENDENCY-FRESHNESS-FINALITY","residue_owner":"candidate-013 continuation controller","desired_residue":"stop-before-sign","obligations":["verify-current-blockhash","prove-no-signature-produced"],"evidence_kinds":["implementation-test","runtime-observation"]},
+    {"path_id":"PATH-013-002","failure_class":"submission-timeout-unknown-effect","applicability":"reachable","safety_relevant":true,"properties":["safety","liveness"],"dimensions":{"state":"submitted_unknown","transition":"observe","failure_timing":"post-submit-pre-response","effect_knowledge":"unknown"},"attractor":"A2-AMBIGUITY-REPLAY-IDEMPOTENCY","residue_owner":"candidate-013 reconciliation controller","desired_residue":"reconcile-before-retry","obligations":["bound-unknown-effect-state","observe-or-stop-before-retry"],"evidence_kinds":["bounded-exploration","runtime-observation"]},
+    {"path_id":"PATH-013-003","failure_class":"retry-or-replay-after-ambiguity","applicability":"reachable","safety_relevant":true,"properties":["safety"],"dimensions":{"state":"submitted_unknown","transition":"submit","duplication":"replay","effect_knowledge":"unknown"},"attractor":"A2-AMBIGUITY-REPLAY-IDEMPOTENCY","residue_owner":"candidate-013 transition model","desired_residue":"retry-forbidden","obligations":["prove-no-successor-submit-transition","test-duplicate-effect-rejection"],"evidence_kinds":["formal-proof","implementation-test"]},
+    {"path_id":"PATH-013-004","failure_class":"finalized-failure-versus-pre-submission-rejection","applicability":"reachable","safety_relevant":true,"properties":["safety","liveness"],"dimensions":{"state":"finalized_failure","transition":"finalize","failure_timing":"finalized","effect_knowledge":"known-effect"},"attractor":"A1-DEPENDENCY-FRESHNESS-FINALITY","residue_owner":"candidate-013 observation journal","desired_residue":"exact-effect-stage-recorded","obligations":["distinguish-rejection-from-finalized-failure"],"evidence_kinds":["implementation-test"]},
+    {"path_id":"PATH-013-005","failure_class":"revision-race-or-already-applied","applicability":"reachable","safety_relevant":true,"properties":["safety","liveness"],"dimensions":{"state":"predecessor_verified","transition":"reconcile","revision":"already-applied","ordering":"concurrent"},"attractor":"A2-AMBIGUITY-REPLAY-IDEMPOTENCY","residue_owner":"candidate-013 journal reconciler","desired_residue":"single-recorded-semantic-effect","obligations":["explore-stale-expected-future-revisions","prove-already-applied-is-not-resubmitted"],"evidence_kinds":["bounded-exploration"]},
+    {"path_id":"PATH-013-006","failure_class":"wallet-identity-or-authority-mismatch","applicability":"reachable","safety_relevant":true,"properties":["safety"],"dimensions":{"state":"prepared","transition":"validate","actor":"operator","failure_timing":"pre-validation"},"attractor":"A3-AUTHORITY-IDENTITY-ACCOUNT","residue_owner":"candidate-013 preflight validator","desired_residue":"reject-before-sign","obligations":["test-payer-program-buffer-authority-mismatch"],"evidence_kinds":["implementation-test"]},
+    {"path_id":"PATH-013-007","failure_class":"malformed-public-handoff-card","applicability":"excluded","safety_relevant":false,"properties":["boundary"],"attractor":"A4-BOUNDARY-ENCODING-INTEROPERABILITY","exclusion_rationale":"Public handoff parsing is owned by the wider KEP boundary, not deployment continuation.","residue_owner":"wider KEP public-handoff owner","desired_residue":"visible-wider-KEP-residue","obligations":[],"evidence_kinds":[]},
+    {"path_id":"PATH-013-008","failure_class":"recipient-outsider-stale-envelope-or-auth-failure","applicability":"excluded","safety_relevant":false,"properties":["boundary"],"attractor":"A3-AUTHORITY-IDENTITY-ACCOUNT","exclusion_rationale":"Recipient and envelope authorization precede and are outside deployment continuation.","residue_owner":"wider KEP authorization owner","desired_residue":"visible-wider-KEP-residue","obligations":[],"evidence_kinds":[]},
+    {"path_id":"PATH-013-009","failure_class":"rust-browser-hpke-drift","applicability":"excluded","safety_relevant":false,"properties":["boundary"],"attractor":"A5-CRYPTO-CONTEXT-INTEGRITY","exclusion_rationale":"Candidate 013 performs zero protocol execution and does not cross the Rust-browser HPKE boundary.","residue_owner":"wider KEP crypto-parity owner","desired_residue":"visible-wider-KEP-residue","obligations":[],"evidence_kinds":[]},
+    {"path_id":"PATH-013-010","failure_class":"ciphertext-plaintext-or-content-key-context-mismatch","applicability":"excluded","safety_relevant":false,"properties":["boundary"],"attractor":"A5-CRYPTO-CONTEXT-INTEGRITY","exclusion_rationale":"Encrypted-content context is outside the zero-protocol deployment continuation.","residue_owner":"wider KEP crypto-context owner","desired_residue":"visible-wider-KEP-residue","obligations":[],"evidence_kinds":[]},
+    {"path_id":"PATH-013-011","failure_class":"rust-custom-program-discriminant-drift","applicability":"excluded","safety_relevant":false,"properties":["boundary"],"attractor":"A4-BOUNDARY-ENCODING-INTEROPERABILITY","exclusion_rationale":"Program protocol discriminants are not exercised by the loader-only, zero-protocol continuation.","residue_owner":"wider KEP protocol-parity owner","desired_residue":"visible-wider-KEP-residue","obligations":[],"evidence_kinds":[]},
+    {"path_id":"PATH-013-012","failure_class":"serialization-or-length-drift","applicability":"reachable","safety_relevant":true,"properties":["safety"],"dimensions":{"state":"prepared","transition":"validate","encoding":"wrong-length","representation":"divergent"},"attractor":"A4-BOUNDARY-ENCODING-INTEROPERABILITY","residue_owner":"candidate-013 loader-boundary validator","desired_residue":"reject-loader-input-before-sign","obligations":["test-malformed-truncated-wrong-length-loader-input"],"evidence_kinds":["implementation-test"],"partial_exclusion":"Browser representation parity remains outside this boundary."},
+    {"path_id":"PATH-013-013","failure_class":"account-owner-pda-epoch-or-version-mismatch","applicability":"reachable","safety_relevant":true,"properties":["safety"],"dimensions":{"state":"prepared","transition":"validate","revision":"stale","actor":"loader"},"attractor":"A3-AUTHORITY-IDENTITY-ACCOUNT","residue_owner":"candidate-013 account preflight validator","desired_residue":"reject-before-sign","obligations":["test-owner-pda-epoch-version-mismatch"],"evidence_kinds":["implementation-test"]},
+    {"path_id":"PATH-013-014","failure_class":"partial-effect-crash-restart-journal-discontinuity-duplicate-or-reorder","applicability":"reachable","safety_relevant":true,"properties":["safety","liveness"],"dimensions":{"state":"recovered","transition":"restart","journal":"hash-break","ordering":"reordered","duplication":"duplicate-signature"},"attractor":"A6-JOURNAL-CONTINUITY-ORDER-RECOVERY","residue_owner":"candidate-013 journal recovery controller","desired_residue":"one-intact-ordered-history-or-stop","obligations":["explore-crash-points","test-missing-truncated-hash-break-duplicate-reordered-journal","prove-no-replay-after-restart"],"evidence_kinds":["bounded-exploration","implementation-test"]},
+    {"path_id":"PATH-013-015","failure_class":"unknown-or-unclassified-failure","applicability":"reachable","safety_relevant":true,"properties":["safety","liveness"],"dimensions":{"state":"stopped","transition":"reconcile","effect_knowledge":"unknown","dependency_response":"unavailable"},"attractor":"A7-UNKNOWN-FAIL-CLOSED","residue_owner":"candidate-013 operational controller","desired_residue":"fail-closed-and-block-readiness","obligations":["stop-effects","retain-unclassified-input","require-explicit-classification-before-readiness"],"evidence_kinds":["operational-control","runtime-observation"]}
+  ],
+  "provider_policy": {
+    "rule": "Select the smallest adequate evidence kinds for each obligation. A provider brand is selected only by an independently governed claim projection; uncovered evidence kinds remain residue rather than causing a provider mandate.",
+    "existing_selected_provider": "lean",
+    "forbidden_provider_coupling": ["require-tlc-by-name", "require-alloy-by-name", "treat-provider-absence-as-path-absence"]
+  },
+  "readiness_gate": "BLOCK when any reachable safety-relevant path lacks an owned desired residue, lacks an obligation, has stale bound input evidence, or is reported covered without all required evidence kinds.",
+  "authority_effect": "none"
+}

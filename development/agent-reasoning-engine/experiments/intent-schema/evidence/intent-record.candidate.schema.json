@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cav2.intent-record.candidate@1",
+  "title": "Candidate Intent Record",
+  "description": "Private experiment shape for projecting the CAV2-D39 semantic minimum. Conformance proves shape and declared posture invariants only; it is not live empirical or semantic-validity evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent_id",
+    "record_schema",
+    "record_status",
+    "raw_intent",
+    "intent",
+    "revision_history"
+  ],
+  "properties": {
+    "intent_id": {"type": "string", "pattern": "^INTENT-[A-Z0-9-]+$"},
+    "record_schema": {"const": "intent-record.candidate@1"},
+    "record_status": {"enum": ["candidate", "selected-local", "superseded"]},
+    "raw_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text_or_ref", "source_ref", "captured_at"],
+      "properties": {
+        "text_or_ref": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string", "minLength": 1},
+        "captured_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "purpose",
+        "scope",
+        "constraints",
+        "target_pressure",
+        "current_output_hypothesis",
+        "revision_route"
+      ],
+      "properties": {
+        "source": {"$ref": "#/$defs/fieldValue"},
+        "purpose": {"$ref": "#/$defs/fieldValue"},
+        "scope": {"$ref": "#/$defs/fieldValue"},
+        "constraints": {"$ref": "#/$defs/fieldValue"},
+        "target_pressure": {"$ref": "#/$defs/fieldValue"},
+        "current_output_hypothesis": {"$ref": "#/$defs/fieldValue"},
+        "revision_route": {"$ref": "#/$defs/fieldValue"}
+      }
+    },
+    "revision_history": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/revision"}
+    }
+  },
+  "$defs": {
+    "fieldValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["posture", "value", "evidence_refs", "inference_note"],
+      "properties": {
+        "posture": {"enum": ["declared", "inferred", "unresolved"]},
+        "value": {},
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "inference_note": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"posture": {"const": "declared"}}, "required": ["posture"]},
+          "then": {
+            "properties": {
+              "value": {"not": {"type": "null"}},
+              "evidence_refs": {"minItems": 1},
+              "inference_note": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"posture": {"const": "inferred"}}, "required": ["posture"]},
+          "then": {
+            "properties": {
+              "value": {"not": {"type": "null"}},
+              "evidence_refs": {"minItems": 1},
+              "inference_note": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"posture": {"const": "unresolved"}}, "required": ["posture"]},
+          "then": {
+            "properties": {
+              "value": {"type": "null"},
+              "evidence_refs": {"maxItems": 0},
+              "inference_note": {"type": "null"}
+            }
+          }
+        }
+      ]
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision_id", "changed_fields", "reason", "evidence_refs", "owner_route"],
+      "properties": {
+        "revision_id": {"type": "string", "minLength": 1},
+        "changed_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "owner_route": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

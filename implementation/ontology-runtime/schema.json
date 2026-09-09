@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/ontology-runtime/v1",
+  "title": "CyberAlchemy Ontology Runtime package",
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "text": {"type": "string", "minLength": 1},
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "runtime_id", "title", "status", "product_ref",
+        "product_capability_ref", "business_ontology_ref",
+        "domainspec_project_ref", "system_ontology_ref",
+        "implementation_target_ref", "registry_ref", "operations", "effects",
+        "forbidden_effects", "authority_effect", "claim_limit"
+      ],
+      "properties": {
+        "schema_version": {"const": "cav2-ontology-runtime-profile/v1"},
+        "runtime_id": {"const": "cav2.ontology-runtime"},
+        "title": {"$ref": "#/$defs/text"},
+        "status": {"const": "candidate"},
+        "product_ref": {"const": "CA2-PRODUCT-ONTOLOGY"},
+        "product_capability_ref": {"const": "CA2-CAP-MANAGE-ONTOLOGIES"},
+        "business_ontology_ref": {"const": "CA2-ONTOLOGY-RUNTIME-MANAGEMENT"},
+        "domainspec_project_ref": {"const": "domainspec/project.json"},
+        "system_ontology_ref": {"const": "domainspec/generated/system-ontology.json"},
+        "implementation_target_ref": {"const": "runtime.py"},
+        "registry_ref": {"const": "registry.json"},
+        "operations": {"const": ["route-preflight", "catalog", "snapshot", "get-record", "validate", "validate-all"]},
+        "effects": {"const": ["read-repository-files", "run-explicit-native-validator"]},
+        "forbidden_effects": {"type": "array", "minItems": 8, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "authority_effect": {"const": "none"},
+        "claim_limit": {"$ref": "#/$defs/text"}
+      }
+    },
+    "sourceSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection_id", "path", "scope_kind", "selector", "expected_digest"],
+      "properties": {
+        "selection_id": {"$ref": "#/$defs/text"},
+        "path": {"$ref": "#/$defs/relativePath"},
+        "scope_kind": {"enum": ["whole-file", "heading-section", "json-record"]},
+        "selector": {"type": ["string", "null"]},
+        "expected_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "recordSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "collection", "kind", "id_field"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relativePath"},
+        "collection": {"$ref": "#/$defs/text"},
+        "kind": {"pattern": "^[a-z][a-z0-9_-]*$"},
+        "id_field": {"$ref": "#/$defs/text"}
+      }
+    },
+    "nativeValidator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["argv", "timeout_seconds", "expected_authority_effect"],
+      "properties": {
+        "argv": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "prefixItems": [
+            {"const": "python3"},
+            {"$ref": "#/$defs/relativePath"}
+          ],
+          "items": false
+        },
+        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 60},
+        "expected_authority_effect": {"const": "none"}
+      }
+    },
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ontology_id", "package_root", "profile_ref", "adapter",
+        "material_files", "expected_material_digest", "source_selections",
+        "record_sources", "native_validator", "owner_route", "authority_effect"
+      ],
+      "properties": {
+        "ontology_id": {"pattern": "^[a-z0-9][a-z0-9._-]+$"},
+        "package_root": {"$ref": "#/$defs/relativePath"},
+        "profile_ref": {"$ref": "#/$defs/relativePath"},
+        "adapter": {"const": "cav2-json-ontology/v1"},
+        "material_files": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/relativePath"}},
+        "expected_material_digest": {"$ref": "#/$defs/sha256"},
+        "source_selections": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceSelection"}},
+        "record_sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/recordSource"}},
+        "native_validator": {"$ref": "#/$defs/nativeValidator"},
+        "owner_route": {"$ref": "#/$defs/text"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "registry_id", "entries", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "cav2-ontology-runtime-registry/v1"},
+        "registry_id": {"const": "cav2.ontology-runtime.local-registry"},
+        "entries": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/registration"}},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "businessSourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "scope_kind", "selector", "sha256"],
+      "properties": {
+        "id": {"pattern": "^CAP-SEL-"},
+        "path": {"$ref": "#/$defs/relativePath"},
+        "scope_kind": {"enum": ["whole-file", "heading-section", "json-record-set", "self-reference"]},
+        "selector": {"type": ["string", "null"]},
+        "sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+      }
+    },
+    "businessOntology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "ontology_id", "ontology_type", "product_ref",
+        "product_capability_ref", "source_bindings", "nodes", "relations",
+        "residue", "authority_effect", "claim_limit"
+      ],
+      "properties": {
+        "schema_version": {"const": "cav2-ontology-runtime-business-ontology/v1"},
+        "ontology_id": {"const": "CA2-ONTOLOGY-RUNTIME-MANAGEMENT"},
+        "ontology_type": {"const": "capability-local-business"},
+        "product_ref": {"const": "CA2-PRODUCT-ONTOLOGY"},
+        "product_capability_ref": {"const": "CA2-CAP-MANAGE-ONTOLOGIES"},
+        "source_bindings": {"type": "array", "minItems": 6, "items": {"$ref": "#/$defs/businessSourceBinding"}},
+        "nodes": {"type": "array", "minItems": 8},
+        "relations": {"type": "array", "minItems": 7},
+        "residue": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/text"}},
+        "authority_effect": {"const": "none"},
+        "claim_limit": {"$ref": "#/$defs/text"}
+      }
+    }
+  }
+}

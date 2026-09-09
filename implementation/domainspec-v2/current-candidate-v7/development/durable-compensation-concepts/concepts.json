@@ -1,0 +1,129 @@
+{
+  "schema_version": "domainspec.durable-compensation-concepts/v1",
+  "package_id": "domainspec-durable-compensation-concepts@2",
+  "status": "admitted-definition-source",
+  "authority_effect": "none",
+  "source_definition": "domainspec-v2-D36",
+  "admission": {
+    "definition_ids": ["domainspec-v2-D36", "domainspec-v2-D37", "domainspec-v2-D38", "domainspec-v2-D39", "domainspec-v2-D40", "domainspec-v2-D41", "domainspec-v2-D42", "domainspec-v2-D43", "domainspec-v2-D44"],
+    "canonical_definitions": "cyberAlchemy-v2/authority/domainspec-v2/current-candidate-v7/definitions/DEFINITIONS.md",
+    "product_ontology": "cyberAlchemy-v2/ontology/domainspec-v2/current-candidate-v7",
+    "baseline_id": "domainspec-meta-types-current-implemented@7"
+  },
+  "concepts": [
+    {
+      "proposed_id": "domainspec-v2-D37",
+      "term": "Recovery Intent",
+      "role": "stable-semantic-recovery-request",
+      "identity_fields": ["intent_id", "workflow_execution_id", "failure_occurrence_id", "failed_step_id", "completed_step_journal_digest", "plan_digest"],
+      "states": ["required", "satisfied", "unresolved"],
+      "retry_identity_behavior": "preserved"
+    },
+    {
+      "proposed_id": "domainspec-v2-D38",
+      "term": "Durable Compensation Dispatch",
+      "role": "persistent-coordination-aggregate",
+      "identity_fields": ["dispatch_id", "intent_id", "frozen_plan_digest"],
+      "states": ["ready", "leased", "executing", "retry-scheduled", "terminal"],
+      "retry_identity_behavior": "preserved"
+    },
+    {
+      "proposed_id": "domainspec-v2-D39",
+      "term": "Compensation Execution Attempt",
+      "role": "one-bounded-executor-episode",
+      "identity_fields": ["attempt_id", "dispatch_id", "plan_occurrence_id", "attempt_number", "claim_id", "lease_id", "fencing_token"],
+      "states": ["succeeded", "failed", "unknown"],
+      "retry_identity_behavior": "new-per-execution-episode"
+    },
+    {
+      "proposed_id": "domainspec-v2-D40",
+      "term": "Compensation Invocation Identity",
+      "role": "stable-per-occurrence-idempotency-identity",
+      "identity_fields": ["intent_id", "plan_digest", "operation_id", "plan_occurrence_id"],
+      "states": [],
+      "retry_identity_behavior": "preserved"
+    },
+    {
+      "proposed_id": "domainspec-v2-D41",
+      "term": "Compensation Claim",
+      "role": "exclusive-fenced-dispatch-advancement-authority",
+      "identity_fields": ["claim_id", "dispatch_id", "claimant_id", "acquired_at", "acquired_dispatch_version", "fencing_token"],
+      "states": ["current", "released", "superseded"],
+      "retry_identity_behavior": "independent-authority-lifecycle"
+    },
+    {
+      "proposed_id": "domainspec-v2-D42",
+      "term": "Compensation Claim Lease",
+      "role": "time-bounded-validity-window-for-one-claim",
+      "identity_fields": ["lease_id", "claim_id", "lease_generation", "valid_from", "expires_at", "renewed_from_lease_id"],
+      "states": ["active", "expired", "superseded"],
+      "retry_identity_behavior": "independent-authority-lifecycle"
+    },
+    {
+      "proposed_id": "domainspec-v2-D43",
+      "term": "Compensation Retry",
+      "role": "authorized-scheduled-successor-attempt",
+      "identity_fields": ["dispatch_id", "predecessor_attempt_id", "successor_attempt_number", "not_before", "remaining_budget", "selected_policy_ref"],
+      "states": ["scheduled", "eligible", "consumed"],
+      "retry_identity_behavior": "new-per-authorized-retry"
+    },
+    {
+      "proposed_id": "domainspec-v2-D44",
+      "term": "Compensation Terminal Disposition",
+      "role": "durable-final-dispatch-result",
+      "identity_fields": ["dispatch_id", "disposition", "final_attempt_id", "cause", "evidence_refs", "recorded_at"],
+      "states": ["completed", "exhausted", "escalated"],
+      "retry_identity_behavior": "terminal-only"
+    }
+  ],
+  "dispatch_transitions": [
+    {"from": "ready", "to": "leased", "cause": "atomic-claim-acquired"},
+    {"from": "leased", "to": "executing", "cause": "attempt-started"},
+    {"from": "leased", "to": "ready", "cause": "claim-expired-before-start"},
+    {"from": "executing", "to": "ready", "cause": "worker-loss-or-unknown-outcome-recovery"},
+    {"from": "executing", "to": "retry-scheduled", "cause": "retry-continuation-persisted"},
+    {"from": "retry-scheduled", "to": "ready", "cause": "not-before-reached"},
+    {"from": "executing", "to": "terminal", "cause": "completed-exhausted-or-escalated"}
+  ],
+  "processing_guarantee": "at-least-once-invocation-with-idempotent-semantic-application",
+  "invariants": [
+    "one-intent-per-immutable-workflow-failure-occurrence",
+    "intent-required-until-terminal-satisfied-only-completed-unresolved-only-exhausted-or-escalated",
+    "intent-and-plan-immutable-after-dispatch-creation",
+    "durable-progress-retains-completed-plan-occurrences",
+    "one-current-fenced-claim-per-dispatch",
+    "claim-acquisition-cas-binds-current-dispatch-version",
+    "dispatch-advancement-requires-current-claim-and-active-lease",
+    "lease-renewal-preserves-claim-and-fence-with-new-generation",
+    "takeover-creates-new-claim-with-greater-fence",
+    "stale-claimant-cannot-commit-dispatch-advancement",
+    "unique-attempt-identity-per-executor-episode",
+    "stable-invocation-identity-across-replays",
+    "recovery-operation-enforces-at-most-once-semantic-application-per-invocation-identity",
+    "claim-acquisition-lease-grant-or-renewal-alone-does-not-create-an-attempt",
+    "expired-lease-during-execution-makes-attempt-unknown-before-replay",
+    "all-bindings-preflight-before-first-invocation",
+    "dispatch-transition-and-dispatch-outbox-are-atomic",
+    "operation-business-state-and-outbox-remain-operation-owned",
+    "retry-cannot-replan-or-substitute-an-operation",
+    "attempt-failure-is-not-terminal-without-explicit-continuation",
+    "terminal-disposition-has-no-implicit-successor"
+  ],
+  "deferred_architecture_choices": [
+    "durable-store-and-transaction-technology",
+    "queue-or-polling-transport",
+    "clock-lease-duration-and-renewal-cadence",
+    "worker-topology-partitioning-throughput-and-backpressure",
+    "retry-policy-representation-and-configuration-owner",
+    "dispatch-event-and-observability-transport",
+    "archive-and-retention-policy"
+  ],
+  "excluded_semantics": ["exactly-once-process-execution", "database-rollback", "new-meta-type", "new-relationship-verb", "cancelled", "abandoned", "dead-letter"],
+  "admission_requirements": [
+    "refine-domainspec-v2-D36",
+    "add-domainspec-v2-D37-through-D44",
+    "synchronize-definitions-index-and-drift-audit",
+    "freeze-a-new-immutable-baseline-epoch",
+    "refresh-product-ontology-source-bindings-and-validation-receipt"
+  ]
+}

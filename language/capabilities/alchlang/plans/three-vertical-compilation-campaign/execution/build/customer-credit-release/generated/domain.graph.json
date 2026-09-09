@@ -1,0 +1,507 @@
+{
+  "authority_effect": "none",
+  "nodes": [
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Credit may be released only from approved state.",
+        "predicate": "status-equals-approved"
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "approved-release",
+      "selector": "customer-credit-release:approved-release"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Customer credit release lifecycle.",
+        "initial": "pending",
+        "states": [
+          "pending",
+          "approved",
+          "rejected",
+          "released"
+        ],
+        "transitions": [
+          {
+            "effect_event_ref": null,
+            "guard_ref": null,
+            "source_state": "pending",
+            "target_state": "approved",
+            "transition_id": "approve-credit"
+          },
+          {
+            "effect_event_ref": null,
+            "guard_ref": null,
+            "source_state": "pending",
+            "target_state": "rejected",
+            "transition_id": "reject-credit"
+          },
+          {
+            "effect_event_ref": "customer-credit-release:credit-released",
+            "guard_ref": "customer-credit-release:approved-release",
+            "source_state": "approved",
+            "target_state": "released",
+            "transition_id": "release-credit"
+          }
+        ]
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "State Machine",
+      "meta_type_id": "DS-D1.14",
+      "node_id": "credit-decision",
+      "selector": "customer-credit-release:credit-decision"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "The confirmation must come from the bounded credit authority.",
+        "predicate": "credit-authority-current"
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "credit-release-authority",
+      "selector": "customer-credit-release:credit-release-authority"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Credit was released after all checks passed.",
+        "event_type": "credit-released",
+        "occurred_at_policy": "required",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "required": true,
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          }
+        },
+        "payload": [
+          {
+            "field_id": "customer-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "amount",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "decimal"
+            }
+          }
+        ],
+        "version": "1"
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "Event",
+      "meta_type_id": "DS-D1.12",
+      "node_id": "credit-released",
+      "selector": "customer-credit-release:credit-released"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "The customer whose approved credit may be released.",
+        "fields": [
+          {
+            "field_id": "customer-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "risk-score",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          },
+          {
+            "field_id": "status",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          }
+        ],
+        "identity_field": "customer-id"
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "node_id": "customer",
+      "selector": "customer-credit-release:customer"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Risk score at or below 472 requires human confirmation.",
+        "predicate": "high-risk-requires-confirmation"
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "high-risk-confirmation",
+      "selector": "customer-credit-release:high-risk-confirmation"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Attempt to release approved credit.",
+        "effects": [
+          "credit-released"
+        ],
+        "failure_continuation": "return-denied-or-blocked",
+        "guard": "approved-release+risk-provenance-known+high-risk-confirmation+credit-release-authority",
+        "reads": [
+          "customer"
+        ],
+        "writes": [
+          "customer.status"
+        ]
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {
+        "creation_targets": []
+      },
+      "kind": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "node_id": "release-credit",
+      "selector": "customer-credit-release:release-credit"
+    },
+    {
+      "authored_forbidden_projection_attributes": [],
+      "body": {
+        "description": "Risk provenance must be known before release.",
+        "predicate": "risk-provenance-known"
+      },
+      "feature_id": "customer-credit-release",
+      "generated_relationship_projections": {},
+      "kind": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "node_id": "risk-provenance-known",
+      "selector": "customer-credit-release:risk-provenance-known"
+    }
+  ],
+  "project_id": "customer-credit-release",
+  "project_root": ".",
+  "relationships": [
+    {
+      "edge_id": "approved-release-enforces-release-credit",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Rule",
+        "node_id": "approved-release"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      }
+    },
+    {
+      "edge_id": "credit-release-authority-enforces-release-credit",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Rule",
+        "node_id": "credit-release-authority"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      }
+    },
+    {
+      "edge_id": "credit-released-transitions-credit-decision",
+      "relationship": "transitions",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Event",
+        "node_id": "credit-released"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "State Machine",
+        "node_id": "credit-decision"
+      }
+    },
+    {
+      "edge_id": "customer-emits-credit-released",
+      "relationship": "emits",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Entity",
+        "node_id": "customer"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Event",
+        "node_id": "credit-released"
+      }
+    },
+    {
+      "edge_id": "customer-performs-release-credit",
+      "relationship": "performs",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Entity",
+        "node_id": "customer"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      }
+    },
+    {
+      "edge_id": "high-risk-confirmation-enforces-release-credit",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Rule",
+        "node_id": "high-risk-confirmation"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      }
+    },
+    {
+      "edge_id": "release-credit-produces-credit-released",
+      "relationship": "produces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Event",
+        "node_id": "credit-released"
+      }
+    },
+    {
+      "edge_id": "release-credit-reads-customer",
+      "relationship": "reads",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Entity",
+        "node_id": "customer"
+      }
+    },
+    {
+      "edge_id": "risk-provenance-known-enforces-release-credit",
+      "relationship": "enforces",
+      "scope": "feature",
+      "source": {
+        "feature_id": "customer-credit-release",
+        "kind": "Rule",
+        "node_id": "risk-provenance-known"
+      },
+      "target": {
+        "feature_id": "customer-credit-release",
+        "kind": "Operation",
+        "node_id": "release-credit"
+      }
+    }
+  ],
+  "schema_version": "domainspec.compiled-project-graph/v1-candidate",
+  "source_manifest": {
+    "aggregate_sha256": "4e115f926c217471f02fff82e18575836f2044024806cb367582b3feafb871ca",
+    "authority_effect": "none",
+    "manifest_sha256": "acbb35855ef68f2018f9359eaef577d6862a9c0880fa50b33f9cb75203bf9d7d",
+    "project_id": "customer-credit-release",
+    "schema_version": "domainspec.stable-foundation-cli.source-manifest/v1",
+    "source_count": 19,
+    "sources": [
+      {
+        "feature_id": null,
+        "relative_path": "project.json",
+        "sha256": "28be3ff33e7ca68cb9abe5028e2262b041d1ad420e050a474b4745df34726d11",
+        "size_bytes": 171,
+        "source_id": "project",
+        "source_type": "project"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/approved-release-enforces-release-credit.json",
+        "sha256": "d3e8751b222fb45a80974c5c5d3d55493432b081d1611affd2959c162ac756d1",
+        "size_bytes": 275,
+        "source_id": "customer-credit-release:approved-release-enforces-release-credit",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/credit-release-authority-enforces-release-credit.json",
+        "sha256": "ce980675ca06e519829570962a00333efc9eb3714b1451371eefba13d17fc085",
+        "size_bytes": 291,
+        "source_id": "customer-credit-release:credit-release-authority-enforces-release-credit",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/credit-released-transitions-credit-decision.json",
+        "sha256": "5bfc23315b5d2805898b2850301acf8f569d2d793ff7f5f6fdb715b84a590d75",
+        "size_bytes": 281,
+        "source_id": "customer-credit-release:credit-released-transitions-credit-decision",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/customer-emits-credit-released.json",
+        "sha256": "b8e777409fa1f09be6e1ec1afd913cdd80f65ab476c30745a97ac3d54f7ff169",
+        "size_bytes": 255,
+        "source_id": "customer-credit-release:customer-emits-credit-released",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/customer-performs-release-credit.json",
+        "sha256": "023829596c4280ecb2a40f5c7b728c9ae25c3a21b592e88fe651be68591a89b3",
+        "size_bytes": 259,
+        "source_id": "customer-credit-release:customer-performs-release-credit",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/high-risk-confirmation-enforces-release-credit.json",
+        "sha256": "6ca2996c13bd09e31a7ea9543e46f6d3fab6474285730a8ab7541825130a4faf",
+        "size_bytes": 287,
+        "source_id": "customer-credit-release:high-risk-confirmation-enforces-release-credit",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/release-credit-produces-credit-released.json",
+        "sha256": "0c0f3e49d76bdfe1591fdd007f6525c0685fcdf91b964fc32d2cc1b880db98ed",
+        "size_bytes": 273,
+        "source_id": "customer-credit-release:release-credit-produces-credit-released",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/release-credit-reads-customer.json",
+        "sha256": "45df010120803dbb12410282d95bf15f97cf7a0760915e388d22a22de5241cc8",
+        "size_bytes": 253,
+        "source_id": "customer-credit-release:release-credit-reads-customer",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/edges/risk-provenance-known-enforces-release-credit.json",
+        "sha256": "78668caacaa4b4bc54b6d87fa747522c382feee753e7b27575e021c052b0a9d9",
+        "size_bytes": 285,
+        "source_id": "customer-credit-release:risk-provenance-known-enforces-release-credit",
+        "source_type": "feature-edge"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/feature.json",
+        "sha256": "bd5da3c8a6e76f844376e5e0e1d51f55e7a54d753d6f8226718df81ba243510c",
+        "size_bytes": 748,
+        "source_id": "customer-credit-release",
+        "source_type": "feature"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/approved-release.json",
+        "sha256": "1088e7fe1091565d548cfb62db977265dd64e43ef3642464b278632e913b53f4",
+        "size_bytes": 269,
+        "source_id": "customer-credit-release:approved-release",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/credit-decision.json",
+        "sha256": "9ab19976bba9495d07777b7ade2c1db984bda7fca2b59c2adc6ce7d26d8de533",
+        "size_bytes": 1014,
+        "source_id": "customer-credit-release:credit-decision",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/credit-release-authority.json",
+        "sha256": "015f4500b8985e85fd4b69fbb1217693b4ecc722e5bbb01ebb04ca6142ff4bf7",
+        "size_bytes": 292,
+        "source_id": "customer-credit-release:credit-release-authority",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/credit-released.json",
+        "sha256": "a1056d949175f27762bbcacc295df9e46406710b6488d7919399db9d5d8d2eec",
+        "size_bytes": 839,
+        "source_id": "customer-credit-release:credit-released",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/customer.json",
+        "sha256": "4d4200da48f2761cdc3edee9accbeb07ec8ad572c47a0b73c31d260cfbfc415d",
+        "size_bytes": 779,
+        "source_id": "customer-credit-release:customer",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/high-risk-confirmation.json",
+        "sha256": "88b010756a83b14d51085cfd2a577d7f0267beefe1874104bfe4fd3bc3b85fb5",
+        "size_bytes": 291,
+        "source_id": "customer-credit-release:high-risk-confirmation",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/release-credit.json",
+        "sha256": "f926ab96e818b2ec0c62bec38d97f6316d002c8519379da2cd23464f868f9758",
+        "size_bytes": 509,
+        "source_id": "customer-credit-release:release-credit",
+        "source_type": "node"
+      },
+      {
+        "feature_id": "customer-credit-release",
+        "relative_path": "specs/customer-credit-release/nodes/risk-provenance-known.json",
+        "sha256": "1186c99391b5c6ae84b876faa4de9903ce3cd1d56ddfc067860a0ff393a411d6",
+        "size_bytes": 270,
+        "source_id": "customer-credit-release:risk-provenance-known",
+        "source_type": "node"
+      }
+    ],
+    "total_size_bytes": 7641
+  }
+}

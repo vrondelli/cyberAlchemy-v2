@@ -1,0 +1,3 @@
+import type { PortalDescriptor } from "../contracts/scene";
+import { PortalCard } from "./PortalCard";
+export function GroupedPortals({ portals, onOpen }: { readonly portals: readonly PortalDescriptor[]; readonly onOpen: (portal: PortalDescriptor) => void }) { return <section className="grouped-portals" aria-labelledby="portal-heading"><header><div><span className="eyebrow">Connected areas</span><h2 id="portal-heading">Portals beyond this scene</h2></div><span className="count-pill">{portals.length}</span></header>{portals.length ? <div className="portal-grid">{portals.map((portal) => <PortalCard key={portal.id} portal={portal} onOpen={() => onOpen(portal)} />)}</div> : <p className="empty-copy">This scene has no hidden boundary connections.</p>}</section>; }

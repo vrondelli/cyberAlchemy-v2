@@ -1,0 +1,171 @@
+{
+  "status": "UNCHANGED",
+  "candidate": {
+    "authority_effect": "none",
+    "changes": [
+      {
+        "expected_file_sha256": "de2128bc2465bf97f4745d8d604263b505d904352ee283837647a2be77de2276",
+        "operation": "replace-file",
+        "path": "src/subject.mjs",
+        "utf8": "import {createHash} from 'node:crypto';\nconst stable = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key,item[key]])) : item);\nconst hash = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');\nconst need = (condition, code) => { if (!condition) throw new Error(code); };\nexport function projectObservations(history, history_ref, recentCount) {\n  need(Array.isArray(history) && history.length <= 12 && /^[a-f0-9]{64}$/.test(history_ref), 'retention-history-invalid');\n  return history.map((entry, step) => {\n    const messages = entry.messages;\n    const calls = messages?.[0]?.tool_calls;\n    need(Array.isArray(calls) && calls.length > 0 && messages[0].role === 'assistant'\n      && messages.length === calls.length + 1, 'retention-tool-pair-invalid');\n    const ids = calls.map(call => call.id);\n    need(ids.every(id => typeof id === 'string' && id.length > 0) && ids.length > 0\n      && new Set(ids).size === ids.length, 'retention-tool-pair-invalid');\n    for (const [index, message] of messages.slice(1).entries()) {\n      need(message.role === 'tool' && message.tool_call_id === ids[index] && typeof message.content === 'string',\n        'retention-tool-pair-invalid');\n    }\n    if (step >= history.length - recentCount) return entry;\n    return {...entry, messages: [messages[0], ...messages.slice(1).map(message => ({...message,\n      content: stable({are_observation_masked: true, original_content_sha256: hash(message.content),\n        history_ref, history_step: step + 1, tool_call_id: message.tool_call_id,\n        recovery: 'Original result is available through read-context-evidence.'})}))]};\n  });\n}\n"
+      }
+    ],
+    "expected_base_tree_sha256": "0bd8039e27fd0a562be243ac9bca26ab6f7be1e2dc395e1e93abe97a2b41856b",
+    "rationale": "Enforce unique call IDs within each exchange and positional one-to-one pairing between each tool result and its assistant call, per cases 09-11/13-15.",
+    "schema_version": "are.patch-set-candidate/v1"
+  },
+  "before": {
+    "schema_version": "are.public-case-result/v1",
+    "backend_id": "container-public-v1:8cb8978de5662fe8d090c939be13c5a95f3634dad067c2408777eec45b57eeb2",
+    "ok": true,
+    "subject_sha256": "6317bf07a2319056160a7c0c4770dabd296ce0813d4d455c17ea506f44c94432",
+    "plan_sha256": "2406743851dc513c2a600f6a0e23b3fbca5e1d204531c9029024813f46d73a6a",
+    "results": [
+      {
+        "id": "pair-0",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-1",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-2",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-3",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-4",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-5",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-6",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "pair-7",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "empty-history",
+        "passed": true,
+        "reason": "matched"
+      }
+    ],
+    "passed": 9,
+    "total": 9,
+    "worker_validation": {
+      "schema_version": "are.public-case-result/v1",
+      "authority_effect": "none",
+      "child_timeout_ms": 5000,
+      "batch_timeout_ms": 120000,
+      "ok": true,
+      "subject_sha256": "6317bf07a2319056160a7c0c4770dabd296ce0813d4d455c17ea506f44c94432",
+      "plan_sha256": "0b579636e58939818bd35f9e770330faeb660f439c3a70a70d4903739a035af2",
+      "passed": 9,
+      "total": 9,
+      "results": [
+        {
+          "id": "pair-0",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-1",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-2",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-3",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-4",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-5",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-6",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "pair-7",
+          "passed": true,
+          "reason": "matched"
+        },
+        {
+          "id": "empty-history",
+          "passed": true,
+          "reason": "matched"
+        }
+      ],
+      "elapsed_ms": 481
+    },
+    "worker_execution": {
+      "schema_version": "are.owned-container-result/v1",
+      "ok": true,
+      "container_name": "are-validation-869ee07a-de9d-4159-bcf8-a6cde611793f",
+      "sandbox": {
+        "schema_version": "are.coding-agent-sandbox-result/v1",
+        "ok": true,
+        "reason_codes": [],
+        "engine": "/usr/bin/docker",
+        "engine_kind": "docker",
+        "image": "node@sha256:367679cf9792759492a486e4aa4b421764d71a9546a6dae8aab81a99eb797b3e",
+        "config_digest": "29bb86a25803583311d47759454d4af25b6781a455f5c88c500d55c492bfaa66",
+        "command": [
+          "node",
+          "/workspace/worker.mjs"
+        ],
+        "injected_environment_names": [],
+        "observed_exit": 0,
+        "stdout": "{\"schema_version\":\"are.public-case-result/v1\",\"authority_effect\":\"none\",\"child_timeout_ms\":5000,\"batch_timeout_ms\":120000,\"ok\":true,\"subject_sha256\":\"6317bf07a2319056160a7c0c4770dabd296ce0813d4d455c17ea506f44c94432\",\"plan_sha256\":\"0b579636e58939818bd35f9e770330faeb660f439c3a70a70d4903739a035af2\",\"passed\":9,\"total\":9,\"results\":[{\"id\":\"pair-0\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-1\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-2\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-3\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-4\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-5\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-6\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"pair-7\",\"passed\":true,\"reason\":\"matched\"},{\"id\":\"empty-history\",\"passed\":true,\"reason\":\"matched\"}],\"elapsed_ms\":481}",
+        "stderr": "",
+        "stdout_sha256": "8a92070ac3e926fc9c1f79b61c19e3de3a9532d1b9be5e8645f8a7a243b96e0b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "network": "none",
+        "source_mount": "read-only",
+        "effect_applied": false,
+        "authority_effect": "none",
+        "result_digest": "1d2df8ff67c8dcc16f4e72593239f3980bafe277400131c44073c9c685be9ee0"
+      },
+      "cleanup": {
+        "attempted": true,
+        "verified_absent": true,
+        "remove_exit": 0
+      },
+      "authority_effect": "none"
+    },
+    "worker_cleanup_verified": true,
+    "authority_effect": "none"
+  },
+  "model_attempts": 0,
+  "authority_effect": "none"
+}

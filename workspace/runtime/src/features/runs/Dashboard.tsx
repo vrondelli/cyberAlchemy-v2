@@ -1,0 +1,15 @@
+import {useRuns} from './RunsProvider';
+import {labels,WorkIcon} from './run-presentation';
+import {dashboardGroups,resultHash} from './dashboard-state';
+import './dashboard.css';
+export function Dashboard(){
+ const {projection,error}=useRuns();
+ const runs=projection?.runs??[],groups=dashboardGroups(runs),fresh=projection?.sources.every(s=>s.freshness==='fresh');
+ return <main className="workspace-dashboard" aria-label="Workspace dashboard">
+  <header className="dashboard-heading"><div><p>YOUR WORKSPACE</p><h1>Dashboard</h1><span>Follow your work, open results and see what needs attention.</span></div><a href="#/collections/projects">Explore projects →</a></header>
+  {error&&<p className="dashboard-alert" role="status">{error}</p>}
+  <section className="dashboard-metrics" aria-label="Run summary"><article><span>Active work</span><strong>{fresh?groups.active.length:'—'}</strong><small>{fresh?'Current assignments':'Current count unavailable'}</small></article><article><span>Needs attention</span><strong>{projection?groups.attention.length:'—'}</strong><small>{fresh?'Reported issues':'From last observations'}</small></article><article><span>Completed</span><strong>{projection?runs.filter(r=>r.execution==='succeeded').length:'—'}</strong><small>{fresh?'Results ready to inspect':'Last observed results'}</small></article></section>
+  <section className="dashboard-sources" aria-label="Runtime connections">{projection?.sources.map(s=><div key={s.runtimeId}><strong>{s.label}</strong><span>{s.freshness==='fresh'?'Connected':s.freshness==='offline'?'Offline':'Stale'}</span><small>{s.observedAtMs?`Observed ${new Date(s.observedAtMs).toLocaleTimeString()}`:'No observation yet'}</small></div>)}{!projection&&<p>Connecting to runs…</p>}</section>
+  <section className="dashboard-work" aria-label="Work activity"><header><h2>Your runs</h2><a href="#/runs">All runs · {runs.length} observed →</a></header>{projection&&!runs.length&&<p>{fresh?'No runs yet. Completed and active work will appear here.':'No previous run observations are available.'}</p>}<div className="dashboard-card-grid">{runs.map(item=><article className="dashboard-run-card" key={item.viewId} aria-label={`Run: ${item.title}`}><div className="dashboard-card-heading"><WorkIcon kind={item.icon}/><h3>{item.title}</h3></div><div className="dashboard-badges"><span className={`execution-${item.execution}`}>{labels[item.execution]}</span><span>{item.mode==='fixture'?'Fixture':item.mode==='live'?'Live':'Mode unknown'}</span>{item.source.freshness!=='fresh'&&<span>{item.source.freshness}</span>}</div><p>{item.source.label} · {item.executor.contract==='are-codex-text/v1'?'ARE / Codex':item.workKind}</p><small>{item.progress?`${item.progress.accepted} of ${item.progress.total} nodes accepted`:'Node progress unavailable'}</small>{item.attention.includes('reconciliation-required')&&<p>Operator reconciliation is required.</p>}<a href={resultHash(item.viewId)}>{item.result.content?'View result':'View recorded status'} <span aria-hidden="true">→</span></a></article>)}</div></section>
+ </main>;
+}

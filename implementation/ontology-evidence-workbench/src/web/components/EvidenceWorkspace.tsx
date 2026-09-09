@@ -1,0 +1,5 @@
+import type { VerifiedDataset } from "../contracts/bundle";
+import type { Selection, WorkbenchMode } from "../state/workbenchState";
+import { EvidenceOutline } from "./EvidenceOutline";
+import { EvidenceTable } from "./EvidenceTable";
+export function EvidenceWorkspace({ dataset, ids, selection, mode, onMode, onSelect }: { readonly dataset: VerifiedDataset; readonly ids: readonly string[]; readonly selection: Selection; readonly mode: WorkbenchMode; readonly onMode: (mode: WorkbenchMode) => void; readonly onSelect: (id: string) => void }) { return <section className="evidence-workspace"><div className="workspace-tabs" role="tablist" aria-label="Evidence views"><button role="tab" aria-selected={mode !== "table"} onClick={() => onMode("outline")}>Outline</button><button role="tab" aria-selected={mode === "table"} onClick={() => onMode("table")}>Table</button><span>{ids.length} projected items</span></div>{mode === "table" ? <EvidenceTable dataset={dataset} ids={ids} selection={selection} onSelect={onSelect} /> : <EvidenceOutline dataset={dataset} ids={ids} selection={selection} onSelect={onSelect} />}</section>; }

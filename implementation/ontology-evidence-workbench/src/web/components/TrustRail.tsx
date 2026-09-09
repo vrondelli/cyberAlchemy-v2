@@ -1,0 +1,2 @@
+import type { TrustState } from "../presentation/trustState";
+export function TrustRail({ state }: { readonly state: TrustState }) { return <aside className={`trust-rail trust-rail--${state.level}`} aria-live="polite"><span aria-hidden="true">{state.level === "verified" ? "✓" : state.level === "failed" ? "!" : "…"}</span><div><strong>{state.title}</strong><p>{state.message}</p></div><small>{state.source}</small></aside>; }

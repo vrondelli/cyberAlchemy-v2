@@ -1,0 +1,228 @@
+{
+  "ontology_id": "cav2.workspace.control-center.interactions.business",
+  "ontology_type": "business-domain",
+  "branch": "business",
+  "status": "candidate",
+  "authority_effect": "none",
+  "nodes": [
+    {
+      "id": "IC-TARGET",
+      "parent_ref": "B-TARGET",
+      "meaning": "A request must display one primary target before submission. Selecting another surface must not silently retarget an existing draft or an already submitted request.",
+      "states": [
+        "resolved",
+        "unresolved",
+        "submitted"
+      ],
+      "transitions": [
+        {
+          "from": "resolved",
+          "to": "submitted",
+          "guard": "Submit captures target and context"
+        },
+        {
+          "from": "resolved",
+          "to": "unresolved",
+          "guard": "Target source disappears"
+        },
+        {
+          "from": "unresolved",
+          "to": "resolved",
+          "guard": "Explicit selection of current target"
+        }
+      ],
+      "invariant": "submit(request) => target(request) = displayed_target_at_submit; target(submitted_request) is immutable. unresolved(target) => clarification, not dispatch.",
+      "failure": "If the selected target disappears or its revision becomes invalid, preserve the draft, mark the target unresolved, and ask for a new selection before a targeted action.",
+      "source_ref": "definition-pack",
+      "selector": "IC-TARGET"
+    },
+    {
+      "id": "IC-SURFACE",
+      "parent_ref": "B-SURFACE",
+      "meaning": "A surface must identify the work it presents, its selected context, its readable space needs, and its availability. Changing presentation must preserve the underlying work identity.",
+      "states": [
+        "fresh",
+        "stale",
+        "unavailable"
+      ],
+      "transitions": [
+        {
+          "from": "fresh",
+          "to": "stale",
+          "guard": "Source becomes stale"
+        },
+        {
+          "from": "fresh",
+          "to": "unavailable",
+          "guard": "Source disconnects"
+        },
+        {
+          "from": "unavailable",
+          "to": "fresh",
+          "guard": "Source reconnects"
+        }
+      ],
+      "invariant": "surface_identity != work_identity; context_reference = (work_identity, revision_or_unknown, selection); unavailable(surface) does not imply absent(work).",
+      "failure": "Show unavailable or stale state when context cannot be resolved. If space is insufficient, keep the active surface readable and make others reachable through compact entries.",
+      "source_ref": "definition-pack",
+      "selector": "IC-SURFACE"
+    },
+    {
+      "id": "IC-LAYOUT",
+      "parent_ref": "B-PROPOSAL",
+      "meaning": "A proposed layout must show its reason and preview before explicit application. Applying it must preserve working state and retain a way to restore the preceding arrangement.",
+      "states": [
+        "proposed",
+        "applied",
+        "dismissed",
+        "stale",
+        "incompatible"
+      ],
+      "transitions": [
+        {
+          "from": "proposed",
+          "to": "applied",
+          "guard": "User applies current compatible proposal"
+        },
+        {
+          "from": "proposed",
+          "to": "dismissed",
+          "guard": "User dismisses"
+        },
+        {
+          "from": "proposed",
+          "to": "stale",
+          "guard": "Layout revision changes"
+        },
+        {
+          "from": "proposed",
+          "to": "incompatible",
+          "guard": "Pin constraints conflict"
+        }
+      ],
+      "invariant": "proposed -> previewed -> applied | dismissed; changed_base_layout => proposal_stale; apply requires current_base and satisfied_pins.",
+      "failure": "Reject stale proposals and explain which layout changed. A pin conflict must not silently unpin a surface. Viewport constraints can produce a temporary fit fallback without overwriting the preferred arrangement.",
+      "source_ref": "definition-pack",
+      "selector": "IC-LAYOUT"
+    },
+    {
+      "id": "IC-PIN",
+      "parent_ref": "B-PIN",
+      "meaning": "A pinned choice must retain its declared role or placement against layout proposals until the user explicitly changes or removes that pin.",
+      "states": [
+        "unpinned",
+        "pinned"
+      ],
+      "transitions": [
+        {
+          "from": "unpinned",
+          "to": "pinned",
+          "guard": "User pins current primary role"
+        },
+        {
+          "from": "pinned",
+          "to": "unpinned",
+          "guard": "User removes pin"
+        }
+      ],
+      "invariant": "pinned(choice) and not explicit_user_change(choice) => proposal_preserves(choice); fit_fallback does not erase(preferred_choice).",
+      "failure": "When constraints cannot all fit, explain the fallback and preserve the stored preference. Do not silently remove a pin or make the composer unreachable.",
+      "source_ref": "definition-pack",
+      "selector": "IC-PIN"
+    },
+    {
+      "id": "IC-STATE",
+      "parent_ref": "B-STATE",
+      "meaning": "Layout changes, chat expansion, and surface switching must preserve draft text, selected target, artifact selection, and reading position within the active prototype session.",
+      "states": [
+        "retained",
+        "anchor-missing"
+      ],
+      "transitions": [
+        {
+          "from": "retained",
+          "to": "anchor-missing",
+          "guard": "Source revision invalidates anchor"
+        },
+        {
+          "from": "anchor-missing",
+          "to": "retained",
+          "guard": "Stable fallback selected while preserving draft"
+        }
+      ],
+      "invariant": "layout_transition(s) => retained(draft, target, selection, reading_anchor); restore(layout) does not rollback(artifact_content).",
+      "failure": "If a source revision removes the selected location, preserve draft text, report the missing anchor, and show a stable fallback. Do not claim an exact restored position when it no longer exists.",
+      "source_ref": "definition-pack",
+      "selector": "IC-STATE"
+    },
+    {
+      "id": "IC-ATTENTION",
+      "parent_ref": "B-ATTENTION",
+      "meaning": "A request for attention must identify its associated work, reason, and current state. It must become noticeable without replacing the active task or stealing keyboard focus.",
+      "states": [
+        "active",
+        "acknowledged",
+        "resolved",
+        "stale"
+      ],
+      "transitions": [
+        {
+          "from": "active",
+          "to": "acknowledged",
+          "guard": "User acknowledges; block remains"
+        },
+        {
+          "from": "acknowledged",
+          "to": "resolved",
+          "guard": "Source condition resolves"
+        },
+        {
+          "from": "active",
+          "to": "stale",
+          "guard": "Source disconnects"
+        }
+      ],
+      "invariant": "attention = (identity, work_reference, reason, state); acknowledge != resolve; navigate_to_attention requires user_action.",
+      "failure": "If the source disconnects, mark the attention state stale. Dismissing or acknowledging a notice must not imply that the task succeeded or the underlying decision was approved.",
+      "source_ref": "definition-pack",
+      "selector": "IC-ATTENTION"
+    }
+  ],
+  "relations": [
+    {
+      "from": "IC-TARGET",
+      "relation": "uses_supporting_selection_from",
+      "to": "IC-SURFACE"
+    },
+    {
+      "from": "IC-LAYOUT",
+      "relation": "arranges",
+      "to": "IC-SURFACE"
+    },
+    {
+      "from": "IC-LAYOUT",
+      "relation": "respects",
+      "to": "IC-PIN"
+    },
+    {
+      "from": "IC-LAYOUT",
+      "relation": "preserves",
+      "to": "IC-STATE"
+    },
+    {
+      "from": "IC-TARGET",
+      "relation": "is_retained_in",
+      "to": "IC-STATE"
+    },
+    {
+      "from": "IC-ATTENTION",
+      "relation": "opens_related",
+      "to": "IC-SURFACE"
+    },
+    {
+      "from": "IC-ATTENTION",
+      "relation": "preserves",
+      "to": "IC-STATE"
+    }
+  ]
+}

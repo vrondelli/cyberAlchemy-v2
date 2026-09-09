@@ -1,0 +1,109 @@
+{
+  "schema_version": "cav2-kep-solana-cryptographic-profile/v1-candidate",
+  "profile_id": "KEP-SOL-CRYPTO-DEVNET-V1",
+  "status": "candidate-test-only",
+  "definition_ref": "KEP-SOL-D11",
+  "consumer_capability_id": "CA2-CAP-REALIZE-ENCRYPTED-DURABLE-DEVNET-COOWNERSHIP",
+  "purpose": "Bind one interoperable recipient-envelope suite and one misuse-resistant content-encryption suite for the first Rust Devnet trial without claiming production security approval.",
+  "content_encryption": {
+    "construction": "XChaCha20-Poly1305-IETF",
+    "key_bytes": 32,
+    "nonce_bytes": 24,
+    "tag_bytes": 16,
+    "nonce_rule": "Generate one cryptographically random 24-byte nonce for every encryption under a content key and reject any detected key-and-nonce reuse.",
+    "associated_data_fields_in_order": [
+      "profile_id",
+      "knowledge_artifact_version_id",
+      "encryption_epoch_id",
+      "plaintext_content_commitment",
+      "propagation_policy_id"
+    ],
+    "domain_separator_utf8_nul_terminated": "KEP:CONTENT:v1\u0000"
+  },
+  "recipient_envelope": {
+    "standard": "RFC 9180 HPKE",
+    "mode": "Base",
+    "kem": {
+      "id": "0x0020",
+      "name": "DHKEM(X25519, HKDF-SHA256)"
+    },
+    "kdf": {
+      "id": "0x0001",
+      "name": "HKDF-SHA256"
+    },
+    "aead": {
+      "id": "0x0003",
+      "name": "ChaCha20Poly1305",
+      "key_bytes": 32,
+      "nonce_bytes": 12,
+      "tag_bytes": 16
+    },
+    "info_fields_in_order": [
+      "profile_id",
+      "knowledge_artifact_version_id",
+      "encryption_epoch_id",
+      "recipient_knowledge_identity_id",
+      "recipient_encryption_key_binding_id"
+    ],
+    "associated_data_fields_in_order": [
+      "ciphertext_object_identity",
+      "content_encryption_nonce",
+      "propagation_policy_id",
+      "recipient_envelope_revision"
+    ],
+    "domain_separator_utf8_nul_terminated": "KEP:HPKE-ENVELOPE:v1\u0000",
+    "sender_authentication_boundary": "HPKE Base mode does not authenticate the sender. Grant and reissue authorization are established separately by the exact Solana signing-key binding, transaction signature, program checks, and Propagation Policy."
+  },
+  "commitments": {
+    "algorithm": "SHA-256",
+    "stored_object_domain_separator_utf8_nul_terminated": "KEP:STORED-OBJECT:v1\u0000",
+    "plaintext_content_domain_separator_utf8_nul_terminated": "KEP:PLAINTEXT-CONTENT:v1\u0000",
+    "rule": "A commitment is the SHA-256 digest of the exact domain separator followed by the exact deterministic bytes; the domain and algorithm are part of identity."
+  },
+  "serialization": {
+    "format": "CBOR",
+    "standard": "RFC 8949",
+    "profile": "core deterministic encoding requirements",
+    "indefinite_lengths": "forbidden",
+    "floating_point_values": "forbidden",
+    "unknown_fields": "reject unless a successor profile explicitly defines compatibility",
+    "schema_version_field": "required in every ciphertext and envelope header"
+  },
+  "randomness": {
+    "source_requirement": "operating-system cryptographically secure random generator through an implementation binding",
+    "forbidden_sources": [
+      "deterministic test RNG outside declared fixtures",
+      "timestamps",
+      "Solana blockhashes",
+      "wallet signatures",
+      "recipient public keys",
+      "content digests"
+    ]
+  },
+  "key_boundaries": {
+    "content_key": "32 random bytes per Encryption Epoch; never stored on chain or in durable storage as plaintext",
+    "recipient_private_key": "held only by the recipient-side key-custody boundary",
+    "solana_signing_key": "used only for Solana authorization and never as an HPKE recipient key or content-encryption key",
+    "reissue": "ordinary reissue rewraps the same content key for a new accepted recipient encryption-key binding; suspected compromise requires a successor Encryption Epoch"
+  },
+  "failure_rules": [
+    "fail closed on authentication-tag failure",
+    "fail closed on deterministic-CBOR violation",
+    "fail closed on profile, artifact, epoch, recipient, key-binding, policy, or commitment mismatch",
+    "fail closed on unsupported algorithm identifiers or profile versions",
+    "never return partial plaintext before authentication succeeds"
+  ],
+  "primary_sources": [
+    "https://www.rfc-editor.org/rfc/rfc9180.html",
+    "https://www.rfc-editor.org/rfc/rfc8949.html",
+    "https://doc.libsodium.org/doc/secret-key_cryptography/aead/chacha20-poly1305/xchacha20-poly1305_construction"
+  ],
+  "residue": [
+    "Rust library and exact version remain implementation-binding choices.",
+    "Known-answer vectors, fuzzing, side-channel review, zeroization proof, dependency review, and independent security review remain conformance obligations.",
+    "This profile is selected only for the first Devnet trial and is not production cryptographic approval."
+  ],
+  "authority_effect": "none",
+  "external_effect": "none",
+  "claim_limit": "Candidate test-only cryptographic profile values; no implementation, security certification, key creation, encryption, transaction, deployment, or production authorization."
+}

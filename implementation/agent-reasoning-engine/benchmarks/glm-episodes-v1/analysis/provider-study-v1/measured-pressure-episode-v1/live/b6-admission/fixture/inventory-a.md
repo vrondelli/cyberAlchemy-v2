@@ -1,0 +1,1 @@
+Inventory: cedar, oak, elm.

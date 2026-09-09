@@ -1,0 +1,81 @@
+{
+  "status": "BLOCK",
+  "reason_codes": [
+    "feedback.validation-execution-failed"
+  ],
+  "candidate": {
+    "authority_effect": "none",
+    "changes": [
+      {
+        "expected_file_sha256": "5f17d922744244d4fc9df9d061838f70f63e3f2ce39b68143fac8b4d0ee7d9ee",
+        "operation": "replace-file",
+        "path": "src/subject.mjs",
+        "utf8": "const need=(condition,code)=>{if(!condition)throw new Error(code);};\nexport function sliceInspection(text,offset=0,max_chars=1024){\n need(typeof text==='string','inspection-text-invalid');\n need(Number.isSafeInteger(offset)&&offset>=0&&offset<=text.length&&Number.isSafeInteger(max_chars)&&max_chars>=1&&max_chars<=1024,'inspection-range-invalid');\n const isHigh=c=>c>='\\uD800'&&c<='\\uDBFF';\n const isLow=c=>c>='\\uDC00'&&c<='\\uDFFF';\n const splitPair=position=>position>0&&position<text.length&&isHigh(text[position-1])&&isLow(text[position]);\n\n need(!splitPair(offset),'inspection-range-splits-unicode');\n\n let end=Math.min(text.length,offset+max_chars);\n while(splitPair(end)){end-=1;}\n\n need(end>offset||offset===text.length,'inspection-range-splits-unicode');\n return {offset_unit:'utf16-code-units',offset,next_offset:end,total_chars:text.length,eof:end===text.length,utf8:text.slice(offset,end)};\n}\n"
+      }
+    ],
+    "expected_base_tree_sha256": "0892ea41e705fdd99c4a39a13e8067722049ad55f727c1bf28851c2d108c1ef9",
+    "rationale": "Fix the failed start-boundary check: reject offsets that begin inside a surrogate pair (offset immediately after a high surrogate with a low surrogate at the offset) with 'inspection-range-splits-unicode', matching case [\"xy😀z\",3,2]. The existing end-boundary back-off and no-progress checks already satisfy the other public cases and remain unchanged.",
+    "schema_version": "are.patch-set-candidate/v1"
+  },
+  "before": {
+    "schema_version": "are.public-case-result/v1",
+    "authority_effect": "none",
+    "child_timeout_ms": 5000,
+    "batch_timeout_ms": 120000,
+    "ok": false,
+    "subject_sha256": "61eaecc35fc25e663a2ae201c87419a7dcf63f7e154d048de0baaaa60c981c2f",
+    "plan_sha256": "db85e0e61ac05abeae874a81f91dd164d4e7ab0be4eef01c5ec59f6789d953bb",
+    "passed": 2,
+    "total": 3,
+    "results": [
+      {
+        "id": "end-boundary",
+        "passed": true,
+        "reason": "matched"
+      },
+      {
+        "id": "start-boundary",
+        "passed": false,
+        "reason": "output-mismatch"
+      },
+      {
+        "id": "no-progress",
+        "passed": true,
+        "reason": "matched"
+      }
+    ],
+    "elapsed_ms": 218
+  },
+  "after": {
+    "schema_version": "are.public-case-result/v1",
+    "authority_effect": "none",
+    "child_timeout_ms": 5000,
+    "batch_timeout_ms": 120000,
+    "ok": false,
+    "subject_sha256": "e02ade183c560e682bdb1c7213a625b1c4b49e980ecc9223b052bb0f76a807e9",
+    "plan_sha256": "db85e0e61ac05abeae874a81f91dd164d4e7ab0be4eef01c5ec59f6789d953bb",
+    "passed": 0,
+    "total": 3,
+    "results": [
+      {
+        "id": "end-boundary",
+        "passed": false,
+        "reason": "child-timeout"
+      },
+      {
+        "id": "start-boundary",
+        "passed": false,
+        "reason": "child-timeout"
+      },
+      {
+        "id": "no-progress",
+        "passed": false,
+        "reason": "child-timeout"
+      }
+    ],
+    "elapsed_ms": 16365
+  },
+  "model_attempts": 1,
+  "call_id": "call_-7273054635013701414",
+  "authority_effect": "none"
+}

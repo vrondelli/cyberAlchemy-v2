@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "define-downstream-utility-run-row@1",
+  "title": "Define downstream utility experiment run row",
+  "description": "Structural index. validate_run.py is the executable invariant contract, including cross-row and live-pilot rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_id",
+    "evidence_kind",
+    "run_id",
+    "task_id",
+    "task_class",
+    "condition",
+    "repetition",
+    "status",
+    "frozen",
+    "execution",
+    "controls",
+    "timing",
+    "outcomes",
+    "reviews",
+    "review_adjudication",
+    "unknown_fields",
+    "deviations"
+  ],
+  "properties": {
+    "schema_version": {"const": "define-downstream-utility-run-row@1"},
+    "protocol_id": {"const": "define-downstream-utility@1"},
+    "evidence_kind": {"enum": ["synthetic_fixture", "live_run"]},
+    "run_id": {"type": "string", "minLength": 8},
+    "task_id": {"type": "string", "minLength": 3},
+    "task_class": {"enum": ["low_ambiguity_control", "high_ambiguity"]},
+    "condition": {
+      "enum": [
+        "ticket_only",
+        "equivalent_notes",
+        "definition_pack",
+        "definition_pack_evidence_gate"
+      ]
+    },
+    "repetition": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["completed", "blocked", "protocol_deviation"]},
+    "frozen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_commit",
+        "source_packet_digest",
+        "fact_set_digest",
+        "truth_card_digest",
+        "task_selection_digest",
+        "condition_manifest_digest",
+        "condition_packet_digest",
+        "definition_pack_digest",
+        "gate_policy_digest",
+        "frozen_at"
+      ],
+      "properties": {
+        "repository_commit": {"type": "string", "minLength": 7},
+        "source_packet_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "fact_set_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "truth_card_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "task_selection_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "condition_manifest_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "condition_packet_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "definition_pack_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "gate_policy_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "frozen_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "harness_id",
+        "randomization_seed",
+        "condition_order",
+        "budget_id",
+        "sandbox_id",
+        "planner_session_id",
+        "implementer_session_id",
+        "tool_versions"
+      ],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1},
+        "harness_id": {"type": "string", "minLength": 1},
+        "randomization_seed": {"type": "integer", "minimum": 0},
+        "condition_order": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"enum": ["ticket_only", "equivalent_notes", "definition_pack", "definition_pack_evidence_gate"]}
+        },
+        "budget_id": {"type": "string", "minLength": 1},
+        "sandbox_id": {"type": "string", "minLength": 1},
+        "planner_session_id": {"type": "string", "minLength": 1},
+        "implementer_session_id": {"type": "string", "minLength": 1},
+        "tool_versions": {"type": "object"}
+      }
+    },
+    "controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "truth_card_frozen_before_assignment",
+        "task_class_frozen_before_assignment",
+        "source_access_equal",
+        "information_parity_checked",
+        "clean_planner_session",
+        "clean_implementer_session",
+        "conversation_history_separated"
+      ],
+      "properties": {
+        "truth_card_frozen_before_assignment": {"type": "boolean"},
+        "task_class_frozen_before_assignment": {"type": "boolean"},
+        "source_access_equal": {"type": "boolean"},
+        "information_parity_checked": {"type": "boolean"},
+        "clean_planner_session": {"type": "boolean"},
+        "clean_implementer_session": {"type": "boolean"},
+        "conversation_history_separated": {"type": "boolean"}
+      }
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planning_minutes",
+        "material_preparation_minutes",
+        "material_preparation_tokens",
+        "implementation_minutes",
+        "review_minutes",
+        "rework_minutes",
+        "total_tokens",
+        "artifact_characters"
+      ],
+      "properties": {
+        "planning_minutes": {"type": ["number", "null"], "minimum": 0},
+        "material_preparation_minutes": {"type": ["number", "null"], "minimum": 0},
+        "material_preparation_tokens": {"type": ["number", "null"], "minimum": 0},
+        "implementation_minutes": {"type": ["number", "null"], "minimum": 0},
+        "review_minutes": {"type": ["number", "null"], "minimum": 0},
+        "rework_minutes": {"type": ["number", "null"], "minimum": 0},
+        "total_tokens": {"type": ["number", "null"], "minimum": 0},
+        "artifact_characters": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "outcomes": {
+      "type": "object",
+      "required": [
+        "gold_outcome",
+        "observed_outcome",
+        "hidden_cases_total",
+        "hidden_cases_passed",
+        "semantic_defects",
+        "weighted_semantic_defects",
+        "unnecessary_change",
+        "incorrect_abstention",
+        "outcome_match",
+        "scope_violations",
+        "owner_corrections",
+        "review_rejections"
+      ],
+      "properties": {
+        "gold_outcome": {"enum": ["implement", "abstain", "ask", "escalate"]},
+        "observed_outcome": {"enum": ["implement", "abstain", "ask", "escalate"]},
+        "hidden_cases_total": {"type": "integer", "minimum": 0},
+        "hidden_cases_passed": {"type": "integer", "minimum": 0},
+        "semantic_defects": {"type": "object"},
+        "weighted_semantic_defects": {"type": "number", "minimum": 0},
+        "unnecessary_change": {"type": "boolean"},
+        "incorrect_abstention": {"type": "boolean"},
+        "outcome_match": {"type": "boolean"},
+        "scope_violations": {"type": ["integer", "null"], "minimum": 0},
+        "owner_corrections": {"type": ["integer", "null"], "minimum": 0},
+        "review_rejections": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "reviews": {"type": "array", "minItems": 2, "maxItems": 2},
+    "review_adjudication": {"type": "object"},
+    "unknown_fields": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string"},
+      "description": "Null observations must be named here. Completed rows may not contain unknowns. validate_run.py enforces the allowed paths."
+    },
+    "deviations": {"type": "array"}
+  }
+}

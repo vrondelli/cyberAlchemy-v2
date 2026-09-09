@@ -1,0 +1,86 @@
+{
+  "schema_version": "domainspec.node/v1",
+  "node_id": "eligible-prices",
+  "feature_id": "quantity-price",
+  "kind": "Query",
+  "body": {
+    "description": "All currency-matching tiers containing the explicit quantity, sorted by exact unit amount ascending; ties remain visible.",
+    "reads": [
+      "quantity-price:price-tier"
+    ],
+    "typed_contract": {
+      "schema_version": "domainspec.typed-query/v1",
+      "ontology_query": "ALCH-QUANTITY-ELIGIBLEPRICES",
+      "source": "quantity-price:price-tier",
+      "inputs": [
+        {
+          "name": "requested_currency",
+          "type": {
+            "kind": "scalar",
+            "name": "String"
+          }
+        },
+        {
+          "name": "requested_quantity",
+          "type": {
+            "kind": "scalar",
+            "name": "UInt64"
+          }
+        }
+      ],
+      "filter": {
+        "op": "all",
+        "terms": [
+          {
+            "op": "all",
+            "terms": [
+              {
+                "op": "eq",
+                "left": {
+                  "kind": "field",
+                  "name": "currency"
+                },
+                "right": {
+                  "kind": "parameter",
+                  "name": "requested_currency"
+                }
+              },
+              {
+                "op": "lte",
+                "left": {
+                  "kind": "field",
+                  "name": "min_quantity"
+                },
+                "right": {
+                  "kind": "parameter",
+                  "name": "requested_quantity"
+                }
+              }
+            ]
+          },
+          {
+            "op": "gte",
+            "left": {
+              "kind": "field",
+              "name": "max_quantity"
+            },
+            "right": {
+              "kind": "parameter",
+              "name": "requested_quantity"
+            }
+          }
+        ]
+      },
+      "projection": [
+        "price_id",
+        "currency",
+        "amount_minor"
+      ],
+      "order_by": {
+        "field": "amount_minor",
+        "direction": "asc"
+      },
+      "limit": null
+    }
+  }
+}

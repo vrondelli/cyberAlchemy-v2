@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cav2://work-orchestration/micro-swarm-dag/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "capability_ref", "profile", "dag", "workload_ref", "workload_builder_ref", "expected_topology", "contract_aliases", "external_effect", "authority_effect", "claim_ceiling"],
+  "properties": {
+    "schema_version": {"const": "cav2-domainspec-micro-swarm-dag/v1"},
+    "project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]+$"},
+    "capability_ref": {"const": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK"},
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "authority_effect"],
+      "properties": {
+        "id": {"const": "work-orchestration-micro-swarm-candidate"},
+        "version": {"const": "0.1"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "dag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dag_id", "deadline_seconds", "max_parallelism", "max_attempts", "join_policy"],
+      "properties": {
+        "dag_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "deadline_seconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 256},
+        "max_attempts": {"type": "integer", "minimum": 1, "maximum": 5},
+        "join_policy": {"enum": ["all", "any", "quorum"]}
+      }
+    },
+    "workload_ref": {"$ref": "#/$defs/exact_ref"},
+    "workload_builder_ref": {"$ref": "#/$defs/exact_ref"},
+    "expected_topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roles", "contracts"],
+      "properties": {
+        "roles": {"const": 42},
+        "contracts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["micro_extractor", "angle_reducer", "dataset_synthesizer", "judge"],
+          "properties": {
+            "micro_extractor": {"const": 27},
+            "angle_reducer": {"const": 9},
+            "dataset_synthesizer": {"const": 3},
+            "judge": {"const": 3}
+          }
+        }
+      }
+    },
+    "contract_aliases": {
+      "const": {"micro_extractor": "extractor", "angle_reducer": "reducer", "dataset_synthesizer": "synthesizer", "judge": "judge"}
+    },
+    "external_effect": {"const": "none"},
+    "authority_effect": {"const": "none"},
+    "claim_ceiling": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "exact_ref": {
+      "type": "object",
+      "required": ["path", "sha256", "size"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1},
+        "benchmark_id": {"type": "string"},
+        "strategy_id": {"type": "string"}
+      }
+    }
+  }
+}

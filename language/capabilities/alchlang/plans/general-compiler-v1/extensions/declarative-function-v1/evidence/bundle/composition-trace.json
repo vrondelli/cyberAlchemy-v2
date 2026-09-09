@@ -1,0 +1,102 @@
+{
+  "profile": "domainspec.declarative-function/v1",
+  "nodes": [
+    {
+      "id": "PriceRow",
+      "kind": "Mapping",
+      "ontology": "ALCH-QUANTITY-PRICEROW",
+      "meaning": "Normalize one Medusa price into exact UInt64 cents and inclusive quantity bounds.",
+      "type": "PriceTier",
+      "dependencies": []
+    },
+    {
+      "id": "Tiers",
+      "kind": "Query",
+      "ontology": "ALCH-QUANTITY-TIERS",
+      "meaning": "Active prices in the supported currency, normalized through PriceRow.",
+      "type": "PriceTier[]",
+      "dependencies": [
+        "PriceRow"
+      ]
+    },
+    {
+      "id": "Eligible",
+      "kind": "Query",
+      "ontology": "ALCH-QUANTITY-ELIGIBLE",
+      "meaning": "All normalized tiers whose currency and inclusive bounds match the request.",
+      "type": "PriceTier[]",
+      "dependencies": [
+        "Tiers"
+      ]
+    },
+    {
+      "id": "Cheapest",
+      "kind": "Query",
+      "ontology": "ALCH-QUANTITY-CHEAPEST",
+      "meaning": "Eligible tiers with no strictly cheaper eligible witness; preserve every tie.",
+      "type": "PriceTier[]",
+      "dependencies": [
+        "Eligible"
+      ]
+    },
+    {
+      "id": "NoPrice",
+      "kind": "Rule",
+      "ontology": "ALCH-QUANTITY-NOPRICE",
+      "meaning": "No cheapest witness exists.",
+      "type": "Bool",
+      "dependencies": [
+        "Cheapest"
+      ]
+    },
+    {
+      "id": "UniquePrice",
+      "kind": "Rule",
+      "ontology": "ALCH-QUANTITY-UNIQUEPRICE",
+      "meaning": "Exactly one cheapest price witness exists.",
+      "type": "Bool",
+      "dependencies": [
+        "Cheapest"
+      ]
+    },
+    {
+      "id": "AmbiguousPrice",
+      "kind": "Rule",
+      "ontology": "ALCH-QUANTITY-AMBIGUOUSPRICE",
+      "meaning": "At least one cheapest witness exists and it is not unique.",
+      "type": "Bool",
+      "dependencies": [
+        "Cheapest",
+        "UniquePrice"
+      ]
+    },
+    {
+      "id": "EmptyQuote",
+      "kind": "Mapping",
+      "ontology": "ALCH-QUANTITY-EMPTYQUOTE",
+      "meaning": "Construct a no-price response preserving request and price-set identity.",
+      "type": "Quote",
+      "dependencies": []
+    },
+    {
+      "id": "AmbiguousQuote",
+      "kind": "Mapping",
+      "ontology": "ALCH-QUANTITY-AMBIGUOUSQUOTE",
+      "meaning": "Construct an ambiguous-price response with sorted tied identities and their common amount.",
+      "type": "Quote",
+      "dependencies": [
+        "Cheapest"
+      ]
+    },
+    {
+      "id": "SelectedQuote",
+      "kind": "Mapping",
+      "ontology": "ALCH-QUANTITY-SELECTEDQUOTE",
+      "meaning": "Construct a quoted response and exact subtotal from the unique selected price.",
+      "type": "Quote",
+      "dependencies": []
+    }
+  ],
+  "authority_effect": "none",
+  "ontology_admitted": false
+}

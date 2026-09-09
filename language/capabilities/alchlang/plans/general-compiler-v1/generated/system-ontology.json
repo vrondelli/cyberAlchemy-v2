@@ -1,0 +1,1614 @@
+{
+  "schema_version": "cav2.alchlang.general-compiler.system-ontology/v1-candidate",
+  "ontology_id": "cav2.alchlang.general-compiler.system",
+  "source_graph_sha256": "1611e3fe0aa51d7a8da45595c223ebd629abf10a72accc5bc2b88bfaf9a9eef3",
+  "system_nodes": [
+    {
+      "id": "system:general-compiler:authority-preservation",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Compilation and rendering preserve authority ceilings and never create permission.",
+        "predicate": "all-projections-have-authority-effect-none"
+      }
+    },
+    {
+      "id": "system:general-compiler:compilation-plan",
+      "role": "Value Object",
+      "meta_type_id": "DS-D1.2",
+      "body": {
+        "description": "Deterministic target-neutral projection plus trace ledger and unsupported residue.",
+        "fields": [
+          {
+            "field_id": "plan-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            },
+            "required": true
+          },
+          {
+            "field_id": "source-digest",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "status",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "invariant_refs": [
+          "general-compiler:semantic-closure",
+          "general-compiler:reference-closure",
+          "general-compiler:authority-preservation"
+        ]
+      }
+    },
+    {
+      "id": "system:general-compiler:compilation-produced",
+      "role": "Event",
+      "meta_type_id": "DS-D1.12",
+      "body": {
+        "description": "A closed target-neutral compilation plan was produced.",
+        "event_type": "compilation-produced",
+        "version": "1",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          },
+          "required": true
+        },
+        "occurred_at_policy": "generated",
+        "payload": [
+          {
+            "field_id": "model-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            },
+            "required": true
+          },
+          {
+            "field_id": "plan-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:general-compiler:compilation-rejected",
+      "role": "Event",
+      "meta_type_id": "DS-D1.12",
+      "body": {
+        "description": "Compilation stopped with explicit unsupported or invalid semantic residue.",
+        "event_type": "compilation-rejected",
+        "version": "1",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          },
+          "required": true
+        },
+        "occurred_at_policy": "generated",
+        "payload": [
+          {
+            "field_id": "model-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            },
+            "required": true
+          },
+          {
+            "field_id": "reason-code",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:general-compiler:compile-domain-model",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Validate and lower one governed model into a target-neutral compilation plan.",
+        "reads": [
+          "governed-domain-model"
+        ],
+        "writes": [
+          "compilation-plan"
+        ],
+        "effects": [
+          "compilation-produced",
+          "compilation-rejected"
+        ],
+        "guard": "semantic-closure+reference-closure+no-name-inference+authority-preservation",
+        "failure_continuation": "return-typed-unsupported-residue"
+      }
+    },
+    {
+      "id": "system:general-compiler:compiler-lifecycle",
+      "role": "State Machine",
+      "meta_type_id": "DS-D1.14",
+      "body": {
+        "description": "Lifecycle of one compilation attempt.",
+        "states": [
+          "planned",
+          "compiling",
+          "compiled",
+          "rejected"
+        ],
+        "initial": "planned",
+        "transitions": [
+          {
+            "transition_id": "begin-compilation",
+            "source_state": "planned",
+            "target_state": "compiling",
+            "guard_ref": null,
+            "effect_event_ref": null
+          },
+          {
+            "transition_id": "complete-compilation",
+            "source_state": "compiling",
+            "target_state": "compiled",
+            "guard_ref": "general-compiler:semantic-closure",
+            "effect_event_ref": "general-compiler:compilation-produced"
+          },
+          {
+            "transition_id": "reject-compilation",
+            "source_state": "compiling",
+            "target_state": "rejected",
+            "guard_ref": null,
+            "effect_event_ref": "general-compiler:compilation-rejected"
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:general-compiler:governed-domain-model",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "One closed, owner-qualified AlchLang carrier-v2 model.",
+        "fields": [
+          {
+            "field_id": "model-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            },
+            "required": true
+          },
+          {
+            "field_id": "owner-ref",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "carrier-version",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "model-id"
+      }
+    },
+    {
+      "id": "system:general-compiler:no-name-inference",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Identifiers never determine types, actors, permissions, effects, or tests.",
+        "predicate": "semantics-originates-only-in-declared-fields"
+      }
+    },
+    {
+      "id": "system:general-compiler:reference-closure",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Every term, fact, state, event, rule, action, permission, owner, and authority reference resolves.",
+        "predicate": "all-declared-references-resolve"
+      }
+    },
+    {
+      "id": "system:general-compiler:semantic-closure",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "All required carrier sections and typed semantic expressions are closed.",
+        "predicate": "carrier-sections-and-expression-types-closed"
+      }
+    },
+    {
+      "id": "system:local-runtime-cli:build-domain-artifacts",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Compile and atomically write deterministic local generated artifacts.",
+        "reads": [
+          "governed-domain-model"
+        ],
+        "writes": [
+          "local-generated-directory"
+        ],
+        "effects": [
+          "local-artifacts-written"
+        ],
+        "guard": "validated-carrier+bounded-output-path",
+        "failure_continuation": "leave-existing-output-unchanged"
+      }
+    },
+    {
+      "id": "system:local-runtime-cli:effect-adapter",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "Caller-injected bounded adapter implementing one local action effect.",
+        "fields": [
+          {
+            "field_id": "adapter-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "adapter-kind",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "adapter-id"
+      }
+    },
+    {
+      "id": "system:local-runtime-cli:execute-domain-action",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Evaluate rules, permissions and authority before invoking one explicitly selected local adapter.",
+        "reads": [
+          "governed-domain-model",
+          "effect-adapter",
+          "explicit-local-authority"
+        ],
+        "writes": [
+          "local-action-result"
+        ],
+        "effects": [
+          "local-action-result-produced"
+        ],
+        "guard": "rules+permissions+explicit-local-authority",
+        "failure_continuation": "return-denied-blocked-or-adapter-failure"
+      }
+    },
+    {
+      "id": "system:local-runtime-cli:explicit-local-authority",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "An action runs only when its exact authority boundary is present in caller-supplied grants.",
+        "predicate": "action-authority-boundary-in-explicit-caller-grants"
+      }
+    },
+    {
+      "id": "system:local-runtime-cli:parse-domain-source",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Parse explicit textual syntax into one carrier-v2 candidate without semantic name inference.",
+        "reads": [
+          "textual-domain-source"
+        ],
+        "writes": [
+          "governed-domain-model"
+        ],
+        "effects": [
+          "carrier-candidate-produced"
+        ],
+        "guard": "explicit-owner-and-authority-declarations",
+        "failure_continuation": "return-source-located-parse-errors"
+      }
+    },
+    {
+      "id": "system:local-runtime-cli:textual-domain-source",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "UTF-8 Markdown carrying one explicit AlchLang code block.",
+        "fields": [
+          {
+            "field_id": "source-path",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "source-digest",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "source-digest"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:availability-closure",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Generation is available only when meta-type, integration binding, generator and executable conformance are closed.",
+        "predicate": "meta-type-closed-and-binding-closed-and-generator-closed-and-conformance-closed"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:compile-registry",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Compile exact admitted meta-type, binding, generator and conformance registries into candidate pattern entries.",
+        "reads": [
+          "operation-pattern-registry",
+          "meta-type-baseline",
+          "integration-binding-registry",
+          "generator-registry",
+          "conformance-registry"
+        ],
+        "writes": [
+          "operation-pattern-registry",
+          "registry-compilation-receipt"
+        ],
+        "effects": [
+          "registry-compilation-receipt"
+        ],
+        "guard": "selected-source-digests-close",
+        "failure_continuation": "return-causal-blockers-without-generation"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:dispatch-lease-policy",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "A worker owns a message only through an expiring lease; another worker may reclaim it after expiry.",
+        "predicate": "leased-message-has-one-owner-until-lease-expiry"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:explicit-effect-contract",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "An action-declared effect with explicit pattern, binding, writes, emitted events, guarantee and failure continuation.",
+        "fields": [
+          {
+            "field_id": "effect-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "pattern-ref",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "integration-binding-ref",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "write-refs",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "event-refs",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "guarantee",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "failure-continuation",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "authority-boundary-ref",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "effect-id"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:http-outbox-transport",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "Explicit allowlisted HTTP transport configuration.",
+        "fields": [
+          {
+            "field_id": "transport-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "endpoint",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "allowed-origin",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "transport-id"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:idempotent-inbox-store",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "Consumer-side SQLite store of atomically applied message identities.",
+        "fields": [
+          {
+            "field_id": "inbox-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "message-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "inbox-id"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:list-operation-patterns",
+      "role": "Query",
+      "meta_type_id": "DS-D1.5",
+      "body": {
+        "description": "Return the current candidate inventory filtered by derived availability without changing state.",
+        "reads": [
+          "operation-pattern-registry"
+        ]
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:local-outbox-dispatcher",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Inspect and explicitly dispatch pending local Outbox messages to a selected local stdout transport.",
+        "reads": [
+          "domainspec-outbox"
+        ],
+        "writes": [
+          "domainspec-outbox-publication-state"
+        ],
+        "effects": [
+          "local-stdout-dispatch-receipt"
+        ],
+        "guard": "explicit-dispatch-command-and-supported-transport",
+        "failure_continuation": "retain-pending-message-and-record-failure"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:operation-pattern-registry",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "Registry of operation patterns and their explicit generation prerequisites.",
+        "fields": [
+          {
+            "field_id": "pattern-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "availability",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "pattern-id"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:outbox-runtime-observed",
+      "role": "Event",
+      "meta_type_id": "DS-D1.12",
+      "body": {
+        "description": "Bounded operational observation emitted by commit, replay, claim, publish, retry, dead-letter or requeue.",
+        "event_type": "outbox-runtime-observed",
+        "version": "1",
+        "occurrence_id": {
+          "field_id": "message-id",
+          "type_ref": {
+            "kind": "primitive",
+            "name": "string"
+          },
+          "required": true
+        },
+        "occurred_at_policy": "required",
+        "payload": [
+          {
+            "field_id": "kind",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "worker-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:owner-stability-decision",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Stable architecture-pattern status requires a separate explicit owner decision and cannot be derived from registration or passing tests.",
+        "predicate": "stable-status-implies-explicit-owner-decision"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:pattern-lifecycle",
+      "role": "State Machine",
+      "meta_type_id": "DS-D1.14",
+      "body": {
+        "description": "Lifecycle separates registration, local availability and owner-controlled stability.",
+        "states": [
+          "candidate",
+          "blocked",
+          "available",
+          "stable"
+        ],
+        "initial": "candidate",
+        "transitions": [
+          {
+            "transition_id": "register-blocked-pattern",
+            "source_state": "candidate",
+            "target_state": "blocked",
+            "guard_ref": null,
+            "effect_event_ref": "operation-pattern-registry:pattern-registered"
+          },
+          {
+            "transition_id": "register-available-pattern",
+            "source_state": "candidate",
+            "target_state": "available",
+            "guard_ref": "operation-pattern-registry:availability-closure",
+            "effect_event_ref": "operation-pattern-registry:pattern-registered"
+          },
+          {
+            "transition_id": "owner-promotes-stable",
+            "source_state": "available",
+            "target_state": "stable",
+            "guard_ref": "operation-pattern-registry:owner-stability-decision",
+            "effect_event_ref": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:pattern-registered",
+      "role": "Event",
+      "meta_type_id": "DS-D1.12",
+      "body": {
+        "description": "A candidate operation pattern and its current prerequisite states were registered.",
+        "event_type": "pattern-registered",
+        "version": "1",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          },
+          "required": true
+        },
+        "occurred_at_policy": "generated",
+        "payload": [
+          {
+            "field_id": "pattern-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "availability",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:provider-schema-migration",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Upgrade the local provider schema from the earlier pending/published table to versioned lease and dead-letter state without losing rows.",
+        "reads": [
+          "sqlite-outbox-store"
+        ],
+        "writes": [
+          "sqlite-outbox-store"
+        ],
+        "effects": [
+          "provider-schema-version-advanced"
+        ],
+        "guard": "recognized-provider-schema-version",
+        "failure_continuation": "rollback-schema-migration"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:register-operation-pattern",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Register one candidate pattern with explicit meta-type, integration binding, generator and conformance prerequisites.",
+        "reads": [
+          "operation-pattern-registry"
+        ],
+        "writes": [
+          "operation-pattern-registry"
+        ],
+        "effects": [
+          "pattern-registered"
+        ],
+        "guard": "availability-closure+owner-stability-decision",
+        "failure_continuation": "return-causal-blockers-without-generation"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:registry-compilation-receipt",
+      "role": "Event",
+      "meta_type_id": "DS-D1.12",
+      "body": {
+        "description": "Digest-bound record of registry inputs, resolved prerequisites, generated output and deterministic replay.",
+        "event_type": "registry-compilation-receipt",
+        "version": "1",
+        "occurrence_id": {
+          "field_id": "receipt-id",
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          },
+          "required": true
+        },
+        "occurred_at_policy": "generated",
+        "payload": [
+          {
+            "field_id": "input-digests",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "resolved-binding-digests",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "resolved-generator-digests",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "output-registry-digest",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "deterministic-replay",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "boolean"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:retry-dead-letter-policy",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Delivery failures schedule exponential retry up to a declared attempt ceiling, then enter dead letter until explicit requeue.",
+        "predicate": "failure-schedules-retry-until-max-attempts-then-dead"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:runtime-binding-resolver",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Resolve an action to a local provider only when its performs edge, effect, pattern, binding, guarantee, failure continuation and authority boundary match exactly.",
+        "reads": [
+          "explicit-effect-contract"
+        ],
+        "writes": [
+          "resolved-runtime-binding"
+        ],
+        "effects": [
+          "runtime-binding-resolution"
+        ],
+        "guard": "action-performs-effect-and-effect-binding-contract-close-without-name-inference",
+        "failure_continuation": "reject-with-causal-diagnostic"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:sqlite-effect-runtime",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Commit explicit business state and pending Outbox messages atomically in one local SQLite transaction.",
+        "reads": [
+          "explicit-effect-contract",
+          "atomic-state-and-outbox-request"
+        ],
+        "writes": [
+          "domainspec-aggregate-state",
+          "domainspec-outbox"
+        ],
+        "effects": [
+          "local-sqlite-state-and-outbox-write"
+        ],
+        "guard": "runtime-binding-resolver",
+        "failure_continuation": "rollback-and-return-error-to-caller"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:sqlite-inbox-consumer",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Apply one local consumer mutation and its inbox receipt atomically, returning duplicate for an already processed message.",
+        "reads": [
+          "idempotent-inbox-store"
+        ],
+        "writes": [
+          "consumer-state",
+          "idempotent-inbox-store"
+        ],
+        "effects": [
+          "local-consumer-state-and-inbox-write"
+        ],
+        "guard": "message-identity-not-already-processed",
+        "failure_continuation": "rollback-consumer-state-and-inbox"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:sqlite-outbox-store",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "Local SQLite persistence boundary containing versioned aggregate state and pending or published Outbox messages.",
+        "fields": [
+          {
+            "field_id": "store-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "aggregate-state",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "pending-messages",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          },
+          {
+            "field_id": "publication-state",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "store-id"
+      }
+    },
+    {
+      "id": "system:operation-pattern-registry:transactional-outbox-sqlite",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Provider-specific operation that atomically commits business state and pending Outbox messages in local SQLite.",
+        "reads": [
+          "explicit-effect-contract"
+        ],
+        "writes": [
+          "sqlite-transactional-outbox"
+        ],
+        "effects": [
+          "outbox-message-recorded"
+        ],
+        "guard": "binding-and-generator-available",
+        "failure_continuation": "rollback"
+      }
+    },
+    {
+      "id": "system:typed-backend:bounded-sfol-kernel",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "One bounded sfol-v1 term and formula kernel supplies every declarative Rule, Query filter, Permission condition, transition guard, Action condition, Policy case, and Calculation term.",
+        "predicate": "all-declarative-conditions-use-bounded-sfol-v1"
+      }
+    },
+    {
+      "id": "system:typed-backend:evaluate-typed-contract",
+      "role": "Operation",
+      "meta_type_id": "DS-D1.4",
+      "body": {
+        "description": "Evaluate one closed typed backend contract against caller-supplied immutable input.",
+        "reads": [
+          "typed-input-record"
+        ],
+        "writes": [],
+        "effects": [
+          "typed-evaluation-completed"
+        ],
+        "guard": "typed-no-effect",
+        "failure_continuation": "return-causal-typed-error"
+      }
+    },
+    {
+      "id": "system:typed-backend:operational-realization-boundary",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "SFOL owns truth conditions; Action and Effect own intended behavior; Integration Bindings form infrastructure responsibilities; registered runtime providers execute; ORODI evaluates bound operational evidence. Binding, execution, observation, verdict, owner acceptance, and deployment remain distinct.",
+        "predicate": "sfol-meaning-and-binding-and-runtime-and-orodi-evidence-remain-distinct"
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-calculation",
+      "role": "Calculation",
+      "meta_type_id": "DS-D1.6",
+      "body": {
+        "description": "Evaluate checked UInt64 arithmetic with explicit division rounding.",
+        "inputs": [
+          "typed-input-record"
+        ]
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-evaluation-completed",
+      "role": "Event",
+      "meta_type_id": "DS-D1.12",
+      "body": {
+        "description": "A typed contract produced its deterministic value without implicit effect.",
+        "event_type": "typed-evaluation-completed",
+        "version": "1",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          },
+          "required": true
+        },
+        "occurred_at_policy": "generated",
+        "payload": [
+          {
+            "field_id": "contract-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-input-record",
+      "role": "Entity",
+      "meta_type_id": "DS-D1.1",
+      "body": {
+        "description": "Caller-supplied immutable typed fields or rows.",
+        "fields": [
+          {
+            "field_id": "input-id",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            },
+            "required": true
+          }
+        ],
+        "identity_field": "input-id"
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-mapping",
+      "role": "Mapping",
+      "meta_type_id": "DS-D1.13",
+      "body": {
+        "description": "Construct an explicit target shape from typed source fields or defaults.",
+        "source": "typed-backend:typed-input-record",
+        "target": "typed-backend:typed-output-record"
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-no-effect",
+      "role": "Rule",
+      "meta_type_id": "DS-D1.7",
+      "body": {
+        "description": "Typed evaluation cannot access providers, mutate state, emit events, execute selected targets, or acquire authority.",
+        "predicate": "typed-backend-authority-effect-is-none"
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-output-record",
+      "role": "Value Object",
+      "meta_type_id": "DS-D1.2",
+      "body": {
+        "description": "Deterministic value produced only from the closed contract and caller input.",
+        "fields": [
+          {
+            "field_id": "value",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "invariant_refs": [
+          "typed-backend:typed-no-effect"
+        ]
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-policy",
+      "role": "Policy",
+      "meta_type_id": "DS-D1.8",
+      "body": {
+        "description": "Select the first matching declared target or explicit default without execution.",
+        "strategies": [
+          "typed-calculation"
+        ]
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-query",
+      "role": "Query",
+      "meta_type_id": "DS-D1.5",
+      "body": {
+        "description": "Filter, order, limit, and project caller-supplied rows without fetching or mutation.",
+        "reads": [
+          "typed-input-record"
+        ]
+      }
+    },
+    {
+      "id": "system:typed-backend:typed-strategy-selection",
+      "role": "Value Object",
+      "meta_type_id": "DS-D1.2",
+      "body": {
+        "description": "A selected target identifier that remains unexecuted and unauthorized.",
+        "fields": [
+          {
+            "field_id": "target-ref",
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            },
+            "required": true
+          }
+        ],
+        "invariant_refs": [
+          "typed-backend:typed-no-effect"
+        ]
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "authority-enforces-executor",
+      "type": "enforces",
+      "source": "system:local-runtime-cli:explicit-local-authority",
+      "target": "system:local-runtime-cli:execute-domain-action"
+    },
+    {
+      "id": "authority-preservation-enforces-compile",
+      "type": "enforces",
+      "source": "system:general-compiler:authority-preservation",
+      "target": "system:general-compiler:compile-domain-model"
+    },
+    {
+      "id": "availability-enforces-register",
+      "type": "enforces",
+      "source": "system:operation-pattern-registry:availability-closure",
+      "target": "system:operation-pattern-registry:register-operation-pattern"
+    },
+    {
+      "id": "binding-resolver-reads-effect",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:runtime-binding-resolver",
+      "target": "system:operation-pattern-registry:explicit-effect-contract"
+    },
+    {
+      "id": "calculation-calculates-evaluation",
+      "type": "calculates",
+      "source": "system:typed-backend:typed-calculation",
+      "target": "system:typed-backend:evaluate-typed-contract"
+    },
+    {
+      "id": "compile-produces-produced",
+      "type": "produces",
+      "source": "system:general-compiler:compile-domain-model",
+      "target": "system:general-compiler:compilation-produced"
+    },
+    {
+      "id": "compile-produces-rejected",
+      "type": "produces",
+      "source": "system:general-compiler:compile-domain-model",
+      "target": "system:general-compiler:compilation-rejected"
+    },
+    {
+      "id": "compile-reads-model",
+      "type": "reads",
+      "source": "system:general-compiler:compile-domain-model",
+      "target": "system:general-compiler:governed-domain-model"
+    },
+    {
+      "id": "compile-registry-emits-receipt",
+      "type": "produces",
+      "source": "system:operation-pattern-registry:compile-registry",
+      "target": "system:operation-pattern-registry:registry-compilation-receipt"
+    },
+    {
+      "id": "compile-registry-reads-sources",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:compile-registry",
+      "target": "system:operation-pattern-registry:operation-pattern-registry"
+    },
+    {
+      "id": "dispatcher-produces-observation",
+      "type": "produces",
+      "source": "system:operation-pattern-registry:local-outbox-dispatcher",
+      "target": "system:operation-pattern-registry:outbox-runtime-observed"
+    },
+    {
+      "id": "dispatcher-reads-store",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:local-outbox-dispatcher",
+      "target": "system:operation-pattern-registry:sqlite-outbox-store"
+    },
+    {
+      "id": "effect-performs-pattern",
+      "type": "performs",
+      "source": "system:operation-pattern-registry:explicit-effect-contract",
+      "target": "system:operation-pattern-registry:transactional-outbox-sqlite"
+    },
+    {
+      "id": "evaluation-produces-completed",
+      "type": "produces",
+      "source": "system:typed-backend:evaluate-typed-contract",
+      "target": "system:typed-backend:typed-evaluation-completed"
+    },
+    {
+      "id": "event-transitions-lifecycle",
+      "type": "transitions",
+      "source": "system:operation-pattern-registry:pattern-registered",
+      "target": "system:operation-pattern-registry:pattern-lifecycle"
+    },
+    {
+      "id": "executor-reads-adapter",
+      "type": "reads",
+      "source": "system:local-runtime-cli:execute-domain-action",
+      "target": "system:local-runtime-cli:effect-adapter"
+    },
+    {
+      "id": "explicit-effect-performs-runtime",
+      "type": "performs",
+      "source": "system:operation-pattern-registry:explicit-effect-contract",
+      "target": "system:operation-pattern-registry:sqlite-effect-runtime"
+    },
+    {
+      "id": "http-transport-performs-dispatch",
+      "type": "performs",
+      "source": "system:operation-pattern-registry:http-outbox-transport",
+      "target": "system:operation-pattern-registry:local-outbox-dispatcher"
+    },
+    {
+      "id": "inbox-consumer-reads-inbox",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:sqlite-inbox-consumer",
+      "target": "system:operation-pattern-registry:idempotent-inbox-store"
+    },
+    {
+      "id": "input-contains-output",
+      "type": "contains",
+      "source": "system:typed-backend:typed-input-record",
+      "target": "system:typed-backend:typed-output-record"
+    },
+    {
+      "id": "input-performs-evaluation",
+      "type": "performs",
+      "source": "system:typed-backend:typed-input-record",
+      "target": "system:typed-backend:evaluate-typed-contract"
+    },
+    {
+      "id": "lease-enforces-dispatcher",
+      "type": "enforces",
+      "source": "system:operation-pattern-registry:dispatch-lease-policy",
+      "target": "system:operation-pattern-registry:local-outbox-dispatcher"
+    },
+    {
+      "id": "list-reads-registry",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:list-operation-patterns",
+      "target": "system:operation-pattern-registry:operation-pattern-registry"
+    },
+    {
+      "id": "mapping-maps-input",
+      "type": "maps",
+      "source": "system:typed-backend:typed-mapping",
+      "target": "system:typed-backend:typed-input-record"
+    },
+    {
+      "id": "migration-reads-store",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:provider-schema-migration",
+      "target": "system:operation-pattern-registry:sqlite-outbox-store"
+    },
+    {
+      "id": "model-performs-compile",
+      "type": "performs",
+      "source": "system:general-compiler:governed-domain-model",
+      "target": "system:general-compiler:compile-domain-model"
+    },
+    {
+      "id": "no-effect-enforces-evaluation",
+      "type": "enforces",
+      "source": "system:typed-backend:typed-no-effect",
+      "target": "system:typed-backend:evaluate-typed-contract"
+    },
+    {
+      "id": "no-name-inference-enforces-compile",
+      "type": "enforces",
+      "source": "system:general-compiler:no-name-inference",
+      "target": "system:general-compiler:compile-domain-model"
+    },
+    {
+      "id": "operational-boundary-enforces-evaluation",
+      "type": "enforces",
+      "source": "system:typed-backend:operational-realization-boundary",
+      "target": "system:typed-backend:evaluate-typed-contract"
+    },
+    {
+      "id": "outbox-generator-realizes-effect",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:transactional-outbox-sqlite",
+      "target": "system:operation-pattern-registry:explicit-effect-contract"
+    },
+    {
+      "id": "parser-reads-source",
+      "type": "reads",
+      "source": "system:local-runtime-cli:parse-domain-source",
+      "target": "system:local-runtime-cli:textual-domain-source"
+    },
+    {
+      "id": "policy-applies-calculation",
+      "type": "applies",
+      "source": "system:typed-backend:typed-policy",
+      "target": "system:typed-backend:typed-calculation"
+    },
+    {
+      "id": "produced-transitions-lifecycle",
+      "type": "transitions",
+      "source": "system:general-compiler:compilation-produced",
+      "target": "system:general-compiler:compiler-lifecycle"
+    },
+    {
+      "id": "query-reads-input",
+      "type": "reads",
+      "source": "system:typed-backend:typed-query",
+      "target": "system:typed-backend:typed-input-record"
+    },
+    {
+      "id": "reference-closure-enforces-compile",
+      "type": "enforces",
+      "source": "system:general-compiler:reference-closure",
+      "target": "system:general-compiler:compile-domain-model"
+    },
+    {
+      "id": "register-produces-event",
+      "type": "produces",
+      "source": "system:operation-pattern-registry:register-operation-pattern",
+      "target": "system:operation-pattern-registry:pattern-registered"
+    },
+    {
+      "id": "rejected-transitions-lifecycle",
+      "type": "transitions",
+      "source": "system:general-compiler:compilation-rejected",
+      "target": "system:general-compiler:compiler-lifecycle"
+    },
+    {
+      "id": "retry-enforces-dispatcher",
+      "type": "enforces",
+      "source": "system:operation-pattern-registry:retry-dead-letter-policy",
+      "target": "system:operation-pattern-registry:local-outbox-dispatcher"
+    },
+    {
+      "id": "semantic-closure-enforces-compile",
+      "type": "enforces",
+      "source": "system:general-compiler:semantic-closure",
+      "target": "system:general-compiler:compile-domain-model"
+    },
+    {
+      "id": "sfol-kernel-enforces-evaluation",
+      "type": "enforces",
+      "source": "system:typed-backend:bounded-sfol-kernel",
+      "target": "system:typed-backend:evaluate-typed-contract"
+    },
+    {
+      "id": "sqlite-runtime-reads-store",
+      "type": "reads",
+      "source": "system:operation-pattern-registry:sqlite-effect-runtime",
+      "target": "system:operation-pattern-registry:sqlite-outbox-store"
+    },
+    {
+      "id": "stability-enforces-register",
+      "type": "enforces",
+      "source": "system:operation-pattern-registry:owner-stability-decision",
+      "target": "system:operation-pattern-registry:register-operation-pattern"
+    }
+  ],
+  "business_bindings": [
+    {
+      "business_ref": "B-GC-CAPABILITY-COMPILE",
+      "system_ref": "system:general-compiler:compile-domain-model",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GC-POLICY-NO-NAME-INFERENCE",
+      "system_ref": "system:general-compiler:no-name-inference",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GC-POLICY-AUTHORITY-PRESERVATION",
+      "system_ref": "system:general-compiler:authority-preservation",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-LRC-TEXTUAL-SOURCE",
+      "system_ref": "system:local-runtime-cli:textual-domain-source",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-LRC-BUILD",
+      "system_ref": "system:local-runtime-cli:build-domain-artifacts",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-LRC-EXECUTE",
+      "system_ref": "system:local-runtime-cli:execute-domain-action",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-LRC-ADAPTER",
+      "system_ref": "system:local-runtime-cli:effect-adapter",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-LRC-AUTHORITY",
+      "system_ref": "system:local-runtime-cli:explicit-local-authority",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-PATTERN",
+      "system_ref": "system:operation-pattern-registry:operation-pattern-registry",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-META-TYPE",
+      "system_ref": "system:operation-pattern-registry:availability-closure",
+      "type": "constrained_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-BINDING",
+      "system_ref": "system:operation-pattern-registry:availability-closure",
+      "type": "constrained_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-GENERATOR",
+      "system_ref": "system:operation-pattern-registry:register-operation-pattern",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-AVAILABILITY",
+      "system_ref": "system:operation-pattern-registry:availability-closure",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-STABILITY",
+      "system_ref": "system:operation-pattern-registry:owner-stability-decision",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-REGISTRY-COMPILER",
+      "system_ref": "system:operation-pattern-registry:compile-registry",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-EFFECT",
+      "system_ref": "system:operation-pattern-registry:explicit-effect-contract",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-PERFORMS",
+      "system_ref": "system:operation-pattern-registry:explicit-effect-contract",
+      "type": "constrained_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-OUTBOX-SQLITE",
+      "system_ref": "system:operation-pattern-registry:transactional-outbox-sqlite",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-RUNTIME-BINDING-RESOLVER",
+      "system_ref": "system:operation-pattern-registry:runtime-binding-resolver",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-SQLITE-EFFECT-RUNTIME",
+      "system_ref": "system:operation-pattern-registry:sqlite-effect-runtime",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-LOCAL-DISPATCHER",
+      "system_ref": "system:operation-pattern-registry:local-outbox-dispatcher",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-LEASE",
+      "system_ref": "system:operation-pattern-registry:dispatch-lease-policy",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-RETRY",
+      "system_ref": "system:operation-pattern-registry:retry-dead-letter-policy",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-HTTP",
+      "system_ref": "system:operation-pattern-registry:http-outbox-transport",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-INBOX",
+      "system_ref": "system:operation-pattern-registry:sqlite-inbox-consumer",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-MIGRATION",
+      "system_ref": "system:operation-pattern-registry:provider-schema-migration",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-GOP-TELEMETRY",
+      "system_ref": "system:operation-pattern-registry:outbox-runtime-observed",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-QUERY",
+      "system_ref": "system:typed-backend:typed-query",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-CALCULATION",
+      "system_ref": "system:typed-backend:typed-calculation",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-MAPPING",
+      "system_ref": "system:typed-backend:typed-mapping",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-POLICY",
+      "system_ref": "system:typed-backend:typed-policy",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-NO-EFFECT",
+      "system_ref": "system:typed-backend:typed-no-effect",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-SFOL-TERM",
+      "system_ref": "system:typed-backend:typed-calculation",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-SFOL-FORMULA",
+      "system_ref": "system:typed-backend:bounded-sfol-kernel",
+      "type": "realized_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-INTEGRATION-BINDING",
+      "system_ref": "system:typed-backend:operational-realization-boundary",
+      "type": "constrained_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-RUNTIME-PROVIDER",
+      "system_ref": "system:typed-backend:operational-realization-boundary",
+      "type": "constrained_by",
+      "status": "candidate"
+    },
+    {
+      "business_ref": "B-TB-ORODI-EVIDENCE",
+      "system_ref": "system:typed-backend:operational-realization-boundary",
+      "type": "constrained_by",
+      "status": "candidate"
+    }
+  ],
+  "authority_effect": "none"
+}

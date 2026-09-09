@@ -1,0 +1,14 @@
+import * as module_Errors from '../../modules/Errors/app/function/index.mjs';
+import {createBoundary} from '../../runtime/boundary.mjs';
+import {createTracedInvoker} from '../../runtime/invocation-trace.mjs';
+import ontology from '../../provenance/function/ontology.json' with {type:'json'};
+import manifest from '../../manifest.json' with {type:'json'};
+import {execute,validateInput} from './behavior.mjs';
+import api from '../../domain/typescript/lib/index.js';
+import model from '../../provenance/function/function.json' with {type:'json'};
+import bindings from '../../provenance/function/bindings.json' with {type:'json'};
+const modules={Errors:(input,env,io,observe)=>module_Errors.createInvoker(observe).invoke(input,env,io)};
+export function createInvoker(observe){const relay=event=>{const n=ontology.nodes.find(n=>n.name===event.declaration)??ontology.nodes.find(n=>n.kind==='result');observe?.({...event,definition:event.definition??(n?{name:n.name,id:n.id,source:n.source,clauses:n.clauses}:null)});};return createBoundary(model,bindings,scope=>execute(scope,api,relay),scope=>validateInput(scope,relay),modules,relay,(scope,binding)=>execute(scope,api,relay,binding),(scope,binding)=>execute(scope,api,relay,binding,'input'));};
+export const {invoke,handler}=createInvoker();
+export const invokeWithTrace=createTracedInvoker(model,bindings,api,execute,validateInput,ontology,{...{"source_sha256":"615ce27fd1a4f1f7a3ac2ce81e83abb4bf96d235e8f07151d2ddc659b7857416","ontology_sha256":"dcac7b342b233994b945fda6f966ae47ab2e39db5c87f587d56ad680f8578dad","behavior_sha256":"59c3a9da9926e7ad8f4a9c0efb2111dba4dd102e0780f822e29d611418756e53","contract_sha256":"5b382a2c16244a92770c742316e67589779fa361e2202b14bd3a81920882e3ac"},manifest},createBoundary,modules);
+export default {fetch:handler};

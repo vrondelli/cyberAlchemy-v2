@@ -1,0 +1,272 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Input": {
+      "strategy": "String",
+      "model": "String?",
+      "strategies": "String[]",
+      "models": "String[]"
+    },
+    "Output": {
+      "status": "String",
+      "code": "String"
+    }
+  },
+  "roots": {
+    "input": "Input"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Configured",
+      "kind": "Rule",
+      "ontology": "ALCH-95F32125C1C86D766741EB20",
+      "meaning": "The requested strategy is configured by the operator.",
+      "expression": {
+        "op": "exists",
+        "binding": "candidate",
+        "collection": {
+          "op": "path",
+          "path": [
+            "input",
+            "strategies"
+          ]
+        },
+        "where": {
+          "op": "call",
+          "name": "eq",
+          "args": [
+            {
+              "op": "path",
+              "path": [
+                "candidate"
+              ]
+            },
+            {
+              "op": "path",
+              "path": [
+                "input",
+                "strategy"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "Known",
+      "kind": "Rule",
+      "ontology": "ALCH-0A5187A7BF4ADC9783E92361",
+      "meaning": "An omitted alias is automatic; an explicit alias must be discoverable.",
+      "expression": {
+        "op": "call",
+        "name": "or",
+        "args": [
+          {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "call",
+                "name": "coalesce",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "model"
+                    ]
+                  },
+                  {
+                    "op": "literal",
+                    "value": ""
+                  }
+                ]
+              },
+              {
+                "op": "literal",
+                "value": ""
+              }
+            ]
+          },
+          {
+            "op": "exists",
+            "binding": "candidate",
+            "collection": {
+              "op": "path",
+              "path": [
+                "input",
+                "models"
+              ]
+            },
+            "where": {
+              "op": "call",
+              "name": "eq",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "candidate"
+                  ]
+                },
+                {
+                  "op": "call",
+                  "name": "coalesce",
+                  "args": [
+                    {
+                      "op": "path",
+                      "path": [
+                        "input",
+                        "model"
+                      ]
+                    },
+                    {
+                      "op": "path",
+                      "path": [
+                        "candidate"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "Admitted",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "code": {
+          "op": "literal",
+          "value": "OK"
+        }
+      },
+      "ontology": "ALCH-41CCED5642B828E80E43A493",
+      "meaning": "Return the declared public admission decision OK.",
+      "target": "Output"
+    },
+    {
+      "id": "StrategyRejected",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "code": {
+          "op": "literal",
+          "value": "UNSUPPORTED_STRATEGY"
+        }
+      },
+      "ontology": "ALCH-A356479BEACA3A0520D9234C",
+      "meaning": "Return the declared public admission decision UNSUPPORTED_STRATEGY.",
+      "target": "Output"
+    },
+    {
+      "id": "ModelRejected",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "code": {
+          "op": "literal",
+          "value": "UNKNOWN_MODEL"
+        }
+      },
+      "ontology": "ALCH-DF74781334398C1BEB022325",
+      "meaning": "Return the declared public admission decision UNKNOWN_MODEL.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "call",
+        "name": "not",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "Configured"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "StrategyRejected"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "Configured"
+            ]
+          },
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "Known"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "ModelRejected"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "path",
+            "path": [
+              "Configured"
+            ]
+          },
+          {
+            "op": "path",
+            "path": [
+              "Known"
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Admitted"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

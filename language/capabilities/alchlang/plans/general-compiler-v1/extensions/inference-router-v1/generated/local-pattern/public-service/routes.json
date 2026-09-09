@@ -1,0 +1,922 @@
+{
+  "schema_version": "alchlang.service-routes/v1-candidate",
+  "service": "inference-public",
+  "assembly": "public-routes-v1",
+  "target": "node-http",
+  "authentication": "deferred",
+  "authorization": "deferred",
+  "scope": "shared-public",
+  "errors": "Errors",
+  "limits": {
+    "requestBytes": 65536,
+    "responseBytes": 65536,
+    "readTimeoutMs": 5000
+  },
+  "routes": [
+    {
+      "id": "HealthRoute",
+      "line": 23,
+      "method": "GET",
+      "path": "/healthz",
+      "function": "Health",
+      "input": "unit",
+      "output": "value",
+      "response": "json",
+      "status": 200,
+      "outputType": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        }
+      }
+    },
+    {
+      "id": "CapabilitiesRoute",
+      "line": 39,
+      "method": "GET",
+      "path": "/v1/capabilities",
+      "function": "Capabilities",
+      "input": "context capabilities",
+      "output": "value",
+      "response": "json",
+      "status": 200,
+      "outputType": {
+        "type": {
+          "tasks": {
+            "type": "list",
+            "items": "string",
+            "max": 1
+          },
+          "routing_strategies": {
+            "type": "list",
+            "items": "identifier",
+            "max": 3
+          },
+          "streaming": {
+            "type": "boolean"
+          },
+          "authentication": {
+            "type": "string",
+            "const": "deferred"
+          },
+          "authorization": {
+            "type": "string",
+            "const": "deferred"
+          },
+          "scope": {
+            "type": "string",
+            "const": "shared-public"
+          },
+          "idempotency": {
+            "type": {
+              "storage": {
+                "type": "string",
+                "const": "memory"
+              },
+              "retention_ms": {
+                "type": "integer",
+                "min": 1
+              },
+              "stream_replay": {
+                "type": "boolean",
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "InferenceRoute",
+      "line": 47,
+      "method": "POST",
+      "path": "/v1/inference",
+      "function": "PublicRequest",
+      "input": "json",
+      "operation": "ExecuteInference",
+      "result": "InferenceResult",
+      "output": "value",
+      "response": "json-or-sse",
+      "status": 200,
+      "outputType": {
+        "type": {
+          "request_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "output": {
+            "type": {
+              "text": {
+                "type": "string",
+                "max": 32768
+              }
+            }
+          },
+          "finish_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "usage": {
+            "type": {
+              "input_tokens": {
+                "type": {
+                  "value": {
+                    "type": "integer",
+                    "nullable": true,
+                    "min": 0,
+                    "max": 1000000000
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "pattern": "^(unavailable|provider-reported)$"
+                  }
+                }
+              },
+              "output_tokens": {
+                "type": {
+                  "value": {
+                    "type": "integer",
+                    "nullable": true,
+                    "min": 0,
+                    "max": 1000000000
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "pattern": "^(unavailable|provider-reported)$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ModelsRoute",
+      "line": 31,
+      "method": "GET",
+      "path": "/v1/models",
+      "function": "Models",
+      "input": "context models",
+      "output": "all",
+      "response": "json",
+      "status": 200,
+      "outputType": {
+        "type": {
+          "models": {
+            "type": "list",
+            "items": {
+              "context_limit": {
+                "type": "integer",
+                "min": 1
+              },
+              "id": {
+                "type": "identifier"
+              },
+              "output_limit": {
+                "type": "integer",
+                "min": 1
+              },
+              "streaming": {
+                "type": "boolean"
+              },
+              "task": {
+                "type": "string",
+                "const": "text.generate"
+              }
+            },
+            "max": 100
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "ExecuteInference": {
+      "input": "PublicRequest.output",
+      "output": "InferenceResult.input",
+      "response": "json-or-sse",
+      "inputType": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "normalized"
+          },
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "messages": {
+            "type": "list",
+            "items": {
+              "role": {
+                "type": "string",
+                "pattern": "^(system|user|assistant)$"
+              },
+              "content": {
+                "type": "string",
+                "pattern": "[\\s\\S]+",
+                "max": 32768
+              }
+            },
+            "max": 100
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128,
+            "optional": true
+          },
+          "strategy": {
+            "type": "string",
+            "pattern": "^(balanced|cost|latency)$"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      },
+      "outputType": {
+        "type": {
+          "request_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "output": {
+            "type": {
+              "text": {
+                "type": "string",
+                "max": 32768
+              }
+            }
+          },
+          "finish_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "usage": {
+            "type": {
+              "input_tokens": {
+                "type": {
+                  "value": {
+                    "type": "integer",
+                    "nullable": true,
+                    "min": 0,
+                    "max": 1000000000
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "pattern": "^(unavailable|provider-reported)$"
+                  }
+                }
+              },
+              "output_tokens": {
+                "type": {
+                  "value": {
+                    "type": "integer",
+                    "nullable": true,
+                    "min": 0,
+                    "max": 1000000000
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "pattern": "^(unavailable|provider-reported)$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "contexts": {
+    "models": {
+      "type": {
+        "providers": {
+          "type": "list",
+          "items": {
+            "binding_id": {
+              "type": "identifier",
+              "max": 128
+            },
+            "binding_version": {
+              "type": "identifier",
+              "max": 128
+            },
+            "context_limit": {
+              "type": "integer",
+              "max": 1000000,
+              "min": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "model": {
+              "type": "identifier",
+              "max": 128
+            },
+            "output_limit": {
+              "type": "integer",
+              "max": 1000000,
+              "min": 1
+            },
+            "rank": {
+              "type": "integer",
+              "max": 1000000,
+              "min": 0
+            },
+            "streaming": {
+              "type": "boolean"
+            },
+            "task": {
+              "type": "string",
+              "const": "text.generate"
+            },
+            "tenant_allowed": {
+              "type": "boolean"
+            }
+          },
+          "max": 300
+        }
+      }
+    },
+    "capabilities": {
+      "type": {
+        "providers": {
+          "type": "list",
+          "items": {
+            "binding_id": {
+              "type": "identifier",
+              "max": 128
+            },
+            "binding_version": {
+              "type": "identifier",
+              "max": 128
+            },
+            "model": {
+              "type": "identifier",
+              "max": 128
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "tenant_allowed": {
+              "type": "boolean"
+            },
+            "task": {
+              "type": "string",
+              "const": "text.generate"
+            },
+            "context_limit": {
+              "type": "integer",
+              "min": 1,
+              "max": 1000000
+            },
+            "output_limit": {
+              "type": "integer",
+              "min": 1,
+              "max": 1000000
+            },
+            "streaming": {
+              "type": "boolean"
+            },
+            "rank": {
+              "type": "integer",
+              "min": 0,
+              "max": 1000000
+            }
+          },
+          "max": 300
+        },
+        "strategies": {
+          "type": "list",
+          "items": "identifier",
+          "max": 3
+        },
+        "retention_ms": {
+          "type": "integer",
+          "min": 1
+        }
+      }
+    }
+  },
+  "functions": {
+    "Health": {
+      "source": "service/health.alch",
+      "source_sha256": "9886311508523bb07627f2fde37e3ff163bf999d7c9fa0d2a52cadf383547da8",
+      "input": {
+        "type": {
+          "unit": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "status": {
+                "type": "string",
+                "const": "ok"
+              }
+            }
+          }
+        }
+      }
+    },
+    "Models": {
+      "source": "discovery/models.alch",
+      "source_sha256": "3b8c1f0de827d0e18c1e813daed94f7b319e03e00cce3bc2b511e01a1f7ce521",
+      "input": {
+        "type": {
+          "providers": {
+            "type": "list",
+            "items": {
+              "binding_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "binding_version": {
+                "type": "identifier",
+                "max": 128
+              },
+              "context_limit": {
+                "type": "integer",
+                "max": 1000000,
+                "min": 1
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "output_limit": {
+                "type": "integer",
+                "max": 1000000,
+                "min": 1
+              },
+              "rank": {
+                "type": "integer",
+                "max": 1000000,
+                "min": 0
+              },
+              "streaming": {
+                "type": "boolean"
+              },
+              "task": {
+                "type": "string",
+                "const": "text.generate"
+              },
+              "tenant_allowed": {
+                "type": "boolean"
+              }
+            },
+            "max": 300
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "models": {
+            "type": "list",
+            "items": {
+              "context_limit": {
+                "type": "integer",
+                "min": 1
+              },
+              "id": {
+                "type": "identifier"
+              },
+              "output_limit": {
+                "type": "integer",
+                "min": 1
+              },
+              "streaming": {
+                "type": "boolean"
+              },
+              "task": {
+                "type": "string",
+                "const": "text.generate"
+              }
+            },
+            "max": 100
+          }
+        }
+      }
+    },
+    "Capabilities": {
+      "source": "discovery/capabilities.alch",
+      "source_sha256": "cdcea890bf0c9f21645f029d21a66712816302e0c0b30b491b36d00edf56bdcf",
+      "input": {
+        "type": {
+          "providers": {
+            "type": "list",
+            "items": {
+              "binding_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "binding_version": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "tenant_allowed": {
+                "type": "boolean"
+              },
+              "task": {
+                "type": "string",
+                "const": "text.generate"
+              },
+              "context_limit": {
+                "type": "integer",
+                "min": 1,
+                "max": 1000000
+              },
+              "output_limit": {
+                "type": "integer",
+                "min": 1,
+                "max": 1000000
+              },
+              "streaming": {
+                "type": "boolean"
+              },
+              "rank": {
+                "type": "integer",
+                "min": 0,
+                "max": 1000000
+              }
+            },
+            "max": 300
+          },
+          "strategies": {
+            "type": "list",
+            "items": "identifier",
+            "max": 3
+          },
+          "retention_ms": {
+            "type": "integer",
+            "min": 1
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "tasks": {
+                "type": "list",
+                "items": "string",
+                "max": 1
+              },
+              "routing_strategies": {
+                "type": "list",
+                "items": "identifier",
+                "max": 3
+              },
+              "streaming": {
+                "type": "boolean"
+              },
+              "authentication": {
+                "type": "string",
+                "const": "deferred"
+              },
+              "authorization": {
+                "type": "string",
+                "const": "deferred"
+              },
+              "scope": {
+                "type": "string",
+                "const": "shared-public"
+              },
+              "idempotency": {
+                "type": {
+                  "storage": {
+                    "type": "string",
+                    "const": "memory"
+                  },
+                  "retention_ms": {
+                    "type": "integer",
+                    "min": 1
+                  },
+                  "stream_replay": {
+                    "type": "boolean",
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "PublicRequest": {
+      "source": "public-request.alch",
+      "source_sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a",
+      "input": {
+        "type": {
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "input": {
+            "type": {
+              "messages": {
+                "type": "list",
+                "items": {
+                  "role": {
+                    "type": "string",
+                    "pattern": "^(system|user|assistant)$"
+                  },
+                  "content": {
+                    "type": "string",
+                    "pattern": "[\\s\\S]+",
+                    "max": 32768
+                  }
+                },
+                "max": 100
+              }
+            }
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128,
+            "optional": true
+          },
+          "routing": {
+            "type": {
+              "strategy": {
+                "type": "string",
+                "pattern": "^(balanced|cost|latency)$",
+                "optional": true
+              }
+            },
+            "optional": true
+          },
+          "parameters": {
+            "type": {
+              "max_output_tokens": {
+                "type": "integer",
+                "min": 1,
+                "max": 1000000,
+                "optional": true
+              }
+            },
+            "optional": true
+          },
+          "stream": {
+            "type": "boolean",
+            "optional": true
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "normalized"
+          },
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "messages": {
+            "type": "list",
+            "items": {
+              "role": {
+                "type": "string",
+                "pattern": "^(system|user|assistant)$"
+              },
+              "content": {
+                "type": "string",
+                "pattern": "[\\s\\S]+",
+                "max": 32768
+              }
+            },
+            "max": 100
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128,
+            "optional": true
+          },
+          "strategy": {
+            "type": "string",
+            "pattern": "^(balanced|cost|latency)$"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "InferenceResult": {
+      "source": "service/inference-result.alch",
+      "source_sha256": "684058f2126cce660ed31c0a1052ce46d24e654704be02b0a16b2776346579de",
+      "input": {
+        "type": {
+          "request_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "output": {
+            "type": {
+              "text": {
+                "type": "string",
+                "max": 32768
+              }
+            }
+          },
+          "finish_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "usage": {
+            "type": {
+              "input_tokens": {
+                "type": {
+                  "value": {
+                    "type": "integer",
+                    "nullable": true,
+                    "min": 0,
+                    "max": 1000000000
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "pattern": "^(unavailable|provider-reported)$"
+                  }
+                }
+              },
+              "output_tokens": {
+                "type": {
+                  "value": {
+                    "type": "integer",
+                    "nullable": true,
+                    "min": 0,
+                    "max": 1000000000
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "pattern": "^(unavailable|provider-reported)$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "output": {
+                "type": {
+                  "text": {
+                    "type": "string",
+                    "max": 32768
+                  }
+                }
+              },
+              "finish_reason": {
+                "type": "string",
+                "pattern": "^(stop|length|content_filter|unknown)$"
+              },
+              "usage": {
+                "type": {
+                  "input_tokens": {
+                    "type": {
+                      "value": {
+                        "type": "integer",
+                        "nullable": true,
+                        "min": 0,
+                        "max": 1000000000
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "pattern": "^(unavailable|provider-reported)$"
+                      }
+                    }
+                  },
+                  "output_tokens": {
+                    "type": {
+                      "value": {
+                        "type": "integer",
+                        "nullable": true,
+                        "min": 0,
+                        "max": 1000000000
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "pattern": "^(unavailable|provider-reported)$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Errors": {
+      "source": "discovery/public-error.alch",
+      "source_sha256": "88b7e5a2c8a92c9cc47942e8c488d559aafaa666fd3786cb3749a21bc2a42b9a",
+      "input": {
+        "type": {
+          "code": {
+            "type": "string",
+            "max": 256
+          },
+          "request_id": {
+            "type": "identifier",
+            "max": 128,
+            "optional": true
+          }
+        }
+      },
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "http_status": {
+            "type": "integer",
+            "min": 400,
+            "max": 599
+          },
+          "body": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128,
+                "optional": true
+              },
+              "error": {
+                "type": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "authority_effect": "none"
+}

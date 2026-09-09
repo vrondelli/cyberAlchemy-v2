@@ -1,0 +1,58 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-BROWSER-EFFECT-POLICY",
+  "question": "Which authority model governs navigation, credentials, files, permissions, state-changing controls, and uncertain outcomes in supervised browser sessions?",
+  "request_digest": "a1d7ef449419a29ef5d2dd1b7b00a72f86f1a779c0e5a0d2dd12a9a5650c3529",
+  "selected_option_id": "OPT-BROWSER-EFFECT-SCOPED-GRANTS",
+  "selected_option": "Use explicit short-lived browser-context grants binding allowed origins, navigation and observation classes, credential handles, upload and download rules, action and time budgets, and evidence policy; unknown or out-of-grant actions fail closed, while sensitive, destructive, financial, publication, account, consent, and other irreversible actions always require a fresh exact one-shot approval.",
+  "rationale": "The user explicitly selected OPT-BROWSER-EFFECT-SCOPED-GRANTS. This gives the agent enough continuity for useful investigation while preventing a session-level approval from expanding across origins, credentials, files, or newly discovered consequential actions.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-BROWSER-EFFECT-SCOPED-GRANTS",
+    "recorded_at": "2026-09-01T18:50:54+01:00"
+  },
+  "binding_effect": {
+    "browser_effect_policy": "short-lived-scoped-browser-context-grants",
+    "required_semantics": [
+      "each browser grant is an immutable daemon-owned record with a digest binding issuer, subject actor, workspace, browser-session and context identities, exact allowed origins, action classes, resource selectors, credential and file handles, issue and validity times, action and byte budgets, concurrency, evidence policy, revocation generation, and owner decision identity",
+      "grant evaluation occurs in the Rust daemon before every action and again for every redirect, popup, new page, new origin, dialog, permission request, download, upload, external-protocol handoff, credential access, or raw-CDP expansion discovered by Playwright",
+      "a grant authorizes only explicitly enumerated action classes and exact or structurally bounded resources; absence, ambiguity, wildcard expansion, unknown actions, stale policy, expired validity, exhausted budgets, or changed selected dependencies fail closed",
+      "sensitive, destructive, financial, purchasing, publication, communication, account, identity, consent, credential-changing, access-control, and other irreversible actions cannot be delegated by a reusable grant and always require a fresh exact one-shot approval",
+      "credential grants carry opaque protected-store handles rather than secrets and bind credential class, exact permitted origins, browser context, allowed use, expiry, and redaction policy; Playwright state is treated as sensitive and never enters ordinary logs, traces, proposals, or SQLite content columns",
+      "navigation grants bind scheme, host, port, and redirect policy; a redirect or popup outside the allowed origin set is paused before further interaction and requires a new decision",
+      "uploads use immutable read-only handles bound to an exact file digest, size, media type, target origin, form or action identity, and one invocation; arbitrary filesystem paths are prohibited",
+      "downloads remain in a bounded quarantine with digest, size, media type, source URL, disposition, and malware or content-policy status; release to a workspace or user-selected destination is a separate exact approved action",
+      "browser permissions, external protocols, native dialogs, clipboard access, camera, microphone, geolocation, notifications, local-network access, and raw CDP are denied unless an exact capability explicitly admits the operation",
+      "effectful actions are never retried implicitly; a timeout, cancellation, process loss, connection loss, ambiguous page state, or missing external confirmation after dispatch yields uncertain and suspends dependent actions until reconciled",
+      "each request, grant decision, action dispatch, derived-action decision, driver observation, outcome classification, redaction, artifact digest, and reconciliation result is appended transactionally to the evidence ledger",
+      "browser evidence can support review but cannot independently prove an effect, accept Essays content, enlarge a grant, or mutate canonical state"
+    ],
+    "non_implications": [
+      "selecting scoped grants does not issue a grant, satisfy an owner gate, create credentials, install Playwright, launch a browser, or authorize any browser action",
+      "a grant is not a bearer token, role, browser cookie, Playwright storage-state file, or transferable capability and cannot be reused by another actor, device, workspace, or browser context",
+      "a successful Playwright action or matching screenshot does not prove the intended external effect occurred exactly once",
+      "this decision does not select grant serialization, cryptographic representation, protected credential store, malware scanner, redaction implementation, or exact action taxonomy",
+      "this decision does not authorize publication, communication, purchasing, account changes, release, deployment, or other external effects"
+    ]
+  },
+  "owner_gate": {
+    "required_owner": "Essays Project owner plus Essays security owner plus Work Owner effect-policy owner",
+    "status": "pending",
+    "effect_until_satisfied": "browser grant issuance, Playwright installation, browser launch, navigation, credential use, file transfer, and external effects prohibited"
+  },
+  "remaining_blockers": [
+    "Essays security-owner and Work Owner review of the Playwright driver and scoped browser-grant policy",
+    "exact browser action taxonomy, one-shot approval envelope, protected credential store, quarantine, redaction, reconciliation, and evidence schemas",
+    "exact pinned Playwright, JavaScript runtime, browser build, packaging, launch, and supervisor protocol identities",
+    "Essays security-owner review of the remote authentication and WebAssembly policies",
+    "remote capability authorization and grant semantics",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "The exact sensitive-action taxonomy and site-specific confirmation adapters remain separately reviewed generated policy bindings."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

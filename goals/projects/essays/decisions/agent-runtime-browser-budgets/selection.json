@@ -1,0 +1,74 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-BROWSER-BUDGETS",
+  "question": "Which daemon-wide process, concurrency, time, action, artifact, upload, download, and quarantine ceilings bound the first supervised browser vertical?",
+  "request_digest": "affc7d00e98a36862de7e2cc46d787014d7e28441ef949151e609d8cdaa1536b",
+  "selected_option_id": "OPT-BROWSER-BUDGET-LEAN-CONTROLLED",
+  "selected_option": "Keep the first browser vertical immediate and tightly supervised: one browser instance, one isolated context, four pages, one in-flight action, 768 MiB browser-tree RSS, 2.5-second launch-ready p95, 15-minute session lifetime, 100 actions, 128 MiB captured artifacts, 512 MiB quarantine, 256 MiB per download, and 64 MiB per upload on the selected Linux reference host.",
+  "rationale": "The user explicitly selected OPT-BROWSER-BUDGET-LEAN-CONTROLLED. Sequential execution inside one isolated context preserves the strongest first-vertical supervision and reconciliation boundary while still allowing a four-page investigation without adopting parallel browser effects or multi-context resource growth.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-BROWSER-BUDGET-LEAN-CONTROLLED",
+    "recorded_at": "2026-09-01T19:55:38+01:00"
+  },
+  "binding_effect": {
+    "browser_budget_profile": "lean-controlled-first-vertical",
+    "ceilings": {
+      "browser_instances_per_daemon": 1,
+      "isolated_contexts_per_browser": 1,
+      "pages_per_context": 4,
+      "in_flight_actions": 1,
+      "supervisor_and_browser_tree_rss_bytes": 805306368,
+      "launch_ready_p95_milliseconds": 2500,
+      "session_lifetime_milliseconds": 900000,
+      "actions_per_session": 100,
+      "captured_artifact_bytes_per_session": 134217728,
+      "quarantine_bytes_per_session": 536870912,
+      "download_bytes_per_item": 268435456,
+      "upload_bytes_per_item": 67108864
+    },
+    "required_semantics": [
+      "the daemon owns one Playwright supervisor and one supervised browser process tree; no client, agent, remote gateway or WebAssembly component can connect to or launch another browser endpoint",
+      "the first vertical admits one non-persistent isolated browser context with at most four pages and exactly one in-flight action across the context",
+      "the effective resource allowance is the fail-closed intersection of these daemon-wide ceilings, the live browser-context grant, the exact action envelope and current policy; a grant can narrow but never enlarge a ceiling",
+      "browser-tree RSS includes the Playwright supervisor, browser parent, renderer, GPU, utility, network and other descendant processes attributable to the supervised instance",
+      "launch ready begins at supervisor-approved browser-process creation and ends only after the pinned browser reports ready, the isolated context exists, a blank page completes the versioned supervisor handshake and the daemon accepts its identity",
+      "launch-ready p95 is evaluated over at least 30 independently recorded samples on the selected native Ubuntu 24.04 x86-64 reference environment with raw samples and exact Playwright, JavaScript-runtime, browser-build and launch-argument identities",
+      "session lifetime and action count are hard upper bounds; expiry or exhaustion blocks new actions and initiates bounded evidence finalization and context teardown",
+      "captured-artifact bytes include decoded traces, screenshots, DOM or accessibility snapshots, console records, bounded request and response evidence and other retained observations before compression",
+      "quarantine bytes include all unreleased downloaded content and derived scan artifacts; each download and upload is also checked against its per-item decoded-byte ceiling before transfer proceeds",
+      "an attempted page, context, instance, action, memory, lifetime, artifact, quarantine, download or upload expansion beyond a ceiling is refused or terminated with an explicit bounded outcome and redacted evidence",
+      "resource termination during an observation yields failed or cancelled; termination after dispatch of a potentially effectful action yields uncertain, blocks dependent actions and cannot trigger an implicit retry",
+      "orphan cleanup, graceful shutdown, forced termination and quarantine retention remain bounded even when the browser or supervisor crashes or stops responding",
+      "budget counters and outcomes are daemon-owned and cannot be reset by navigation, redirect, popup, page replacement, context recreation, reconnect, token refresh or client restart"
+    ],
+    "non_implications": [
+      "these ceilings do not grant an origin, navigation, credential, file, permission, action, download, upload, raw-CDP operation or external effect",
+      "selecting a budget does not satisfy the pending Essays security-owner or Work Owner browser-effect-policy gate",
+      "the ceilings are unproven conformance targets and do not show that Playwright or the pinned browser currently meets them",
+      "this decision does not select exact Playwright, JavaScript-runtime, browser-build, sandbox, process-accounting, quarantine, scanner, artifact or benchmark implementations",
+      "meeting the resource ceilings does not prove browser safety, semantic correctness, external-effect success, security, support, release or production readiness",
+      "this decision does not authorize dependency installation, browser launch, navigation, credential use, file transfer, publication, release, deployment or external effects"
+    ]
+  },
+  "owner_gate": {
+    "required_owner": "Essays Project owner plus Essays security owner plus Work Owner effect-policy owner",
+    "status": "pending",
+    "effect_until_satisfied": "Playwright installation, browser launch, grant issuance, navigation, credential use, file transfer and browser effects prohibited"
+  },
+  "remaining_blockers": [
+    "Essays security-owner and Work Owner review of the Playwright driver, scoped browser-grant policy and selected resource ceilings",
+    "exact pinned Playwright, JavaScript runtime, browser build, launch arguments, sandbox and supervisor protocol identities",
+    "exact Linux descendant-process accounting, memory enforcement, cancellation, teardown and orphan-cleanup binding",
+    "artifact accounting, redaction, quarantine, scan, retention, release and secure-deletion schemas",
+    "native benchmark and independent conformance evidence for launch, memory, lifetime, action, artifact and file ceilings",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Multiple contexts, concurrent observation actions, longer sessions, larger artifacts and larger file transfers require a separately reviewed browser-budget decision and renewed security and conformance evidence.",
+    "The exact enforcement mechanism may use Linux-native process grouping or another verified binding, but it cannot weaken descendant coverage or fail-closed outcomes."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

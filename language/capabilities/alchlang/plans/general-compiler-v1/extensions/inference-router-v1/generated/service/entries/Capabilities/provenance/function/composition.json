@@ -1,0 +1,244 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Provider": {
+      "binding_id": "String",
+      "binding_version": "String",
+      "model": "String",
+      "enabled": "Bool",
+      "tenant_allowed": "Bool",
+      "task": "String",
+      "context_limit": "Int",
+      "output_limit": "Int",
+      "streaming": "Bool",
+      "rank": "Int"
+    },
+    "Input": {
+      "providers": "Provider[]",
+      "strategies": "String[]",
+      "retention_ms": "Int"
+    },
+    "Custody": {
+      "storage": "String",
+      "retention_ms": "Int",
+      "stream_replay": "Bool"
+    },
+    "Capabilities": {
+      "tasks": "String[]",
+      "routing_strategies": "String[]",
+      "streaming": "Bool",
+      "authentication": "String",
+      "authorization": "String",
+      "scope": "String",
+      "idempotency": "Custody"
+    },
+    "Output": {
+      "status": "String",
+      "value": "Capabilities"
+    }
+  },
+  "roots": {
+    "input": "Input"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Tasks",
+      "kind": "Query",
+      "ontology": "ALCH-B2F6B8A24D4C176E9A48DFAF",
+      "meaning": "The configured routing strategies offer text generation.",
+      "binding": "strategy",
+      "source": {
+        "op": "path",
+        "path": [
+          "input",
+          "strategies"
+        ]
+      },
+      "where": {
+        "op": "literal",
+        "value": true
+      },
+      "select": {
+        "op": "literal",
+        "value": "text.generate"
+      }
+    },
+    {
+      "id": "CustodyInfo",
+      "kind": "Mapping",
+      "fields": {
+        "storage": {
+          "op": "literal",
+          "value": "memory"
+        },
+        "retention_ms": {
+          "op": "path",
+          "path": [
+            "input",
+            "retention_ms"
+          ]
+        },
+        "stream_replay": {
+          "op": "literal",
+          "value": false
+        }
+      },
+      "ontology": "ALCH-489EC213FA1DD58F75884D06",
+      "meaning": "Describe current memory retention and stream replay policy.",
+      "target": "Custody"
+    },
+    {
+      "id": "CapabilitiesInfo",
+      "kind": "Mapping",
+      "fields": {
+        "tasks": {
+          "op": "call",
+          "name": "distinct",
+          "args": [
+            {
+              "op": "path",
+              "path": [
+                "Tasks"
+              ]
+            }
+          ]
+        },
+        "routing_strategies": {
+          "op": "call",
+          "name": "sort",
+          "args": [
+            {
+              "op": "call",
+              "name": "distinct",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "input",
+                    "strategies"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "streaming": {
+          "op": "exists",
+          "binding": "row",
+          "collection": {
+            "op": "path",
+            "path": [
+              "input",
+              "providers"
+            ]
+          },
+          "where": {
+            "op": "call",
+            "name": "and",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "row",
+                  "enabled"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "row",
+                  "streaming"
+                ]
+              }
+            ]
+          }
+        },
+        "authentication": {
+          "op": "literal",
+          "value": "deferred"
+        },
+        "authorization": {
+          "op": "literal",
+          "value": "deferred"
+        },
+        "scope": {
+          "op": "literal",
+          "value": "shared-public"
+        },
+        "idempotency": {
+          "op": "path",
+          "path": [
+            "CustodyInfo"
+          ]
+        }
+      },
+      "ontology": "ALCH-B088520209D0BE502101EC21",
+      "meaning": "Project available strategies and enabled streaming with the current public scope.",
+      "target": "Capabilities"
+    },
+    {
+      "id": "Wrapped",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "CapabilitiesInfo"
+          ]
+        }
+      },
+      "ontology": "ALCH-A9B5594117ABDAB19571489B",
+      "meaning": "Return public capabilities.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [
+    {
+      "condition": {
+        "op": "call",
+        "name": "gt",
+        "args": [
+          {
+            "op": "call",
+            "name": "count",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "strategies"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "literal",
+            "value": 0
+          }
+        ]
+      },
+      "code": "STRATEGY_REQUIRED"
+    }
+  ],
+  "results": [
+    {
+      "condition": {
+        "op": "literal",
+        "value": true
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Wrapped"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

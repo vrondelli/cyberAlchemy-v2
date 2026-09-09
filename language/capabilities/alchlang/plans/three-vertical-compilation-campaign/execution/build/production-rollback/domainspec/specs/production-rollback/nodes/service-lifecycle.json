@@ -1,0 +1,55 @@
+{
+  "body": {
+    "description": "Production rollback lifecycle.",
+    "initial": "healthy",
+    "states": [
+      "healthy",
+      "degraded",
+      "rollback-pending",
+      "rolling-back",
+      "restored",
+      "rollback-uncertain"
+    ],
+    "transitions": [
+      {
+        "effect_event_ref": null,
+        "guard_ref": null,
+        "source_state": "healthy",
+        "target_state": "degraded",
+        "transition_id": "mark-degraded"
+      },
+      {
+        "effect_event_ref": null,
+        "guard_ref": "production-rollback:active-incident",
+        "source_state": "degraded",
+        "target_state": "rollback-pending",
+        "transition_id": "request-rollback"
+      },
+      {
+        "effect_event_ref": "production-rollback:rollback-started",
+        "guard_ref": "production-rollback:current-grant",
+        "source_state": "rollback-pending",
+        "target_state": "rolling-back",
+        "transition_id": "start-rollback"
+      },
+      {
+        "effect_event_ref": "production-rollback:rollback-completed",
+        "guard_ref": null,
+        "source_state": "rolling-back",
+        "target_state": "restored",
+        "transition_id": "complete-rollback"
+      },
+      {
+        "effect_event_ref": "production-rollback:rollback-outcome-uncertain",
+        "guard_ref": null,
+        "source_state": "rolling-back",
+        "target_state": "rollback-uncertain",
+        "transition_id": "record-uncertain"
+      }
+    ]
+  },
+  "feature_id": "production-rollback",
+  "kind": "State Machine",
+  "node_id": "service-lifecycle",
+  "schema_version": "domainspec.node/v1"
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/private/schemas/pyc-proof-agent-run-record/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "harness_id", "run_id", "stage", "status", "identity", "frozen", "execution", "timing", "outcome", "validation", "unknown_fields", "deviations", "claim_ceiling"],
+  "properties": {
+    "schema_version": {"const": "pyc-proof-agent-run-record/v1"},
+    "harness_id": {"const": "PYC-PROOF-AGENT-HARNESS-001"},
+    "run_id": {"type": "string", "pattern": "^PYC-RUN-[A-Z0-9-]+$"},
+    "stage": {"enum": ["smoke", "screen", "replicate"]},
+    "status": {"enum": ["completed", "blocked", "protocol_deviation"]},
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_profile_id", "task_id", "context_condition", "topology_id", "repetition", "randomization_seed"],
+      "properties": {
+        "model_profile_id": {"type": "string", "minLength": 1}, "task_id": {"type": "string", "minLength": 1},
+        "context_condition": {"enum": ["plain_facts", "ontology_indexed"]},
+        "topology_id": {"enum": ["one_worker", "two_sequential", "two_parallel"]},
+        "repetition": {"type": "integer", "minimum": 1}, "randomization_seed": {"type": "integer", "minimum": 0}
+      }
+    },
+    "frozen": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository_commit", "protocol_digest", "task_digest", "fact_set_digest", "presentation_digest", "prompt_digest", "sandbox_digest", "toolchain_digest"],
+      "properties": {
+        "repository_commit": {"type": "string", "minLength": 7},
+        "protocol_digest": {"$ref": "#/$defs/sha256"}, "task_digest": {"$ref": "#/$defs/sha256"},
+        "fact_set_digest": {"$ref": "#/$defs/sha256"}, "presentation_digest": {"$ref": "#/$defs/sha256"},
+        "prompt_digest": {"$ref": "#/$defs/sha256"}, "sandbox_digest": {"$ref": "#/$defs/sha256"},
+        "toolchain_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["root_model_id", "worker_model_id", "reasoning_effort", "planned_subagents", "actual_spawn_count", "max_parallel_subagents", "actual_peak_parallelism", "all_workers_joined", "all_workers_closed", "worker_session_ids"],
+      "properties": {
+        "root_model_id": {"type": "string", "minLength": 1}, "worker_model_id": {"type": "string", "minLength": 1},
+        "reasoning_effort": {"type": "string", "minLength": 1}, "planned_subagents": {"type": "integer", "minimum": 1},
+        "actual_spawn_count": {"type": "integer", "minimum": 0}, "max_parallel_subagents": {"type": "integer", "minimum": 1},
+        "actual_peak_parallelism": {"type": "integer", "minimum": 0}, "all_workers_joined": {"type": "boolean"},
+        "all_workers_closed": {"type": "boolean"},
+        "worker_session_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "timing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["wall_ms", "sum_worker_active_ms", "root_orchestration_ms", "wait_ms", "input_tokens", "output_tokens"],
+      "properties": {
+        "wall_ms": {"type": ["integer", "null"], "minimum": 0}, "sum_worker_active_ms": {"type": ["integer", "null"], "minimum": 0},
+        "root_orchestration_ms": {"type": ["integer", "null"], "minimum": 0}, "wait_ms": {"type": ["integer", "null"], "minimum": 0},
+        "input_tokens": {"type": ["integer", "null"], "minimum": 0}, "output_tokens": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "outcome": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proofs_attempted", "proofs_compiled", "grader_passed", "axiom_clean", "scope_violations", "accepted_helpers", "merge_rework_minutes", "blocker_class", "artifact_digest"],
+      "properties": {
+        "proofs_attempted": {"type": "integer", "minimum": 0}, "proofs_compiled": {"type": "integer", "minimum": 0},
+        "grader_passed": {"type": "integer", "minimum": 0}, "axiom_clean": {"type": "integer", "minimum": 0},
+        "scope_violations": {"type": "integer", "minimum": 0}, "accepted_helpers": {"type": "integer", "minimum": 0},
+        "merge_rework_minutes": {"type": "number", "minimum": 0},
+        "blocker_class": {"enum": ["NONE", "ENVIRONMENTAL", "CONTRACT", "IMPLEMENTATION", "LOCAL_LEMMA", "REPRESENTATION_BRIDGE", "SHARED_INVARIANT", "SPEC_UNSAT", "UNKNOWN"]},
+        "artifact_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "validation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["build_exit", "grader_native_status", "axiom_probe_status", "delta_audit_status"],
+      "properties": {
+        "build_exit": {"type": ["integer", "null"]},
+        "grader_native_status": {"enum": ["pass", "fail", "blocked", "not_evaluable"]},
+        "axiom_probe_status": {"enum": ["pass", "fail", "blocked", "not_evaluable"]},
+        "delta_audit_status": {"enum": ["pass", "fail", "blocked", "not_evaluable"]}
+      }
+    },
+    "unknown_fields": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "deviations": {"type": "array", "items": {"type": "string"}},
+    "claim_ceiling": {"type": "string", "minLength": 1}
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

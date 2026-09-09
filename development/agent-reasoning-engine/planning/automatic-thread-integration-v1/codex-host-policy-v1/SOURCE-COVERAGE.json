@@ -1,0 +1,50 @@
+{
+  "authority_effect": "none",
+  "source_binding": "SOURCE-BINDING.json",
+  "paths": [
+    {
+      "path": "core/src/client.rs:build_api_transport",
+      "behavior": "Select gated transport for explicitly configured normal Responses requests; reject auxiliary endpoints",
+      "evidence": "native allowed/denied and retry tests; auxiliary rejection source inspection"
+    },
+    {
+      "path": "core/src/client.rs:responses_websocket_enabled and responses_request_compression",
+      "behavior": "Use full uncompressed HTTP in gate mode",
+      "evidence": "native allowed-request test checks no Upgrade and exact JSON body"
+    },
+    {
+      "path": "core/src/client.rs:stream_responses_api",
+      "behavior": "Map gate Build errors to non-retryable InvalidRequest",
+      "evidence": "native retry test: two policy decisions, one provider call"
+    },
+    {
+      "path": "core/src/session/session.rs:ModelClient construction",
+      "behavior": "Session-owned gate persists independently of reloadable turn config",
+      "evidence": "native canary and source inspection; reload scenario not separately executed"
+    },
+    {
+      "path": "core/src/session/turn.rs:run_auto_compact",
+      "behavior": "Notify gate, emit error event and return before every automatic compaction branch",
+      "evidence": "native pre-turn test; mid-turn and model-switch variants share this guarded entry but are not individually executed"
+    },
+    {
+      "path": "core/src/tasks/compact.rs:CompactTask.run",
+      "behavior": "Stop before manual compaction branches",
+      "evidence": "native mock-peer test plus real ARE-service canary"
+    },
+    {
+      "path": "core/src/client.rs:HTTP authentication recovery",
+      "behavior": "Recovered retries use the same transport factory",
+      "evidence": "source inspection only; real authentication recovery not executed"
+    }
+  ],
+  "not_proven": [
+    "Live tokenizer and backend framing bounds",
+    "Live provider output-cap conformance",
+    "Fresh context handover and tool quiescence",
+    "Typed stop-reason propagation to a supervisor",
+    "All possible host operations or full workspace conformance",
+    "Installed desktop activation"
+  ],
+  "open_questions_ref": "PROTOCOL.md"
+}

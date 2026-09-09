@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/rwo-dag-definition.schema.json",
+  "title": "Bounded RWO DAG definition candidate",
+  "type": "object",
+  "required": ["schema_version", "dag_id", "deadline_seconds", "max_parallelism", "nodes", "authority_effect", "external_effect"],
+  "properties": {
+    "schema_version": {"const": "cav2-rwo-dag-definition/v1"},
+    "dag_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,160}$"},
+    "deadline_seconds": {"type": "integer", "minimum": 1},
+    "max_parallelism": {"type": "integer", "minimum": 1},
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "source": {"type": "object"},
+    "authority_effect": {"const": "none"},
+    "external_effect": {"const": "none"},
+    "claim_ceiling": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["node_id", "contract", "role_id", "depends_on", "release", "max_attempts", "static_input"],
+      "properties": {
+        "node_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,160}$"},
+        "contract": {"type": "string", "minLength": 1},
+        "role_id": {"type": "string", "minLength": 1},
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,160}$"}
+        },
+        "release": {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "mode": {"enum": ["root", "all", "any", "quorum"]},
+            "quorum": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        },
+        "max_attempts": {"type": "integer", "minimum": 1},
+        "static_input": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}

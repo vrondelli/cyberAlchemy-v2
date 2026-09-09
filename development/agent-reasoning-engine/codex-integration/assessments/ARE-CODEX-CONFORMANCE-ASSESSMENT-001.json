@@ -1,0 +1,134 @@
+{
+  "schema_version": "are.codex-implementation-conformance-assessment/v1",
+  "assessment_id": "ARE-CODEX-CONFORMANCE-ASSESSMENT-001",
+  "assessed_at": "2026-09-01",
+  "assessment_kind": "independent-collect-all-static-and-black-box",
+  "target": {
+    "binding_ref": "implementation-binding.json",
+    "binding_sha256": "51a61540d4fdaf5f4d45f9b8672f010e8ebf08a6b0d0a5aea501fe0a79138472",
+    "interface_ref": "interfaces/codex-app-server-wrapper.contract.json",
+    "interface_sha256": "a38b798f2abc3e3165a7f5473a9d9b769ec0a7588b4cd81e98c2dafd17d1749e",
+    "obligation_registry_ref": "obligations.json",
+    "obligation_registry_sha256": "d5c6f2fce37b7ed2016046ecd56cbb39b90220575a0d10b0a11276fee773e0f3"
+  },
+  "verdict": "nonconformant",
+  "verdict_reasons": [
+    "One selected decision-profile dependency has drifted, so the bound engine currently fails closed during initialization.",
+    "The immutable binding does not close over all runtime dependency bytes needed to reproduce the evaluated router.",
+    "Six interface requirements and two capability obligations have direct counterevidence.",
+    "Two interface requirements and one capability obligation remain not evaluable from the bound evidence."
+  ],
+  "current_execution": {
+    "binding_named_files": {
+      "status": "pass",
+      "checked_components": 9,
+      "checked_evidence_artifacts": 3,
+      "mismatches": []
+    },
+    "selected_dependency_check": {
+      "status": "fail_closed",
+      "dependency_id": "route-registry",
+      "path": "cyberAlchemy-v2/agent-routing/routes.json",
+      "expected_sha256": "9e697ab0b35d8012148285644af82f51643ce9035792622c160d20c6ea4723aa",
+      "observed_sha256": "7228fdaaf7ff22267d8aecba7723d7139a9d41e876496f37db9e907413a641a7",
+      "engine_result": "ARE_PROFILE_VERIFICATION_FAILED:profile.provenance-drift:route-registry:7228fdaaf7ff22267d8aecba7723d7139a9d41e876496f37db9e907413a641a7"
+    },
+    "router_test_run": {
+      "command": "/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node --test test/*.test.mjs",
+      "working_directory": "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/request-decision-router",
+      "total": 12,
+      "passed": 2,
+      "failed": 10,
+      "primary_cause": "selected route-registry digest drift"
+    },
+    "integration_test_run": {
+      "command": "/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node --test test/*.test.mjs",
+      "working_directory": "cyberAlchemy-v2/development/agent-reasoning-engine/codex-integration",
+      "status": "blocked",
+      "primary_cause": "proxy and client cannot initialize the drifted decision profile",
+      "historical_bound_receipt": "receipts/2026-09-01-implementation-test-suite.json",
+      "historical_bound_result": "11-of-11-pass"
+    },
+    "package_validation": {
+      "status": "block",
+      "command": "python3 scripts/validate.py --verify-build --self-test",
+      "causes": [
+        "source digest drift: SRC-CA2-ROUTES",
+        "DomainSpec build replay failed with SOURCE_BINDING_DRIFT"
+      ]
+    }
+  },
+  "interface_checks": [
+    {"check_id":"IF-PRE-001","requirement":"Consume turn/start.params.input as the request surface.","status":"pass","evidence":["runtime/engine.mjs:textInput","test/proxy.test.mjs"]},
+    {"check_id":"IF-PRE-002","requirement":"Complete preflight before forwarding turn/start.","status":"pass","evidence":["runtime/proxy.mjs:preflight.decision-before-turn.forwarded","receipts/2026-09-01-live-app-server-canary-approved.json:ordering.preflight_decision_before_turn_start"]},
+    {"check_id":"IF-PRE-003","requirement":"On direct, forward the turn with additive digest-bound routing context.","status":"pass","evidence":["runtime/engine.mjs:preflight-contextItem","test/proxy.test.mjs:direct-preflight"]},
+    {"check_id":"IF-PRE-004","requirement":"On gate, do not forward and expose exact candidates, reasons, provenance, and owner routes.","status":"fail","evidence":["runtime/proxy.mjs:turn.not-forwarded","request-decision-router/src/router.mjs:gate-candidates-are-route-ids-only"],"counterevidence":"A multiple-route gate returns candidate route IDs but no owner route for each candidate."},
+    {"check_id":"IF-PRE-005","requirement":"On block, do not forward and return causal blocker residue.","status":"pass","evidence":["runtime/proxy.mjs:ARE_BLOCK","request-decision-router/src/router.mjs:reason_codes"]},
+
+    {"check_id":"IF-EFFECT-001","requirement":"Intercept command, file-change, and permission approval request surfaces.","status":"pass","evidence":["runtime/proxy.mjs:approvalMethods","receipts/2026-09-01-implementation-test-suite.json"]},
+    {"check_id":"IF-EFFECT-002","requirement":"Evaluate the proposed effect before returning an approval response.","status":"pass","evidence":["runtime/proxy.mjs:effect.decision-before-effect.approval-bound","receipts/2026-09-01-live-app-server-canary-approved.json:ordering.effect_decision_before_approval_response"]},
+    {"check_id":"IF-EFFECT-003","requirement":"Approve only when the engine directive and an independent Codex permission policy both permit the exact effect.","status":"not_evaluable","evidence":["runtime/engine.mjs:effect-always-gate","client/session.mjs:effectMatches"],"blocker":"The binding proves exact human binding to an engine gate, but exposes no independently evaluated Codex permission-policy decision that can be joined with it."},
+    {"check_id":"IF-EFFECT-004","requirement":"On gate, withhold approval and route the exact effect decision to its owner.","status":"pass","evidence":["runtime/engine.mjs:effectOwner","runtime/proxy.mjs:pendingApprovals","client/session.mjs:onApproval"]},
+    {"check_id":"IF-EFFECT-005","requirement":"On block, deny the approval request.","status":"pass","evidence":["runtime/proxy.mjs:ARE_EFFECT_BLOCK","test/proxy.test.mjs:malformed-effect-identity"]},
+
+    {"check_id":"IF-CONT-001","requirement":"Evaluate continuation at turn/completed.","status":"pass","evidence":["runtime/proxy.mjs:turn/completed"]},
+    {"check_id":"IF-CONT-002","requirement":"Bound completion to one turn and its attributed item and approval events.","status":"not_evaluable","evidence":["runtime/proxy.mjs:event-recording"],"blocker":"Events are recorded, but no closure check proves that all and only events attributed to the completed turn entered the assessment."},
+    {"check_id":"IF-CONT-003","requirement":"Reconcile plan-bound and interaction-bound proposals with mechanism-observed turn, item, and approval evidence before continuation.","status":"fail","evidence":["runtime/engine.mjs:continuation","runtime/proxy.mjs:continuationByTurn"],"counterevidence":"Continuation consumes only client-declared _are.continuation proposals; observed item, hook, and approval evidence is recorded but not reconciled into the assessment."},
+    {"check_id":"IF-CONT-004","requirement":"Project only digest-bound declared plan successors, with direct eligibility limited to one verified safe proposal.","status":"pass","evidence":["runtime/engine.mjs:proposalBinding","runtime/proxy.mjs:selected_plan","test/proxy.test.mjs:safe-plan-successor"]},
+    {"check_id":"IF-CONT-005","requirement":"Treat interaction proposals as candidate meaning and require an exact human digest binding before execution.","status":"pass","evidence":["runtime/engine.mjs:interaction_bound","runtime/proxy.mjs:are/continuation/resolve","test/interactive-client.test.mjs:exact-digest-binding"]},
+    {"check_id":"IF-CONT-006","requirement":"Gate interaction, multiple, consequential, protected, irreversible, unknown, or owner-gated proposals; direct only one safe plan proposal.","status":"pass","evidence":["request-decision-router/src/consequence.mjs","request-decision-router/test/consequence.test.mjs","receipts/2026-09-01-implementation-test-suite.json"]},
+    {"check_id":"IF-CONT-007","requirement":"On direct, start at most one admissible successor turn.","status":"pass","evidence":["runtime/proxy.mjs:single-selected_plan-forward","test/proxy.test.mjs:safe-plan-successor"]},
+    {"check_id":"IF-CONT-008","requirement":"On gate, start no successor and expose the bound choice.","status":"pass","evidence":["runtime/proxy.mjs:pendingContinuationGates","test/interactive-client.test.mjs:interaction-gate"]},
+    {"check_id":"IF-CONT-009","requirement":"On complete, start no successor and close the run.","status":"pass","evidence":["runtime/proxy.mjs:direct-only-successor-branch","receipts/2026-09-01-live-app-server-canary-approved.json:continuation.complete"]},
+    {"check_id":"IF-CONT-010","requirement":"On block, start no successor and preserve causal residue.","status":"pass","evidence":["runtime/proxy.mjs:direct-only-successor-branch","request-decision-router/src/consequence.mjs:reason_codes"]},
+
+    {"check_id":"IF-RECEIPT-001","requirement":"Bind receipts to thread, turn, request-or-completion, decision-profile, and decision identities.","status":"fail","evidence":["runtime/proxy.mjs:record-shapes","receipts/2026-09-01-live-app-server-canary-approved.events.jsonl"],"counterevidence":"No single receipt entry or manifest closes all required identities; effect records omit the decision-profile digest and preflight records cannot bind an observed turn ID."},
+    {"check_id":"IF-RECEIPT-002","requirement":"Preserve preflight-before-turn, effect-before-approval, and completion-before-continuation ordering.","status":"pass","evidence":["receipts/2026-09-01-live-app-server-canary-approved.json:ordering","test/proxy.test.mjs:ordered-boundaries"]},
+    {"check_id":"IF-RECEIPT-003","requirement":"Observe turn, item, hook, and completion evidence surfaces.","status":"pass","evidence":["runtime/proxy.mjs:surface-recording"]},
+
+    {"check_id":"IF-FAIL-001","requirement":"Fail closed on protocol or selected schema projection drift.","status":"pass","evidence":["runtime/proxy.mjs:ARE_CODEX_PROTOCOL_DRIFT","current_execution.selected_dependency_check"]},
+    {"check_id":"IF-FAIL-002","requirement":"Fail closed on missing request, turn, item, effect, or decision identity.","status":"fail","evidence":["runtime/engine.mjs:requestContext-defaults","runtime/engine.mjs:effect-missing-check"],"counterevidence":"Effect identities are checked, but request_id defaults to 'unknown' and a missing thread identity is not rejected before a direct turn can be forwarded."},
+    {"check_id":"IF-FAIL-003","requirement":"Fail closed on unknown effect, reversibility, owner route, or selected dependency.","status":"pass","evidence":["request-decision-router/src/consequence.mjs:optionTrace","runtime/engine.mjs:profile-verification"]},
+    {"check_id":"IF-FAIL-004","requirement":"Fail closed on an interaction proposal without an exact human digest binding.","status":"pass","evidence":["runtime/proxy.mjs:continuation.binding-rejected","test/interactive-client.test.mjs:proposal-digest-mismatch"]},
+    {"check_id":"IF-FAIL-005","requirement":"Reject agent prose presented as plan-bound or authoritative evidence.","status":"fail","evidence":["runtime/engine.mjs:declared.plan_bound"],"counterevidence":"The adapter trusts the client-selected plan_bound field and carries no authenticated source identity that distinguishes a native plan artifact from agent prose."},
+    {"check_id":"IF-FAIL-006","requirement":"Fail closed on an ambiguous direct route.","status":"pass","evidence":["request-decision-router/src/router.mjs:multiple-eligible-gate","test/proxy.test.mjs:gate-not-forwarded"]},
+    {"check_id":"IF-FAIL-007","requirement":"Fail closed on receipt-ordering contradiction.","status":"fail","evidence":["runtime/proxy.mjs:append-only-recording"],"counterevidence":"The adapter emits events in its intended order but has no validator that detects contradictory, duplicate, missing, or cross-turn receipt sequences."}
+  ],
+  "capability_obligation_checks": [
+    {"obligation_id":"CAP-OBL-ARE-CODEX-001","status":"fail","reason":"Raw request bytes are retained as a string, but derived context fields are not labeled explicit, inferred, unknown, or absent."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-002","status":"pass","reason":"Profile loading verifies selected source digests and current route-registry drift fails closed."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-003","status":"pass","reason":"The router projects declared routes and gates ambiguity or blocks no-match/invalid profile cases."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-004","status":"pass","reason":"Bound router tests and profile rules select Goal only from goal-specific evidence."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-005","status":"pass","reason":"The exact live receipt proves preflight before the governed command item and the proxy records preflight before forwarding."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-006","status":"pass","reason":"Bound negative tests prove gate/block prevents turn or successor forwarding."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-007","status":"fail","reason":"Only client-declared options are evaluated; no completion-to-options extractor establishes that all structurally admissible observed successors were collected."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-008","status":"pass","reason":"The consequence kernel and bound tests cover sole-safe, multiple, consequential, protected, irreversible, unknown, owner-gated, and zero-admissible outcomes."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-009","status":"pass","reason":"Protected and consequential effect classes retain exact configured owner gates in consequence traces."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-010","status":"pass","reason":"Request/completion, profile, proposal, effect, binding, and decision digests are deterministic and exact-digest mismatches are rejected."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-011","status":"pass","reason":"Modeled outputs and receipts retain authority_effect none and explicit non-authority claim ceilings."},
+    {"obligation_id":"CAP-OBL-ARE-CODEX-012","status":"not_evaluable","reason":"The artifacts distinguish partial router evidence from live host evidence, but the required accepted conformance plan does not exist and the current live binding cannot initialize."}
+  ],
+  "counts": {
+    "interface_checks": 30,
+    "interface_pass": 22,
+    "interface_fail": 6,
+    "interface_not_evaluable": 2,
+    "capability_obligations": 12,
+    "capability_pass": 9,
+    "capability_fail": 2,
+    "capability_not_evaluable": 1
+  },
+  "required_repairs_before_reassessment": [
+    "Reconcile the selected route-registry dependency and bind the complete router/profile dependency closure without refreshing historical evidence in place.",
+    "Add explicit posture metadata for every request-context field and reject missing request/thread identities.",
+    "Return candidate owner routes at preflight gates.",
+    "Introduce an authenticated native plan-evidence lane and reject client-asserted or agent-prose plan authority.",
+    "Reconcile continuation options with attributed turn, item, hook, and approval evidence using a collect-all extractor.",
+    "Create an aggregate receipt manifest and validator that closes required identities and rejects ordering contradictions.",
+    "Expose and test the independent Codex permission-policy decision used in effect approval joins."
+  ],
+  "acceptance_state": "not-accepted",
+  "conformance_state": "nonconformant",
+  "authority_effect": "none",
+  "claim_limit": "This assessment records non-effectful conformance evidence for one immutable binding digest. It does not modify or accept the binding, admit the ontology, adopt the Product Capability, publish, release, deploy, install a default entrypoint, or authorize any runtime effect."
+}

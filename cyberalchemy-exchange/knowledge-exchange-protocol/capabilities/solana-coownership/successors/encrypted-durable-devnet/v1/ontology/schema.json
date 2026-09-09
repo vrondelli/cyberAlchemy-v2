@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/kep/solana/encrypted-durable-devnet/ontology/schema.json",
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effectNone": {
+      "const": "none"
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_ref",
+        "schema_version",
+        "ontology_id",
+        "title",
+        "ontology_type",
+        "branch",
+        "materialization",
+        "package_root",
+        "package_owner",
+        "visibility",
+        "lifecycle_status",
+        "product_ref",
+        "capability_ref",
+        "composed_ontology_refs",
+        "source_registry",
+        "definition_binding_registry",
+        "node_registry",
+        "relation_registry",
+        "rule_registry",
+        "premise_registry",
+        "proof_registry",
+        "residue_registry",
+        "receipt_registry",
+        "schema_path",
+        "validator_path",
+        "construction_state",
+        "authority_effect",
+        "enforcement_effect",
+        "external_effect",
+        "claim_limit"
+      ],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/profile"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-profile/v1"},
+        "ontology_id": {"const": "CA2-ONTOLOGY-KEP-SOLANA-ENCRYPTED-DURABLE-DEVNET"},
+        "title": {"$ref": "#/$defs/text"},
+        "ontology_type": {"const": "business-domain"},
+        "branch": {"const": "business"},
+        "materialization": {"const": "package-required"},
+        "package_root": {"$ref": "#/$defs/text"},
+        "package_owner": {"$ref": "#/$defs/text"},
+        "visibility": {"const": "private"},
+        "lifecycle_status": {"const": "authored-candidate"},
+        "product_ref": {"const": "CA2-PRODUCT-KNOWLEDGE-EXCHANGE-PROTOCOL"},
+        "capability_ref": {"const": "CA2-CAP-REALIZE-ENCRYPTED-DURABLE-DEVNET-COOWNERSHIP"},
+        "composed_ontology_refs": {
+          "type": "array",
+          "const": ["CA2-ONTOLOGY-KEP-SOLANA-COOWNERSHIP", "CA2-ONTOLOGY-KEP-DST-SQL-THREE-LAYER"]
+        },
+        "source_registry": {"const": "sources.json"},
+        "definition_binding_registry": {"const": "definition-bindings.json"},
+        "node_registry": {"const": "nodes.json"},
+        "relation_registry": {"const": "relations.json"},
+        "rule_registry": {"const": "rules.json"},
+        "premise_registry": {"const": "premises.json"},
+        "proof_registry": {"const": "proof-requirements.json"},
+        "residue_registry": {"const": "residue.json"},
+        "receipt_registry": {"const": "receipts/index.json"},
+        "schema_path": {"const": "schema.json"},
+        "validator_path": {"const": "validate.py"},
+        "construction_state": {"type": "object"},
+        "authority_effect": {"$ref": "#/$defs/effectNone"},
+        "enforcement_effect": {"$ref": "#/$defs/effectNone"},
+        "external_effect": {"$ref": "#/$defs/effectNone"},
+        "claim_limit": {"$ref": "#/$defs/text"}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "location", "path", "sha256", "posture", "owner"],
+      "properties": {
+        "source_id": {"type": "string", "pattern": "^SRC-"},
+        "location": {"enum": ["working-tree", "git-object"]},
+        "git_object": {"type": "string", "minLength": 7},
+        "path": {"$ref": "#/$defs/text"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "posture": {"$ref": "#/$defs/text"},
+        "owner": {"$ref": "#/$defs/text"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"location": {"const": "git-object"}}},
+          "then": {"required": ["git_object"]},
+          "else": {"not": {"required": ["git_object"]}}
+        }
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection_id", "source_id", "selector_kind", "selector", "selection_sha256"],
+      "properties": {
+        "selection_id": {"type": "string", "pattern": "^KEP-SOL2-SEL-"},
+        "source_id": {"type": "string", "pattern": "^SRC-"},
+        "selector_kind": {"enum": ["whole-file", "markdown-heading"]},
+        "selector": {"type": ["string", "null"]},
+        "selection_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "sourceRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "sources", "selections", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/sourceRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-sources/v1"},
+        "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+        "selections": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/selection"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "definitionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["definition_id", "source_selection_ref", "ontology_refs"],
+      "properties": {
+        "definition_id": {"type": "string", "pattern": "^KEP-(SOL|DST)-D[0-9]+$"},
+        "source_selection_ref": {"type": "string", "pattern": "^KEP-SOL2-SEL-"},
+        "ontology_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}}
+      }
+    },
+    "definitionBindingRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "bindings", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/definitionBindingRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-definition-bindings/v1"},
+        "bindings": {"type": "array", "minItems": 32, "maxItems": 32, "items": {"$ref": "#/$defs/definitionBinding"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "role", "meaning", "definition_refs", "source_refs", "authority_effect"],
+      "properties": {
+        "id": {"$ref": "#/$defs/text"},
+        "label": {"$ref": "#/$defs/text"},
+        "role": {"$ref": "#/$defs/text"},
+        "meaning": {"$ref": "#/$defs/text"},
+        "definition_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KEP-SOL2-SEL-"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "nodeRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "confidence", "nodes", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/nodeRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-nodes/v1"},
+        "confidence": {"type": "object"},
+        "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation_id", "relationship", "source", "target", "source_refs", "authority_effect"],
+      "properties": {
+        "relation_id": {"type": "string", "pattern": "^KEP-SOL2-REL-"},
+        "relationship": {"$ref": "#/$defs/text"},
+        "source": {"$ref": "#/$defs/text"},
+        "target": {"$ref": "#/$defs/text"},
+        "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KEP-SOL2-SEL-"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "relationRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "relations", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/relationRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-relations/v1"},
+        "relations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/relation"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "statement", "enforcement_state", "definition_refs", "source_refs", "authority_effect"],
+      "properties": {
+        "rule_id": {"type": "string", "pattern": "^KEP-SOL2-RULE-"},
+        "statement": {"$ref": "#/$defs/text"},
+        "enforcement_state": {"const": "candidate"},
+        "definition_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KEP-SOL2-SEL-"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "ruleRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "rules", "authority_effect", "enforcement_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/ruleRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-rules/v1"},
+        "rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"},
+        "enforcement_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "premise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["premise_id", "statement", "evidence_confidence", "commitment_confidence", "falsifier", "source_refs"],
+      "properties": {
+        "premise_id": {"type": "string", "pattern": "^KEP-SOL2-PREMISE-"},
+        "statement": {"$ref": "#/$defs/text"},
+        "evidence_confidence": {"enum": ["source-supported", "not-yet-proven"]},
+        "commitment_confidence": {"const": "working-candidate"},
+        "falsifier": {"$ref": "#/$defs/text"},
+        "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KEP-SOL2-SEL-"}}
+      }
+    },
+    "premiseRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "premises", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/premiseRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-premises/v1"},
+        "premises": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/premise"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proof_id", "statement", "evidence_state", "causal_blocker", "source_refs"],
+      "properties": {
+        "proof_id": {"type": "string", "pattern": "^KEP-SOL2-PROOF-"},
+        "statement": {"$ref": "#/$defs/text"},
+        "evidence_state": {"const": "not_evaluable"},
+        "causal_blocker": {"$ref": "#/$defs/text"},
+        "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KEP-SOL2-SEL-"}}
+      }
+    },
+    "proofRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "proof_requirements", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/proofRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-proofs/v1"},
+        "proof_requirements": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/proof"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "residueItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["residue_id", "description", "status", "owner_route", "next_action", "source_refs"],
+      "properties": {
+        "residue_id": {"type": "string", "pattern": "^KEP-SOL2-RES-"},
+        "description": {"$ref": "#/$defs/text"},
+        "status": {"enum": ["open", "blocked", "deferred"]},
+        "owner_route": {"$ref": "#/$defs/text"},
+        "next_action": {"$ref": "#/$defs/text"},
+        "source_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KEP-SOL2-SEL-"}}
+      }
+    },
+    "residueRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "residue", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "schema.json#/$defs/residueRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-residue/v1"},
+        "residue": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/residueItem"}},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    },
+    "receiptRegistry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_ref", "schema_version", "receipts", "authority_effect"],
+      "properties": {
+        "schema_ref": {"const": "../schema.json#/$defs/receiptRegistry"},
+        "schema_version": {"const": "cav2-kep-solana-encrypted-durable-devnet-ontology-receipts/v1"},
+        "receipts": {"type": "array", "maxItems": 0},
+        "authority_effect": {"$ref": "#/$defs/effectNone"}
+      }
+    }
+  }
+}

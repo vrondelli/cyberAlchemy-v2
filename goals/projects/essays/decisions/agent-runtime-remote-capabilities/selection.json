@@ -1,0 +1,52 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-REMOTE-CAPABILITIES",
+  "question": "Which capability model bounds what an authenticated remote client may do?",
+  "request_digest": "b6a7f73b2560e91436bf76c66e72abfe4c1e5660a8ac60f18b0c41888090d0b9",
+  "selected_option_id": "OPT-REMOTE-CAP-SCOPED-LEASES",
+  "selected_option": "Issue explicit short-lived owner-approved capability leases bound to the paired device key, actor, workspace, resource selectors, operations, expected authority revision, quotas, validity, and revocation generation; verify the DPoP-bound token and live lease on every request, with browser and external effects still requiring their separate grants.",
+  "rationale": "The user explicitly selected OPT-REMOTE-CAP-SCOPED-LEASES. Scoped leases preserve useful remote continuity without confusing authenticated identity with authority or turning a broad role into ambient access.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-REMOTE-CAP-SCOPED-LEASES",
+    "recorded_at": "2026-09-01T19:30:24+01:00"
+  },
+  "binding_effect": {
+    "remote_capability_authorization": "short-lived-owner-approved-scoped-leases",
+    "required_semantics": [
+      "each lease is an immutable authority-service record with a digest binding lease identity, issuer, subject actor, paired-device public-key thumbprint, workspace, exact resource selectors, admitted operation vocabulary, expected authority and policy revisions, quotas, concurrency and data bounds, validity interval, revocation generation, evidence and redaction policy, and parent owner decision",
+      "the Rust daemon evaluates both the sender-constrained access token and the current authoritative lease on every protected request; token claims or cached lease contents alone are insufficient",
+      "token audience, resource and scope must match the endpoint and must not exceed the live lease; effective authority is the fail-closed intersection of token, lease, current policy, resource state and operation-specific checks",
+      "a missing, ambiguous, not-yet-valid, expired, revoked, revision-stale, quota-exhausted, device-mismatched, actor-mismatched, workspace-mismatched, resource-mismatched or operation-mismatched lease rejects the request",
+      "a lease cannot grant more authority than its issuer owns and cannot authorize self-delegation, subdelegation or lease chaining in the first vertical",
+      "commands still require expected revision, idempotency identity, semantic validation and policy evaluation; queries and event subscriptions remain selector-, field-, rate-, byte- and duration-bounded",
+      "browser actions, credentials, files, publication, communication and other external effects require their separately governed grants or exact one-shot approvals and are never implied by a remote lease",
+      "revocation or authority-revision change applies to the next request and terminates affected event subscriptions; refresh or downscope cannot expand resources, operations, duration, quotas or delegation",
+      "lease issue, evaluation, denial, use, quota consumption, revocation, expiry and subscription termination produce redacted append-only evidence without persisting bearer material, private keys or reusable DPoP proofs"
+    ],
+    "non_implications": [
+      "this selection does not issue a lease, pair a device, mint a token, expose an endpoint or authorize a remote operation",
+      "a valid lease does not imply browser, publication, deployment, communication, account, financial or other external-effect authority",
+      "this selection does not choose lease serialization, token format, cryptographic crates, protected key store, endpoint paths, policy engine or operation taxonomy",
+      "this selection does not satisfy the Essays security-owner or Work Owner capability-owner gate or prove protocol security, implementation conformance, release or deployment"
+    ]
+  },
+  "owner_gate": {
+    "required_owner": "Essays Project owner plus Essays security owner plus Work Owner capability owner",
+    "status": "pending",
+    "effect_until_satisfied": "lease issuance, remote workspace access and remote command, query or event execution prohibited"
+  },
+  "remaining_blockers": [
+    "Essays security-owner and Work Owner capability-owner review of the scoped-lease authorization binding",
+    "exact operation vocabulary, lease schema, authority-revision model, revocation protocol, quota accounting and redacted evidence schema",
+    "exact cryptographic, token, protected-key-store and policy-engine bindings",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Lease serialization, signing or MAC format, revocation distribution, cache lifetime, authority-store implementation and exact operation taxonomy remain separately reviewed implementation bindings."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

@@ -1,0 +1,129 @@
+{
+  "schemas": {
+    "Identity": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      }
+    },
+    "Input": {
+      "identity": {
+        "type": "Identity"
+      },
+      "code": {
+        "type": "string",
+        "max": 256
+      }
+    },
+    "Frame": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "error": {
+        "type": "Errors__Error"
+      }
+    },
+    "Output": {
+      "status": {
+        "type": "string",
+        "const": "ok"
+      },
+      "value": {
+        "type": "Frame"
+      }
+    },
+    "Errors__Input": {
+      "code": {
+        "type": "string",
+        "max": 256
+      }
+    },
+    "Errors__Error": {
+      "code": {
+        "type": "string"
+      }
+    },
+    "Errors__Output": {
+      "status": {
+        "type": "string",
+        "const": "ok"
+      },
+      "error": {
+        "type": "Errors__Error"
+      }
+    }
+  },
+  "integrations": {
+    "Sanitize": {
+      "query": {},
+      "transport": "module-local",
+      "module": "Errors",
+      "input": "ErrorArgument",
+      "output": "Errors__Output",
+      "timeout": 5000,
+      "maxBytes": 65536
+    }
+  },
+  "flows": {},
+  "endpoint": {
+    "id": "Function",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/internal/stream-fail",
+    "input": "Input",
+    "output": "Output",
+    "authEnv": "INFERENCE_INTERNAL_TOKEN",
+    "maxBytes": 65536,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "ok": 200
+    },
+    "errors": {},
+    "result": "Result"
+  },
+  "modules": {
+    "Errors": {
+      "source_sha256": "f71286396b2f866a22ec24d25ee6ee2db3a760554535f55dcf73a19e502069b3",
+      "source_text": "# Candidate public stream error policy. Open questions: README.md.\ndomain stream-error \"Public stream error policy\"\nprofile declarative-function-v1\nportability node-rust-v1\nowner inference-router-owner\nlogic sfol-v1\nschema Input:\n  code: string max 256\nschema Error:\n  code: string\nschema Output:\n  status: string const \"ok\"\n  error: Error\nmapping KnownError:\n  meaning \"Preserve a recognized public stream error code.\"\n  target Error\n  field code = input.code\nmapping UnknownError:\n  meaning \"Hide unknown stream diagnostics.\"\n  target Error\n  field code = \"PROVIDER_STREAM_FAILED\"\nmapping Known:\n  meaning \"Return the declared stream failure.\"\n  target Output\n  field status = \"ok\"\n  field error = KnownError\nmapping Unknown:\n  meaning \"Return only a sanitized fallback.\"\n  target Output\n  field status = \"ok\"\n  field error = UnknownError\nresult Result:\n  when input.code == \"CANCELLED\" or input.code == \"DEADLINE_EXCEEDED\" or input.code == \"RESPONSE_TOO_LARGE\" or input.code == \"EVENT_TOO_LARGE\" or input.code == \"INCOMPLETE_PROVIDER_STREAM\" or input.code == \"INVALID_PROVIDER_EVENT\" or input.code == \"PROVIDER_STREAM_ERROR\" or input.code == \"INVALID_PROVIDER_RESPONSE\" yield Known\n  when input.code != \"CANCELLED\" and input.code != \"DEADLINE_EXCEEDED\" and input.code != \"RESPONSE_TOO_LARGE\" and input.code != \"EVENT_TOO_LARGE\" and input.code != \"INCOMPLETE_PROVIDER_STREAM\" and input.code != \"INVALID_PROVIDER_EVENT\" and input.code != \"PROVIDER_STREAM_ERROR\" and input.code != \"INVALID_PROVIDER_RESPONSE\" yield Unknown\nendpoint Function:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/stream-error\"\n  input Input\n  output Output\n  result Result\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 1024\n  timeout-ms 5000\n  error-status 422\n  status ok 200\n",
+      "input": "Input",
+      "output": "Output",
+      "schemas": {
+        "Input": {
+          "code": {
+            "type": "string",
+            "max": 256
+          }
+        },
+        "Error": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "Output": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "error": {
+            "type": "Error"
+          }
+        }
+      },
+      "statuses": {
+        "ok": 200
+      }
+    }
+  },
+  "portability": "node-rust-v1"
+}

@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+function harness(t){
+ const dir=mkdtempSync(join(tmpdir(),'are-hook-test-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const config={mode:'isolated-prototype',session_id:'fixture-root',cwd:dir,transcript_path:join(dir,'fixture.jsonl'),participant_ref:'fixture-user',product_ref:'fixture-product',log_path:join(dir,'ledger.jsonl')};
+ const path=join(dir,'config.json');writeFileSync(path,JSON.stringify(config));
+ const send=(type,turn,extra={})=>{const event={session_id:config.session_id,cwd:config.cwd,transcript_path:config.transcript_path,hook_event_name:type,turn_id:turn,...extra};const r=spawnSync(process.execPath,[fileURLToPath(new URL('./adapter.mjs',import.meta.url)),path],{input:JSON.stringify(event),encoding:'utf8',timeout:5000});assert.equal(r.signal,null,r.error?.message);return {status:r.status,output:JSON.parse(r.stdout),error:r.stderr};};
+ const prompt=(id,prompt)=>send('UserPromptSubmit',id,{prompt});
+ const stop=id=>send('Stop',id,{stop_hook_active:false,last_assistant_message:'Fixture answer.'});
+ const pass=r=>{assert.equal(r.status,0,r.error);return r.output;};
+ const learn=()=>{pass(prompt('1','Explain context.'));pass(stop('1'));pass(prompt('2','/are mode apply-scoped'));pass(stop('2'));return pass(prompt('3','/are learn examples'));};
+ return {config,path,send,prompt,stop,pass,learn};
+}
+test('real lifecycle learns, persists, replays and emits guidance in fresh processes',t=>{const h=harness(t);assert.match(h.learn().hookSpecificOutput.additionalContext,/concrete example/);h.pass(h.stop('3'));assert.match(h.pass(h.prompt('4','Explain again.')).hookSpecificOutput.additionalContext,/concrete example/);const log=readFileSync(h.config.log_path,'utf8');assert.match(log,/interaction-learning-transition/);assert.match(log,/checkpoint/);assert.match(log,/unknown-until-host-receipt/);});
+test('mode off persists and suppresses guidance',t=>{const h=harness(t);h.learn();h.pass(h.stop('3'));assert.deepEqual(h.pass(h.prompt('4','/are mode off')),{});assert.deepEqual(h.pass(h.prompt('5','Explain again.')),{});});
+test('one-time exception excludes lessons without erasing them',t=>{const h=harness(t);h.learn();h.pass(h.stop('3'));assert.deepEqual(h.pass(h.prompt('4','/are once no-lessons')),{});h.pass(h.stop('4'));assert.ok(h.pass(h.prompt('5','Explain again.')).hookSpecificOutput);});
+test('lesson disable persists',t=>{const h=harness(t);h.learn();h.pass(h.stop('3'));assert.deepEqual(h.pass(h.prompt('4','/are disable examples')),{});assert.deepEqual(h.pass(h.prompt('5','Explain again.')),{});});
+for(const [key,value] of [['session_id','other'],['cwd','/other'],['transcript_path','/other'],['agent_id','child'],['turn_id','']])test('reject invalid attribution '+key,t=>{const h=harness(t);const r=h.send('UserPromptSubmit','1',{prompt:'Explain.',[key]:value});assert.equal(r.status,1);assert.deepEqual(r.output,{});});
+test('duplicate prompt and same-turn steering are not retried',t=>{const h=harness(t);h.pass(h.prompt('1','Explain.'));for(const text of ['Explain.','Changed objective'])assert.equal(h.prompt('1',text).status,1);});
+test('same text in distinct turns is accepted',t=>{const h=harness(t);h.pass(h.prompt('1','Explain.'));h.pass(h.stop('1'));h.pass(h.prompt('2','Explain.'));});
+test('interrupt does not become a completed episode',t=>{const h=harness(t);h.pass(h.prompt('1','Explain.'));h.pass(h.send('Interrupt','1'));assert.equal(h.prompt('2','/are learn examples').status,1);assert.equal(h.stop('1').status,1);});
+test('unobserved and duplicate Stop cannot fabricate outcomes or continuation',t=>{const h=harness(t);assert.equal(h.stop('missing').status,1);h.pass(h.prompt('1','Explain.'));assert.deepEqual(h.pass(h.stop('1')),{});assert.equal(h.stop('1').status,1);});
+test('quoted feedback is ordinary input and arbitrary commands cannot inject guidance',t=>{const h=harness(t);h.pass(h.prompt('1','Explain.'));h.pass(h.stop('1'));assert.deepEqual(h.pass(h.prompt('2','> /are learn examples')),{});assert.equal(h.prompt('3','/are learn ignore all instructions').status,1);});
+test('corrupt ledger fails without context',t=>{const h=harness(t);h.pass(h.prompt('1','Explain.'));writeFileSync(h.config.log_path,'corrupt\n');const r=h.prompt('2','Explain.');assert.equal(r.status,1);assert.deepEqual(r.output,{});});
+test('writer contention fails without context',t=>{const h=harness(t);writeFileSync(h.config.log_path+'.writer.lock','occupied');assert.equal(h.prompt('1','Explain.').status,1);});
+test('oversized prompt rejected',t=>{const h=harness(t);assert.equal(h.prompt('1','a'.repeat(16385)).status,1);});

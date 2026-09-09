@@ -1,0 +1,218 @@
+{
+  "schema_version": "alchlang.governed-domain-description/v1-candidate",
+  "domain_id": "robot-world-workshop-prototype",
+  "title": "Resource collection and workshop construction",
+  "capability_ref": "robot-world-kep.prototype",
+  "business_ontology_ref": "robot-world-kep.prototype",
+  "owner_route": "CA2-ROUTE-IMPLEMENT",
+  "primary_subject": {
+    "term_id": "robot",
+    "fields": [
+      {
+        "id": "owner",
+        "type": "string",
+        "required": true
+      },
+      {
+        "id": "cargo",
+        "type": "integer",
+        "required": true
+      }
+    ]
+  },
+  "terms": [
+    {
+      "id": "robot",
+      "meaning": "World-bound participant agent"
+    },
+    {
+      "id": "resource",
+      "meaning": "Finite simulation stock"
+    },
+    {
+      "id": "workshop",
+      "meaning": "Construction station"
+    },
+    {
+      "id": "recipe",
+      "meaning": "Versioned construction description"
+    }
+  ],
+  "ontology_edges": [
+    {
+      "id": "robot-collects-resource",
+      "type": "collects",
+      "source": "robot",
+      "target": "resource"
+    },
+    {
+      "id": "workshop-produces-recipe",
+      "type": "produces",
+      "source": "workshop",
+      "target": "recipe"
+    }
+  ],
+  "rules": [
+    {
+      "id": "bounded-transfer",
+      "description": "Collect at most three units per robot and never create resources",
+      "predicate": "local-host-resource-conservation",
+      "action_refs": [
+        "gather",
+        "deposit"
+      ]
+    },
+    {
+      "id": "construction-cost",
+      "description": "One construction consumes six deposited units",
+      "predicate": "workshop-stock-at-least-six",
+      "action_refs": [
+        "build"
+      ]
+    }
+  ],
+  "state_machine": {
+    "id": "work-cycle",
+    "states": [
+      "collecting",
+      "transporting",
+      "constructing"
+    ],
+    "initial": "collecting",
+    "transitions": [
+      {
+        "id": "cargo-full",
+        "from": "collecting",
+        "to": "transporting",
+        "rule_ref": "bounded-transfer",
+        "event_ref": "world-action-accepted"
+      },
+      {
+        "id": "stock-ready",
+        "from": "transporting",
+        "to": "constructing",
+        "rule_ref": "construction-cost",
+        "event_ref": "world-action-accepted"
+      },
+      {
+        "id": "next-cycle",
+        "from": "constructing",
+        "to": "collecting",
+        "rule_ref": null,
+        "event_ref": "world-action-accepted"
+      }
+    ]
+  },
+  "events": [
+    {
+      "id": "world-action-accepted",
+      "description": "Checked local world transition",
+      "payload": [
+        "world_id",
+        "revision",
+        "event_hash"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "gather",
+      "description": "gather within the local world",
+      "reads": [
+        "robot",
+        "resource",
+        "workshop"
+      ],
+      "writes": [
+        "robot.cargo",
+        "workshop.stock"
+      ],
+      "event_refs": [
+        "world-action-accepted"
+      ],
+      "rule_refs": [
+        "bounded-transfer"
+      ],
+      "authority_boundary_ref": "local-world-reducer",
+      "failure_continuation": "reject-without-state-change"
+    },
+    {
+      "id": "deposit",
+      "description": "deposit within the local world",
+      "reads": [
+        "robot",
+        "resource",
+        "workshop"
+      ],
+      "writes": [
+        "robot.cargo",
+        "workshop.stock"
+      ],
+      "event_refs": [
+        "world-action-accepted"
+      ],
+      "rule_refs": [
+        "bounded-transfer"
+      ],
+      "authority_boundary_ref": "local-world-reducer",
+      "failure_continuation": "reject-without-state-change"
+    },
+    {
+      "id": "build",
+      "description": "build within the local world",
+      "reads": [
+        "robot",
+        "resource",
+        "workshop"
+      ],
+      "writes": [
+        "robot.cargo",
+        "workshop.stock"
+      ],
+      "event_refs": [
+        "world-action-accepted"
+      ],
+      "rule_refs": [
+        "construction-cost"
+      ],
+      "authority_boundary_ref": "local-world-reducer",
+      "failure_continuation": "reject-without-state-change"
+    }
+  ],
+  "permissions": [
+    {
+      "id": "owner-bound-action",
+      "description": "Only the fixture owner may act for its robot"
+    }
+  ],
+  "authority_boundaries": [
+    {
+      "id": "local-world-reducer",
+      "scope": "fixture-world-only",
+      "operation": "simulation-transition",
+      "effect": "local-simulation"
+    }
+  ],
+  "examples": [
+    {
+      "id": "construct-after-two-deliveries",
+      "kind": "positive",
+      "expected": "Six units consumed and one construction event"
+    },
+    {
+      "id": "insufficient-stock",
+      "kind": "negative",
+      "expected": "Reject without a state change"
+    }
+  ],
+  "runtime_profile": "robot-world-workshop-local-prototype-v0",
+  "authority_effect": "none",
+  "open_questions": [
+    {
+      "id": "Q5",
+      "question": "Which admitted profile will compile these recipes?",
+      "status": "open",
+      "reference": "../OPEN-QUESTIONS.md#q5"
+    }
+  ]
+}

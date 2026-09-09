@@ -1,0 +1,1 @@
+Inventory: quartz, mica, slate.

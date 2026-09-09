@@ -1,0 +1,113 @@
+{
+  "schema_version": "cav2.alchlang.general-compiler.work-pack/v1-candidate",
+  "work_pack_id": "CA2-WP-ALCHLANG-GENERAL-COMPILER-V1-001",
+  "title": "Complete the AlchLang general compiler D65 vertical",
+  "status": "candidate-pending-execution-acceptance",
+  "scope_root": "cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1",
+  "route": "CA2-ROUTE-IMPLEMENT",
+  "stop_condition": "first-blocker-or-frontier-complete",
+  "frontier": ["GC-SWU-01","GC-SWU-02","GC-SWU-03","GC-SWU-04","GC-SWU-05"],
+  "source_bindings": [
+    {"path":"OWNER-ACCEPTANCE.v1.json","sha256":"fa2d03a4feb83d1fec863636db447c48faff75d4dcbe2a181a5b92d6827a03fc","role":"accepted-predecessor-decision"},
+    {"path":"OWNER-ACCEPTANCE.CARRIER-V2.v2.json","sha256":"546e2531f8e6220dc7fe1018c9669f27b68f5b05af1b26f52245727479a69b65","role":"accepted-carrier-successor-decision"},
+    {"path":"carrier-v2.contract.json","sha256":"85a317d3c4af2a66b78557728c22be15fa47c1a4f36094db6ce47195c4f4f46a","role":"accepted-language-contract"},
+    {"path":"../three-vertical-compilation-campaign/execution/CONSTRUCTION-CONTRACT.v1.json","sha256":"af4ecec7c02d83ae67010a646e2756cc39f80382489f464b26c2a18d91f40625","role":"reference-construction-contract"},
+    {"path":"../three-vertical-compilation-campaign/execution/INDEPENDENT-VALIDATION-DECISION.v1.json","sha256":"9f958c4252737831217cb12f531afb6c826c999507387619576f1218f59e50ba","role":"accepted-reference-examples"},
+    {"path":"../../../../../../projects/domainspec-v2/impl/cli/src/input/project-model.ts","sha256":"2a4e5de81f3714649ed296446e9aad8d9fd73ebcc632f8d9f14105227a00ce34","role":"selected-domainspec-graph-loader"}
+  ],
+  "invariants": [
+    "Every target begins absent and no existing accepted byte is mutated.",
+    "Each SWU writes only its declared targets and is validated independently.",
+    "The general compiler core contains no branch keyed by a reference-domain id or runtime profile.",
+    "Generated actions expose ports but never execute ambient or external effects.",
+    "Passing generation, tests, or validation grants no acceptance, admission, publication, deployment, or effect authority.",
+    "GC-SWU-04 is authored by exactly one bounded native helper and independently joined by the parent."
+  ],
+  "tasks": [
+    {
+      "swu_id": "GC-SWU-01",
+      "title": "Author the DomainSpec v2 source",
+      "objective": "Represent the accepted compiler capability and business ontology as closed DomainSpec v2 authored source without adding implementation behavior.",
+      "dependencies": [],
+      "material_writes": [
+        "domainspec/project.json",
+        "domainspec/specs/general-compiler/feature.json",
+        "domainspec/specs/general-compiler/nodes/governed-domain-model.json",
+        "domainspec/specs/general-compiler/nodes/compile-domain-model.json",
+        "domainspec/specs/general-compiler/nodes/compilation-plan.json",
+        "domainspec/specs/general-compiler/nodes/compilation-produced.json",
+        "domainspec/specs/general-compiler/nodes/compilation-rejected.json",
+        "domainspec/specs/general-compiler/nodes/compiler-lifecycle.json",
+        "domainspec/specs/general-compiler/nodes/semantic-closure.json",
+        "domainspec/specs/general-compiler/nodes/reference-closure.json",
+        "domainspec/specs/general-compiler/nodes/no-name-inference.json",
+        "domainspec/specs/general-compiler/nodes/authority-preservation.json",
+        "domainspec/specs/general-compiler/edges/model-performs-compile.json",
+        "domainspec/specs/general-compiler/edges/compile-reads-model.json",
+        "domainspec/specs/general-compiler/edges/compile-produces-produced.json",
+        "domainspec/specs/general-compiler/edges/compile-produces-rejected.json",
+        "domainspec/specs/general-compiler/edges/produced-transitions-lifecycle.json",
+        "domainspec/specs/general-compiler/edges/rejected-transitions-lifecycle.json",
+        "domainspec/specs/general-compiler/edges/semantic-closure-enforces-compile.json",
+        "domainspec/specs/general-compiler/edges/reference-closure-enforces-compile.json",
+        "domainspec/specs/general-compiler/edges/no-name-inference-enforces-compile.json",
+        "domainspec/specs/general-compiler/edges/authority-preservation-enforces-compile.json",
+        "execution/scripts/validate-domainspec-source.ts"
+      ],
+      "validation": ["tsx execution/scripts/validate-domainspec-source.ts"],
+      "done_criteria": ["DomainSpec source loads with closed node and edge references.","Every accepted policy and output contract is traceable or explicitly residual.","No implementation or generated artifact exists in this SWU."],
+      "successor": "GC-SWU-02",
+      "authority_effect": "none"
+    },
+    {
+      "swu_id": "GC-SWU-02",
+      "title": "Compile the graph and system ontology",
+      "objective": "Use the selected DomainSpec loader to deterministically compile the authored source into a graph, system ontology, traceability projection, and generation receipt.",
+      "dependencies": ["GC-SWU-01"],
+      "material_writes": ["generated/domain.graph.json","generated/system-ontology.json","generated/traceability.json","evidence/generation-receipt.json","execution/scripts/compile-system-model.ts"],
+      "validation": ["tsx execution/scripts/compile-system-model.ts --check","tsx execution/scripts/compile-system-model.ts --determinism"],
+      "done_criteria": ["Two independent in-memory compilations are byte-identical.","System nodes and relations close against the compiled graph.","Traceability covers every DomainSpec node and relation.","Authority effect remains none."],
+      "successor": "GC-SWU-03",
+      "authority_effect": "none"
+    },
+    {
+      "swu_id": "GC-SWU-03",
+      "title": "Implement the generic compiler core",
+      "objective": "Implement carrier-v2 parsing, semantic validation, target-neutral lowering, TypeScript rendering, traceability, and unsupported residue without reference-domain branches.",
+      "dependencies": ["GC-SWU-02"],
+      "material_writes": ["implementation/package.json","implementation/tsconfig.json","implementation/src/model.ts","implementation/src/validate.ts","implementation/src/lower.ts","implementation/src/render-typescript.ts","implementation/src/index.ts","implementation/test/compiler.test.ts","implementation/test/negative.test.ts"],
+      "validation": ["npm --prefix implementation test","npm --prefix implementation run typecheck","rg -n 'credit-release-reference|inventory-reservation-reference|production-rollback-sandbox|customer-credit-release|inventory-reservation|production-rollback' implementation/src && exit 1 || true"],
+      "done_criteria": ["All three accepted reference carriers compile through one generic path.","At least one unseen composition compiles without compiler-core edits.","Unknown operators, dangling references, type mismatches, missing owners, and unsupported constructs fail closed.","Generated action surfaces are injected ports with no ambient effect surface.","No runtime-profile or domain-id switch exists in compiler source."],
+      "successor": "GC-SWU-04",
+      "authority_effect": "none"
+    },
+    {
+      "swu_id": "GC-SWU-04",
+      "title": "Author the exact implementation binding",
+      "objective": "Bind exact predecessor, DomainSpec, compiled graph, system ontology, implementation, toolchain, and pending-conformance bytes without accepting the binding.",
+      "dependencies": ["GC-SWU-03"],
+      "material_writes": ["evidence/construction-binding.candidate.json","execution/scripts/validate-binding.ts"],
+      "validation": ["tsx execution/scripts/validate-binding.ts"],
+      "done_criteria": ["Every D65 predecessor resolves to exact current bytes.","Implementation digest covers the complete declared implementation source.","Conformance remains null.","One helper authored and self-validated the binding; the parent independently joined it."],
+      "delegation": {"required":true,"route":"CA2-ROUTE-DELEGATE","helper_count":1,"role":"exact-implementation-binding-author","ontology_id":"cav2.alchlang.general-compiler.business","mapped_preflight_intent":"general-compiler-exact-binding","gate_result_required":"candidate-self-validation-pass"},
+      "successor": "GC-SWU-05",
+      "authority_effect": "none"
+    },
+    {
+      "swu_id": "GC-SWU-05",
+      "title": "Produce independent source-local conformance evidence",
+      "objective": "Evaluate the exact implementation binding against the accepted capability, ontology, carrier contract, DomainSpec source, compiled system model, behavioral tests, determinism, and hostile cases.",
+      "dependencies": ["GC-SWU-04"],
+      "material_writes": ["evidence/conformance.json","RESULTS.md","execution/scripts/validate-conformance.ts"],
+      "validation": ["tsx execution/scripts/validate-conformance.ts","npm --prefix implementation test","npm --prefix implementation run typecheck","python3 validate-work-pack.py"],
+      "done_criteria": ["All acceptance-critical validations pass.","Conformance cites the exact binding and implementation digests.","Product, ontology, source, graph, system ontology, implementation, and conformance claims remain separate.","RESULTS.md reports limits and residue without claiming admission, release, deployment, or product proof."],
+      "successor": null,
+      "authority_effect": "none"
+    }
+  ],
+  "target_baseline_policy": "Every material write declared by a task must be absent when that task is admitted; drift or pre-existence blocks the task.",
+  "publication": "forbidden",
+  "external_effect": "forbidden",
+  "authority_effect": "none",
+  "claim_ceiling": "Finite candidate work pack only. Validation does not admit the plan, authorize implementation by itself, accept future outputs, publish, deploy, or grant effects."
+}

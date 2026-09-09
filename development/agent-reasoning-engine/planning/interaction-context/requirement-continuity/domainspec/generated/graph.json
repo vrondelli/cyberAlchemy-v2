@@ -1,0 +1,117 @@
+{
+  "schema_version": "minted-graph/v1",
+  "authority": "generated-semantic-read-model",
+  "project_id": "are-requirement-continuity",
+  "language": {
+    "profile_digest": "30b5304274d7e025964b9e325bc08b742b794824639b129f9e11aebf1eab18d0",
+    "kinds_digest": "bc800afdca36fa701a13ec611e7ee0ef928a4c8d259d48dfac2880a3cc8cbbc4",
+    "relationships_digest": "82c55ea1ad031d3135c5b8a85162e44b4e85f296b54057fda0dc38131ab376a1"
+  },
+  "source_set_digest": "45224fb3fe80a2b96b2e16e3ea867aad6fa0a5111c6a0b0c775de7a213416b59",
+  "nodes": [
+    {
+      "node_id": "are-requirement-continuity.CarryRequirements",
+      "feature_id": "are-requirement-continuity",
+      "kind": "Operation",
+      "intent": "Validate snapshots and append their continuity record with the objective transition before forwarding.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-CURRENT-OBJECTIVE",
+          "CA2-ARE-CONCEPT-OBJECTIVE-TRANSITION",
+          "CA2-ARE-WORKFLOW-OBJECTIVE-RESOLUTION",
+          "CA2-ARE-CONCEPT-REASONING-STATE-LEDGER",
+          "CA2-ARE-CONCEPT-REASONING-STATE-CHECKPOINT"
+        ],
+        "required_conditions": [
+          "explicit exact-bound seeds",
+          "no silent requirement loss",
+          "suspended objectives retain their snapshots",
+          "one shared checkpoint before forwarding",
+          "replay verifies set accounting and predecessor"
+        ],
+        "authority_effect": "none",
+        "creation_targets": [
+          "are-requirement-continuity.RequirementContinuity"
+        ]
+      }
+    },
+    {
+      "node_id": "are-requirement-continuity.RequirementBoundary",
+      "feature_id": "are-requirement-continuity",
+      "kind": "Rule",
+      "intent": "Reject stale or missing snapshots, invalid changes and checkpoint failures without dispatch.",
+      "body": {
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-CURRENT-OBJECTIVE",
+          "CA2-ARE-CONCEPT-OBJECTIVE-TRANSITION",
+          "CA2-ARE-WORKFLOW-OBJECTIVE-RESOLUTION",
+          "CA2-ARE-CONCEPT-REASONING-STATE-LEDGER",
+          "CA2-ARE-CONCEPT-REASONING-STATE-CHECKPOINT"
+        ],
+        "required_conditions": [
+          "all snapshots bind the current consumer, scope and objective state",
+          "unknown never becomes empty",
+          "no permission or completion inferred",
+          "all snapshots fit aggregate budget"
+        ],
+        "violation_behavior": "block before dispatch and preserve earlier state",
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "are-requirement-continuity.RequirementContinuity",
+      "feature_id": "are-requirement-continuity",
+      "kind": "Entity",
+      "intent": "Preserve current explicit requirements for every retained objective without changing requirement meaning.",
+      "body": {
+        "fields": [
+          {
+            "name": "continuity_digest",
+            "type": "sha256",
+            "identity": true
+          },
+          {
+            "name": "objective_state_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "predecessor_digest",
+            "type": "sha256|null",
+            "identity": false
+          },
+          {
+            "name": "snapshots",
+            "type": "object[]",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-CURRENT-OBJECTIVE",
+          "CA2-ARE-CONCEPT-OBJECTIVE-TRANSITION",
+          "CA2-ARE-WORKFLOW-OBJECTIVE-RESOLUTION",
+          "CA2-ARE-CONCEPT-REASONING-STATE-LEDGER",
+          "CA2-ARE-CONCEPT-REASONING-STATE-CHECKPOINT"
+        ],
+        "authority_effect": "none"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "are-requirement-continuity.edge.creates-continuity",
+      "type": "creates",
+      "from": "are-requirement-continuity.CarryRequirements",
+      "to": "are-requirement-continuity.RequirementContinuity"
+    },
+    {
+      "edge_id": "are-requirement-continuity.edge.enforces-continuity",
+      "type": "enforces",
+      "from": "are-requirement-continuity.RequirementBoundary",
+      "to": "are-requirement-continuity.CarryRequirements"
+    }
+  ]
+}

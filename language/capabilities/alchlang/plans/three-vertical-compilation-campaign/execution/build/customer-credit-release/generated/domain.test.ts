@@ -1,0 +1,10 @@
+import assert from "node:assert/strict"; import test from "node:test"; import { transition } from "./domain.machine.ts"; import { validateSubject } from "./domain.schema.ts"; import { eventContracts } from "./domain.events.ts"; import { InMemoryCreditAdapter, releaseCredit } from "./domain.tools.ts";
+const base = { customerId: "c-1", status: "approved", riskScore: 700, riskProvenanceKnown: true, humanConfirmed: false, authorityCurrent: true, amount: 100 };
+test("generated subject schema checks required fields", () => { validateSubject({ "customer-id": "c-1", "risk-score": 700, status: "approved" }); assert.throws(() => validateSubject({ "customer-id": "c-1" })); });
+test("generated event contract is versioned", () => assert.equal(eventContracts["credit-released"].version, 1));
+test("approved low-risk release succeeds", () => { const adapter = new InMemoryCreditAdapter(); assert.equal(releaseCredit(base, adapter).outcome, "pass"); assert.equal(adapter.calls.length, 1); });
+test("pending release is denied", () => assert.equal(releaseCredit({ ...base, status: "pending" }, new InMemoryCreditAdapter()).code, "CUSTOMER_NOT_APPROVED"));
+test("risk score 472 requires confirmation", () => assert.equal(releaseCredit({ ...base, riskScore: 472 }, new InMemoryCreditAdapter()).code, "HUMAN_CONFIRMATION_REQUIRED"));
+test("unknown risk provenance blocks", () => assert.equal(releaseCredit({ ...base, riskProvenanceKnown: false }, new InMemoryCreditAdapter()).outcome, "blocked"));
+test("authority is rechecked", () => assert.equal(releaseCredit({ ...base, authorityCurrent: false }, new InMemoryCreditAdapter()).code, "AUTHORITY_NOT_CURRENT"));
+test("state transition remains causal", () => assert.deepEqual(transition("approved", "release-credit"), { state: "released", event: "credit-released" }));

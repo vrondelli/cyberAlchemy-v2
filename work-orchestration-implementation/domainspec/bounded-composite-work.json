@@ -1,0 +1,81 @@
+{
+  "schema_version": "cav2-domainspec-bounded-composite-work/v1",
+  "project_id": "bounded-composite-work-runtime",
+  "capability_ref": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK",
+  "profile": {
+    "id": "work-orchestration-runtime-candidate",
+    "version": "1.0.0",
+    "authority_effect": "none"
+  },
+  "workflow": {
+    "workflow_id": "CoordinateBoundedCompositeWork",
+    "input": "ExplicitComposition",
+    "accepted_history_input": "AcceptedEventView",
+    "cursor": "OrchestrationCursor",
+    "output": "StructuralExecutionRecord",
+    "operations": [
+      "CompileComposition",
+      "ReadAcceptedHistory",
+      "ReduceAcceptedEvent",
+      "PersistStructuralTransition",
+      "DispatchCommandBatch"
+    ]
+  },
+  "operation_contracts": [
+    {
+      "operation": "CompileComposition",
+      "owner": "RWO Rust core",
+      "input": "ExplicitComposition",
+      "output": "WorkGraph",
+      "effect": "none"
+    },
+    {
+      "operation": "ReadAcceptedHistory",
+      "owner": "AcceptedHistoryPort implementation",
+      "input": "stream identity",
+      "output": "ordered AcceptedEventView plus OrchestrationCursor",
+      "effect": "read-only"
+    },
+    {
+      "operation": "ReduceAcceptedEvent",
+      "owner": "RWO Rust core",
+      "input": "WorkGraph plus OrchestrationCursor plus AcceptedEventView",
+      "output": "next OrchestrationCursor plus an immutable zero-or-more CommandIntent batch",
+      "effect": "none"
+    },
+    {
+      "operation": "PersistStructuralTransition",
+      "owner": "AcceptedHistoryPort implementation",
+      "input": "expected cursor identity plus accepted event plus next cursor plus immutable command batch",
+      "output": "Accepted, Duplicate, or Conflict receipt",
+      "effect": "one atomic accepted-history mutation"
+    },
+    {
+      "operation": "DispatchCommandBatch",
+      "owner": "selected protocol adapter",
+      "input": "immutable CommandIntent batch plus external authority reference",
+      "output": "ordered delivery receipt candidates",
+      "effect": "bounded parallel transport only; domain effect remains external"
+    }
+  ],
+  "invariants": [
+    "exactly one accepted-history authority exists per stream",
+    "RWO never accepts its own event history",
+    "cursor and the complete zero-or-more command batch are persisted atomically with the accepted event",
+    "finite acyclic graphs release root nodes immediately and dependency nodes only under declared all, any, or quorum policy",
+    "join inputs contain canonical successful dependency output references and impossible joins fail closed",
+    "attempts, parallelism, and the global deadline are explicit positive bounds",
+    "duplicate events are idempotent and divergent reuse of an event identity fails closed",
+    "protocol adapters cannot change structural meaning",
+    "DomainSpec owns recovery, retry, compensation, and terminal business disposition",
+    "unknown contracts, versions, operations, or protocols fail closed"
+  ],
+  "production_gates": [
+    "real delivery integration",
+    "portable Unicode admission",
+    "multi-host recovery",
+    "hardware power-loss testing"
+  ],
+  "status": "authored-candidate",
+  "authority_effect": "none"
+}

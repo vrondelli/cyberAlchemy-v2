@@ -1,0 +1,68 @@
+{
+  "schema_version": "alchlang.governed-domain-description/v1-candidate",
+  "domain_id": "production-rollback",
+  "title": "Production rollback",
+  "capability_ref": "CA2-REF-CAP-PRODUCTION-ROLLBACK",
+  "business_ontology_ref": "cav2.alchlang.example.production-rollback.business",
+  "owner_route": "reference incident-domain owner",
+  "primary_subject": {
+    "term_id": "service",
+    "fields": [
+      {"id": "service-id", "type": "uuid", "required": true},
+      {"id": "current-revision", "type": "string", "required": true},
+      {"id": "status", "type": "string", "required": true}
+    ]
+  },
+  "terms": [
+    {"id": "service", "meaning": "The sandbox-modeled service whose deployment state may change."},
+    {"id": "deployment", "meaning": "The current and proposed revision facts."},
+    {"id": "rollback-request", "meaning": "A confirmed request bound to an active incident and grant."},
+    {"id": "effect-receipt", "meaning": "Evidence distinguishing certain success, certain failure, and uncertainty."}
+  ],
+  "ontology_edges": [
+    {"id": "rollback-request-targets-service", "type": "targets", "source": "rollback-request", "target": "service"},
+    {"id": "rollback-service-has-deployment", "type": "has_current", "source": "service", "target": "deployment"}
+  ],
+  "rules": [
+    {"id": "active-incident", "description": "Rollback requires an active incident.", "predicate": "incident-is-active", "action_refs": ["rollback-deployment"]},
+    {"id": "approved-target", "description": "The target revision must be approved and current.", "predicate": "target-is-approved-and-current", "action_refs": ["rollback-deployment"]},
+    {"id": "current-grant", "description": "The incident commander grant must be current immediately before effect.", "predicate": "grant-is-current", "action_refs": ["rollback-deployment"]},
+    {"id": "explicit-confirmation", "description": "Rollback requires explicit human confirmation.", "predicate": "confirmation-is-present", "action_refs": ["rollback-deployment"]},
+    {"id": "sandbox-only", "description": "The reference adapter must have no real endpoint.", "predicate": "adapter-is-sandbox", "action_refs": ["rollback-deployment"]}
+  ],
+  "state_machine": {
+    "id": "service-lifecycle",
+    "states": ["healthy", "degraded", "rollback-pending", "rolling-back", "restored", "rollback-uncertain"],
+    "initial": "healthy",
+    "transitions": [
+      {"id": "mark-degraded", "from": "healthy", "to": "degraded", "rule_ref": null, "event_ref": null},
+      {"id": "request-rollback", "from": "degraded", "to": "rollback-pending", "rule_ref": "active-incident", "event_ref": null},
+      {"id": "start-rollback", "from": "rollback-pending", "to": "rolling-back", "rule_ref": "current-grant", "event_ref": "rollback-started"},
+      {"id": "complete-rollback", "from": "rolling-back", "to": "restored", "rule_ref": null, "event_ref": "rollback-completed"},
+      {"id": "record-uncertain", "from": "rolling-back", "to": "rollback-uncertain", "rule_ref": null, "event_ref": "rollback-outcome-uncertain"}
+    ]
+  },
+  "events": [
+    {"id": "rollback-started", "description": "The sandbox rollback started.", "payload": ["service-id", "target-revision"]},
+    {"id": "rollback-completed", "description": "The sandbox rollback completed with certain success.", "payload": ["service-id", "target-revision"]},
+    {"id": "rollback-outcome-uncertain", "description": "The sandbox outcome could not be determined.", "payload": ["service-id", "target-revision", "observation"]}
+  ],
+  "actions": [
+    {"id": "rollback-deployment", "description": "Attempt one sandbox-only rollback.", "reads": ["service"], "writes": ["service.current-revision", "service.status"], "event_refs": ["rollback-started", "rollback-completed", "rollback-outcome-uncertain"], "rule_refs": ["active-incident", "approved-target", "current-grant", "explicit-confirmation", "sandbox-only"], "authority_boundary_ref": "incident-commander-grant", "failure_continuation": "return-denied-failed-or-uncertain"}
+  ],
+  "permissions": [
+    {"id": "incident-commander-permission", "actor": "incident-commander", "action_ref": "rollback-deployment", "condition": "grant current and explicit confirmation present"}
+  ],
+  "authority_boundaries": [
+    {"id": "incident-commander-grant", "scope": "one incident and service", "operation": "confirm sandbox rollback", "effect": "sandbox adapter invocation only"}
+  ],
+  "examples": [
+    {"id": "authorized-sandbox", "kind": "positive", "expected": "completed"},
+    {"id": "revoked-grant", "kind": "negative", "expected": "denied"},
+    {"id": "stale-target", "kind": "boundary", "expected": "denied"},
+    {"id": "timeout", "kind": "uncertain", "expected": "uncertain"}
+  ],
+  "open_questions": [],
+  "runtime_profile": "production-rollback-sandbox-reference-v1",
+  "authority_effect": "none"
+}

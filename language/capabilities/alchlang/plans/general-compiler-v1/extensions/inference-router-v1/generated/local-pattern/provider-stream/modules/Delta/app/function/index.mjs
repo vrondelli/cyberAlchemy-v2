@@ -1,0 +1,14 @@
+import * as module_ProviderDelta from '../../modules/ProviderDelta/app/function/index.mjs';
+import {createBoundary} from '../../runtime/boundary.mjs';
+import {createTracedInvoker} from '../../runtime/invocation-trace.mjs';
+import ontology from '../../provenance/function/ontology.json' with {type:'json'};
+import manifest from '../../manifest.json' with {type:'json'};
+import {execute,validateInput} from './behavior.mjs';
+import api from '../../domain/typescript/lib/index.js';
+import model from '../../provenance/function/function.json' with {type:'json'};
+import bindings from '../../provenance/function/bindings.json' with {type:'json'};
+const modules={ProviderDelta:(input,env,io,observe)=>module_ProviderDelta.createInvoker(observe).invoke(input,env,io)};
+export function createInvoker(observe){const relay=event=>{const n=ontology.nodes.find(n=>n.name===event.declaration)??ontology.nodes.find(n=>n.kind==='result');observe?.({...event,definition:event.definition??(n?{name:n.name,id:n.id,source:n.source,clauses:n.clauses}:null)});};return createBoundary(model,bindings,scope=>execute(scope,api,relay),scope=>validateInput(scope,relay),modules,relay,(scope,binding)=>execute(scope,api,relay,binding),(scope,binding)=>execute(scope,api,relay,binding,'input'));};
+export const {invoke,handler}=createInvoker();
+export const invokeWithTrace=createTracedInvoker(model,bindings,api,execute,validateInput,ontology,{...{"source_sha256":"75d86172eff3f4eff0c5282fe3a45c9e73c388c4f6254512b193cbcf8381bd19","ontology_sha256":"5c3e986749f7f01f9f86840cd6c2b6a3ef483fea3e1cea248328c788d467b445","behavior_sha256":"1f6cb6e84551d4043a73b10341bb02243505e1a618cf1143b62590c5d1fdcfd1","contract_sha256":"cfcf6e2b6c930260620645a93180753096d0eb273430fff1e26c8da94939eacb"},manifest},createBoundary,modules);
+export default {fetch:handler};

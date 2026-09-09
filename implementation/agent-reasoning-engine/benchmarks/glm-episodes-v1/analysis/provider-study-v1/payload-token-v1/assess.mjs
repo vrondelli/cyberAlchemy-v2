@@ -1,0 +1,26 @@
+// Audit immutable request/response evidence. Open questions: README.md.
+import {readFileSync,writeFileSync} from 'node:fs';import {createHash} from 'node:crypto';
+import {createHypothesisObservation,createLearningDecision,verifyEvolutionRecord} from '../../../../../packages/evolution-runtime/index.mjs';import {layers} from '../../hypothesis-study-v1/build.mjs';
+const root=new URL('./',import.meta.url),bytes=p=>readFileSync(new URL(p,root)),read=p=>JSON.parse(bytes(p)),sha=b=>createHash('sha256').update(b).digest('hex'),need=(v,s)=>{if(!v)throw Error(s);},save=(p,v)=>writeFileSync(new URL(p,root),JSON.stringify(v,null,2)+'\n',{flag:'wx'});
+const binding=read('binding.json'),m=read('prepared.json'),result=read('live/result.json');
+for(const s of [...binding.sources,...m.sources])need(sha(bytes(s.path))===s.sha256,'source drift');
+need(result.receipts.length===12&&result.tokenizer_attempts===12&&result.model_attempts===0,'counts');
+const rows=m.rows.map((row,i)=>{
+ const r=read(`live/receipt-${i}.json`),dispatch=read(`live/dispatch-${i}.json`),response=read(`live/response-${i}.json`),started=read(`live/started-${i}.json`);
+ need(sha(bytes(`live/request-${i}.json`))===row.sha256&&row.sha256===r.request_sha256&&row.sha256===dispatch.request_sha256&&row.sha256===started.request_sha256,'request binding');
+ need(JSON.stringify(r)===JSON.stringify(result.receipts[i]),'receipt mismatch');
+ need(r.index===i&&r.id===row.id&&r.dispatched&&r.status===200&&r.automatic_retries===0&&r.input_tokens===response.payload.usage.prompt_tokens,'response binding');
+ return {id:row.id,window:row.window,condition:row.condition,arm:row.arm,input_tokens:r.input_tokens,projected:r.input_tokens+2560,limit:row.window-256,admitted:r.input_tokens+2560<row.window-256,historical_drift:row.condition==='observed'&&row.arm==='original'&&r.input_tokens!==row.historical_original_tokens};
+});
+const pairs=[];for(const window of [8000,10000,12000])for(const condition of ['observed','payload-heavy']){
+ const a=rows.find(r=>r.window===window&&r.condition===condition&&r.arm==='original'),b=rows.find(r=>r.window===window&&r.condition===condition&&r.arm==='projected');
+ pairs.push({window,condition,original_tokens:a.input_tokens,projected_tokens:b.input_tokens,saved_tokens:a.input_tokens-b.input_tokens,original_admitted:a.admitted,projected_admitted:b.admitted});
+}
+const success=pairs.every(p=>p.condition==='observed'?!p.original_admitted&&p.projected_admitted:!p.original_admitted&&!p.projected_admitted),kind=rows.some(r=>r.historical_drift)?'inconclusive':success?'supporting':'counterevidence';
+const report={kind,rows,pairs,tokenizer_attempts:12,model_attempts:0,claim_ceiling:'Matched token-admission evidence only; no GLM completion quality measured.',authority_effect:'none',open_questions_ref:'README.md'};save('report.json',report);
+const e=read('experiment.json'),o=createHypothesisObservation({hypothesis_ref:e.hypothesis_ref,source_result_ref:'report.json',source_result_digest:sha(bytes('report.json')),observation_kind:kind,phase:'experiment',claim:`Frozen matched token screen: ${kind}; observed projected admissions ${pairs.filter(p=>p.condition==='observed'&&p.projected_admitted).length}/3; no model calls.`,evaluator_id:'h23-matched-token-audit',evidence_refs:['report.json#sha256='+sha(bytes('report.json')),'binding.json#sha256='+sha(bytes('binding.json'))],limitations:['Three observed boundaries from one task family.','Synthetic larger-payload controls are tokenizer-only.','No live completion or engine integration tested.']});
+const d=createLearningDecision({hypothesis_ref:e.hypothesis_ref,experiment_ref:e.record_id,observation_refs:[o.record_id],disposition:kind==='supporting'?'collect-replications':kind==='counterevidence'?'revise-hypothesis':'inconclusive',supporting_count:Number(kind==='supporting'),counterevidence_count:Number(kind==='counterevidence'),experiment_support_count:Number(kind==='supporting'),reason_codes:['matched-token-admission-screen'],next_action:kind==='supporting'?'Build equivalent JS model-view adapter and freeze controlled live comparison; retain payload-heavy controls.':'Analyze matched token results before choosing the next intervention.'});
+const prior=read('../research/dag-payload-84-local.json'),added=[e,o,d],records=[...prior.records,...added];for(const r of records)need(verifyEvolutionRecord(r,r.schema_version).ok,'invalid canonical record');
+const edges=[...prior.projection.edges,...[[e.hypothesis_ref,e.record_id],[e.hypothesis_ref,o.record_id],[e.record_id,o.record_id],[e.hypothesis_ref,d.record_id],[e.record_id,d.record_id],[o.record_id,d.record_id]].map(([from,to])=>({from,to}))],nodes=records.map(r=>({id:r.record_id,kind:r.schema_version}));
+save('research.json',{records:added,authority_effect:'none',open_questions_ref:'README.md'});
+save('../research/dag-payload-token-85-final.json',{kind:'explicit-research-version-dag',registration_status:'not-registered',records,sources:[{path:'../payload-token-v1/research.json',sha256:sha(bytes('research.json'))}],projection:{nodes,edges,dependency_layers:layers(nodes,edges)},authority_effect:'none',open_questions_ref:'../payload-token-v1/README.md'});console.log(JSON.stringify({kind,pairs,records:records.length,edges:edges.length}));

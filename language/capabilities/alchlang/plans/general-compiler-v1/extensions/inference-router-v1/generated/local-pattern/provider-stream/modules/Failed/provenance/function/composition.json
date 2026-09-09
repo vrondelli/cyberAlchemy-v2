@@ -1,0 +1,132 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Identity": {
+      "request_id": "String",
+      "model": "String"
+    },
+    "Input": {
+      "identity": "Identity",
+      "code": "String"
+    },
+    "Frame": {
+      "request_id": "String",
+      "model": "String",
+      "error": "Errors__Error"
+    },
+    "Output": {
+      "status": "String",
+      "value": "Frame"
+    },
+    "Errors__Input": {
+      "code": "String"
+    },
+    "Errors__Error": {
+      "code": "String"
+    },
+    "Errors__Output": {
+      "status": "String",
+      "error": "Errors__Error"
+    }
+  },
+  "roots": {
+    "input": "Input",
+    "mapped": "Errors__Output"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "ErrorArgument",
+      "kind": "Mapping",
+      "fields": {
+        "code": {
+          "op": "path",
+          "path": [
+            "input",
+            "code"
+          ]
+        }
+      },
+      "ontology": "ALCH-34626A12E91372C57E95CE92",
+      "meaning": "Supply only a bounded code to the existing public stream error policy.",
+      "target": "Errors__Input"
+    },
+    {
+      "id": "Failed",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "identity",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "identity",
+            "model"
+          ]
+        },
+        "error": {
+          "op": "path",
+          "path": [
+            "mapped",
+            "error"
+          ]
+        }
+      },
+      "ontology": "ALCH-C18059245AED6BE5EA157343",
+      "meaning": "Emit a sanitized error with pinned identity and no provider diagnostic.",
+      "target": "Frame"
+    },
+    {
+      "id": "Wrapped",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "Failed"
+          ]
+        }
+      },
+      "ontology": "ALCH-674EF6072EA7B93D1A3B70E5",
+      "meaning": "Return the terminal failure frame.",
+      "target": "Output"
+    }
+  ],
+  "bindings": [
+    {
+      "name": "mapped",
+      "input": {
+        "mapping": "ErrorArgument",
+        "type": "Errors__Input"
+      }
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "literal",
+        "value": true
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "Wrapped"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

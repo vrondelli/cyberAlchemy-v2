@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cav2.intent-schema.run-row@1",
+  "title": "Intent Schema Population Run Row",
+  "description": "Append-only private experiment row. Validation proves structural and declared invariant conformance only; it is not live empirical or semantic-validity evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "sample_id",
+    "assignment",
+    "stratum",
+    "source_lock",
+    "intent_record",
+    "observations",
+    "candidate_field_actions",
+    "validator_status"
+  ],
+  "properties": {
+    "run_id": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-intent-schema-[0-9]{2}$"},
+    "sample_id": {"type": "string", "pattern": "^SAMPLE-[A-Z0-9-]+$"},
+    "assignment": {"enum": ["population", "holdout"]},
+    "stratum": {"enum": ["dispatch", "craft", "invoke-work-pack"]},
+    "source_lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_path", "selector", "source_sha256", "selected_text_sha256"],
+      "properties": {
+        "source_path": {"type": "string", "minLength": 1},
+        "selector": {"type": "string", "minLength": 1},
+        "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "selected_text_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "intent_record": {"$ref": "intent-record.candidate.schema.json"},
+    "observations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/observation"}
+    },
+    "candidate_field_actions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/candidateAction"}
+    },
+    "validator_status": {"const": "pending"}
+  },
+  "$defs": {
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "fields", "evidence_refs", "severity", "note"],
+      "properties": {
+        "kind": {"enum": ["field_ambiguity", "field_overlap", "replacement_risk", "source_granularity", "envelope_redundancy", "missing_semantics", "other"]},
+        "fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "severity": {"enum": ["info", "flag", "block"]},
+        "note": {"type": "string", "minLength": 1}
+      }
+    },
+    "candidateAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "action", "rationale", "owner_decision"],
+      "properties": {
+        "field": {"type": "string", "minLength": 1},
+        "action": {"enum": ["retain", "revise", "split", "reject", "unresolved"]},
+        "rationale": {"type": "string", "minLength": 1},
+        "owner_decision": {"const": "pending"}
+      }
+    }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "authority_effect": "none",
+  "business_ontology_admission": {
+    "admitted_material_digest": "561fa9497a13a3b011908d703dbea5ebd4e21919a382ef2b408e6e8cc56a8c1d",
+    "decision_id": "CA2-DECISION-KEP-HOSTED-DEVNET-ONTOLOGY-ADMISSION-001",
+    "decision_sha256": "409015aefa426abd0ceeb7438fa96b434a7e15e7d58c3feeb8209012ca2d6706",
+    "ontology_candidate_sha256": "d70444430addaf592efac682273898ce7d8856e0a9599c08a8d95a48b6c2f1a4",
+    "ontology_id": "CA2-ONTOLOGY-KEP-HOSTED-DEVNET-EXCHANGE"
+  },
+  "components": [
+    {
+      "body": {
+        "description": "Repository port with in-memory test adapter and PostgreSQL snapshot, journal and immutable archive adapter."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Component",
+      "node_id": "ciphertext-repository",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Queries getSignatureStatuses and accepts only finalized Solana Devnet observations; it does not sign or submit."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Component",
+      "node_id": "devnet-finality-observer",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Rust HTTP boundary that accepts public or encrypted material only.",
+        "operations": [
+          "register-identity",
+          "create-artifact",
+          "prepare-grant",
+          "finalize-grant",
+          "get-access",
+          "request-reissue",
+          "fulfill-reissue"
+        ]
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Service",
+      "node_id": "hosted-exchange-api",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Verifies canonical command bytes with a registered Ed25519 public key and never receives a wallet secret."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Component",
+      "node_id": "wallet-signature-verifier",
+      "schema_version": "domainspec.node/v1"
+    }
+  ],
+  "ontology_id": "CA2-SYSTEM-ONTOLOGY-KEP-HOSTED-DEVNET-EXCHANGE",
+  "operations": [
+    {
+      "body": {
+        "description": "Prepare then finalize one originator-authorized no-price co-owner grant.",
+        "effects": [
+          "recipient-added-beside-originator"
+        ],
+        "failure_continuation": "Preserve owner set, revision and active envelopes.",
+        "guard": "Exact signature, revision, recipient binding and finalized Devnet observation.",
+        "reads": [
+          "knowledge-identity",
+          "encrypted-artifact"
+        ],
+        "writes": [
+          "access-projection"
+        ]
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Operation",
+      "node_id": "hosted-grant",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "B requests and A fulfills one finalized envelope replacement within the same artifact, policy, owner set and epoch.",
+        "effects": [
+          "recipient-envelope-replaced"
+        ],
+        "failure_continuation": "Keep the previous envelope active.",
+        "guard": "B request signature, A fulfillment signature, increasing binding version and finalized Devnet observation.",
+        "reads": [
+          "knowledge-identity",
+          "access-projection"
+        ],
+        "writes": [
+          "access-projection"
+        ]
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Operation",
+      "node_id": "hosted-reissue",
+      "schema_version": "domainspec.node/v1"
+    }
+  ],
+  "runtime_constraints": [
+    "devnet-only",
+    "finalized-observation-only",
+    "client-held-secret-material",
+    "ciphertext-only-persistence",
+    "no-hosted-transaction-signer",
+    "no-knowledge-consideration"
+  ],
+  "schema_version": "domainspec.system-ontology/v1",
+  "source_binding_id": "CA2-D65-KEP-HOSTED-DEVNET-DOMAINSPEC-001",
+  "source_graph_sha256": "e115614c13296199605e2ded2145d891309816100043caa8a2d8c85d6b8ec8cd",
+  "tests": [
+    {
+      "body": {
+        "description": "Two distinct wallet identities prove pre-finalization denial, finalized grant, recipient-side decryption, wrong-signer denial and same-epoch key reissue."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Test",
+      "node_id": "third-party-flow",
+      "schema_version": "domainspec.node/v1"
+    }
+  ]
+}

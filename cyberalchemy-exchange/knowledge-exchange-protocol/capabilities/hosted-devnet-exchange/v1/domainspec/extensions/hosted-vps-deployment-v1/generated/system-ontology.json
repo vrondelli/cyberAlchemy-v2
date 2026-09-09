@@ -1,0 +1,189 @@
+{
+  "authority_effect": "none",
+  "base_admission_sha256": "7b16adbccae027686cc7316699c9a45985e0fdc0fba628063c85d10f358b5677",
+  "business_ontology_admission": {
+    "admitted_material_digest": "561fa9497a13a3b011908d703dbea5ebd4e21919a382ef2b408e6e8cc56a8c1d",
+    "decision_id": "CA2-DECISION-KEP-HOSTED-DEVNET-ONTOLOGY-ADMISSION-001",
+    "decision_sha256": "409015aefa426abd0ceeb7438fa96b434a7e15e7d58c3feeb8209012ca2d6706",
+    "ontology_candidate_sha256": "d70444430addaf592efac682273898ce7d8856e0a9599c08a8d95a48b6c2f1a4",
+    "ontology_id": "CA2-ONTOLOGY-KEP-HOSTED-DEVNET-EXCHANGE"
+  },
+  "components": [
+    {
+      "body": {
+        "description": "Repository port with in-memory test adapter and PostgreSQL snapshot, journal and immutable archive adapter."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Component",
+      "node_id": "ciphertext-repository",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Queries getSignatureStatuses and accepts only finalized Solana Devnet observations; it does not sign or submit."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Component",
+      "node_id": "devnet-finality-observer",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Rust HTTP boundary that accepts public or encrypted material only.",
+        "operations": [
+          "register-identity",
+          "create-artifact",
+          "prepare-grant",
+          "finalize-grant",
+          "get-access",
+          "request-reissue",
+          "fulfill-reissue"
+        ]
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Service",
+      "node_id": "hosted-exchange-api",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Verifies canonical command bytes with a registered Ed25519 public key and never receives a wallet secret."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Component",
+      "node_id": "wallet-signature-verifier",
+      "schema_version": "domainspec.node/v1"
+    }
+  ],
+  "ontology_id": "CA2-SYSTEM-ONTOLOGY-KEP-HOSTED-DEVNET-EXCHANGE",
+  "operations": [
+    {
+      "body": {
+        "description": "Prepare then finalize one originator-authorized no-price co-owner grant.",
+        "effects": [
+          "recipient-added-beside-originator"
+        ],
+        "failure_continuation": "Preserve owner set, revision and active envelopes.",
+        "guard": "Exact signature, revision, recipient binding and finalized Devnet observation.",
+        "reads": [
+          "knowledge-identity",
+          "encrypted-artifact"
+        ],
+        "writes": [
+          "access-projection"
+        ]
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Operation",
+      "node_id": "hosted-grant",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "B requests and A fulfills one finalized envelope replacement within the same artifact, policy, owner set and epoch.",
+        "effects": [
+          "recipient-envelope-replaced"
+        ],
+        "failure_continuation": "Keep the previous envelope active.",
+        "guard": "B request signature, A fulfillment signature, increasing binding version and finalized Devnet observation.",
+        "reads": [
+          "knowledge-identity",
+          "access-projection"
+        ],
+        "writes": [
+          "access-projection"
+        ]
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Operation",
+      "node_id": "hosted-reissue",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Create one PostgreSQL custom-format backup, encrypt it locally and place only ciphertext in an authorized off-host destination.",
+        "effects": [
+          "encrypted-offhost-backup-created"
+        ],
+        "failure_continuation": "Preserve the live database and report failure without claiming recoverability.",
+        "guard": "Exact backup envelope, mode-0600 encryption key, explicit destination and no plaintext retention outside the bounded temporary path."
+      },
+      "feature_id": "hosted-vps-deployment",
+      "kind": "Operation",
+      "node_id": "kep-hosted-offhost-backup",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Observe container health and public HTTPS responses after one authorized KEP VPS deployment transition.",
+        "effects": [
+          "record-bounded-deployment-observation"
+        ],
+        "failure_continuation": "Report failed or ambiguous observation without claiming conformance or retry authority.",
+        "guard": "Bind the expected public host, Solana Devnet marker and exact deployed image identity."
+      },
+      "feature_id": "hosted-vps-deployment",
+      "kind": "Operation",
+      "node_id": "kep-hosted-vps-deployment-observation",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Move one exact accepted hosted Devnet implementation image into the isolated KEP VPS service directory under explicit deployment authority.",
+        "effects": [
+          "stage-exact-image",
+          "activate-isolated-compose-release",
+          "preserve-rollback-configuration"
+        ],
+        "failure_continuation": "Restore the prior configuration when the effect is known; stop without retry when the external effect is ambiguous.",
+        "guard": "Exact accepted implementation binding, public host, VPS destination, credential envelope, backup envelope and one-use execution authorization."
+      },
+      "feature_id": "hosted-vps-deployment",
+      "kind": "Operation",
+      "node_id": "kep-hosted-vps-deployment-transition",
+      "schema_version": "domainspec.node/v1"
+    }
+  ],
+  "revision": "002",
+  "runtime_constraints": [
+    "devnet-only",
+    "finalized-observation-only",
+    "client-held-secret-material",
+    "ciphertext-only-persistence",
+    "no-hosted-transaction-signer",
+    "no-knowledge-consideration",
+    "kep-hosted-vps-deployment-transition",
+    "kep-hosted-vps-deployment-observation",
+    "kep-hosted-offhost-backup",
+    "kep-hosted-disposable-restore-verification"
+  ],
+  "schema_version": "domainspec.system-ontology-extension/v1",
+  "source_binding_id": "CA2-D65-KEP-HOSTED-DEVNET-DOMAINSPEC-001",
+  "source_graph_sha256": "08bc98464d2b5931d8b13ffda9cbc2fc49a7ea29d55bc748c4f0632136ca9911",
+  "tests": [
+    {
+      "body": {
+        "description": "Two distinct wallet identities prove pre-finalization denial, finalized grant, recipient-side decryption, wrong-signer denial and same-epoch key reissue."
+      },
+      "feature_id": "hosted-devnet-exchange",
+      "kind": "Test",
+      "node_id": "third-party-flow",
+      "schema_version": "domainspec.node/v1"
+    },
+    {
+      "body": {
+        "description": "Decrypt one authorized backup into a disposable PostgreSQL instance and verify the exact KEP schema without touching the live database.",
+        "expected_observation": [
+          "kep_hosted.application_state",
+          "kep_hosted.encrypted_archive",
+          "kep_hosted.event_journal"
+        ],
+        "guard": "Disposable database only, exact encrypted backup and key, bounded cleanup and no live restore authority."
+      },
+      "feature_id": "hosted-vps-deployment",
+      "kind": "Test",
+      "node_id": "kep-hosted-disposable-restore-verification",
+      "schema_version": "domainspec.node/v1"
+    }
+  ]
+}

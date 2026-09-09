@@ -1,0 +1,736 @@
+--- a/understand-anything-plugin/packages/dashboard/src/oew/OewApp.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/oew/OewApp.tsx
+@@ -9,12 +9,102 @@
+ import {loadOewBundle} from "./loadOewBundle.ts";
+ import {createOewStore} from "./store.ts";
+ import {buildDeepLink, keyboardCommand, parseDeepLink} from "./keyboard.ts";
++import {
++  deriveRelationPresentationRecord,
++  RELATION_PRESENTATION_RECORD_SCHEMA,
++} from "./relationPresentation.ts";
+ import {allEvidenceRows, buildViewModel} from "./viewParity.ts";
+ import "./oew.css";
+ 
+ const EXPECTED_RECEIPT_SHA256 =
+-  "d60fe2048800a1c376dc9d7f04afbfed314f619783d0cb0059059597704ebb01";
+-const RUN_ID = "SWU-OCGP-008";
++  "07c9491aaec8c1a98a15aa75c46f3a1b28a9c96365e20d8cfb252722d80b9b95";
++const EXPECTED_SOURCE_RELATIONS_SHA256 =
++  "234ad4152b731edcb03cd1b45dfa21570bd37df741090ca6ca0940fd98c0ce00";
++const EXPECTED_RELATION_ENCODING_SHA256 =
++  "64cfafc1ce0803ccd7d21354b713458898256fb5db1372a380f3c383ca1d14e6";
++const RUN_ID = "body-war.business-ontology";
++const HEX_COLOR = /^#[a-f0-9]{6}$/i;
++
++export function validateRelationInputs(bundle) {
++  const sourceRelations = bundle?.sidecar?.source_relations;
++  const encoding = bundle?.sidecar?.relation_encoding;
++  const fixture = bundle?.receipt?.semantic_fixture;
++  if (
++    fixture?.schema_version !== "oew.semantic-navigation-browser-fixture.v1" ||
++    fixture?.authority_effect !== "none" ||
++    fixture?.source_relations_sha256 !== EXPECTED_SOURCE_RELATIONS_SHA256 ||
++    fixture?.relation_encoding_sha256 !== EXPECTED_RELATION_ENCODING_SHA256
++  ) {
++    throw new Error("RELATION_INPUT_BINDING_INVALID");
++  }
++  if (
++    sourceRelations?.schema_version !== "body-war-business-relation-set/v1" ||
++    !Array.isArray(sourceRelations.relations)
++  ) {
++    throw new Error("SOURCE_RELATION_SET_INVALID");
++  }
++  if (
++    encoding?.schema_version !==
++      "body-war.semantic-navigation-relation-encoding-candidate.v1" ||
++    encoding?.profile_id !== "body-war-relation-encoding-v1-candidate" ||
++    encoding?.authority_effect !== "none"
++  ) {
++    throw new Error("RELATION_ENCODING_INVALID");
++  }
++  const relationColorValues = Object.fromEntries(
++    Object.entries(encoding.colorTokens ?? {}).map(([token, value]) => {
++      if (!HEX_COLOR.test(value?.dark ?? "")) {
++        throw new Error(`RELATION_COLOR_INVALID:${token}`);
++      }
++      return [token, value.dark];
++    }),
++  );
++  return Object.freeze({
++    sourceRelations,
++    encoding,
++    relationColorValues: Object.freeze(relationColorValues),
++  });
++}
++
++export function relationRecordFromBundle(entry, bundle, relationInputs) {
++  if (entry?.kind !== "edge") return null;
++  if (!relationInputs) throw new Error("RELATION_INPUTS_REQUIRED");
++  const record = deriveRelationPresentationRecord({
++    graphEdgeId: entry.presentationId,
++    graph: bundle.graph,
++    sidecar: bundle.sidecar,
++    sourceRelations: relationInputs.sourceRelations,
++    encoding: relationInputs.encoding,
++  });
++  if (record.schemaVersion !== RELATION_PRESENTATION_RECORD_SCHEMA) {
++    throw new Error(`RELATION_RECORD_SCHEMA_INVALID:${record.schemaVersion}`);
++  }
++  return record;
++}
++
++export function relationSceneFromBundle(bundle) {
++  const relationInputs = validateRelationInputs(bundle);
++  const relationRecords = Object.freeze(Object.fromEntries(
++    Object.values(bundle.sourceRefIndex)
++      .filter((entry) => entry.kind === "edge")
++      .map((entry) => [
++        entry.sourceRef,
++        relationRecordFromBundle(entry, bundle, relationInputs),
++      ]),
++  ));
++  return Object.freeze({relationInputs, relationRecords});
++}
++
++export function FailClosedSurface({detail}) {
++  return (
++    <main className="oew-failure" role="alert">
++      <span className="oew-kicker">Fail-closed evidence boundary</span>
++      <h1>Workbench blocked</h1>
++      <p>{detail}</p>
++      <code>No graph was rendered behind this error.</code>
++    </main>
++  );
++}
+ 
+ function Navigator({filters, onFilters, onSearch, onStartTour}) {
+   return (
+@@ -68,6 +158,8 @@
+ export default function OewApp() {
+   const [status, setStatus] = useState({kind: "loading", detail: "Loading exact evidence…"});
+   const [bundle, setBundle] = useState(null);
++  const [relationInputs, setRelationInputs] = useState(null);
++  const [relationRecords, setRelationRecords] = useState(null);
+   const [store, setStore] = useState(null);
+   const [selectedSourceRef, setSelectedSourceRef] = useState(null);
+   const [view, setView] = useState("graph");
+@@ -95,10 +187,13 @@
+       expectedReceiptSha256: EXPECTED_RECEIPT_SHA256,
+     })
+       .then((loaded) => {
++        const nextRelationScene = relationSceneFromBundle(loaded);
+         const nextStore = createOewStore(loaded);
+         const link = parseDeepLink(window.location.search, loaded.sourceRefs);
+         nextStore.selectSourceRef(link.selectedSourceRef);
+         setBundle(loaded);
++        setRelationInputs(nextRelationScene.relationInputs);
++        setRelationRecords(nextRelationScene.relationRecords);
+         setStore(nextStore);
+         setSelectedSourceRef(link.selectedSourceRef);
+         setView(link.surface);
+@@ -132,8 +227,8 @@
+ 
+   const select = (sourceRef, nextView = view) => {
+     if (!store?.getBySourceRef(sourceRef)) {
+-      setRecoveryNotice(`Unknown evidence recovered to F1.`);
+-      sourceRef = "F1";
++      sourceRef = bundle.sourceRefs[0];
++      setRecoveryNotice(`Unknown evidence recovered to ${sourceRef}.`);
+     }
+     store?.selectSourceRef(sourceRef);
+     setSelectedSourceRef(sourceRef);
+@@ -163,16 +258,9 @@
+   }, []);
+ 
+   if (status.kind === "blocked") {
+-    return (
+-      <main className="oew-failure" role="alert">
+-        <span className="oew-kicker">Fail-closed evidence boundary</span>
+-        <h1>Workbench blocked</h1>
+-        <p>{status.detail}</p>
+-        <code>No graph was rendered behind this error.</code>
+-      </main>
+-    );
++    return <FailClosedSurface detail={status.detail} />;
+   }
+-  if (!bundle || !store) {
++  if (!bundle || !store || !relationInputs || !relationRecords) {
+     return (
+       <main className="oew-loading">
+         <span className="oew-loader" aria-hidden="true" />
+@@ -201,6 +289,8 @@
+           onSelect={select}
+           onTrace={() => { setTraceActive((value) => !value); select("F1", "graph"); }}
+           onView={setView}
++          relationRecords={relationRecords}
++          relationColorValues={relationInputs.relationColorValues}
+           traceActive={traceActive}
+           view={view}
+         />
+@@ -208,6 +298,7 @@
+           <EvidenceInspector
+             entry={selectedSourceRef ? bundle.sourceRefIndex[selectedSourceRef] : null}
+             onClose={() => setInspectorOpen(false)}
++            relationRecord={relationRecords[selectedSourceRef] ?? null}
+           />
+         )}
+       </div>
+--- a/understand-anything-plugin/packages/dashboard/src/oew/EvidenceWorkspace.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/oew/EvidenceWorkspace.tsx
+@@ -2,53 +2,99 @@
+ import EvidenceOutline from "./EvidenceOutline.tsx";
+ import EvidenceTable from "./EvidenceTable.tsx";
+ 
+-const position = {
+-  F1: {x: 50, y: 14},
+-  R1: {x: 43, y: 43},
+-  D1: {x: 53, y: 73},
+-  D2: {x: 81, y: 73},
++const positionFor = (id) => {
++  const text = String(id);
++  let hash = 2166136261;
++  for (const character of text) {
++    hash ^= character.codePointAt(0);
++    hash = Math.imul(hash, 16777619) >>> 0;
++  }
++  return {x: 12 + (hash % 76), y: 12 + ((hash >>> 8) % 76)};
+ };
+ 
+-function GraphSurface({model, onSelect, traceActive}) {
++const arrowFor = (direction) => {
++  if (direction === "forward") return "→";
++  if (direction === "reverse") return "←";
++  if (direction === "bidirectional") return "↔";
++  throw new Error(`PROJECTED_DIRECTION_UNSUPPORTED:${direction}`);
++};
++
++export function GraphSurface({
++  model,
++  onSelect,
++  relationRecords,
++  relationColorValues,
++  traceActive,
++}) {
+   const nodes = model.rows.filter((row) => row.presentationType !== "relation");
+   const relations = model.rows.filter((row) => row.presentationType === "relation");
+   return (
+     <div className={traceActive ? "oew-graph is-tracing" : "oew-graph"} aria-label="Evidence graph">
+       <div className="oew-constellation" aria-hidden="true" />
+-      {relations.map((row) => (
+-        <button
+-          aria-label={`${row.source} ${row.relation} ${row.target}`}
+-          className={`oew-edge oew-edge--${row.relation} ${row.grounding ? "is-grounding" : "is-residue"}`}
+-          key={row.sourceRef}
+-          onClick={() => onSelect(row.sourceRef)}
+-          style={{
+-            "--sx": `${position[row.source].x}%`,
+-            "--sy": `${position[row.source].y}%`,
+-            "--tx": `${position[row.target].x}%`,
+-            "--ty": `${position[row.target].y}%`,
+-          }}
+-        >
+-          <span>{row.relation}</span>
+-        </button>
+-      ))}
+-      {nodes.map((row) => (
+-        <button
+-          aria-current={model.selectedSourceRef === row.sourceRef ? "true" : undefined}
+-          className={[
+-            "oew-node",
+-            `oew-node--${String(row.sourceKind).toLowerCase().replaceAll(" ", "-")}`,
+-            row.residue ? "is-residue" : "",
+-            model.selectedSourceRef === row.sourceRef ? "is-selected" : "",
+-          ].join(" ")}
+-          key={row.sourceRef}
+-          onClick={() => onSelect(row.sourceRef)}
+-          style={{left: `${position[row.sourceRef].x}%`, top: `${position[row.sourceRef].y}%`}}
+-        >
+-          <span className="oew-node-id">{row.sourceRef}</span>
+-          <strong>{row.sourceKind}</strong>
+-          <small>{row.name}</small>
+-        </button>
+-      ))}
++      {relations.map((row) => {
++        const record = relationRecords[row.sourceRef];
++        if (!record) throw new Error(`RELATION_RECORD_REQUIRED:${row.sourceRef}`);
++        const relationColor = relationColorValues[record.colorToken];
++        if (!relationColor) {
++          throw new Error(`RELATION_COLOR_REQUIRED:${record.colorToken}`);
++        }
++        const sourcePosition = positionFor(record.sourceNodeId);
++        const targetPosition = positionFor(record.targetNodeId);
++        const arrow = arrowFor(record.projectedDirection);
++        const selected = model.selectedSourceRef === record.sourceRelationId;
++        return (
++          <button
++            aria-current={selected ? "true" : undefined}
++            aria-label={`${record.sourceNodeId} ${record.sourcePredicate} ${record.targetNodeId}; ${record.sourceDirection}; projected ${record.projectedDirection}; pattern ${record.linePatternToken}`}
++            className={`oew-edge ${selected ? "is-selected" : ""}`}
++            data-color-token={record.colorToken}
++            data-pattern-token={record.linePatternToken}
++            data-relation-schema={record.schemaVersion}
++            key={record.sourceRelationId}
++            onClick={() => onSelect(record.sourceRelationId)}
++            style={{
++              "--oew-relation-color": relationColor,
++              "--sx": `${sourcePosition.x}%`,
++              "--sy": `${sourcePosition.y}%`,
++              "--tx": `${targetPosition.x}%`,
++              "--ty": `${targetPosition.y}%`,
++            }}
++          >
++            <span className="oew-relation-flow">
++              <b>{record.sourceNodeId}</b>
++              <i aria-hidden="true">{arrow}</i>
++              <strong>{record.sourcePredicate}</strong>
++              <i aria-hidden="true">{arrow}</i>
++              <b>{record.targetNodeId}</b>
++            </span>
++            <span className="oew-relation-pattern">
++              source {record.sourceDirection} · projected {record.projectedDirection} · {record.presentationRelation} · {record.linePatternToken}
++            </span>
++            {selected && <span className="oew-edge-state">Selected relation</span>}
++          </button>
++        );
++      })}
++      {nodes.map((row) => {
++        const position = positionFor(row.sourceRef);
++        return (
++          <button
++            aria-current={model.selectedSourceRef === row.sourceRef ? "true" : undefined}
++            className={[
++              "oew-node",
++              `oew-node--${String(row.sourceKind).toLowerCase().replaceAll(" ", "-")}`,
++              row.residue ? "is-residue" : "",
++              model.selectedSourceRef === row.sourceRef ? "is-selected" : "",
++            ].join(" ")}
++            key={row.sourceRef}
++            onClick={() => onSelect(row.sourceRef)}
++            style={{left: `${position.x}%`, top: `${position.y}%`}}
++          >
++            <span className="oew-node-id">{row.sourceRef}</span>
++            <strong>{row.sourceKind}</strong>
++            <small>{row.name}</small>
++          </button>
++        );
++      })}
+       <div className="oew-graph-legend">
+         <span><i className="legend-line" /> grounding</span>
+         <span><i className="legend-dash" /> contradiction</span>
+@@ -63,6 +109,8 @@
+   view,
+   onView,
+   onSelect,
++  relationRecords,
++  relationColorValues,
+   traceActive,
+   onTrace,
+ }) {
+@@ -95,7 +143,7 @@
+         </button>
+       </div>
+       <div className="oew-surface" role="tabpanel">
+-        {view === "graph" && <GraphSurface model={model} onSelect={onSelect} traceActive={traceActive} />}
++        {view === "graph" && <GraphSurface model={model} onSelect={onSelect} relationRecords={relationRecords} relationColorValues={relationColorValues} traceActive={traceActive} />}
+         {view === "outline" && <EvidenceOutline model={model} onSelect={onSelect} />}
+         {view === "table" && <EvidenceTable model={model} onSelect={onSelect} />}
+       </div>
+--- a/understand-anything-plugin/packages/dashboard/src/oew/EvidenceInspector.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/oew/EvidenceInspector.tsx
+@@ -8,14 +8,38 @@
+   </div>
+ );
+ 
+-export function inspectorModel(entry) {
++export function inspectorModel(entry, relationRecord = null) {
+   if (!entry) return null;
+   const row = entry.row;
++  if (entry.kind === "edge") {
++    if (!relationRecord) {
++      throw new Error(`RELATION_RECORD_REQUIRED:${entry.sourceRef}`);
++    }
++    const record = relationRecord;
++    if (record.schemaVersion !== "relation-presentation-record.v1") {
++      throw new Error(`RELATION_RECORD_SCHEMA_INVALID:${record.schemaVersion}`);
++    }
++    return {
++      sourceRef: record.sourceRelationId,
++      kind: "Exact relation",
++      relation: record.sourcePredicate,
++      source: record.sourceNodeId,
++      target: record.targetNodeId,
++      sourceDirection: record.sourceDirection,
++      projectedDirection: record.projectedDirection,
++      presentationRelation: record.presentationRelation,
++      colorToken: record.colorToken,
++      linePatternToken: record.linePatternToken,
++      provenance: record.provenance.map((item) => item.path),
++      sourceAuthorityEffect: record.sourceAuthorityEffect,
++      projectionAuthorityEffect: record.projectionAuthorityEffect,
++    };
++  }
+   return {
+     sourceRef: entry.sourceRef,
+-    kind: entry.kind === "edge" ? "Exact relation" : row.source_kind,
+-    relation: row.source_relation ?? null,
+-    presentationRelation: row.presentation_relation ?? null,
++    kind: row.source_kind,
++    relation: null,
++    presentationRelation: null,
+     mappingLoss: row.mapping_loss,
+     disposition: row.policy_disposition ?? null,
+     diagnostics: row.diagnostics ?? [],
+@@ -26,8 +50,8 @@
+   };
+ }
+ 
+-export default function EvidenceInspector({entry, onClose}) {
+-  const model = inspectorModel(entry);
++export default function EvidenceInspector({entry, onClose, relationRecord}) {
++  const model = inspectorModel(entry, relationRecord);
+   return (
+     <aside className="oew-inspector" aria-label="Exact evidence inspector">
+       <div className="oew-panel-heading">
+@@ -44,21 +68,34 @@
+           <div className="oew-inspector-identity">
+             <span className="oew-kicker">{model.kind}</span>
+             <h2>{model.sourceRef}</h2>
+-            <span className="oew-authority">authority_effect: {model.authorityEffect}</span>
++            <span className="oew-authority">
++              authority_effect: {model.projectionAuthorityEffect ?? model.authorityEffect}
++            </span>
+           </div>
+           <dl>
+-            <Field label="Exact relation" value={model.relation} />
+-            <Field label="Presentation relation" value={model.presentationRelation} />
+-            <Field label="Mapping loss" value={model.mappingLoss} />
+-            <Field label="Policy disposition" value={model.disposition} />
+-            <Field label="Grounding inclusion" value={model.grounding} />
+-            <Field
+-              label="Diagnostics"
+-              value={model.diagnostics.length ? model.diagnostics.join(", ") : "none"}
+-              mono
+-            />
+-            <Field label="Exact source" value={model.path} mono />
+-            <Field label="Source digest" value={model.digest} mono />
++            {model.relation && <Field label="Exact predicate" value={model.relation} mono />}
++            {model.source && <Field label="Source" value={model.source} mono />}
++            {model.sourceDirection && <Field label="Source direction" value={model.sourceDirection} />}
++            {model.projectedDirection && <Field label="Projected direction" value={model.projectedDirection} />}
++            {model.target && <Field label="Target" value={model.target} mono />}
++            {model.presentationRelation && <Field label="Presentation relation" value={model.presentationRelation} />}
++            {model.colorToken && <Field label="Predicate color token" value={model.colorToken} mono />}
++            {model.linePatternToken && <Field label="Pattern token" value={model.linePatternToken} mono />}
++            {model.provenance && <Field label="Provenance" value={model.provenance.join(" · ")} mono />}
++            {model.sourceAuthorityEffect && <Field label="Source authority" value={model.sourceAuthorityEffect} />}
++            {model.projectionAuthorityEffect && <Field label="Projection authority" value={model.projectionAuthorityEffect} />}
++            {model.mappingLoss && <Field label="Mapping loss" value={model.mappingLoss} />}
++            {model.disposition && <Field label="Policy disposition" value={model.disposition} />}
++            {model.grounding && <Field label="Grounding inclusion" value={model.grounding} />}
++            {Array.isArray(model.diagnostics) && (
++              <Field
++                label="Diagnostics"
++                value={model.diagnostics.length ? model.diagnostics.join(", ") : "none"}
++                mono
++              />
++            )}
++            {model.path && <Field label="Exact source" value={model.path} mono />}
++            {model.digest && <Field label="Source digest" value={model.digest} mono />}
+           </dl>
+           <div className="oew-inspector-note">
+             <strong>Why it is here</strong>
+--- a/understand-anything-plugin/packages/dashboard/src/oew/oew.css
++++ b/understand-anything-plugin/packages/dashboard/src/oew/oew.css
+@@ -56,10 +56,17 @@
+ .oew-node.is-residue { border-color: #98515b; }
+ .oew-node.is-selected { box-shadow: 0 0 0 3px #d9fcff, 0 0 34px #49dce766; transform: translate(-50%, -50%) scale(1.05); }
+ .oew-graph.is-tracing .oew-node:not(.is-residue):not(.is-selected) { opacity: .76; }
+-.oew-edge { background: #0b1722; border: 1px solid var(--oew-line-strong); border-radius: 999px; color: var(--oew-muted); font-family: var(--oew-mono); font-size: .62rem; left: calc((var(--sx) + var(--tx)) / 2); padding: .25rem .42rem; position: absolute; top: calc((var(--sy) + var(--ty)) / 2); transform: translate(-50%, -50%); z-index: 2; }
+-.oew-edge--derives-from { border-color: #469aaa; color: #8cecf3; }
+-.oew-edge--contradicts { border-style: dashed; border-color: var(--oew-red); color: #ffabb3; }
+-.oew-edge--specializes { border-style: dotted; border-color: var(--oew-amber); color: #ffe297; top: 86%; }
++.oew-edge { --oew-relation-color: var(--oew-violet); background: #0b1722; border: 3px solid var(--oew-relation-color); border-radius: .7rem; color: var(--oew-relation-color); display: grid; font-family: var(--oew-mono); font-size: .62rem; gap: .18rem; left: calc((var(--sx) + var(--tx)) / 2); max-width: 18rem; padding: .38rem .52rem; position: absolute; text-align: left; top: calc((var(--sy) + var(--ty)) / 2); transform: translate(-50%, -50%); z-index: 2; }
++.oew-edge[data-pattern-token="edge.pattern.solid"] { border-style: solid; }
++.oew-edge[data-pattern-token="edge.pattern.dashed"] { border-style: dashed; }
++.oew-edge[data-pattern-token="edge.pattern.dotted"] { border-style: dotted; }
++.oew-edge.is-selected { outline: 4px double var(--oew-text); outline-offset: 3px; z-index: 4; }
++.oew-relation-flow { align-items: center; display: flex; flex-wrap: wrap; gap: .28rem; }
++.oew-relation-flow b { color: var(--oew-text); font-weight: 700; }
++.oew-relation-flow i { color: var(--oew-text); font-size: .9rem; font-style: normal; }
++.oew-relation-flow strong { color: var(--oew-relation-color); }
++.oew-relation-pattern { color: var(--oew-text); font-size: .56rem; }
++.oew-edge-state { background: var(--oew-text); border-radius: .3rem; color: var(--oew-bg); font-family: ui-sans-serif, system-ui, sans-serif; font-size: .55rem; font-weight: 900; justify-self: start; letter-spacing: .06em; padding: .12rem .28rem; text-transform: uppercase; }
+ .oew-graph-legend { bottom: 1rem; color: var(--oew-muted); display: flex; flex-wrap: wrap; font-size: .68rem; gap: 1rem; left: 1rem; position: absolute; }
+ .oew-graph-legend span { align-items: center; display: flex; gap: .35rem; }
+ .oew-graph-legend i { border-top: 2px solid var(--oew-cyan); display: block; width: 1.4rem; }
+@@ -141,3 +148,11 @@
+ @media (prefers-reduced-motion: reduce) {
+   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .001ms !important; }
+ }
++
++@media (forced-colors: active) {
++  .oew-edge { border-color: CanvasText; color: CanvasText; forced-color-adjust: auto; }
++  .oew-edge.is-selected { outline-color: Highlight; }
++  .oew-edge-state { background: Highlight; color: HighlightText; }
++  .oew-relation-flow b, .oew-relation-flow i,
++  .oew-relation-flow strong, .oew-relation-pattern { color: CanvasText; }
++}
+--- /dev/null
++++ b/understand-anything-plugin/packages/dashboard/src/oew/relationRendering.test.tsx
+@@ -0,0 +1,256 @@
++// @ts-nocheck
++import {describe, expect, it} from "vitest";
++import {renderToStaticMarkup} from "react-dom/server";
++import EvidenceInspector, {inspectorModel} from "./EvidenceInspector.tsx";
++import {GraphSurface} from "./EvidenceWorkspace.tsx";
++import {
++  FailClosedSurface,
++  relationRecordFromBundle,
++  relationSceneFromBundle,
++} from "./OewApp.tsx";
++import css from "./oew.css?raw";
++
++const digest = "a".repeat(64);
++const relationId = "body-war.relation.attach-candidate-consumes-track";
++const edgeId = `presentation-edge:${relationId}`;
++const sourceId = "body-war.business.operation.attach-activity-evidence-candidate";
++const targetId = "body-war.business.entity.suggested-track";
++const sourceRelation = {
++  schema_version: "body-war-business-relation/v1",
++  relation_id: relationId,
++  source_concept: sourceId,
++  target_concept: targetId,
++  predicate: "consumes",
++  direction: "directed",
++  authority_effect: "none",
++  evidence_refs: [{path: "operations.md", selector: "Attach", sha256: digest}],
++};
++const entry = {
++  sourceRef: relationId,
++  presentationId: edgeId,
++  kind: "edge",
++  row: {mapping_loss: "generalized"},
++};
++const encoding = {
++  schema_version: "body-war.semantic-navigation-relation-encoding-candidate.v1",
++  profile_id: "body-war-relation-encoding-v1-candidate",
++  authority_effect: "none",
++  predicateColorMap: {consumes: "edge.data.consumes"},
++  colorTokens: {"edge.data.consumes": {dark: "#158A8E", light: "#148185"}},
++  presentationPatternMap: {builds_on: "edge.pattern.solid"},
++  patternTokens: {"edge.pattern.solid": {label: "solid"}},
++};
++const bundle = {
++  graph: {
++    version: "1.0.0",
++    kind: "knowledge",
++    edges: [{
++      source: `presentation:${sourceId}`,
++      target: `presentation:${targetId}`,
++      description: "consumes",
++      type: "builds_on",
++      direction: "forward",
++    }],
++  },
++  sidecar: {
++    schema_version: "oew.evidence-sidecar.v1",
++    authority_effect: "none",
++    edges: {
++      [edgeId]: {
++        authority_effect: "none",
++        source_ref: relationId,
++        source: sourceId,
++        target: targetId,
++        source_relation: "consumes",
++        presentation_relation: "builds_on",
++        evidence_refs: ["operations.md"],
++      },
++    },
++    source_relations: {
++      schema_version: "body-war-business-relation-set/v1",
++      relations: [sourceRelation],
++    },
++    relation_encoding: encoding,
++  },
++  receipt: {
++    semantic_fixture: {
++      schema_version: "oew.semantic-navigation-browser-fixture.v1",
++      authority_effect: "none",
++      source_relations_sha256: "234ad4152b731edcb03cd1b45dfa21570bd37df741090ca6ca0940fd98c0ce00",
++      relation_encoding_sha256: "64cfafc1ce0803ccd7d21354b713458898256fb5db1372a380f3c383ca1d14e6",
++    },
++  },
++  sourceRefIndex: {[relationId]: entry},
++};
++const {relationInputs, relationRecords} = relationSceneFromBundle(bundle);
++const record = relationRecords[relationId];
++const relationModel = {
++  rows: [{presentationType: "relation", sourceRef: relationId}],
++  selectedSourceRef: relationId,
++};
++const expectIssue = (operation, issue) => {
++  try {
++    operation();
++  } catch (error) {
++    expect(error.issue).toBe(issue);
++    return;
++  }
++  throw new Error(`Expected ${issue}`);
++};
++const withRelation = (changed) => ({
++  ...relationInputs,
++  sourceRelations: {relations: [{...sourceRelation, ...changed}]},
++});
++const luminance = (hex) => {
++  const channels = hex.slice(1).match(/.{2}/g)
++    .map((value) => parseInt(value, 16) / 255)
++    .map((value) => value <= 0.03928
++      ? value / 12.92
++      : ((value + 0.055) / 1.055) ** 2.4);
++  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
++};
++
++describe("canonical selected relation rendering", () => {
++  it("uses the canonical schema and graph-edge identity without adaptation defaults", () => {
++    expect(record).toEqual({
++      schemaVersion: "relation-presentation-record.v1",
++      graphEdgeId: edgeId,
++      sourceRelationId: relationId,
++      sourceNodeId: sourceId,
++      targetNodeId: targetId,
++      sourcePredicate: "consumes",
++      sourceDirection: "directed",
++      projectedDirection: "forward",
++      presentationRelation: "builds_on",
++      colorToken: "edge.data.consumes",
++      linePatternToken: "edge.pattern.solid",
++      provenance: [{path: "operations.md", selector: "Attach", sha256: digest}],
++      sourceAuthorityEffect: "none",
++      projectionAuthorityEffect: "none",
++    });
++    expect(record.graphEdgeId).toBe(`presentation-edge:${record.sourceRelationId}`);
++  });
++
++  it("fails closed on missing direction, evidence digest, mappings, or authority", () => {
++    expectIssue(
++      () => relationRecordFromBundle(entry, bundle, withRelation({direction: ""})),
++      "SOURCE_DIRECTION_REQUIRED",
++    );
++    expectIssue(
++      () => relationRecordFromBundle(entry, bundle, withRelation({
++        evidence_refs: [{path: "operations.md", selector: "Attach", sha256: "bad"}],
++      })),
++      "SOURCE_EVIDENCE_DIGEST",
++    );
++    expectIssue(
++      () => relationRecordFromBundle(entry, bundle, {
++        ...relationInputs,
++        encoding: {...encoding, predicateColorMap: {}},
++      }),
++      "PREDICATE_MAPPING_MISSING",
++    );
++    expectIssue(
++      () => relationRecordFromBundle(entry, bundle, {
++        ...relationInputs,
++        encoding: {...encoding, presentationPatternMap: {}},
++      }),
++      "PRESENTATION_MAPPING_MISSING",
++    );
++    expectIssue(
++      () => relationRecordFromBundle(entry, bundle, withRelation({authority_effect: ""})),
++      "SOURCE_AUTHORITY_REQUIRED",
++    );
++    const noncanonicalId = `presentation-edge:${sourceId}:consumes:${targetId}`;
++    expectIssue(
++      () => relationRecordFromBundle(
++        {...entry, presentationId: noncanonicalId},
++        {
++          ...bundle,
++          sidecar: {
++            ...bundle.sidecar,
++            edges: {[noncanonicalId]: bundle.sidecar.edges[edgeId]},
++          },
++        },
++        relationInputs,
++      ),
++      "GRAPH_EDGE_ID_MISMATCH",
++    );
++  });
++
++  it("renders exact text, directions, pattern, and non-color selection", () => {
++    const markup = renderToStaticMarkup(
++      <GraphSurface
++        model={relationModel}
++        onSelect={() => {}}
++        relationColorValues={relationInputs.relationColorValues}
++        relationRecords={{[relationId]: record}}
++        traceActive={false}
++      />,
++    );
++    expect(markup).toContain('data-relation-schema="relation-presentation-record.v1"');
++    expect(markup).toContain('data-color-token="edge.data.consumes"');
++    expect(markup).toContain('data-pattern-token="edge.pattern.solid"');
++    for (const literal of [sourceId, "consumes", targetId, "directed", "forward"])
++      expect(markup).toContain(literal);
++    expect(markup).toContain("Selected relation");
++    expect(markup).toContain('aria-current="true"');
++  });
++
++  it("requires the canonical record in graph and inspector", () => {
++    expect(() => renderToStaticMarkup(
++      <GraphSurface
++        model={relationModel}
++        onSelect={() => {}}
++        relationColorValues={relationInputs.relationColorValues}
++        relationRecords={{}}
++        traceActive={false}
++      />,
++    )).toThrow(`RELATION_RECORD_REQUIRED:${relationId}`);
++    expect(() => inspectorModel(entry, null)).toThrow(`RELATION_RECORD_REQUIRED:${relationId}`);
++    const invalidBundle = {
++      ...bundle,
++      sidecar: {
++        ...bundle.sidecar,
++        source_relations: {
++          ...bundle.sidecar.source_relations,
++          relations: [{...sourceRelation, direction: ""}],
++        },
++      },
++    };
++    let detail = "";
++    expect(() => relationSceneFromBundle(invalidBundle)).toThrow(
++      "SOURCE_DIRECTION_REQUIRED",
++    );
++    try {
++      relationSceneFromBundle(invalidBundle);
++    } catch (error) {
++      detail = error.message;
++    }
++    const blocked = renderToStaticMarkup(<FailClosedSurface detail={detail} />);
++    expect(blocked).toContain('role="alert"');
++    expect(blocked).toContain("Workbench blocked");
++    expect(blocked).not.toContain('aria-label="Evidence graph"');
++  });
++
++  it("shows exact evidence and authority while retaining contrast recovery", () => {
++    const model = inspectorModel(entry, record);
++    expect(model).toMatchObject({
++      relation: "consumes",
++      sourceDirection: "directed",
++      projectedDirection: "forward",
++      provenance: ["operations.md"],
++      sourceAuthorityEffect: "none",
++      projectionAuthorityEffect: "none",
++    });
++    const markup = renderToStaticMarkup(
++      <EvidenceInspector entry={entry} onClose={() => {}} relationRecord={record} />,
++    );
++    expect(markup).toContain("Source authority");
++    expect(markup).toContain("Projection authority");
++    const contrast = (luminance("#158A8E") + 0.05) /
++      (luminance("#071019") + 0.05);
++    expect(contrast).toBeGreaterThanOrEqual(3);
++    expect(css).toContain("@media (forced-colors: active)");
++    expect(css).toContain("border-color: CanvasText");
++  });
++});

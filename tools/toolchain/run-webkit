@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Run Playwright's pinned headless WebKit with locked user-local libraries."""
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+here = Path(__file__).resolve().parent
+lock_bytes = (here / "webkit-lock.json").read_bytes()
+lock = json.loads(lock_bytes)
+digest = hashlib.sha256(lock_bytes).hexdigest()
+data = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share")))
+root = data / "cyberalchemy/toolchains" / ("webkit-" + digest[:16])
+marker = root / "installation.json"
+if not marker.exists() or json.loads(marker.read_text()).get("lock_sha256") != digest:
+    raise SystemExit("Run python3 tools/toolchain/bootstrap-webkit.py first")
+
+desktop_lock = (here / "desktop-lock.json").read_bytes()
+desktop_digest = hashlib.sha256(desktop_lock).hexdigest()
+desktop = data / "cyberalchemy/toolchains" / ("desktop-" + desktop_digest[:16])
+revision = lock["playwright_webkit_revision"]
+webkit = Path.home() / ".cache/ms-playwright" / ("webkit-" + revision) / "minibrowser-wpe"
+binary = webkit / "bin/MiniBrowser"
+if not binary.is_file():
+    raise SystemExit(f"Pinned Playwright WebKit executable is absent: {binary}")
+
+env = dict(os.environ)
+env["WEBKIT_EXEC_PATH"] = str(webkit / "bin")
+env["WEBKIT_INJECTED_BUNDLE_PATH"] = str(webkit / "lib")
+env["WEBKIT_INSPECTOR_RESOURCES_PATH"] = str(webkit / "share")
+env["LD_LIBRARY_PATH"] = os.pathsep.join([
+    str(root / "usr/lib/x86_64-linux-gnu"),
+    str(desktop / "usr/lib/x86_64-linux-gnu"),
+    str(webkit / "lib"),
+    str(webkit / "sys/lib"),
+])
+os.execve(str(binary), [str(binary), *sys.argv[1:]], env)

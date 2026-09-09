@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Pinned SBF compiler entrypoint. Open questions: README.md."""
+import json
+import os
+from pathlib import Path
+import sys
+
+here = Path(__file__).resolve().parent
+lock = json.loads((here / 'lock.json').read_text())
+data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+install = data / 'cyberalchemy/toolchains' / lock['installation_id']
+platform = Path.home() / '.cache/solana' / lock['platform_tools'] / 'platform-tools'
+if not (install / 'bin/cargo-build-sbf').is_file() or not (platform / 'rust/bin/rustc').is_file():
+    sys.exit('Run tools/toolchain/run python3 tools/toolchain/solana/bootstrap.py first')
+env = dict(os.environ)
+ssl = Path.home() / '.cache/cyberalchemy-exchange/sbf-prerequisites/root/usr/lib/x86_64-linux-gnu'
+env['LD_LIBRARY_PATH'] = str(ssl) + (os.pathsep + env['LD_LIBRARY_PATH'] if env.get('LD_LIBRARY_PATH') else '')
+env['PATH'] = str(platform / 'rust/bin') + os.pathsep + env.get('PATH', '/usr/bin:/bin')
+args = [str(install / 'bin/cargo-build-sbf'), '--tools-version', lock['platform_tools'],
+        '--skip-tools-install', '--no-rustup-override', *sys.argv[1:]]
+os.execve(args[0], args, env)

@@ -1,0 +1,185 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Message": {
+      "role": "String",
+      "content": "String"
+    },
+    "Input": {
+      "messages": "Message[]",
+      "stream": "Bool?",
+      "remote_model": "String",
+      "max_output_tokens": "Int"
+    },
+    "Output": {
+      "status": "String",
+      "messages": "Message[]",
+      "model": "String",
+      "max_tokens": "Int",
+      "stream": "Bool"
+    }
+  },
+  "roots": {
+    "input": "Input"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "RequestBody",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "mapped"
+        },
+        "messages": {
+          "op": "path",
+          "path": [
+            "input",
+            "messages"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "remote_model"
+          ]
+        },
+        "max_tokens": {
+          "op": "path",
+          "path": [
+            "input",
+            "max_output_tokens"
+          ]
+        },
+        "stream": {
+          "op": "call",
+          "name": "coalesce",
+          "args": [
+            {
+              "op": "path",
+              "path": [
+                "input",
+                "stream"
+              ]
+            },
+            {
+              "op": "literal",
+              "value": false
+            }
+          ]
+        }
+      },
+      "ontology": "ALCH-7BFBDE68A5DD7571B39DCDF0",
+      "meaning": "Map canonical conversation to the configured fixture provider JSON request.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [
+    {
+      "condition": {
+        "op": "forall",
+        "binding": "row",
+        "collection": {
+          "op": "path",
+          "path": [
+            "input",
+            "messages"
+          ]
+        },
+        "where": {
+          "op": "call",
+          "name": "ne",
+          "args": [
+            {
+              "op": "path",
+              "path": [
+                "row",
+                "content"
+              ]
+            },
+            {
+              "op": "literal",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "code": "MESSAGE_CONTENT_REQUIRED"
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "gt",
+        "args": [
+          {
+            "op": "call",
+            "name": "count",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "messages"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "literal",
+            "value": 0
+          }
+        ]
+      },
+      "code": "MESSAGES_REQUIRED"
+    },
+    {
+      "condition": {
+        "op": "exists",
+        "binding": "row",
+        "collection": {
+          "op": "path",
+          "path": [
+            "input",
+            "messages"
+          ]
+        },
+        "where": {
+          "op": "call",
+          "name": "eq",
+          "args": [
+            {
+              "op": "path",
+              "path": [
+                "row",
+                "role"
+              ]
+            },
+            {
+              "op": "literal",
+              "value": "user"
+            }
+          ]
+        }
+      },
+      "code": "USER_MESSAGE_REQUIRED"
+    }
+  ],
+  "results": [
+    {
+      "condition": {
+        "op": "literal",
+        "value": true
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "RequestBody"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

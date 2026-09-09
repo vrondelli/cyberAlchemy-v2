@@ -1,0 +1,5 @@
+// Adversarial evidence checks. Open questions: README.md.
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {inspect} from './review.mjs';
+const read=name=>JSON.parse(readFileSync(new URL(`evidence/${name}.json`,import.meta.url)));
+test('accepts baseline, recovery, stale-first and explicit invalid-reference block',()=>{for(const name of ['8000-BLUE_NEW-false-0-latest-baseline','10000-GREEN_NEW-false-3-latest-recovery','12000-AMBER_OLD-true-3-stale-first-recovery','12000-BLUE_NEW-true-3-missing-recovery'])assert.doesNotThrow(()=>inspect(read(name)));});
+test('rejects wire tampering, fake fact availability and proposal attached to missing evidence',()=>{for(const mutate of [r=>{r.captures[0].raw+=' ';},r=>{r.metrics.final_revision_visible=false;},r=>{r.metrics.models=100;}]){const r=read('8000-BLUE_NEW-true-3-latest-recovery');mutate(r);assert.throws(()=>inspect(r));}const missing=read('12000-BLUE_NEW-true-3-missing-recovery');missing.agent_result.candidate={};assert.throws(()=>inspect(missing));});

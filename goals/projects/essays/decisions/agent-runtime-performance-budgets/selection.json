@@ -1,0 +1,73 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-PERFORMANCE-BUDGETS",
+  "question": "Which measurable latency, startup, recovery, memory, client, and store-size ceilings govern the first vertical?",
+  "request_digest": "30520fefd5651375ec2da2a7b66afe092d2e4899064167ba18848ff168c2edfe",
+  "selected_option_id": "OPT-RUNTIME-BUDGET-LEAN-INTERACTIVE",
+  "selected_option": "Optimize the single-owner first vertical for immediate control on a native Ubuntu 24.04 x86-64 reference host with 4 vCPU, 8 GiB RAM, SSD storage, release builds, and at least 30 measured runs: 400 ms daemon-ready p95, 1.5 s desktop-useful p95, 10 ms local-query p95, 30 ms durable-command p95, 96 MiB idle-daemon RSS, 256 MiB daemon-plus-desktop steady RSS, 1 s crash-recovery p95, and at most two active clients over a 1 GiB reference store; optional browser and WebAssembly processes retain separate hard ceilings.",
+  "rationale": "The user explicitly selected OPT-RUNTIME-BUDGET-LEAN-INTERACTIVE. The profile makes speed and direct control the first-vertical priority and accepts a smaller supported store and client envelope instead of hiding latency or memory growth inside additional capacity headroom.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-RUNTIME-BUDGET-LEAN-INTERACTIVE",
+    "recorded_at": "2026-09-01T19:50:06+01:00"
+  },
+  "binding_effect": {
+    "runtime_budget_profile": "lean-interactive-first-vertical",
+    "reference_environment": {
+      "operating_system": "Ubuntu 24.04 LTS",
+      "architecture": "x86-64",
+      "cpu_allocation": "4 vCPU",
+      "memory_bytes": 8589934592,
+      "storage_class": "SSD",
+      "build_profile": "optimized release",
+      "minimum_measured_runs_per_scenario": 30
+    },
+    "ceilings": {
+      "daemon_ready_p95_milliseconds": 400,
+      "desktop_useful_p95_milliseconds": 1500,
+      "local_query_p95_milliseconds": 10,
+      "durable_command_receipt_p95_milliseconds": 30,
+      "idle_daemon_rss_bytes": 100663296,
+      "daemon_plus_desktop_steady_rss_bytes": 268435456,
+      "crash_recovery_ready_p95_milliseconds": 1000,
+      "active_clients": 2,
+      "reference_store_bytes": 1073741824
+    },
+    "measurement_contract": [
+      "each latency and recovery ceiling is evaluated at p95 over at least 30 independently recorded samples on the exact selected native reference environment; raw samples, environment identity, fixture digest and calculation remain evidence",
+      "daemon ready begins at supervised process launch and ends only after migrations, SQLite open and integrity prerequisites, IPC bind, policy load and a successful versioned health exchange",
+      "desktop useful begins at shell launch and ends only after the first local window is rendered, the daemon connection is established and a bounded workspace query has produced usable content",
+      "local query measures a canonical bounded workspace query from complete framed request write through complete framed response read on the Unix-domain-socket client",
+      "durable command measures a canonical bounded edit command through receipt delivery only after the state, event, idempotency and receipt transaction satisfies the selected SQLite durability policy",
+      "idle daemon RSS is sampled after readiness and a 60-second quiescent interval; daemon-plus-desktop steady RSS includes the daemon, Tauri shell and its WebView child processes after the same quiescent interval",
+      "crash recovery begins when the supervisor launches the daemon after an unclean termination during an admitted durable command and ends only after SQLite recovery, required integrity checks, replay or reconciliation and a successful versioned health exchange",
+      "the reference fixture is a deterministic one-GiB materialized store whose workspace, essay, revision, event, proposal, receipt and evidence distributions are frozen by digest before benchmark evidence is accepted",
+      "the two-client ceiling covers simultaneous desktop and CLI clients; remote network transit time is outside local latency measurements, while remote server-side command and query processing remains subject to the same daemon ceilings",
+      "browser processes and their artifacts are excluded from the base RSS ceilings and require a separately selected hard browser resource budget; WebAssembly stores remain governed by OPT-WASM-BUDGET-BALANCED and cannot borrow unused base-process headroom",
+      "no failed, timed-out, cancelled or rejected sample is deleted as an outlier; outcome class and causal diagnostics remain in the evidence set",
+      "a missed ceiling blocks performance conformance and cannot be repaired by relabeling the environment, shrinking the frozen fixture or weakening a threshold without a new reviewed decision"
+    ],
+    "non_implications": [
+      "these ceilings are selected conformance hypotheses, not evidence that the runtime currently meets them",
+      "the profile does not promise behavior on other hardware, operating systems, architectures, store sizes or client counts",
+      "the profile does not select benchmark tools, exact fixture bytes, Rust optimization flags, allocator, SQLite durability setting, package versions or browser resource ceilings",
+      "meeting these budgets alone does not prove durability, security, semantic parity, accessibility, browser safety, implementation conformance, support, release or production readiness",
+      "this decision does not authorize implementation, dependency installation, benchmarking with external effects, publication, release or deployment"
+    ]
+  },
+  "remaining_blockers": [
+    "exact benchmark scenario schemas, deterministic one-GiB fixture, benchmark toolchain and native runner identity",
+    "exact SQLite durability policy and canonical bounded query and edit payloads",
+    "numeric Playwright supervisor, browser-process, artifact and quarantine resource ceilings",
+    "benchmark and independent conformance evidence for every selected runtime and WebAssembly ceiling",
+    "Essays security-owner and Work Owner reviews for remote, WebAssembly and browser policies",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Hardware below the reference environment, larger stores, more clients, remote network latency and additional platforms require separate supported-envelope decisions and evidence.",
+    "The exact browser resource budget remains a separate decision because browser lifecycle and artifacts are optional, externally influenced processes rather than part of the always-on daemon and desktop envelope."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

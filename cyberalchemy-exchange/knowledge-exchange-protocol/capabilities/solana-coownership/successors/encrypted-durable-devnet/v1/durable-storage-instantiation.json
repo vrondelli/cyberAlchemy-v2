@@ -1,0 +1,135 @@
+{
+  "schema_version": "cav2-kep-solana-durable-storage-instantiation/v1-candidate",
+  "instantiation_id": "KEP-SOL-DST-INSTANTIATION-DEVNET-V1",
+  "status": "candidate",
+  "definition_ref": "KEP-SOL-D12",
+  "generic_definition_ref": "KEP-DST-D15",
+  "consumer_capability_id": "CA2-CAP-REALIZE-ENCRYPTED-DURABLE-DEVNET-COOWNERSHIP",
+  "published_dependency_commit": "1b629e601",
+  "generic_storage_capability": {
+    "capability_id": "CA2-CAP-PERSIST-AND-VERIFY-ENCRYPTED-KNOWLEDGE-MATERIAL",
+    "path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/persist-and-verify-encrypted-knowledge-material.product-capability.json",
+    "sha256": "51de7881e4cb2915a85475e21cad60ff7ce933f207678270eb437b35931e9422",
+    "adoption_decision_path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/durable-storage/decisions/product-capability-adoption-001.json",
+    "adoption_decision_sha256": "5a8a4a3b7629cf9955af4173ed339451541262ead61d46a1a74ac8adb2063f84"
+  },
+  "three_layer_storage_capability": {
+    "capability_id": "CA2-CAP-PROTECT-AND-RECOVER-ENCRYPTED-KNOWLEDGE-MATERIAL",
+    "path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/durable-storage/successors/sql-three-layer/v1/product-capability.json",
+    "sha256": "40ff3459c256e279376b54a9ee574214fc05702b64fa999b6b89af49d3aed0b9",
+    "adoption_decision_path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/durable-storage/successors/sql-three-layer/v1/decisions/product-capability-adoption-001.json",
+    "adoption_decision_sha256": "aeda84f349b1f97aa808765fee1bbc9b6c5f4893adcf307344344c681750fb7b"
+  },
+  "reused_definition_ids": [
+    "KEP-DST-D1",
+    "KEP-DST-D2",
+    "KEP-DST-D3",
+    "KEP-DST-D4",
+    "KEP-DST-D5",
+    "KEP-DST-D6",
+    "KEP-DST-D7",
+    "KEP-DST-D8",
+    "KEP-DST-D9",
+    "KEP-DST-D10",
+    "KEP-DST-D11",
+    "KEP-DST-D12",
+    "KEP-DST-D13",
+    "KEP-DST-D14",
+    "KEP-DST-D15"
+  ],
+  "object_kind_bindings": [
+    {
+      "consumer_kind": "encrypted-artifact",
+      "generic_kind": "KEP-DST-D1 durable knowledge material object",
+      "commitment_source": "KEP-SOL-CRYPTO-DEVNET-V1 stored-object commitment"
+    },
+    {
+      "consumer_kind": "recipient-envelope",
+      "generic_kind": "KEP-DST-D5 stored recipient envelope",
+      "commitment_source": "KEP-SOL-CRYPTO-DEVNET-V1 stored-object commitment"
+    }
+  ],
+  "commitment_binding_rule": "The Solana state stores only the qualified exact-byte commitment and opaque locator commitment for each required object. Returned bytes must be recomputed under the cryptographic profile before use.",
+  "readiness_rule": {
+    "required_before_transaction_submission": true,
+    "conditions": [
+      "operational SQL layer records the exact object identity and current locator metadata",
+      "append-only recovery journal records the write under the same operation and object identity",
+      "immutable SQL-independent archive records the exact object bytes and identity",
+      "operational retrieval returns bytes matching the qualified object identity",
+      "archive retrieval returns bytes matching the qualified object identity",
+      "all required object context matches artifact version, epoch, recipient, key binding, cryptographic profile, and policy"
+    ],
+    "result_if_incomplete": "storage-not-ready; do not construct, sign, or submit the Solana grant or reissue fulfillment"
+  },
+  "three_layer_policy": {
+    "posture": "three logical protection layers for a local or Devnet trial; no claim of three independent infrastructure failure domains",
+    "live_registry": "SQL-portable operational state through the accepted Durable Storage port",
+    "append_only_journal": "SQL-portable append-only recovery events stored separately from live mutable tables",
+    "immutable_archive": "SQL-independent immutable object archive capable of exact-byte retrieval",
+    "retention_rule": "No automatic deletion. Retain trial objects, journal, archive, and superseded envelopes until explicit owner-authorized cleanup after the evidence bundle is closed.",
+    "availability_observation_rule": "Verify required objects immediately before transaction submission, before recipient delivery, and after any reissue activation; no availability SLA is implied.",
+    "redundancy_rule": "All three logical layers must close on the same qualified object identity; same-host execution proves mechanism only, not disaster isolation.",
+    "migration_rule": "Write and verify in the successor binding before switching active locator or storage binding; preserve prior material until activation evidence exists.",
+    "deletion_rule": "Deletion requires a separate exact owner decision, policy eligibility, and an immutable deletion-attempt receipt; absence after deletion is verified separately.",
+    "recovery_rule": "A restoration claim requires reconstruction into a clean conforming SQL realization followed by exact-byte retrieval and identity verification."
+  },
+  "failure_effect_rule": {
+    "before_submission": "block transaction construction and submission",
+    "after_submission_before_activation": "withhold delivery and mark reconciliation-required",
+    "after_activation": "surface a typed delivery/storage failure without mutating co-owner membership",
+    "forbidden_fallbacks": [
+      "silently use a different provider or locator",
+      "serve unverified bytes",
+      "treat an empty response as valid material",
+      "downgrade from three layers without a successor policy"
+    ]
+  },
+  "activation_rule": {
+    "definition_ref": "KEP-SOL-D15",
+    "solana_commitment": "finalized",
+    "delivery_allowed_when": "The finalized program-owned state contains the expected state revision and exact stored-object commitment, and a current verified retrieval returns matching bytes.",
+    "cross_system_atomicity_claim": "forbidden"
+  },
+  "reissue_rule": {
+    "requester": "B through a current Solana signing-key binding and existing co-owner membership",
+    "first_trial_fulfiller": "A as the original-owner identity, only through the exact Propagation Policy and current signing-key binding",
+    "storage_sequence": [
+      "write replacement envelope",
+      "verify replacement envelope",
+      "submit reissue fulfillment",
+      "wait for finalized state and commitment match",
+      "activate replacement envelope",
+      "retain prior envelope until explicit cleanup eligibility"
+    ],
+    "protected_state": [
+      "owner memberships",
+      "Knowledge Artifact Version",
+      "Encryption Epoch",
+      "Propagation Policy",
+      "economic state",
+      "other recipients' envelopes"
+    ]
+  },
+  "confidentiality_rule": "Only encrypted artifact bytes, recipient-envelope ciphertext, public commitments, and opaque locator metadata may enter storage or evidence. Plaintext, content keys, envelope plaintext, private keys, credentials, and database passwords are forbidden.",
+  "infrastructure_cost_classification": {
+    "network_fees_and_rent": "Solana infrastructure cost, not knowledge consideration",
+    "storage_and_retrieval": "Durable Storage infrastructure cost, not knowledge consideration",
+    "knowledge_price": "exactly absent in this capability"
+  },
+  "provider_realization": {
+    "status": "unbound-until-implementation-binding",
+    "first_adapter_intent": "PostgreSQL through the accepted SQL-portable port in a local conformance environment",
+    "portability_requirement": "Product meaning must remain valid for another conforming SQL realization",
+    "forbidden_here": [
+      "endpoint",
+      "credentials",
+      "database password",
+      "region",
+      "production topology"
+    ]
+  },
+  "authority_effect": "none",
+  "external_effect": "none",
+  "claim_limit": "Candidate consumer semantic instantiation only; no provider binding, storage operation, capability adoption, implementation, transaction, deployment, or production durability claim."
+}

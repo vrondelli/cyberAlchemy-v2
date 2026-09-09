@@ -1,0 +1,352 @@
+{
+  "authority_effect": "none",
+  "business_nodes": [
+    {
+      "id": "business:stock-item",
+      "meaning": "The item whose finite availability is reserved.",
+      "role": "ontology-term"
+    },
+    {
+      "id": "business:reservation",
+      "meaning": "An idempotently identified claim on a positive quantity.",
+      "role": "ontology-term"
+    },
+    {
+      "id": "business:available-quantity",
+      "meaning": "The owner-qualified quantity currently available to reserve.",
+      "role": "ontology-term"
+    }
+  ],
+  "ontology_id": "cav2.alchlang.example.inventory-reservation.system",
+  "relations": [
+    {
+      "id": "idempotency-invariant-enforces-reserve-inventory",
+      "source": "system:inventory-reservation:idempotency-invariant",
+      "target": "system:inventory-reservation:reserve-inventory",
+      "type": "enforces"
+    },
+    {
+      "id": "inventory-reserved-transitions-reservation-lifecycle",
+      "source": "system:inventory-reservation:inventory-reserved",
+      "target": "system:inventory-reservation:reservation-lifecycle",
+      "type": "transitions"
+    },
+    {
+      "id": "observation-owner-resolved-enforces-reserve-inventory",
+      "source": "system:inventory-reservation:observation-owner-resolved",
+      "target": "system:inventory-reservation:reserve-inventory",
+      "type": "enforces"
+    },
+    {
+      "id": "positive-quantity-enforces-reserve-inventory",
+      "source": "system:inventory-reservation:positive-quantity",
+      "target": "system:inventory-reservation:reserve-inventory",
+      "type": "enforces"
+    },
+    {
+      "id": "quantity-invariant-enforces-reserve-inventory",
+      "source": "system:inventory-reservation:quantity-invariant",
+      "target": "system:inventory-reservation:reserve-inventory",
+      "type": "enforces"
+    },
+    {
+      "id": "release-reservation-produces-reservation-released",
+      "source": "system:inventory-reservation:release-reservation",
+      "target": "system:inventory-reservation:reservation-released",
+      "type": "produces"
+    },
+    {
+      "id": "release-reservation-reads-stock-item",
+      "source": "system:inventory-reservation:release-reservation",
+      "target": "system:inventory-reservation:stock-item",
+      "type": "reads"
+    },
+    {
+      "id": "reservation-exists-enforces-release-reservation",
+      "source": "system:inventory-reservation:reservation-exists",
+      "target": "system:inventory-reservation:release-reservation",
+      "type": "enforces"
+    },
+    {
+      "id": "reservation-released-transitions-reservation-lifecycle",
+      "source": "system:inventory-reservation:reservation-released",
+      "target": "system:inventory-reservation:reservation-lifecycle",
+      "type": "transitions"
+    },
+    {
+      "id": "reserve-inventory-produces-inventory-reserved",
+      "source": "system:inventory-reservation:reserve-inventory",
+      "target": "system:inventory-reservation:inventory-reserved",
+      "type": "produces"
+    },
+    {
+      "id": "reserve-inventory-reads-stock-item",
+      "source": "system:inventory-reservation:reserve-inventory",
+      "target": "system:inventory-reservation:stock-item",
+      "type": "reads"
+    },
+    {
+      "id": "stock-item-emits-inventory-reserved",
+      "source": "system:inventory-reservation:stock-item",
+      "target": "system:inventory-reservation:inventory-reserved",
+      "type": "emits"
+    },
+    {
+      "id": "stock-item-emits-reservation-released",
+      "source": "system:inventory-reservation:stock-item",
+      "target": "system:inventory-reservation:reservation-released",
+      "type": "emits"
+    },
+    {
+      "id": "stock-item-performs-release-reservation",
+      "source": "system:inventory-reservation:stock-item",
+      "target": "system:inventory-reservation:release-reservation",
+      "type": "performs"
+    },
+    {
+      "id": "stock-item-performs-reserve-inventory",
+      "source": "system:inventory-reservation:stock-item",
+      "target": "system:inventory-reservation:reserve-inventory",
+      "type": "performs"
+    }
+  ],
+  "schema_version": "cav2.alchlang.generated-system-ontology/v1-candidate",
+  "source_graph_sha256": "c1c86b98c8b4443bed1fd8924a0e65d36445315905a8975840127f5710597b48",
+  "system_nodes": [
+    {
+      "body": {
+        "description": "The same request key may not reserve twice.",
+        "predicate": "request-key-idempotent"
+      },
+      "id": "system:inventory-reservation:idempotency-invariant",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Inventory was reserved.",
+        "event_type": "inventory-reserved",
+        "occurred_at_policy": "required",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "required": true,
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          }
+        },
+        "payload": [
+          {
+            "field_id": "stock-item-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "request-key",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          },
+          {
+            "field_id": "quantity",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          }
+        ],
+        "version": "1"
+      },
+      "id": "system:inventory-reservation:inventory-reserved",
+      "role": "Event"
+    },
+    {
+      "body": {
+        "description": "The availability observation owner must be resolved.",
+        "predicate": "observation-owner-known"
+      },
+      "id": "system:inventory-reservation:observation-owner-resolved",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "A reservation quantity must be positive.",
+        "predicate": "quantity-greater-than-zero"
+      },
+      "id": "system:inventory-reservation:positive-quantity",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Active reservations may not exceed available quantity.",
+        "predicate": "quantity-within-availability"
+      },
+      "id": "system:inventory-reservation:quantity-invariant",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Release an active reservation.",
+        "effects": [
+          "reservation-released"
+        ],
+        "failure_continuation": "return-not-found",
+        "guard": "reservation-exists",
+        "reads": [
+          "stock-item"
+        ],
+        "writes": [
+          "stock-item.available-quantity"
+        ]
+      },
+      "id": "system:inventory-reservation:release-reservation",
+      "role": "Operation"
+    },
+    {
+      "body": {
+        "description": "Only an active reservation may be released.",
+        "predicate": "reservation-is-active"
+      },
+      "id": "system:inventory-reservation:reservation-exists",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Inventory reservation lifecycle.",
+        "initial": "requested",
+        "states": [
+          "requested",
+          "reserved",
+          "rejected",
+          "released"
+        ],
+        "transitions": [
+          {
+            "effect_event_ref": "inventory-reservation:inventory-reserved",
+            "guard_ref": "inventory-reservation:quantity-invariant",
+            "source_state": "requested",
+            "target_state": "reserved",
+            "transition_id": "reserve"
+          },
+          {
+            "effect_event_ref": null,
+            "guard_ref": null,
+            "source_state": "requested",
+            "target_state": "rejected",
+            "transition_id": "reject"
+          },
+          {
+            "effect_event_ref": "inventory-reservation:reservation-released",
+            "guard_ref": "inventory-reservation:reservation-exists",
+            "source_state": "reserved",
+            "target_state": "released",
+            "transition_id": "release"
+          }
+        ]
+      },
+      "id": "system:inventory-reservation:reservation-lifecycle",
+      "role": "State Machine"
+    },
+    {
+      "body": {
+        "description": "A reservation was released.",
+        "event_type": "reservation-released",
+        "occurred_at_policy": "required",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "required": true,
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          }
+        },
+        "payload": [
+          {
+            "field_id": "stock-item-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "request-key",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          },
+          {
+            "field_id": "quantity",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          }
+        ],
+        "version": "1"
+      },
+      "id": "system:inventory-reservation:reservation-released",
+      "role": "Event"
+    },
+    {
+      "body": {
+        "description": "Attempt to reserve inventory.",
+        "effects": [
+          "inventory-reserved"
+        ],
+        "failure_continuation": "return-denied-or-blocked",
+        "guard": "positive-quantity+quantity-invariant+idempotency-invariant+observation-owner-resolved",
+        "reads": [
+          "stock-item"
+        ],
+        "writes": [
+          "stock-item.available-quantity"
+        ]
+      },
+      "id": "system:inventory-reservation:reserve-inventory",
+      "role": "Operation"
+    },
+    {
+      "body": {
+        "description": "The item whose finite availability is reserved.",
+        "fields": [
+          {
+            "field_id": "stock-item-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "available-quantity",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          },
+          {
+            "field_id": "status",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          }
+        ],
+        "identity_field": "stock-item-id"
+      },
+      "id": "system:inventory-reservation:stock-item",
+      "role": "Entity"
+    }
+  ]
+}

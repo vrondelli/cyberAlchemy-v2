@@ -1,0 +1,3 @@
+import type { PortalDescriptor } from "../contracts/scene";
+import { NodeKindIcon } from "./NodeKindIcon";
+export function PortalCard({ portal, onOpen }: { readonly portal: PortalDescriptor; readonly onOpen: () => void }) { return <button className="portal-card" type="button" onClick={onOpen} data-portal-id={portal.id}><span className="portal-card__icon"><NodeKindIcon kind={portal.iconKey} /></span><span><strong>{portal.label}</strong><small>{portal.count} node{portal.count === 1 ? "" : "s"} · {portal.predicates.join(", ").replaceAll("_", " ")}</small><span>{portal.sentence}</span></span><b aria-hidden="true">→</b></button>; }

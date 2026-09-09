@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/language-runtime-system-ontology/v1",
+  "title": "CyberAlchemy v2 Language Runtime System Ontology",
+  "$defs": {
+    "text": {"type":"string","minLength":1},
+    "id": {"type":"string","pattern":"^language-session-kernel[.][A-Za-z][A-Za-z0-9]*$"},
+    "sourceId": {"type":"string","pattern":"^[a-z][a-z0-9.-]+$"},
+    "sourceRefs": {"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/sourceId"}},
+    "authorityNone": {"const":"none"},
+    "profile": {
+      "type":"object","additionalProperties":false,
+      "required":["$schema","schema_version","ontology_id","title","ontology_type","branch","status","visibility","owner_route","system_design_owner","authority_effect","implementation_state","materialization","package_root","system_scope","domainspec_binding","registries","blocked_outputs"],
+      "properties":{
+        "$schema":{"$ref":"#/$defs/text"},
+        "schema_version":{"const":"cav2.language-runtime.system-ontology.profile/v1"},
+        "ontology_id":{"const":"cav2.language-runtime.system.v1"},
+        "title":{"$ref":"#/$defs/text"},
+        "ontology_type":{"const":"system-runtime"},
+        "branch":{"const":"system"},
+        "status":{"const":"candidate"},
+        "visibility":{"const":"private"},
+        "owner_route":{"$ref":"#/$defs/text"},
+        "system_design_owner":{"$ref":"#/$defs/text"},
+        "authority_effect":{"$ref":"#/$defs/authorityNone"},
+        "implementation_state":{"const":"not-implemented"},
+        "materialization":{"const":"package-required"},
+        "package_root":{"const":"cyberAlchemy-v2/language/runtime/system-ontology"},
+        "system_scope":{"$ref":"#/$defs/text"},
+        "domainspec_binding":{
+          "type":"object","additionalProperties":false,
+          "required":["meta_type_system","relationship_authority","formation_projection","profile_id","profile_version","profile_status","compiler_conformance","release_admission"],
+          "properties":{
+            "meta_type_system":{"const":"DS-D1"},
+            "relationship_authority":{"const":"DS-D8"},
+            "formation_projection":{"const":"domainspec-formation-projection/candidate-v1"},
+            "profile_id":{"const":"complete-backend-criteria"},
+            "profile_version":{"const":"2"},
+            "profile_status":{"const":"candidate"},
+            "compiler_conformance":{"const":"not_evaluable"},
+            "release_admission":{"const":"not-granted"}
+          }
+        },
+        "registries":{
+          "type":"object","additionalProperties":false,
+          "required":["sources","nodes","relations","product_bridge","reuse_map","residue","views","schema","validator","receipts"],
+          "properties":{
+            "sources":{"const":"sources.json"},"nodes":{"const":"nodes.json"},"relations":{"const":"relations.json"},
+            "product_bridge":{"const":"product-bridge.json"},"reuse_map":{"const":"reuse-map.json"},"residue":{"const":"residue.json"},
+            "views":{"type":"array","const":["views/core.json","views/product-bridge.json"]},
+            "schema":{"const":"schemas/language-runtime-system-ontology.schema.json"},
+            "validator":{"const":"scripts/validate.py"},"receipts":{"const":"receipts/"}
+          }
+        },
+        "blocked_outputs":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/text"}}
+      }
+    },
+    "sourceRegistry": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","sources"],
+      "properties":{
+        "$schema":{"$ref":"#/$defs/text"},
+        "schema_version":{"const":"cav2.language-runtime.system-ontology.sources/v1"},
+        "sources":{"type":"array","minItems":1,"items":{
+          "type":"object","additionalProperties":false,"required":["source_id","path","sha256","role","authority"],
+          "properties":{"source_id":{"$ref":"#/$defs/sourceId"},"path":{"$ref":"#/$defs/text"},"sha256":{"type":"string","pattern":"^[a-f0-9]{64}$"},"role":{"$ref":"#/$defs/text"},"authority":{"$ref":"#/$defs/text"}}
+        }}
+      }
+    },
+    "field": {
+      "type":"object","additionalProperties":false,"required":["name","type","identity"],
+      "properties":{"name":{"$ref":"#/$defs/text"},"type":{"$ref":"#/$defs/text"},"identity":{"type":"boolean"}}
+    },
+    "node": {
+      "type":"object","additionalProperties":false,
+      "required":["id","label","kind","role","intent","body","source_refs","status","implementation_state","authority_effect","forbidden_inference"],
+      "properties":{
+        "id":{"$ref":"#/$defs/id"},"label":{"$ref":"#/$defs/text"},
+        "kind":{"enum":["Entity","Value Object","Enum","Operation","Query","Calculation","Rule","Workflow","Event","Interface","Mapping","State Machine"]},
+        "role":{"$ref":"#/$defs/text"},"intent":{"$ref":"#/$defs/text"},"body":{"type":"object","minProperties":1},
+        "source_refs":{"$ref":"#/$defs/sourceRefs"},"status":{"const":"candidate"},
+        "implementation_state":{"const":"not-implemented"},"authority_effect":{"$ref":"#/$defs/authorityNone"},
+        "forbidden_inference":{"$ref":"#/$defs/text"}
+      },
+      "allOf":[
+        {"if":{"properties":{"kind":{"const":"Entity"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["fields"],"properties":{"fields":{"type":"array","minItems":1,"contains":{"properties":{"identity":{"const":true}},"required":["identity"]},"items":{"$ref":"#/$defs/field"}}}}}}},
+        {"if":{"properties":{"kind":{"const":"Value Object"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["fields","equality"],"properties":{"fields":{"type":"array","minItems":1,"items":{"allOf":[{"$ref":"#/$defs/field"},{"properties":{"identity":{"const":false}}}]}},"equality":{"type":"string","pattern":"equal"}}}}}},
+        {"if":{"properties":{"kind":{"const":"Enum"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["values"],"properties":{"values":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/text"}}}}}}},
+        {"if":{"properties":{"kind":{"const":"Operation"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["state_change"],"properties":{"state_change":{"const":"yes"}}}}}},
+        {"if":{"properties":{"kind":{"const":"Query"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["state_change"],"properties":{"state_change":{"const":"no"}}}}}},
+        {"if":{"properties":{"kind":{"const":"Calculation"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["formal_return_type"],"properties":{"formal_return_type":{"const":"value"}}}}}},
+        {"if":{"properties":{"kind":{"const":"Rule"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["formal_return_type"],"properties":{"formal_return_type":{"const":"boolean"}}}}}},
+        {"if":{"properties":{"kind":{"const":"Workflow"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["scope"],"properties":{"scope":{"enum":["intra-feature","cross-feature"]}}}}}},
+        {"if":{"properties":{"kind":{"const":"Event"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["temporal"],"properties":{"temporal":{"const":"past"}}}}}},
+        {"if":{"properties":{"kind":{"const":"Interface"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["interface_kind"],"properties":{"interface_kind":{"enum":["internal","external"]}}}}}},
+        {"if":{"properties":{"kind":{"const":"Mapping"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["direction"],"properties":{"direction":{"$ref":"#/$defs/text"}}}}}},
+        {"if":{"properties":{"kind":{"const":"State Machine"}}},"then":{"properties":{"body":{"type":"object","additionalProperties":false,"required":["has_transitions"],"properties":{"has_transitions":{"const":"yes"}}}}}}
+      ]
+    },
+    "nodeRegistry": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","nodes"],
+      "properties":{"$schema":{"$ref":"#/$defs/text"},"schema_version":{"const":"cav2.language-runtime.system-ontology.nodes/v1"},"nodes":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/node"}}}
+    },
+    "relation": {
+      "type":"object","additionalProperties":false,
+      "required":["id","type","from","to","scope","source_refs","status","authority_effect","claim_limit"],
+      "properties":{
+        "id":{"type":"string","pattern":"^LSK-REL-[0-9]{3}$"},"type":{"type":"string","pattern":"^[a-z][a-z-]*$"},
+        "from":{"$ref":"#/$defs/id"},"to":{"$ref":"#/$defs/id"},"scope":{"const":"same-feature"},
+        "source_refs":{"$ref":"#/$defs/sourceRefs"},"status":{"const":"candidate"},
+        "authority_effect":{"$ref":"#/$defs/authorityNone"},"claim_limit":{"$ref":"#/$defs/text"}
+      }
+    },
+    "relationRegistry": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","relationship_authority_ref","relations"],
+      "properties":{"$schema":{"$ref":"#/$defs/text"},"schema_version":{"const":"cav2.language-runtime.system-ontology.relations/v1"},"relationship_authority_ref":{"const":"domainspec.relationships"},"relations":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/relation"}}}
+    },
+    "bridgeMapping": {
+      "type":"object","additionalProperties":false,"required":["id","type","product_ref","system_refs","source_refs","claim_limit"],
+      "properties":{
+        "id":{"type":"string","pattern":"^LSK-BRIDGE-[0-9]{3}$"},
+        "type":{"enum":["formalized_by","constrained_by","supports_candidate","candidate_scope_for","experiment_subject_candidate"]},
+        "product_ref":{"type":"string","minLength":1},"system_refs":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}},
+        "source_refs":{"$ref":"#/$defs/sourceRefs"},"claim_limit":{"$ref":"#/$defs/text"}
+      }
+    },
+    "productBridge": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","bridge_id","product_ontology_ref","system_ontology_ref","status","authority_effect","mappings"],
+      "properties":{
+        "$schema":{"$ref":"#/$defs/text"},"schema_version":{"const":"cav2.language-runtime.system-ontology.product-bridge/v1"},
+        "bridge_id":{"const":"cav2.language-runtime.product-to-domainspec-system.v1"},"product_ontology_ref":{"const":"cav2.language-runtime-product-bridge"},
+        "system_ontology_ref":{"const":"cav2.language-runtime.system.v1"},"status":{"const":"candidate"},"authority_effect":{"$ref":"#/$defs/authorityNone"},
+        "mappings":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/bridgeMapping"}}
+      }
+    },
+    "reuseMap": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","prior_ontology_ref","status","authority_effect","reuse_candidates","new_without_prior_exact_node","claim_ceiling"],
+      "properties":{
+        "$schema":{"$ref":"#/$defs/text"},"schema_version":{"const":"cav2.language-runtime.system-ontology.reuse-map/v1"},
+        "prior_ontology_ref":{"const":"cav2.define.system-runtime.v1"},"status":{"const":"candidate"},"authority_effect":{"$ref":"#/$defs/authorityNone"},
+        "reuse_candidates":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["local_ref","prior_ref","alignment","reason"],"properties":{"local_ref":{"$ref":"#/$defs/id"},"prior_ref":{"type":"string","pattern":"^define-session-runtime[.][A-Za-z][A-Za-z0-9]*$"},"alignment":{"enum":["strong-candidate","partial-candidate"]},"reason":{"$ref":"#/$defs/text"}}}},
+        "new_without_prior_exact_node":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/id"}},"claim_ceiling":{"$ref":"#/$defs/text"}
+      }
+    },
+    "residueRegistry": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","residue"],
+      "properties":{
+        "$schema":{"$ref":"#/$defs/text"},"schema_version":{"const":"cav2.language-runtime.system-ontology.residue/v1"},
+        "residue":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","status","kind","statement","subject_refs","source_refs","owner_route","next_action","authority_effect"],"properties":{
+          "id":{"type":"string","pattern":"^LSK-RES-[0-9]{3}$"},"status":{"enum":["open","blocked","deferred"]},"kind":{"$ref":"#/$defs/text"},"statement":{"$ref":"#/$defs/text"},
+          "subject_refs":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string","minLength":1}},"source_refs":{"$ref":"#/$defs/sourceRefs"},
+          "owner_route":{"$ref":"#/$defs/text"},"next_action":{"$ref":"#/$defs/text"},"authority_effect":{"$ref":"#/$defs/authorityNone"}
+        }}}
+      }
+    },
+    "view": {
+      "type":"object","additionalProperties":false,"required":["$schema","schema_version","view_id","view_kind","system_node_refs","relation_refs","bridge_mapping_refs","claim_ceiling"],
+      "properties":{
+        "$schema":{"$ref":"#/$defs/text"},"schema_version":{"const":"cav2.language-runtime.system-ontology.view/v1"},
+        "view_id":{"type":"string","pattern":"^cav2[.]language-runtime[.]system[.](core|product-bridge)$"},"view_kind":{"enum":["core","product-bridge"]},
+        "system_node_refs":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/id"}},
+        "relation_refs":{"type":"array","uniqueItems":true,"items":{"type":"string","pattern":"^LSK-REL-[0-9]{3}$"}},
+        "bridge_mapping_refs":{"type":"array","uniqueItems":true,"items":{"type":"string","pattern":"^LSK-BRIDGE-[0-9]{3}$"}},
+        "claim_ceiling":{"$ref":"#/$defs/text"}
+      }
+    },
+    "receipt": {
+      "type":"object","additionalProperties":false,"required":["schema_version","ontology_id","material_digest","overall","summary","checks","claim_ceiling","authority_effect"],
+      "properties":{
+        "schema_version":{"const":"cav2.language-runtime.system-ontology.validation/v1"},"ontology_id":{"const":"cav2.language-runtime.system.v1"},
+        "material_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"},"overall":{"enum":["PASS","BLOCK"]},
+        "summary":{"type":"object","additionalProperties":false,"required":["sources","nodes","relations","bridge_mappings","reuse_candidates","residue","views","checks","passed","blocked"],"properties":{"sources":{"type":"integer","minimum":0},"nodes":{"type":"integer","minimum":0},"relations":{"type":"integer","minimum":0},"bridge_mappings":{"type":"integer","minimum":0},"reuse_candidates":{"type":"integer","minimum":0},"residue":{"type":"integer","minimum":0},"views":{"type":"integer","minimum":0},"checks":{"type":"integer","minimum":0},"passed":{"type":"integer","minimum":0},"blocked":{"type":"integer","minimum":0}}},
+        "checks":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["check_id","outcome","detail"],"properties":{"check_id":{"$ref":"#/$defs/text"},"outcome":{"enum":["PASS","BLOCK"]},"detail":{"$ref":"#/$defs/text"}}}},
+        "claim_ceiling":{"$ref":"#/$defs/text"},"authority_effect":{"$ref":"#/$defs/authorityNone"}
+      }
+    }
+  }
+}

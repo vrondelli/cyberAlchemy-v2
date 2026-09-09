@@ -1,0 +1,106 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Provider": {
+      "binding_id": "String",
+      "binding_version": "String",
+      "model": "String",
+      "enabled": "Bool",
+      "tenant_allowed": "Bool",
+      "task": "String",
+      "context_limit": "Int",
+      "output_limit": "Int",
+      "streaming": "Bool",
+      "rank": "Int"
+    },
+    "Catalog": {
+      "providers": "Provider[]"
+    },
+    "Output": {
+      "status": "String",
+      "aliases": "String[]"
+    }
+  },
+  "roots": {
+    "input": "Catalog"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Names",
+      "kind": "Query",
+      "ontology": "ALCH-951EE20CC19AD89EF90BB4E2",
+      "meaning": "Select only enabled public aliases across configured strategies.",
+      "binding": "row",
+      "source": {
+        "op": "path",
+        "path": [
+          "input",
+          "providers"
+        ]
+      },
+      "where": {
+        "op": "path",
+        "path": [
+          "row",
+          "enabled"
+        ]
+      },
+      "select": {
+        "op": "path",
+        "path": [
+          "row",
+          "model"
+        ]
+      }
+    },
+    {
+      "id": "List",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "aliases": {
+          "op": "call",
+          "name": "sort",
+          "args": [
+            {
+              "op": "call",
+              "name": "distinct",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "Names"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "ontology": "ALCH-22A6ED3A8D8693D63EAD776A",
+      "meaning": "Return distinct aliases in portable lexical order.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "literal",
+        "value": true
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "List"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

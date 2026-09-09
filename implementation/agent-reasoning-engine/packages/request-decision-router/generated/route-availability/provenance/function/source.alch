@@ -1,0 +1,111 @@
+domain are-route-availability "ARE registered route availability"
+profile declarative-function-v1
+owner agent-reasoning-engine-runtime-owner
+logic sfol-v1
+
+schema RouteAvailabilityFacts:
+  registry_declared: boolean
+  lifecycle_available: boolean
+  capability_required: boolean
+  capability_available: boolean
+  route_identity_matches: boolean
+
+schema RouteAvailabilityDecision:
+  status: string pattern "^(available|unavailable)$"
+  repair_focus: string pattern "^(registry|lifecycle|module-capability|route-identity|none)$"
+  authority_effect: string const "none"
+
+mapping RegistryUnavailable:
+  ontology "ARE-ROUTE-AVAILABILITY-REGISTRY-UNAVAILABLE"
+  meaning "A module cannot introduce a route that the verified route registry does not declare."
+  target RouteAvailabilityDecision
+  field status = "unavailable"
+  field repair_focus = "registry"
+  field authority_effect = "none"
+
+mapping LifecycleUnavailable:
+  ontology "ARE-ROUTE-AVAILABILITY-LIFECYCLE-UNAVAILABLE"
+  meaning "A registered route with a blocked lifecycle remains unavailable regardless of module presence."
+  target RouteAvailabilityDecision
+  field status = "unavailable"
+  field repair_focus = "lifecycle"
+  field authority_effect = "none"
+
+mapping CapabilityUnavailable:
+  ontology "ARE-ROUTE-AVAILABILITY-CAPABILITY-UNAVAILABLE"
+  meaning "A module-bound route is unavailable when its exact declared capability cannot answer."
+  target RouteAvailabilityDecision
+  field status = "unavailable"
+  field repair_focus = "module-capability"
+  field authority_effect = "none"
+
+mapping IdentityUnavailable:
+  ontology "ARE-ROUTE-AVAILABILITY-IDENTITY-UNAVAILABLE"
+  meaning "A module response for a different route cannot satisfy the declared route binding."
+  target RouteAvailabilityDecision
+  field status = "unavailable"
+  field repair_focus = "route-identity"
+  field authority_effect = "none"
+
+mapping RouteAvailable:
+  ontology "ARE-ROUTE-AVAILABILITY-AVAILABLE"
+  meaning "The registered route is lifecycle-available and any declared module capability answered for the same route."
+  target RouteAvailabilityDecision
+  field status = "available"
+  field repair_focus = "none"
+  field authority_effect = "none"
+
+rule RegistryIsMissing:
+  ontology "ARE-ROUTE-AVAILABILITY-REGISTRY-MISSING"
+  meaning "Registry declaration precedes every module availability claim."
+  condition input.registry_declared == false
+
+rule LifecycleIsBlocked:
+  ontology "ARE-ROUTE-AVAILABILITY-LIFECYCLE-BLOCKED"
+  meaning "Registry lifecycle blocking cannot be overridden by a module."
+  condition input.registry_declared and input.lifecycle_available == false
+
+rule RequiredCapabilityIsMissing:
+  ontology "ARE-ROUTE-AVAILABILITY-REQUIRED-CAPABILITY-MISSING"
+  meaning "An explicitly module-bound route requires an available capability receipt."
+  condition input.registry_declared and input.lifecycle_available and input.capability_required and input.capability_available == false
+
+rule RouteIdentityDiffers:
+  ontology "ARE-ROUTE-AVAILABILITY-IDENTITY-DIFFERS"
+  meaning "The available capability result must name the exact registered route."
+  condition input.registry_declared and input.lifecycle_available and input.capability_required and input.capability_available and input.route_identity_matches == false
+
+rule RegistryRouteIsAvailable:
+  ontology "ARE-ROUTE-AVAILABILITY-REGISTRY-ROUTE-AVAILABLE"
+  meaning "A route without a module binding uses only its declared registry lifecycle."
+  condition input.registry_declared and input.lifecycle_available and input.capability_required == false
+
+rule ModuleRouteIsAvailable:
+  ontology "ARE-ROUTE-AVAILABILITY-MODULE-ROUTE-AVAILABLE"
+  meaning "A module-bound route is available only after an exact matching capability response."
+  condition input.registry_declared and input.lifecycle_available and input.capability_required and input.capability_available and input.route_identity_matches
+
+result EvaluateRouteAvailability:
+  ontology "ARE-EVALUATE-ROUTE-AVAILABILITY"
+  meaning "Evaluate availability only; do not select the route, run its adapter, or enforce its workflow."
+  when RegistryIsMissing yield RegistryUnavailable
+  when LifecycleIsBlocked yield LifecycleUnavailable
+  when RequiredCapabilityIsMissing yield CapabilityUnavailable
+  when RouteIdentityDiffers yield IdentityUnavailable
+  when RegistryRouteIsAvailable yield RouteAvailable
+  when ModuleRouteIsAvailable yield RouteAvailable
+
+endpoint RouteAvailability:
+  target node-http
+  runtime node>=26.8.1
+  method POST
+  path "/are/route-availability"
+  input RouteAvailabilityFacts
+  output RouteAvailabilityDecision
+  result EvaluateRouteAvailability
+  auth-env ARE_RUNTIME_TOKEN
+  max-bytes 8192
+  timeout-ms 1000
+  error-status 422
+  status unavailable 409
+  status available 200

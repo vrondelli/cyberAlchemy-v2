@@ -1,0 +1,94 @@
+{
+  "schema_version": "cav2-kep-deployment-continuation-rust-refinement-model/v1",
+  "model_id": "CA2-KEP-DEPLOYMENT-CONTINUATION-013-RUST-REFINEMENT-V1",
+  "boundary": "Exact local trace and focused-test preservation of the ten candidate-013 formal obligations by the digest-bound trial-cli bytes. This is not semantic equivalence for all Rust behavior and is not runtime or Devnet evidence.",
+  "baseline": {
+    "claims_path": "../claims.json",
+    "claims_sha256": "c61b98d397eaf3af9918f30f66ad4d6239e031e90262cec005fb12b7963837f0",
+    "formal_receipt_path": "../generated/provider-receipt.json",
+    "formal_receipt_sha256": "be930df2a4180815f624c56367eb38a79caf78ba18fdf8296838084ddaa44c72",
+    "binding_material_digest": "cfe86a38f1ed165c8a41461919ad22e4721718b6a44810f3a2023d9c3f5502bc",
+    "continuation_packet_digest": "c8c24779170ee7cf2611e593073703531c8b90c78cb0d2dd59eb163853e2a653"
+  },
+  "runtime": {
+    "manifest_path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/runtime/trial-cli/Cargo.toml",
+    "manifest_sha256": "ce094bb8a94bade80b4de503dcae6625746fe4e0da64818a88f9babb38d1049a",
+    "lock_path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/runtime/Cargo.lock",
+    "lock_sha256": "f09c3077c1400852a3d596dfd9f70dff23ac1f0884316246d171e69cdb7f75c6",
+    "sources": [
+      {
+        "path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/runtime/trial-cli/src/executor.rs",
+        "sha256": "a81fe5191129f49108df43249d2bdd77aa60ff4085016999ff7b70fc6e950efd"
+      },
+      {
+        "path": "cyberAlchemy-v2/product/knowledge-exchange-protocol/runtime/trial-cli/src/main.rs",
+        "sha256": "fb1cd6eaf2f30af0ffb356f1b95a5230bab5574114e1bad662b38aa361d1b222"
+      }
+    ],
+    "test_command": ["cargo", "test", "--manifest-path", "cyberAlchemy-v2/product/knowledge-exchange-protocol/runtime/trial-cli/Cargo.toml", "--locked", "--offline"]
+  },
+  "mappings": [
+    {
+      "obligation_id": "CONTINUATION-EXACT-ARITHMETIC",
+      "formal_theorems": ["exactProgressProducesContinuation", "continuationStartsAtFirstUnwritten", "continuationEndsAtFinalChunk", "continuationWritesExactlyOnce", "continuationSubmissionBound"],
+      "rust_symbols": ["DeploymentContinuationPlan", "deployment_continuation_plan"],
+      "tests": ["executor::tests::continuation_plan_starts_at_first_unwritten_chunk_without_replay"]
+    },
+    {
+      "obligation_id": "CONTINUATION-PREFIX-FAIL-CLOSED",
+      "formal_theorems": ["prefixVerificationRequiredBeforeSigning", "gappedPrefixIsRejected"],
+      "rust_symbols": ["analyze_attempt_journal", "deployment_continuation_plan", "verified_continuation_predecessor"],
+      "tests": ["executor::tests::continuation_plan_rejects_a_finalized_chunk_gap", "executor::tests::continuation_plan_rejects_progress_before_reconciliation"]
+    },
+    {
+      "obligation_id": "CONTINUATION-ONE-EFFECT-AT-A-TIME",
+      "formal_theorems": ["oneContinuationEffectAtATime"],
+      "rust_symbols": ["analyze_attempt_journal", "deployment_continuation_plan"],
+      "tests": ["executor::tests::continuation_plan_rejects_progress_before_reconciliation", "executor::tests::signed_attempt_requires_a_final_status_before_reconciliation"]
+    },
+    {
+      "obligation_id": "CONTINUATION-AMBIGUITY-STOPS",
+      "formal_theorems": ["ambiguousEffectStopsContinuation"],
+      "rust_symbols": ["reconciliation_result", "deployment_continuation_plan"],
+      "tests": ["executor::tests::actual_transport_ambiguity_record_remains_pending", "executor::tests::reconciliation_promotes_the_ambiguous_last_write_without_replaying_it", "executor::tests::unclassified_unsigned_failure_remains_pending"]
+    },
+    {
+      "obligation_id": "CONTINUATION-FINAL-DEPLOY-ORDER",
+      "formal_theorems": ["finalDeployRejectedBeforeAllWritesFinalize", "finalDeployAllowedAfterAllWritesFinalize"],
+      "rust_symbols": ["deployment_continuation_plan", "continue_deployment"],
+      "tests": ["executor::tests::continuation_plan_starts_at_first_unwritten_chunk_without_replay", "executor::tests::continuation_plan_rejects_progress_before_reconciliation"]
+    },
+    {
+      "obligation_id": "CONTINUATION-ZERO-PROTOCOL-EXECUTION",
+      "formal_theorems": ["continuationSubmissionBound", "modeledTransitionsPreserveZeroProtocolExecution"],
+      "rust_symbols": ["validate_continuation_envelope", "continue_deployment"],
+      "tests": ["tests::continuation_policy_is_deployment_only_and_exactly_bounded"]
+    },
+    {
+      "obligation_id": "CONTINUATION-IMMUTABLE-PREDECESSOR-SEPARATE-JOURNAL",
+      "formal_theorems": ["predecessorRemainsImmutable", "successorJournalIsSeparateAndBoundToPredecessor"],
+      "rust_symbols": ["AttemptJournal", "verified_continuation_predecessor", "validate_continuation_paths"],
+      "tests": ["executor::tests::journal_rejects_record_mutation_and_wrong_packet", "executor::tests::journal_rejects_sequence_or_predecessor_substitution"]
+    },
+    {
+      "obligation_id": "CONTINUATION-ONE-SIGNATURE-PER-EFFECT",
+      "formal_theorems": ["successorHasOneUniqueSignaturePerSemanticEffect"],
+      "rust_symbols": ["analyze_attempt_journal", "deployment_continuation_plan"],
+      "tests": ["executor::tests::continuation_plan_rejects_two_signatures_for_one_deployment_effect"]
+    },
+    {
+      "obligation_id": "CONTINUATION-NO-PREDECESSOR-OVERLAP-OR-REPLAY",
+      "formal_theorems": ["continuationDoesNotReplayPrefix", "successorEffectsDoNotOverlapPredecessorEffects"],
+      "rust_symbols": ["deployment_continuation_plan", "VerifiedContinuationPredecessor"],
+      "tests": ["executor::tests::continuation_plan_starts_at_first_unwritten_chunk_without_replay", "executor::tests::reconciliation_promotes_the_ambiguous_last_write_without_replaying_it"]
+    },
+    {
+      "obligation_id": "CONTINUATION-STABLE-DEPLOYMENT-IDENTITIES",
+      "formal_theorems": ["deploymentIdentitiesRemainStable"],
+      "rust_symbols": ["VerifiedContinuationPredecessor", "verified_continuation_predecessor", "validate_continuation_envelope"],
+      "tests": ["tests::continuation_policy_is_deployment_only_and_exactly_bounded", "executor::tests::journal_rejects_record_mutation_and_wrong_packet"]
+    }
+  ],
+  "provider_policy": "Run the smallest exact local implementation provider needed for this refinement. The evidence requirement is focused Rust tests and exact trace closure; no provider brand is promoted into a general mandate.",
+  "authority_effect": "none"
+}

@@ -1,0 +1,258 @@
+{
+  "dispatch_id": "dispatch.are.invoke-refresh-readiness-sync.2026-07-23",
+  "parent_dispatch_id": "CR-ARE-READINESS-001-20260723T001008",
+  "intent": {
+    "raw": "Run the selected next step after TASK-ARE-READINESS-001.",
+    "objective": "Produce an evidence-backed proposal-only refresh that reconciles passed policy readiness with stale planning and Craft surfaces without authorizing implementation.",
+    "target_artifact": "cyberAlchemy-v2/development/agent-reasoning-engine/refresh/2026-07-23-readiness-sync/"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "concrete_path_evidence",
+    "artifact_contract_bridge",
+    "owner_boundary_check",
+    "residue_ledger",
+    "validation_loop",
+    "execution_receipt_handoff"
+  ],
+  "technique_overlays": [
+    {
+      "overlay_id": "proposal-only-authority-boundary",
+      "trigger": "The source result closes readiness blockers, while mutation and target execution remain separately authorized.",
+      "techniques": [
+        "owner_boundary_check",
+        "artifact_contract_bridge",
+        "residue_ledger"
+      ],
+      "applies_to_steps": [
+        "invoke-refresh-proposal"
+      ],
+      "validation_expectation": "The proposal separates Invoke-owned planning deltas, Craft-owned ledger/view deltas, and the later SWU execution route."
+    }
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "Single bounded local synthesis from a terminal receipt into a proposal-only artifact set.",
+    "explanation": "Parallel agents would add join overhead without creating independent evidence lanes; no delegated mutation or adversarial judgment is needed.",
+    "context": [
+      "The prior Task Session has already produced and independently reviewed the controlling evidence.",
+      "This route edits only new refresh proposal artifacts."
+    ],
+    "binding_mode": "descriptive",
+    "roles": [],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed",
+    "permission_prompt": "",
+    "receipt_requirements": []
+  },
+  "subagent_lifecycle": {
+    "status": "none",
+    "agents": []
+  },
+  "steps": [
+    {
+      "step_id": "invoke-refresh-proposal",
+      "name": "Author readiness synchronization proposal",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "sequence",
+        "concrete_path_evidence",
+        "artifact_contract_bridge",
+        "owner_boundary_check",
+        "residue_ledger",
+        "validation_loop",
+        "execution_receipt_handoff"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "decisions/implementation-readiness/session-evidence/TASK-ARE-READINESS-001-RECEIPT.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "planning/WORK-PACK.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "planning/work-pack/tasks/TASK-ARE-READINESS-001.md"
+        },
+        {
+          "kind": "ledger",
+          "ref": ".craft/ledger.yml"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "refresh/2026-07-23-readiness-sync/REFRESH-REPORT.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "refresh/2026-07-23-readiness-sync/refresh-report.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "refresh/2026-07-23-readiness-sync/REFRESH-PATCH-PROPOSAL.md"
+        },
+        {
+          "kind": "receipt",
+          "ref": "refresh/2026-07-23-readiness-sync/OWNER-RECEIPT.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "refresh/2026-07-23-readiness-sync/refresh-report.json",
+      "stop_conditions": [
+        "Stop if any controlling evidence digest differs from the terminal receipt.",
+        "Stop if the target inventory cannot be resolved.",
+        "Stop before changing planning, Craft, implementation, canonical, or public target artifacts.",
+        "Stop if a proposed status exceeds policy-readiness evidence."
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "G-REFRESH-SOURCE",
+      "kind": "validation",
+      "owner": "Invoke refresh owner",
+      "condition": "The terminal receipt passes and every controlling evidence digest matches.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-REFRESH-BOUNDARY",
+      "kind": "promotion_guardrail",
+      "owner": "Invoke refresh owner",
+      "condition": "The proposal preserves implementation_authorized false, routes Craft mutations to Craft, and leaves SWU execution separately authorized.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-REFRESH-ARTIFACT",
+      "kind": "quality",
+      "owner": "Dispatch Spec validator",
+      "condition": "Required refresh artifacts exist, every proposed delta maps to a RefreshSignal, and JSON/dispatch validation passes.",
+      "on_fail": "block"
+    }
+  ],
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "B-TASK-SESSION-TO-INVOKE",
+        "kind": "capability_handoff",
+        "from_owner": "task-session",
+        "to_owner": "invoke",
+        "applies_to_steps": [
+          "invoke-refresh-proposal"
+        ],
+        "contract": "Consume the terminal readiness receipt at its policy-readiness claim ceiling and author proposal artifacts only.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "B-INVOKE-TO-CRAFT",
+        "kind": "state_write",
+        "from_owner": "invoke",
+        "to_owner": "craft",
+        "applies_to_steps": [
+          "invoke-refresh-proposal"
+        ],
+        "contract": "Invoke describes the Craft delta but does not mutate the Craft ledger or its generated projections.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "B-PROPOSAL-TO-APPLY",
+        "kind": "human_approval",
+        "from_owner": "invoke",
+        "to_owner": "human authorization",
+        "applies_to_steps": [
+          "invoke-refresh-proposal"
+        ],
+        "contract": "Proposal completion grants no apply or SWU execution authority.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "Invoke refresh owns proposal authoring.",
+      "execution": "No target execution is authorized.",
+      "validation": "Dispatch Spec and Invoke refresh mode gates.",
+      "evidence": "TASK-ARE-READINESS-001 terminal receipt and pinned policy digests.",
+      "promotion": "Target lifecycle owners retain apply, implementation, and claim authority."
+    },
+    "receipts": [
+      {
+        "receipt_id": "RECEIPT-ARE-REFRESH-PROPOSAL-2026-07-23",
+        "producer": "invoke",
+        "required_fields": [
+          "run_id",
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "artifacts",
+          "validation",
+          "blockers",
+          "handoff_note",
+          "residue"
+        ],
+        "stores": [
+          "refresh/2026-07-23-readiness-sync/OWNER-RECEIPT.json"
+        ],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "refresh/2026-07-23-readiness-sync/**",
+        "owner": "Invoke refresh",
+        "write_policy": "Proposal artifacts only."
+      },
+      {
+        "namespace": ".craft/** and CRAFT.md",
+        "owner": "Craft",
+        "write_policy": "Read-only during this proposal; mutation requires a Craft lifecycle refresh."
+      },
+      {
+        "namespace": "planning/**",
+        "owner": "Invoke",
+        "write_policy": "Read-only during proposal-only; apply requires explicit apply-approved authorization."
+      }
+    ],
+    "promotion_splits": [
+      {
+        "source": "policy-readiness evidence",
+        "target": "implementation readiness state",
+        "rule": "May mark the policy gate and readiness task complete, but may only mark SWU-ARE-001 ready-awaiting-explicit-authorization.",
+        "on_violation": "block"
+      },
+      {
+        "source": "implementation readiness state",
+        "target": "evaluator witness or reasoning-engine claim",
+        "rule": "No promotion is allowed without later execution evidence and the named promotion owner.",
+        "on_violation": "block"
+      }
+    ]
+  },
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": "CR-ARE-READINESS-001-20260723T001008",
+    "trace_events": [
+      "dispatch_started",
+      "source_evidence_verified",
+      "target_inventory_resolved",
+      "refresh_signals_normalized",
+      "owner_boundaries_checked",
+      "proposal_validated",
+      "owner_receipt_emitted"
+    ],
+    "signal_grouping": "dispatch_id, step_id, RefreshSignal id"
+  },
+  "promotion_guardrails": [
+    "A pass refresh status describes proposal completeness only.",
+    "implementation_authorized remains false.",
+    "No evaluator implementation or semantic witness is created.",
+    "No private content is moved into public Arcanum.",
+    "No canonical definition or general reasoning-engine claim is promoted."
+  ]
+}

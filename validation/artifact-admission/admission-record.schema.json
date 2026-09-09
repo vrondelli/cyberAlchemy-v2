@@ -1,0 +1,525 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/validation/artifact-admission/admission-record.schema.json",
+  "title": "CyberAlchemy v2 Artifact Admission Record",
+  "description": "Candidate machine contract for CAV2-C18. Shape validation does not grant canonical or authority status.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "admission_id",
+    "classification",
+    "phase",
+    "targets",
+    "owner_surface",
+    "rule_refs",
+    "record_location"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "admission_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]*$"
+    },
+    "classification": {
+      "enum": [
+        "working",
+        "governed"
+      ]
+    },
+    "phase": {
+      "enum": [
+        "pre",
+        "post"
+      ]
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/relative_path"
+      }
+    },
+    "owner_surface": {
+      "$ref": "#/$defs/relative_path"
+    },
+    "rule_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "record_location": {
+      "$ref": "#/$defs/relative_path"
+    },
+    "inherits_from": {
+      "$ref": "#/$defs/relative_path"
+    },
+    "intent": {
+      "$ref": "#/$defs/intent"
+    },
+    "parent_entrypoint": {
+      "$ref": "#/$defs/relative_path"
+    },
+    "provenance": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "canonical_posture": {
+      "$ref": "#/$defs/canonical_posture"
+    },
+    "validation_surface": {
+      "$ref": "#/$defs/non_empty_string_array"
+    },
+    "residue": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/residue_item"
+      }
+    },
+    "routes": {
+      "$ref": "#/$defs/routes"
+    },
+    "new_repository_area": {
+      "type": "boolean",
+      "default": false
+    },
+    "durable_area": {
+      "type": "boolean",
+      "description": "CAV2-C7 selector for a navigable area; not CAV2-D52 artifact durability.",
+      "default": false
+    },
+    "load_bearing": {
+      "type": "boolean",
+      "default": false
+    },
+    "area_contract": {
+      "$ref": "#/$defs/area_contract"
+    },
+    "tree_interface": {
+      "$ref": "#/$defs/tree_interface"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "classification": {
+            "const": "working"
+          }
+        },
+        "required": [
+          "classification"
+        ]
+      },
+      "then": {
+        "properties": {
+          "new_repository_area": {
+            "const": false
+          },
+          "durable_area": {
+            "const": false
+          },
+          "load_bearing": {
+            "const": false
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "canonical_posture"
+              ]
+            },
+            {
+              "required": [
+                "area_contract"
+              ]
+            },
+            {
+              "required": [
+                "tree_interface"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "classification": {
+            "const": "governed"
+          }
+        },
+        "required": [
+          "classification"
+        ]
+      },
+      "then": {
+        "required": [
+          "intent",
+          "parent_entrypoint",
+          "provenance",
+          "canonical_posture",
+          "validation_surface",
+          "residue",
+          "routes"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "durable_area": {
+            "const": true
+          }
+        },
+        "required": [
+          "durable_area"
+        ]
+      },
+      "then": {
+        "required": [
+          "area_contract"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "load_bearing": {
+            "const": true
+          }
+        },
+        "required": [
+          "load_bearing"
+        ]
+      },
+      "then": {
+        "required": [
+          "tree_interface"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "new_repository_area": {
+            "const": true
+          }
+        },
+        "required": [
+          "new_repository_area"
+        ]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "const": "governed"
+          },
+          "durable_area": {
+            "const": true
+          }
+        },
+        "required": [
+          "durable_area",
+          "area_contract"
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/).+",
+      "description": "Repository-relative path. Runtime validation must reject traversal and resolved escapes."
+    },
+    "non_empty_string_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "intent": {
+      "type": "object",
+      "required": [
+        "purpose",
+        "existing_artifact_gap"
+      ],
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "existing_artifact_gap": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "canonical_posture": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "const": "non-canonical"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "artifact_id",
+            "canonical_kind",
+            "authority_kind",
+            "process_origin",
+            "durability",
+            "authority_state"
+          ],
+          "properties": {
+            "status": {
+              "const": "canonical"
+            },
+            "artifact_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "canonical_kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "authority_kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "process_origin": {
+              "type": "string",
+              "minLength": 1
+            },
+            "durability": {
+              "enum": [
+                "ephemeral",
+                "perennial"
+              ]
+            },
+            "durability_override_note": {
+              "type": "string",
+              "minLength": 1
+            },
+            "authority_state": {
+              "enum": [
+                "none",
+                "candidate",
+                "promoted",
+                "demoted"
+              ]
+            },
+            "promotion_reference": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "authority_state": {
+                    "enum": [
+                      "promoted",
+                      "demoted"
+                    ]
+                  }
+                },
+                "required": [
+                  "authority_state"
+                ]
+              },
+              "then": {
+                "required": [
+                  "promotion_reference"
+                ]
+              }
+            }
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "residue_item": {
+      "type": "object",
+      "required": [
+        "residue_id",
+        "description",
+        "owner_route",
+        "status"
+      ],
+      "properties": {
+        "residue_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "open",
+            "accepted",
+            "deferred",
+            "resolved"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "routes": {
+      "type": "object",
+      "required": [
+        "next_route",
+        "challenge_route",
+        "drift_route"
+      ],
+      "properties": {
+        "next_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "challenge_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "drift_route": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "area_contract": {
+      "type": "object",
+      "required": [
+        "entrypoint",
+        "status",
+        "owner",
+        "role",
+        "source_links",
+        "next_route"
+      ],
+      "properties": {
+        "entrypoint": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_links": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "next_route": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "tree_interface": {
+      "type": "object",
+      "required": [
+        "tree_id",
+        "scope",
+        "owner_route",
+        "canonical_source_or_boundary",
+        "view_roles",
+        "evidence_inputs",
+        "promotion_path",
+        "validation_surface",
+        "challenge_contract",
+        "drift_route",
+        "allowed_uses",
+        "blocked_uses"
+      ],
+      "properties": {
+        "tree_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_source_or_boundary": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "view_roles": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "evidence_inputs": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "promotion_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validation_surface": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "challenge_contract": {
+          "type": "string",
+          "minLength": 1
+        },
+        "drift_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_uses": {
+          "$ref": "#/$defs/non_empty_string_array"
+        },
+        "blocked_uses": {
+          "$ref": "#/$defs/non_empty_string_array"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

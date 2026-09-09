@@ -1,0 +1,405 @@
+{
+  "dispatch_id": "dispatch.oewtp.goal-preflight-refresh.20260729T155245Z",
+  "parent_dispatch_id": "dispatch.oewtp.invoke-define-design-plan.2026-07-29",
+  "intent": {
+    "raw": "Execute the whole WP-OEWTP-001 work pack.",
+    "objective": "Produce and independently review a proposal-only repair for OEWTP planning-to-runtime contract drift without mutating planning authority, canonical runtime, generated mirrors, or implementation source.",
+    "target_artifact": "cyberAlchemy-v2/development/ontology-evidence-workbench-thin-prototype/planning/"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "concrete_path_evidence",
+    "owner_boundary_check",
+    "artifact_contract_bridge",
+    "approval_semantics_map",
+    "validation_loop",
+    "residue_ledger"
+  ],
+  "steps": [
+    {
+      "step_id": "bind-runtime-contracts",
+      "name": "Bind the live work pack and installed Task Session and Invoke contracts",
+      "capability_ref": "context-builder",
+      "mode": "standard",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "concrete_path_evidence",
+        "owner_boundary_check",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "cyberAlchemy-v2/development/ontology-evidence-workbench-thin-prototype/planning/WORK-PACK.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": ".agents/skills/task-session/SKILL.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": ".agents/skills/invoke/refresh.md"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "frame",
+          "ref": "CONTEXT-PACK.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "context-pack.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "context-pack.json",
+      "stop_conditions": [
+        "Stop before implementation mutation.",
+        "Stop if live planning baselines drift."
+      ]
+    },
+    {
+      "step_id": "join-independent-audit",
+      "name": "Join one bounded read-only helper audit",
+      "capability_ref": "task-session",
+      "mode": "read-only-preflight-audit",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": [
+        "bind-runtime-contracts"
+      ],
+      "techniques": [
+        "owner_boundary_check",
+        "artifact_contract_bridge"
+      ],
+      "inputs": [
+        {
+          "kind": "frame",
+          "ref": "CONTEXT-PACK.md"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "helper-audit.json"
+        }
+      ],
+      "join_policy": "all",
+      "evidence_artifact": "helper-audit.json",
+      "stop_conditions": [
+        "Helper must remain read-only.",
+        "Parent must join and close the helper before reporting."
+      ]
+    },
+    {
+      "step_id": "author-refresh-proposal",
+      "name": "Author the exact planning repair proposal",
+      "capability_ref": "invoke",
+      "mode": "refresh:proposal-only",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": [
+        "join-independent-audit"
+      ],
+      "techniques": [
+        "artifact_contract_bridge",
+        "approval_semantics_map",
+        "owner_boundary_check",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "frame",
+          "ref": "CONTEXT-PACK.md"
+        },
+        {
+          "kind": "receipt",
+          "ref": "helper-audit.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "REFRESH-REPORT.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "refresh-report.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "REFRESH-PATCH-PROPOSAL.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "prepare-planning-repair.mjs"
+        },
+        {
+          "kind": "receipt",
+          "ref": "repair-check.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "refresh-report.json",
+      "stop_conditions": [
+        "Do not edit any proposed target.",
+        "Do not describe proposal completion as mutation readiness."
+      ]
+    },
+    {
+      "step_id": "validate-refresh-proposal",
+      "name": "Validate proposal JSON, Dispatch Spec, links, and scoped diff",
+      "capability_ref": "dispatch-spec",
+      "mode": "validation",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "author-refresh-proposal"
+      ],
+      "techniques": [
+        "validation_loop",
+        "concrete_path_evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "REFRESH-PRECHECK.dispatch.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "refresh-report.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "repair-check.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "validation-result.json"
+        }
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "validation-result.json",
+      "stop_conditions": [
+        "Block apply handoff on any validator failure."
+      ]
+    },
+    {
+      "step_id": "review-runtime-compatibility",
+      "name": "Independently review whether the installed runtime can enforce the proposal",
+      "capability_ref": "task-session",
+      "mode": "read-only-runtime-contract-audit",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "validate-refresh-proposal"
+      ],
+      "techniques": [
+        "artifact_contract_bridge",
+        "owner_boundary_check",
+        "validation_loop",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "REFRESH-PATCH-PROPOSAL.md"
+        },
+        {
+          "kind": "receipt",
+          "ref": "repair-check.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "validation-result.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "runtime-contract-review.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "RUNTIME-REPAIR-PLAN.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "RUNTIME-REPAIR.dispatch.json"
+        }
+      ],
+      "join_policy": "all",
+      "evidence_artifact": "runtime-contract-review.json",
+      "stop_conditions": [
+        "Retire the planning apply route on a blocking runtime-contract finding.",
+        "Do not mutate canonical Arcanum, generated mirrors, OEW planning, or implementation."
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "G-OEWTP-REFRESH-SCOPE",
+      "kind": "policy",
+      "owner": "invoke-refresh",
+      "condition": "The proposal touches only the isolated OEWTP planning package and adds no package root or implementation mutation.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEWTP-RUNTIME-COMPATIBILITY",
+      "kind": "validation",
+      "owner": "task-session",
+      "condition": "The proposed contract covers material staging, producer validation, mutation admission, exact closeout route, admitted deltas, owner receipt, and serial successor rules for all four SWUs.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEWTP-RUNTIME-REPAIR-ROUTE",
+      "kind": "human_approval",
+      "owner": "human-prototype-owner",
+      "condition": "After a blocking runtime review, the user explicitly authorizes RUNTIME-REPAIR.dispatch.json before any canonical public Arcanum or generated-mirror mutation.",
+      "on_fail": "ask"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": "dispatch.oewtp.invoke-define-design-plan.2026-07-29",
+    "trace_events": [
+      "preflight_started",
+      "context_bound",
+      "helper_joined",
+      "contract_drift_confirmed",
+      "refresh_proposal_authored",
+      "refresh_proposal_validated",
+      "runtime_contract_review_blocked",
+      "planning_apply_retired",
+      "runtime_repair_proposed"
+    ],
+    "signal_grouping": "dispatch_id, step_id, gate_id"
+  },
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "Two bounded read-only helpers audited the initial preflight and then the proposed repair; neither had an implementation role or reusable multi-agent dispatch.",
+    "explanation": "The parent retained route selection and proposal ownership, joined both read-only helpers, retired the unsafe apply route, and will not execute runtime or implementation mutations without the next exact authorization.",
+    "context": [
+      "Both helpers were read-only.",
+      "Both helpers are joined and closed.",
+      "All mutation-capable work remains blocked."
+    ],
+    "binding_mode": "descriptive",
+    "roles": [],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed",
+    "receipt_requirements": []
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "B-PREFLIGHT-TO-PLANNING",
+        "kind": "state_write",
+        "from_owner": "goal-preflight",
+        "to_owner": "invoke-refresh",
+        "applies_to_steps": [
+          "author-refresh-proposal"
+        ],
+        "contract": "Preflight may author proposal evidence only; planning mutation remains with Invoke Refresh apply-approved.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "B-PLANNING-TO-IMPLEMENTATION",
+        "kind": "capability_handoff",
+        "from_owner": "invoke-refresh",
+        "to_owner": "task-session",
+        "applies_to_steps": [
+          "validate-refresh-proposal"
+        ],
+        "contract": "A repaired Plan can return to Task Session preflight but cannot itself authorize implementation writes.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "Invoke owns planning refresh.",
+      "execution": "Task Session owns one future SWU at a time.",
+      "validation": "Dispatch Spec, Invoke validators, Plan validators, and Distill remain separate.",
+      "evidence": "Live private repository artifacts and joined helper audit.",
+      "memory": "Memory is context only and not mutation authority.",
+      "promotion": "No promotion, release, deployment, or production authority."
+    },
+    "receipts": [
+      {
+        "receipt_id": "RECEIPT-OEWTP-PREFLIGHT-HELPER",
+        "producer": "bounded-read-only-helper",
+        "required_fields": [
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "validation",
+          "blockers",
+          "handoff_note",
+          "residue"
+        ],
+        "stores": [
+          "helper-audit.json"
+        ],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "RECEIPT-OEWTP-REFRESH-PROPOSAL",
+        "producer": "invoke-refresh",
+        "required_fields": [
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "validation",
+          "blockers",
+          "handoff_note",
+          "residue"
+        ],
+        "stores": [
+          "refresh-report.json"
+        ],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "RECEIPT-OEWTP-RUNTIME-CONTRACT-REVIEW",
+        "producer": "bounded-read-only-helper",
+        "required_fields": [
+          "dispatch_id",
+          "capability_ref",
+          "status",
+          "validation",
+          "blockers",
+          "handoff_note",
+          "residue"
+        ],
+        "stores": [
+          "runtime-contract-review.json"
+        ],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "cyberAlchemy-v2/development/ontology-evidence-workbench-thin-prototype/planning/work-pack/session-evidence/GOAL-WP-OEWTP-001/20260729T155245Z-preflight-refresh/**",
+        "owner": "Goal preflight evidence",
+        "write_policy": "Proposal-only evidence for this run."
+      },
+      {
+        "namespace": "cyberAlchemy-v2/development/ontology-evidence-workbench-thin-prototype/planning/**",
+        "owner": "Invoke planning lifecycle",
+        "write_policy": "Read-only until exact apply-approved authorization and material validation."
+      },
+      {
+        "namespace": "cyberAlchemy-v2/implementation/ontology-evidence-workbench/**",
+        "owner": "OEW implementation",
+        "write_policy": "Read-only during preflight refresh."
+      }
+    ],
+    "promotion_splits": []
+  }
+}

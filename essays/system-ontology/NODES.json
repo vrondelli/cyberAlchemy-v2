@@ -1,0 +1,894 @@
+{
+  "schema_version": "cav2-essays-system-nodes/v1",
+  "source_graph_ref": "../domainspec-project/.domainspec/generated/graph.json",
+  "source_graph_digest": "278dd9b0be374278b2ff189c08082e48abcae59aa22e7d6cd111fa5da2ff0118",
+  "nodes": [
+    {
+      "node_id": "essays-runtime.AddressableEditorialReview",
+      "feature_id": "essays-runtime",
+      "kind": "Entity",
+      "intent": "Own one review pass whose comments are anchored to stable essay blocks and whose resolutions remain explicit rather than silently rewriting prose.",
+      "body": {
+        "fields": [
+          {
+            "name": "review_id",
+            "type": "EditorialReviewId",
+            "identity": true
+          },
+          {
+            "name": "essay_ref",
+            "type": "EssayId",
+            "identity": false
+          },
+          {
+            "name": "reviewed_revision",
+            "type": "RevisionNumber",
+            "identity": false
+          },
+          {
+            "name": "open_comment_count",
+            "type": "Count",
+            "identity": false
+          },
+          {
+            "name": "status",
+            "type": "ReviewStatus",
+            "identity": false
+          }
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.CaptureTextIntent",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Accept a writer-authored Text Intent into the workspace as the bounded meaning substrate for later composition.",
+      "body": {
+        "state_change": "yes"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.CompositionPlan",
+      "feature_id": "essays-runtime",
+      "kind": "Value Object",
+      "intent": "Describe the accepted rhetorical movement, section purposes, evidence obligations, and review risks without becoming draft prose.",
+      "body": {
+        "fields": [
+          {
+            "name": "movements",
+            "type": "CompositionMovementSet",
+            "required": true,
+            "identity": false,
+            "description": "Ordered rhetorical movements and section purposes."
+          },
+          {
+            "name": "evidence_obligations",
+            "type": "EvidenceObligationSet",
+            "required": false,
+            "identity": false,
+            "description": "Claims that require evidence or qualification."
+          },
+          {
+            "name": "review_risks",
+            "type": "ReviewRiskSet",
+            "required": false,
+            "identity": false,
+            "description": "Likely structure, tone, and argument risks."
+          }
+        ],
+        "equality": "Two Composition Plans are equal only when all ordered movements and obligation sets are equal."
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.CompositionPlanGenerated",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that a writer-approved Composition Plan was accepted into workspace state.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.CreateEssayWorkspace",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Create one empty Essay Workspace for a writer without importing editor, publication, or collaboration state.",
+      "body": {
+        "state_change": "yes",
+        "creation_targets": [
+          "essays-runtime.EssayWorkspace"
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.DraftRevisionSaved",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that a writer-approved Markdown revision and stable block index were saved.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EditorialResidue",
+      "feature_id": "essays-runtime",
+      "kind": "Entity",
+      "intent": "Preserve unresolved editorial, validation, provenance, and confidence gaps so an export cannot imply that open uncertainty disappeared.",
+      "body": {
+        "fields": [
+          {
+            "name": "residue_id",
+            "type": "EditorialResidueId",
+            "identity": true
+          },
+          {
+            "name": "essay_ref",
+            "type": "EssayId",
+            "identity": false
+          },
+          {
+            "name": "items",
+            "type": "EditorialResidueItemSet",
+            "identity": false
+          },
+          {
+            "name": "blocking_count",
+            "type": "Count",
+            "identity": false
+          }
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EditorialResidueViewModel",
+      "feature_id": "essays-runtime",
+      "kind": "View Model",
+      "intent": "Project blocking and non-blocking residue into an export-readiness summary while preserving domain validation authority in the runtime.",
+      "body": {
+        "typed_fields": "blocking_count:number,items:residue-item-list,export_ready:boolean",
+        "source_refs": "EditorialResidue.items,EditorialResidue.blocking_count",
+        "display_context": "validation-and-export-rail",
+        "display_roles": "blocker-summary,residue-list,export-readiness",
+        "domain_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EditorialReviewOpened",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that an addressable review was opened against an exact essay revision.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EditorialReviewResolved",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that every review comment received an explicit writer disposition.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EditorialReviewViewModel",
+      "feature_id": "essays-runtime",
+      "kind": "View Model",
+      "intent": "Project review status and block-anchored observations into a filterable review rail without applying or resolving comments.",
+      "body": {
+        "typed_fields": "review_id:id,status:status,reviewed_revision:number,comments:review-comment-list,open_count:number",
+        "source_refs": "AddressableEditorialReview,ReviewComment",
+        "display_context": "editorial-review-rail",
+        "display_roles": "filterable-list,severity-marker,block-anchor,resolution-control",
+        "domain_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EditorPane",
+      "feature_id": "essays-runtime",
+      "kind": "Component",
+      "intent": "Present intent, plan, and the Markdown writing surface as one focused editorial plane while emitting only proposed lifecycle intents.",
+      "body": {
+        "typed_inputs": "EssayWorkspaceViewModel,EssayDraftViewModel",
+        "typed_outputs": "ProposedMarkdownRevision,EssayLifecycleIntent",
+        "independent_route": "false",
+        "domain_data_authority": "false",
+        "validation_authority": "false",
+        "access_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayDraftViewModel",
+      "feature_id": "essays-runtime",
+      "kind": "View Model",
+      "intent": "Project accepted Markdown, revision, block anchors, validation status, and dirty-state comparison into the editor without becoming the source of truth.",
+      "body": {
+        "typed_fields": "markdown:markdown,revision:number,block_index:block-index,validation_status:status,dirty:boolean",
+        "source_refs": "ReviewableEssay.markdown,ReviewableEssay.revision,ReviewableEssay.block_index,ReviewableEssay.validation_status",
+        "display_context": "essay-editor",
+        "display_roles": "editable-projection,revision-status,anchor-map",
+        "domain_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayExported",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that one exact reviewable essay revision and residue manifest were exported without publication effect.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayLifecycleAction",
+      "feature_id": "essays-runtime",
+      "kind": "Action",
+      "intent": "Carry one explicit writer lifecycle intent through the durable runtime binding and present accepted, conflicted, blocked, or failed outcomes.",
+      "body": {
+        "intent": "perform-selected-essay-lifecycle-operation",
+        "trigger": "explicit-writer-submit",
+        "target_kind": "Binding",
+        "effect_boundary": "essay-workspace-local-write",
+        "success_outcome": "authoritative-workspace-revision-accepted",
+        "error_outcome": "conflict-blocker-or-validation-error-presented"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssaysRuntimeInterface",
+      "feature_id": "essays-runtime",
+      "kind": "Interface",
+      "intent": "Expose the local Essays query and lifecycle operations to the frontend without granting the UI or editor adapter domain authority.",
+      "body": {
+        "interface_kind": "local-application-boundary"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssaysShell",
+      "feature_id": "essays-runtime",
+      "kind": "Layout",
+      "intent": "Provide quiet shared chrome with product identity, workspace status, and primary content while keeping writing attention on the essay.",
+      "body": {
+        "slots": "product-mark,workspace-status,page-content",
+        "shared_chrome": "minimal-header",
+        "page_specific_content": "false",
+        "wrap_target": "Page"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayStarted",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that a Reviewable Essay identity and initial revision were created.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayStudioForm",
+      "feature_id": "essays-runtime",
+      "kind": "Form",
+      "intent": "Own typed intent, Markdown, review-disposition, validation, and export command inputs with one shared error contract for the studio.",
+      "body": {
+        "typed_fields": "operation:EssayLifecycleOperation,payload:EssayLifecyclePayload,expected_revision:RevisionNumber",
+        "validation_contract": "essays-lifecycle-input-v1",
+        "error_contract": "essays-lifecycle-errors-v1",
+        "submission_action": "EssayLifecycleAction",
+        "target_interface": "EssaysRuntimeInterface",
+        "error_mapping": "runtime-problem-to-field-or-workspace-error"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayStudioPage",
+      "feature_id": "essays-runtime",
+      "kind": "Page",
+      "intent": "Own the terminal workspace route where a writer moves through intent, plan, draft, review, validation, residue, and export without leaving the essay context.",
+      "body": {
+        "route_path": "/essays/:workspaceId",
+        "terminal": "true",
+        "access_context": "local-writer",
+        "primary_content": "essay-studio",
+        "layout_ref": "EssaysShell",
+        "unit_inventory": "StudioFrame,EssayStudioForm"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayValidated",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that one exact essay revision was validated and its residue preserved.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayWorkspace",
+      "feature_id": "essays-runtime",
+      "kind": "Entity",
+      "intent": "Own one essay-making context, its accepted artifact identities, lifecycle state, and current authoritative revisions without delegating domain authority to the editor adapter.",
+      "body": {
+        "fields": [
+          {
+            "name": "workspace_id",
+            "type": "EssayWorkspaceId",
+            "identity": true
+          },
+          {
+            "name": "title",
+            "type": "Text",
+            "identity": false
+          },
+          {
+            "name": "lifecycle_stage",
+            "type": "EssayLifecycleStage",
+            "identity": false
+          },
+          {
+            "name": "current_revision",
+            "type": "RevisionNumber",
+            "identity": false
+          }
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayWorkspaceBinding",
+      "feature_id": "essays-runtime",
+      "kind": "Binding",
+      "intent": "Bind the studio to the local Essays interface with explicit operation selection, revision preconditions, deterministic result projection, and workspace-scoped invalidation.",
+      "body": {
+        "mode": "fetch-and-mutate",
+        "target_kind": "Query|Operation",
+        "target_ref": "OpenEssayWorkspace|CreateEssayWorkspace|StartEssay|CaptureTextIntent|GenerateCompositionPlan|SaveDraftRevision|OpenEditorialReview|ResolveEditorialReview|ValidateEssay|ExportReviewableEssay",
+        "trigger": "workspace-open-or-explicit-lifecycle-submit",
+        "parameter_mapping": "studio-form-to-runtime-command-with-expected-revision",
+        "result_mapping": "runtime-workspace-view-to-studio-view-models",
+        "cache_key": "essay-workspace-id-and-revision",
+        "invalidation": "accepted-workspace-revision-only"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.EssayWorkspaceViewModel",
+      "feature_id": "essays-runtime",
+      "kind": "View Model",
+      "intent": "Project workspace title, lifecycle stage, revision, intent summary, and composition-plan progress for display without owning those meanings.",
+      "body": {
+        "typed_fields": "title:string,lifecycle_stage:stage,current_revision:number,intent_summary:string,plan_progress:string",
+        "source_refs": "EssayWorkspace.title,EssayWorkspace.lifecycle_stage,EssayWorkspace.current_revision,TextIntent,CompositionPlan",
+        "display_context": "essay-studio-header-and-intent",
+        "display_roles": "label,status,progress,summary",
+        "domain_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ExportReviewableEssay",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Export an exact writer-approved essay revision with its review and residue manifest after the export gate passes, without implying publication.",
+      "body": {
+        "state_change": "yes"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.GenerateCompositionPlan",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Propose a Composition Plan from the accepted Text Intent while requiring explicit writer acceptance before it becomes authoritative workspace state.",
+      "body": {
+        "state_change": "yes"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.HumanEditorialAuthorityRule",
+      "feature_id": "essays-runtime",
+      "kind": "Rule",
+      "intent": "Allow generated plans, draft revisions, and review resolutions to change authoritative essay state only after explicit writer acceptance.",
+      "body": {
+        "formal_return_type": "boolean"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.InspectProductModel",
+      "feature_id": "essays-runtime",
+      "kind": "Query",
+      "intent": "Read the current immutable Product Model Snapshot for display without editing semantic sources, changing authority, or inferring admission.",
+      "body": {
+        "state_change": "no"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.OpenEditorialReview",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Create one review pass bound to an exact essay revision and populate only addressable observations rather than silently rewriting the essay.",
+      "body": {
+        "state_change": "yes",
+        "creation_targets": [
+          "essays-runtime.AddressableEditorialReview"
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.OpenEssayWorkspace",
+      "feature_id": "essays-runtime",
+      "kind": "Query",
+      "intent": "Read one workspace into a non-authoritative frontend view containing its accepted essay revision, review state, validation state, and residue.",
+      "body": {
+        "state_change": "no"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ProductModelBinding",
+      "feature_id": "essays-runtime",
+      "kind": "Binding",
+      "intent": "Bind the Product Model page to one immutable local snapshot query and invalidate only when the generated semantic source epoch changes.",
+      "body": {
+        "mode": "fetch",
+        "target_kind": "Query",
+        "target_ref": "InspectProductModel",
+        "trigger": "product-model-route-open",
+        "parameter_mapping": "none",
+        "result_mapping": "product-model-snapshot-to-product-model-view-model",
+        "cache_key": "product-model-source-epoch",
+        "invalidation": "generated-source-epoch-change-only"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ProductModelExplorer",
+      "feature_id": "essays-runtime",
+      "kind": "Component",
+      "intent": "Present searchable read-only collections for definitions, products, projects, and ontologies with a compact detail view and explicit source and authority limits.",
+      "body": {
+        "typed_inputs": "ProductModelViewModel",
+        "typed_outputs": "SemanticRecordSelectionIntent",
+        "independent_route": "false",
+        "domain_data_authority": "false",
+        "validation_authority": "false",
+        "access_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ProductModelPage",
+      "feature_id": "essays-runtime",
+      "kind": "Page",
+      "intent": "Own the local inspect-only route where a person can navigate Essays definitions, products, projects, and ontologies without receiving edit or admission controls.",
+      "body": {
+        "route_path": "/product-model",
+        "terminal": "true",
+        "access_context": "local-reader",
+        "primary_content": "product-model-explorer",
+        "layout_ref": "EssaysShell",
+        "unit_inventory": "ProductModelExplorer"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ProductModelRecord",
+      "feature_id": "essays-runtime",
+      "kind": "Value Object",
+      "intent": "Project one semantic record for inspection while preserving its kind, identity, label, status, meaning, owner route, provenance, boundary, and claim ceiling.",
+      "body": {
+        "fields": [
+          {
+            "name": "kind",
+            "type": "Definition|Product|Project|Ontology",
+            "required": true,
+            "identity": false,
+            "description": "The non-collapsible semantic collection."
+          },
+          {
+            "name": "record_id",
+            "type": "SemanticRecordId",
+            "required": true,
+            "identity": false,
+            "description": "The stable source identity."
+          },
+          {
+            "name": "label",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The human-readable name."
+          },
+          {
+            "name": "status",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The source-owned lifecycle or admission posture."
+          },
+          {
+            "name": "meaning",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The source-owned or explicitly candidate meaning."
+          },
+          {
+            "name": "owner_route",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The route that owns challenges or changes."
+          },
+          {
+            "name": "source_refs",
+            "type": "ReferenceSet",
+            "required": true,
+            "identity": false,
+            "description": "Exact provenance locators."
+          },
+          {
+            "name": "boundary",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "What the projected record must not be collapsed into."
+          },
+          {
+            "name": "claim_ceiling",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The strongest claim this projection supports."
+          }
+        ],
+        "equality": "Two Product Model Records are equal only when every projected field and source epoch are equal."
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ProductModelSnapshot",
+      "feature_id": "essays-runtime",
+      "kind": "Entity",
+      "intent": "Own one immutable, version-identified projection of the definitions, products, projects, and ontologies bound to the current Essays runtime candidate without owning their source meaning.",
+      "body": {
+        "fields": [
+          {
+            "name": "snapshot_id",
+            "type": "ProductModelSnapshotId",
+            "identity": true
+          },
+          {
+            "name": "source_epoch",
+            "type": "Digest",
+            "identity": false
+          },
+          {
+            "name": "generated_at",
+            "type": "Timestamp",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "AuthorityEffectNone",
+            "identity": false
+          }
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ProductModelViewModel",
+      "feature_id": "essays-runtime",
+      "kind": "View Model",
+      "intent": "Group Product Model Records into definition, product, project, and ontology collections while keeping source epoch, statuses, owners, provenance, boundaries, and claim ceilings visible.",
+      "body": {
+        "typed_fields": "snapshot_id:string,source_epoch:digest,definitions:ProductModelRecord[],products:ProductModelRecord[],projects:ProductModelRecord[],ontologies:ProductModelRecord[]",
+        "source_refs": "ProductModelSnapshot,ProductModelRecord",
+        "display_context": "product-model-page",
+        "display_roles": "navigation,identity,status,meaning,owner,provenance,boundary,claim-ceiling",
+        "domain_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ResiduePanel",
+      "feature_id": "essays-runtime",
+      "kind": "Component",
+      "intent": "Keep unresolved editorial and validation gaps visible at the export edge without competing with the primary writing surface.",
+      "body": {
+        "typed_inputs": "EditorialResidueViewModel",
+        "typed_outputs": "ResidueInspectionIntent",
+        "independent_route": "false",
+        "domain_data_authority": "false",
+        "validation_authority": "false",
+        "access_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ResolveEditorialReview",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Record the writer's explicit disposition for each review comment and accept only writer-approved prose changes into a new essay revision.",
+      "body": {
+        "state_change": "yes"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ReviewableEssay",
+      "feature_id": "essays-runtime",
+      "kind": "Entity",
+      "intent": "Preserve the authoritative Markdown revision, stable block identities, validation status, and export eligibility of one essay under human editorial control.",
+      "body": {
+        "fields": [
+          {
+            "name": "essay_id",
+            "type": "EssayId",
+            "identity": true
+          },
+          {
+            "name": "markdown",
+            "type": "Markdown",
+            "identity": false
+          },
+          {
+            "name": "block_index",
+            "type": "StableBlockIndex",
+            "identity": false
+          },
+          {
+            "name": "revision",
+            "type": "RevisionNumber",
+            "identity": false
+          },
+          {
+            "name": "validation_status",
+            "type": "ValidationStatus",
+            "identity": false
+          },
+          {
+            "name": "export_eligible",
+            "type": "Boolean",
+            "identity": false
+          }
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ReviewComment",
+      "feature_id": "essays-runtime",
+      "kind": "Value Object",
+      "intent": "Carry one immutable review observation with category, severity, block anchor, reasoning, proposed action, and resolution disposition.",
+      "body": {
+        "fields": [
+          {
+            "name": "category",
+            "type": "ReviewCategory",
+            "required": true,
+            "identity": false,
+            "description": "Structure, clarity, argument, tone, evidence, wording, or technical."
+          },
+          {
+            "name": "severity",
+            "type": "ReviewSeverity",
+            "required": true,
+            "identity": false,
+            "description": "Blocking, major, or minor."
+          },
+          {
+            "name": "block_ref",
+            "type": "StableBlockId",
+            "required": true,
+            "identity": false,
+            "description": "The stable essay block under review."
+          },
+          {
+            "name": "reasoning",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "Why the observation matters."
+          },
+          {
+            "name": "proposed_action",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "A suggested action, never a silent rewrite."
+          },
+          {
+            "name": "disposition",
+            "type": "ReviewDisposition",
+            "required": true,
+            "identity": false,
+            "description": "Open, accepted, rejected-with-reason, or resolved."
+          }
+        ],
+        "equality": "Two Review Comments are equal only when every field is equal."
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ReviewRail",
+      "feature_id": "essays-runtime",
+      "kind": "Component",
+      "intent": "Present addressable review comments next to their stable blocks and collect explicit writer dispositions without applying prose changes automatically.",
+      "body": {
+        "typed_inputs": "EditorialReviewViewModel",
+        "typed_outputs": "ReviewDispositionIntent",
+        "independent_route": "false",
+        "domain_data_authority": "false",
+        "validation_authority": "false",
+        "access_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ReviewResolutionRule",
+      "feature_id": "essays-runtime",
+      "kind": "Rule",
+      "intent": "Allow validation and export only when every blocking review comment has an explicit disposition and all remaining uncertainty is preserved as residue.",
+      "body": {
+        "formal_return_type": "boolean"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.SaveDraftRevision",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Accept one writer-approved Markdown revision, rebuild its stable block index, and preserve earlier revisions without allowing editor state to become authoritative.",
+      "body": {
+        "state_change": "yes"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.StartEssay",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Create one Reviewable Essay identity inside an existing workspace with an initial deterministic Markdown revision and stable block index.",
+      "body": {
+        "state_change": "yes",
+        "creation_targets": [
+          "essays-runtime.ReviewableEssay"
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.StudioFrame",
+      "feature_id": "essays-runtime",
+      "kind": "Component",
+      "intent": "Arrange the editor as primary content with review and residue as contextual rails, exposing lifecycle actions without turning workflow into navigation clutter.",
+      "body": {
+        "typed_inputs": "EssayWorkspaceViewModel,EssayDraftViewModel,EditorialReviewViewModel,EditorialResidueViewModel",
+        "typed_outputs": "EssayLifecycleIntent",
+        "independent_route": "false",
+        "domain_data_authority": "false",
+        "validation_authority": "false",
+        "access_authority": "false"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.TextIntent",
+      "feature_id": "essays-runtime",
+      "kind": "Value Object",
+      "intent": "Capture the audience, purpose, thesis direction, constraints, tone, and evidence posture that bound composition before prose is drafted.",
+      "body": {
+        "fields": [
+          {
+            "name": "audience",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The people the essay must serve."
+          },
+          {
+            "name": "purpose",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The change in understanding or action the essay should produce."
+          },
+          {
+            "name": "thesis_direction",
+            "type": "Text",
+            "required": true,
+            "identity": false,
+            "description": "The provisional central claim or inquiry."
+          },
+          {
+            "name": "constraints",
+            "type": "TextSet",
+            "required": false,
+            "identity": false,
+            "description": "Length, form, tone, privacy, and evidence constraints."
+          }
+        ],
+        "equality": "Two Text Intents are equal only when every field is equal."
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.TextIntentCaptured",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that the writer accepted a Text Intent into workspace state.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.ValidateEssay",
+      "feature_id": "essays-runtime",
+      "kind": "Operation",
+      "intent": "Evaluate structure, unresolved review, provenance, and declared constraints for one exact essay revision and preserve every remaining gap as Editorial Residue.",
+      "body": {
+        "state_change": "yes",
+        "creation_targets": [
+          "essays-runtime.EditorialResidue"
+        ]
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.WorkspaceCreated",
+      "feature_id": "essays-runtime",
+      "kind": "Event",
+      "intent": "Record that an Essay Workspace was created successfully.",
+      "body": {
+        "temporal": "past"
+      },
+      "authority_effect": "none"
+    },
+    {
+      "node_id": "essays-runtime.Writer",
+      "feature_id": "essays-runtime",
+      "kind": "Entity",
+      "intent": "Represent the human author who initiates essay lifecycle operations and retains final editorial authority over every accepted artifact.",
+      "body": {
+        "fields": [
+          {
+            "name": "writer_id",
+            "type": "WriterId",
+            "identity": true
+          },
+          {
+            "name": "display_name",
+            "type": "Text",
+            "identity": false
+          }
+        ]
+      },
+      "authority_effect": "none"
+    }
+  ]
+}

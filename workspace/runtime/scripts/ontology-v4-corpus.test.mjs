@@ -1,0 +1,20 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp} from 'node:fs/promises';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {V4,readSnapshot} from './ontology-v4-adapter.mjs';
+test('real corpus views and fresh event updates in an isolated test store',async()=>{
+  const root=await mkdtemp('/tmp/ontology-ui-corpus-');const store=root+'/store';
+  const exec=promisify(execFile);
+  const run=(...args)=>exec(`${V4}/target/release/cal-ontology-source-runtime`,args,{maxBuffer:128*1024*1024,timeout:60000});
+  await run('import',`${V4}/source-manifest.json`,store);
+  const before=await readSnapshot({store});assert.equal(before.packages.length,21);assert.equal(before.nodes.length,815);
+  assert.equal(before.views.length,41);assert.ok(before.views.every(v=>!v.error));
+  assert.ok(before.views.filter(v=>v.kind==='graph').every(v=>v.relationIds.length>0));
+  await run('apply',store,`${V4}/commands/create.json`);
+  await run('apply',store,`${V4}/commands/update.json`);
+  const after=await readSnapshot({store});assert.notEqual(after.head,before.head);assert.equal(after.nodes.length,816);
+  assert.ok(after.nodes.some(n=>n.label==='Updated through a canonical event'));
+  console.log(`Isolated test events retained for inspection: ${store}`);
+});

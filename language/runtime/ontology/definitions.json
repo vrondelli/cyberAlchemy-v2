@@ -1,0 +1,363 @@
+{
+  "schema_ref": "schemas/language-runtime-product-ontology.schema.json#/$defs/candidateDefinitionRegistry",
+  "schema_version": "cav2-language-runtime-product-ontology-candidate-definitions/v1",
+  "authority_posture": "ontology-candidate-not-canonical",
+  "definitions": [
+    {
+      "id": "LRPO-DEF-RESUMABLE-LANGUAGE-SESSION-KERNEL",
+      "term": "Resumable Language Session Kernel",
+      "subject_ref": "CA2-SYS-RESUMABLE-LANGUAGE-SESSION-KERNEL",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "A Resumable Language Session Kernel is the smallest proposed system boundary that accepts one validated Language Session State and one explicit Language Session Command, returns either a rejected command or one validated next state plus one transport-neutral Question View or no-active-question result, and preserves the same state and active question across a valid restart.",
+        "expression": "K : State x Command -> Rejected | (NextState x (QuestionView | NoActiveQuestion))",
+        "symbols": [
+          {"symbol": "K", "meaning": "the candidate deterministic session transition boundary"},
+          {"symbol": "State", "meaning": "one validated Language Session State at an explicit revision"},
+          {"symbol": "Command", "meaning": "one explicit typed request from an identified actor"},
+          {"symbol": "QuestionView", "meaning": "one channel-neutral projection of the active Question Record"}
+        ],
+        "boundary_conditions": [
+          "The transition has no hidden clock, generated identity, network call, or file write.",
+          "Restart continuity uses one single-process, single-writer atomic store.",
+          "A rejected or stale command does not overwrite the last valid state."
+        ]
+      },
+      "plain_language_voice": "It is the smallest part that can take the current language work, apply one clear action, and safely tell us what the next question is even after a restart.",
+      "domain_context_voice": "In the CyberAlchemy Language Project, this is Layer 0 of the proposed interactive Define experiment. It sits below CLI and chat presentation and above the Session State, transition engine, and local store.",
+      "operational_interpretation": "Use this candidate when designing the first implementation slice. Prove deterministic transition and restart continuity before adding CLI presentation, live chat transport, artifact emission, concurrency, or reuse outside Language.",
+      "forbidden_collapse": "Not the whole Language Runtime, not a CLI, not a chat adapter, not the Language Session aggregate, not an accepted Runtime Contract, and not implementation evidence.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "a restart restores the visible state"},
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "same question has one stable identity in CLI and chat"}
+      ],
+      "owner_route": "candidate CyberAlchemy v2 Language Runtime owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-LANGUAGE-SESSION-COMMAND",
+      "term": "Language Session Command",
+      "subject_ref": "CA2-SYS-LANGUAGE-SESSION-COMMAND",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "A Language Session Command is one explicit, typed request to change or inspect a Language Session at an expected revision, preserving the actor, command kind, target question when applicable, payload, and provenance.",
+        "expression": "Command = (session_id, expected_revision, actor, kind, target_ref?, payload?, provenance)",
+        "symbols": [
+          {"symbol": "expected_revision", "meaning": "the state revision against which the command is valid"},
+          {"symbol": "kind", "meaning": "answer, defer, withdraw, challenge, review, or resume"},
+          {"symbol": "target_ref", "meaning": "the stable question or review subject addressed by the command"}
+        ],
+        "boundary_conditions": [
+          "Suggestions and inferred context are not user commands.",
+          "An owner decision remains distinct from a user answer.",
+          "A stale revision fails closed."
+        ]
+      },
+      "plain_language_voice": "A command is one visible action the person or system asks the session to perform, with enough identity to prevent applying it to the wrong state.",
+      "domain_context_voice": "In the first Language Runtime slice, commands carry answer, defer, withdraw, challenge, review, and resume actions from the CLI or a later chat adapter into the same kernel.",
+      "operational_interpretation": "Use commands as the only state-changing input to the pure transition boundary. Do not let renderers, suggestions, or storage callbacks mutate Session State directly.",
+      "forbidden_collapse": "Not a Language Answer, not a suggestion, not an owner decision, not a transport message, and not proof that an action was accepted.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "a user answer changes the session state"},
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "the user can challenge the proposed concept or evidence"}
+      ],
+      "owner_route": "candidate CyberAlchemy v2 Language Runtime owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-LANGUAGE-QUESTION-VIEW",
+      "term": "Language Question View",
+      "subject_ref": "CA2-SYS-LANGUAGE-QUESTION-VIEW",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "A Language Question View is a transport-neutral, read-only projection of one active Language Question Record at one Session revision, carrying the same session identity, question identity, meaning, evidence and owner references, status, and allowed commands for every presentation channel.",
+        "expression": "QuestionView = project(SessionState, active_question_id, revision)",
+        "symbols": [
+          {"symbol": "project", "meaning": "a deterministic read-only projection that does not create a second question truth"},
+          {"symbol": "revision", "meaning": "the Session State revision represented by the view"}
+        ],
+        "boundary_conditions": [
+          "CLI and chat receive the same Question View identity and meaning.",
+          "Rendering may change layout but not meaning, provenance, owner, or allowed action semantics.",
+          "The view cannot mutate Session State."
+        ]
+      },
+      "plain_language_voice": "It is one question package that different interfaces can show in their own style without creating different versions of the question.",
+      "domain_context_voice": "The interactive CLI renders this view directly. The first chat proof serializes the same view as JSON; real chat transport remains deferred.",
+      "operational_interpretation": "Use Question View as the only renderer input for the current question. Test that CLI and chat projection fixtures preserve session_id, question_id, revision, meaning, evidence, owner, and allowed commands.",
+      "forbidden_collapse": "Not the business Language Question, not the Question Record, not a chat message, not a CLI screen, and not a second state store.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "same question has one stable identity in CLI and chat"},
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "without changing the question's meaning or identity"}
+      ],
+      "owner_route": "candidate CyberAlchemy v2 Language Runtime owner plus interface owners",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-REVIEW-BEFORE-CANDIDATE-EMISSION",
+      "term": "Review Before Candidate Emission",
+      "subject_ref": "CA2-RULE-REVIEW-BEFORE-CANDIDATE-EMISSION",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "Review Before Candidate Emission is the product rule that a draft preview may be created from unreviewed state, but materializing a Language candidate requires explicit review of the exact Session State revision, state digest, and preview digest in which every output-affecting concept has a visible disposition and every unresolved matter remains typed and visible. Any output-affecting state or preview change invalidates that review binding.",
+        "expression": "materialize(preview) is allowed only if review_token = H(session_id, revision, state_digest, preview_digest) and visible_residue(state)",
+        "symbols": [
+          {"symbol": "review_token", "meaning": "the explicit review binding for one exact Session State revision and candidate preview"},
+          {"symbol": "visible_residue(s)", "meaning": "unresolved output-affecting meaning is preserved rather than omitted"}
+        ],
+        "boundary_conditions": [
+          "Review does not mean owner acceptance or canonical promotion.",
+          "Draft preview is allowed before review; materialized candidate emission is not.",
+          "Preview and emission remain candidate-only effects.",
+          "Unresolved concepts cannot silently disappear from the candidate.",
+          "Any Session State or preview change invalidates the prior review token."
+        ]
+      },
+      "plain_language_voice": "The system may show a draft first. It may write the candidate only after someone reviews that exact draft and can still see what remains unresolved.",
+      "domain_context_voice": "For the first experiment, the review state must preserve the Governance Policy mappings, their sources and owners, and the unresolved Rule Review Recommendation before producing a Definition Pack candidate.",
+      "operational_interpretation": "Allow deterministic draft preview generation. Use the exact review token as the materialization precondition and test that stale, changed, unreviewed, or residue-dropping previews cannot be emitted as candidate artifacts.",
+      "forbidden_collapse": "Not owner acceptance, definition promotion, publication approval, or evidence that the candidate is correct.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "Review the whole set before handoff"},
+        {"source_id": "SRC-LRPO-DEFINE-CONTRACT", "selector": "## Boundaries"}
+      ],
+      "owner_route": "CyberAlchemy v2 Language Project owner plus CyberAlchemy v2 Define output owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-ATOMIC-SINGLE-WRITER-SESSION-STORE",
+      "term": "Atomic Single-Writer Language Session Store",
+      "subject_ref": "CA2-SYS-LANGUAGE-SESSION-STORE",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "An Atomic Single-Writer Language Session Store is the first persistence boundary in which one local process writes one validated JSON Session State at a time, advances only from the expected revision, and rejects a stale, truncated, corrupt, or invalid candidate replacement while retaining the prior valid bytes under that single-process replacement protocol.",
+        "expression": "save(expected_revision, next_state) -> committed(new_revision) | rejected",
+        "symbols": [
+          {"symbol": "expected_revision", "meaning": "the currently committed revision required for the write"},
+          {"symbol": "committed", "meaning": "the complete validated replacement became the recoverable state"}
+        ],
+        "boundary_conditions": [
+          "Exactly one process and one writer are assumed.",
+          "The carrier is local JSON for the first experiment.",
+          "Crash, power-loss, filesystem, and hardware durability are not claimed without platform evidence.",
+          "Concurrent writers, database transactions, event sourcing, and distributed recovery are outside this candidate."
+        ]
+      },
+      "plain_language_voice": "It saves one complete valid session safely and refuses a broken or out-of-date replacement instead of damaging the last good copy.",
+      "domain_context_voice": "This store is included in Layer 0 because restart continuity is central to the Language Runtime product claim. It does not justify IPC, a database, or multi-user coordination.",
+      "operational_interpretation": "Use one atomic replacement protocol and validate before commit. A restart must restore the same session revision and active question identity.",
+      "forbidden_collapse": "Not Session State, not the Session aggregate, not an event ledger, not a database architecture, and not a concurrency solution.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "a restart restores the visible state"},
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "Preserve the same session state for recovery"}
+      ],
+      "owner_route": "candidate CyberAlchemy v2 Language Runtime owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-LANGUAGE-RUNTIME-CONTRACT-CANDIDATE",
+      "term": "Language Runtime Contract Candidate",
+      "subject_ref": "CA2-SYS-LANGUAGE-RUNTIME-CONTRACT-CANDIDATE",
+      "definition_status": "candidate",
+      "authority_kind_ref": "kind.runtime_contract",
+      "formal_voice": {
+        "normative_candidate": "A Language Runtime Contract Candidate is a proposed closed JSON contract that binds the first runtime boundary, accepted inputs and outputs, state and identity invariants, failure behavior, owner route, claim ceiling, and required validation without authorizing implementation or execution.",
+        "expression": "RuntimeContractCandidate = (boundary, inputs, outputs, invariants, failures, owner, validation, claim_ceiling)",
+        "symbols": [
+          {"symbol": "boundary", "meaning": "the exact candidate runtime surface being specified"},
+          {"symbol": "invariants", "meaning": "conditions every conforming implementation would have to preserve"},
+          {"symbol": "claim_ceiling", "meaning": "what contract validation cannot establish"}
+        ],
+        "boundary_conditions": [
+          "The candidate is not accepted until the selected runtime owner and project route admit it.",
+          "A contract does not prove an implementation exists or conforms.",
+          "Generated projections cannot become the contract source of truth."
+        ]
+      },
+      "plain_language_voice": "It is the proposed agreement for what the first runtime must accept, produce, preserve, and reject before anyone writes the runtime.",
+      "domain_context_voice": "The first contract candidate should specify only the Resumable Language Session Kernel, atomic local store, Question View, and experiment-facing evidence. CLI presentation and real chat transport remain later layers.",
+      "operational_interpretation": "Author this candidate only after the Language Project selects a runtime owner and implementation Project. Route acceptance through the owner gates named by the Runtime Contract authority kind.",
+      "forbidden_collapse": "Not an accepted Runtime Contract, not source code, not implementation admission, not a generated mirror, and not runtime conformance evidence.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-AUTHORITY-KINDS", "selector": "kind.runtime_contract"},
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "evidence that the wizard runtime exists"}
+      ],
+      "owner_route": "task-session after Language Project and selected Language Runtime owner gates",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-RESOLVE-BOUNDED-LANGUAGE-CONTEXT",
+      "term": "Resolve Bounded Language Context",
+      "subject_ref": "CA2-CAP-RESOLVE-LANGUAGE-CONTEXT",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "Resolve Bounded Language Context is the product capability that, for one identified Language, bounded context, intended use, and exact source epoch, returns one Language Context View containing every usable explicit meaning, realization, relationship, owner, evidence, conflict, and blocked-use binding, while preserving missing, stale, ambiguous, conflicting, and owner-unresolved bindings as visible gaps.",
+        "expression": "resolve(Language, Context, IntendedUse, SourceEpoch) -> LanguageContextView | VisibleGap",
+        "symbols": [
+          {"symbol": "SourceEpoch", "meaning": "the exact set of source identities and content digests used to resolve the view"},
+          {"symbol": "VisibleGap", "meaning": "a missing, stale, ambiguous, conflicting, or owner-unresolved language result that cannot be silently consumed"}
+        ],
+        "boundary_conditions": [
+          "Resolution joins only explicit registered bindings and their current dispositions.",
+          "An open realization remains open and cannot be selected by the resolver.",
+          "A source change makes an earlier view stale for continued use.",
+          "Resolution creates no definition, acceptance, ownership, or authority effect."
+        ]
+      },
+      "plain_language_voice": "It prepares the exact language the current work may use and points out anything the language still cannot answer.",
+      "domain_context_voice": "For the Governance example, it joins the Governance Language with meaning, DomainSpec realization, relationship, and authority bindings without deciding the open Rule Review Recommendation classification.",
+      "operational_interpretation": "Use this capability before Define reuses or proposes domain meaning. Bind the result to exact sources and fail closed when a required binding is absent, stale, conflicting, or open.",
+      "forbidden_collapse": "Not a semantic search guess, canonical definition source, DomainSpec model selector, permission resolver, accepted request/view contract, or runtime implementation.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-NODES", "selector": "CA2-CAP-RESOLVE-LANGUAGE-CONTEXT"},
+        {"source_id": "SRC-LRPO-LANGUAGE-MEANING-BINDINGS", "selector": "business_meaning"},
+        {"source_id": "SRC-LRPO-LANGUAGE-REALIZATION-BINDINGS", "selector": "selected_domainspec_type_ref"},
+        {"source_id": "SRC-LRPO-LANGUAGE-EDGE-VOCABULARY", "selector": "known_conflicts"},
+        {"source_id": "SRC-LRPO-LANGUAGE-AUTHORITY-BINDINGS", "selector": "blocked_use"}
+      ],
+      "owner_route": "CyberAlchemy v2 Language Project owner plus bounded-context language owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-LANGUAGE-CONTEXT-VIEW",
+      "term": "Language Context View",
+      "subject_ref": "CA2-OUTPUT-LANGUAGE-CONTEXT-VIEW",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "A Language Context View is one immutable, read-only product view for an identified Language, bounded context, intended use, and source epoch that carries exact source digests, usable expression and concept identities, business, domain, and product meanings, realization dispositions, relationship vocabulary and conflicts, owners, evidence, blocked uses, visible gaps, and a freshness state.",
+        "expression": "LanguageContextView = (view_id, language_ref, context_ref, intended_use, source_epoch, bindings, conflicts, blocked_uses, gaps, freshness)",
+        "symbols": [
+          {"symbol": "bindings", "meaning": "explicit meaning, realization, relationship, owner, and evidence references usable by the consumer"},
+          {"symbol": "freshness", "meaning": "whether every source digest still matches the epoch that produced the view"}
+        ],
+        "boundary_conditions": [
+          "The view is bounded and cannot stand for every Language or context.",
+          "The view preserves blocked uses, conflicts, open decisions, and owner routes.",
+          "The view is stale when any relevant bound source changes.",
+          "The view is input context, not canonical meaning, mutable state, or authority."
+        ]
+      },
+      "plain_language_voice": "It is the exact language packet an agent can read for this piece of work, including what is usable and what is still unsafe to assume.",
+      "domain_context_voice": "For Governance Define work, the view can carry Governance Program, Request, Fact, and Fact Set meanings while keeping the Rule Review Recommendation realization and the produces relation conflict visibly unresolved.",
+      "operational_interpretation": "Give this view to the Define consumer with its identity and source digest. Reject silent reuse after staleness and preserve every applied binding in the resulting Definition Pack.",
+      "forbidden_collapse": "Not a copied canonical registry, accepted Definition Pack, Language Session State, authority envelope, selected open realization, or proof of correct agent interpretation.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-NODES", "selector": "CA2-OUTPUT-LANGUAGE-CONTEXT-VIEW"},
+        {"source_id": "SRC-LRPO-LANGUAGE-MEANING-BINDINGS", "selector": "business_meaning"},
+        {"source_id": "SRC-LRPO-LANGUAGE-REALIZATION-BINDINGS", "selector": "selected_domainspec_type_ref"},
+        {"source_id": "SRC-LRPO-LANGUAGE-EDGE-VOCABULARY", "selector": "known_conflicts"},
+        {"source_id": "SRC-LRPO-LANGUAGE-AUTHORITY-BINDINGS", "selector": "blocked_use"}
+      ],
+      "owner_route": "CyberAlchemy v2 Language Project owner plus consuming capability owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-DEFINE-LANGUAGE-APPLICATION",
+      "term": "Apply Bounded Language Or Expose The Gap",
+      "subject_ref": "CA2-RULE-DEFINE-LANGUAGE-APPLICATION",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "Apply Bounded Language Or Expose The Gap is the product rule that every language meaning used by Define must be an explicit usable binding in one current Language Context View and must remain traceable in the Definition Pack; every missing, stale, ambiguous, conflicting, blocked, or owner-unresolved binding remains a proposal, question, or typed residue instead of becoming an inferred equivalence or selected realization.",
+        "expression": "apply(b, v) only if b in usable(v) and fresh(v); otherwise expose_gap(b, v)",
+        "symbols": [
+          {"symbol": "usable(v)", "meaning": "the bindings explicitly usable under the view's context, intended use, disposition, and source epoch"},
+          {"symbol": "expose_gap", "meaning": "preserve the non-usable result as a visible proposal, question, or typed residue"}
+        ],
+        "boundary_conditions": [
+          "Labels and term similarity cannot create an implicit binding.",
+          "Open DomainSpec realization choices remain open.",
+          "Blocked uses and owner routes travel with applied meaning.",
+          "Successful application does not promote, accept, authorize, or prove semantic correctness."
+        ]
+      },
+      "plain_language_voice": "Use the exact language we have, and show the person when the language is missing, disputed, old, or still waiting for an owner decision.",
+      "domain_context_voice": "In Governance Define work, selected Entity and Value Object mappings may be reused, but the open Rule Review Recommendation mapping and relationship conflict must remain visible.",
+      "operational_interpretation": "Validate the consulted view before Define work and validate the Definition Pack references afterward. Negative tests must reject a silently selected open realization or omitted blocked use.",
+      "forbidden_collapse": "Not permission to guess meaning, choose an unresolved DomainSpec type, promote definitions, erase conflicts, or claim correct agent reasoning.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-PRODUCT-NODES", "selector": "CA2-RULE-DEFINE-LANGUAGE-APPLICATION"},
+        {"source_id": "SRC-LRPO-LANGUAGE-REALIZATION-BINDINGS", "selector": "selected_domainspec_type_ref"},
+        {"source_id": "SRC-LRPO-LANGUAGE-EDGE-VOCABULARY", "selector": "known_conflicts"},
+        {"source_id": "SRC-LRPO-LANGUAGE-AUTHORITY-BINDINGS", "selector": "blocked_use"}
+      ],
+      "owner_route": "CyberAlchemy v2 Define product owner plus CyberAlchemy v2 Language Project owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-DEFINITION-PACK-CANDIDATE",
+      "term": "Definition Pack Candidate",
+      "subject_ref": "CA2-OUTPUT-DEFINITION-PACK",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "A Definition Pack Candidate is an unaccepted structured output that preserves the bounded concepts required by one goal, each Language Project disposition of reuse, specialize, propose, or open, supporting and contrary evidence, owner and source references, typed relations, visible unresolved questions, and the consulted Language Context View identity, digest, source epoch, and applied binding references. When projected to public Define, reuse maps to reuse, specialize maps to specialize, propose maps to define new candidate, and open remains unresolved rather than becoming a completed Define disposition.",
+        "expression": "DefinitionPack = (concepts, evidence, owners, relations, residue, language_context_view_ref, language_context_view_digest, source_epoch, applied_binding_refs); LanguageToDefine = {reuse -> reuse, specialize -> specialize, propose -> define_new_candidate, open -> unresolved}",
+        "symbols": [
+          {"symbol": "LanguageToDefine", "meaning": "the explicit projection from Language Project dispositions to public Define dispositions or unresolved residue"},
+          {"symbol": "residue", "meaning": "required meaning that remains unresolved or unsupported"},
+          {"symbol": "language_context_view_ref", "meaning": "the stable identity of the exact bounded Language Context View consulted by Define"},
+          {"symbol": "applied_binding_refs", "meaning": "the exact meaning, realization, relationship, and authority bindings reused by the Definition Pack"}
+        ],
+        "boundary_conditions": [
+          "Every concept required by the goal is present or explicitly unresolved.",
+          "Language Project propose is a package-local projection of public Define define new; open remains unresolved.",
+          "Candidate definitions retain provenance and owner routes.",
+          "The Language Context View identity, digest, source epoch, and applied binding references remain explicit in the candidate.",
+          "Emission does not imply acceptance, canonical definition, Design approval, or execution authority."
+        ]
+      },
+      "plain_language_voice": "It is the complete review package of proposed meanings and visible open questions, not the final approved definitions.",
+      "domain_context_voice": "For the first Language Runtime experiment, this is the exact candidate output to compare against the Governance Policy exercise while preserving its unresolved Rule Review Recommendation.",
+      "operational_interpretation": "Use this as the first emitter target after reviewed state. Score preservation of bounded context, concept dispositions, evidence, owners, relations, unresolved residue, and the exact Language Context View and applied binding references.",
+      "forbidden_collapse": "Not canonical definitions, not an accepted Definition Pack, not a glossary projection, and not proof that Define succeeded.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-DEFINE-CONTRACT", "selector": "## Result"},
+        {"source_id": "SRC-LRPO-DEFINE-CONTRACT", "selector": "reuse, specialize, propose, or open"},
+        {"source_id": "SRC-LRPO-LANGUAGE-PRACTICE", "selector": "reuse, specialize, propose, or open"},
+        {"source_id": "SRC-LRPO-PRODUCT-JOURNEYS", "selector": "Definition Pack candidate"}
+      ],
+      "owner_route": "CyberAlchemy v2 Define product owner plus bounded-context meaning owner",
+      "authority_effect": "none"
+    },
+    {
+      "id": "LRPO-DEF-FIRST-LANGUAGE-RUNTIME-EXPERIMENT-FRAME",
+      "term": "First Language Runtime Experiment Frame",
+      "subject_ref": "CA2-SYS-LANGUAGE-RUNTIME-EXPERIMENT-FRAME",
+      "definition_status": "candidate",
+      "authority_kind_ref": null,
+      "formal_voice": {
+        "normative_candidate": "The First Language Runtime Experiment Frame is the pre-code semantic boundary for testing whether the proposed runtime can reconstruct the bounded Governance Policy language exercise while preserving its context, resolved mappings, evidence and owner references, and unresolved Rule Review Recommendation through interruption and candidate emission.",
+        "expression": "ExperimentFrame = (frozen_inputs, invariants, comparator, measures, stop_rules, claim_ceiling)",
+        "symbols": [
+          {"symbol": "frozen_inputs", "meaning": "the exact business-language fixture and source bindings used by the test"},
+          {"symbol": "comparator", "meaning": "the rule that compares preserved semantic content without requiring byte identity"},
+          {"symbol": "claim_ceiling", "meaning": "the bounded result the experiment may support"}
+        ],
+        "boundary_conditions": [
+          "This semantic frame is frozen before code changes begin.",
+          "A separate pre-run manifest binds executable, runtime, environment, and exact input digests.",
+          "A designed experiment, a run receipt, and a finding remain separate artifacts."
+        ]
+      },
+      "plain_language_voice": "It says exactly what business meaning the first runtime test must preserve, how we will compare it, and when the test must stop.",
+      "domain_context_voice": "The fixture is the Governance Policy exercise inside the existing Governance Ubiquitous Language, not the whole Language Project. The planned output is a Definition Pack candidate.",
+      "operational_interpretation": "Use this candidate to author the separate Experiment record. Do not run it until the record is valid and an execution owner admits the run envelope.",
+      "forbidden_collapse": "Not the Experiment record, not a run, not findings, not a generalization decision, and not evidence that the runtime works.",
+      "source_refs": [
+        {"source_id": "SRC-LRPO-EXPERIMENT-TYPE", "selector": "Designed, Run, And Concluded Are Different"},
+        {"source_id": "SRC-LRPO-GOVERNANCE-POLICY-EXERCISE", "selector": "LANG-EX-GOVERNANCE-POLICY-001"},
+        {"source_id": "SRC-LRPO-GOVERNANCE-POLICY-EXERCISE", "selector": "Rule Review Recommendation"}
+      ],
+      "owner_route": "unresolved Language Runtime owner route plus CyberAlchemy v2 Language Project owner",
+      "authority_effect": "none"
+    }
+  ]
+}

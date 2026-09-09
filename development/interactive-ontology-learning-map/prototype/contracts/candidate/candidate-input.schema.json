@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/iolm/candidate-input/v1",
+  "title": "IOLM Candidate Projection Input",
+  "description": "A non-authoritative input binding one minted-project graph and its provenance to the IOLM candidate pipeline.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "posture",
+    "authority",
+    "candidate_id",
+    "project_id",
+    "source_set_digest",
+    "compiler",
+    "profile",
+    "minted_artifacts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "iolm-candidate-input/v1"},
+    "posture": {"const": "candidate"},
+    "authority": {"const": "non-authoritative-candidate-input"},
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z][A-Za-z0-9-]*)+$"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "source_set_digest": {"$ref": "#/$defs/digest"},
+    "compiler": {"$ref": "#/$defs/compiler"},
+    "profile": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "profile_digest",
+        "kinds_digest",
+        "relationships_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "profile_digest": {"$ref": "#/$defs/digest"},
+        "kinds_digest": {"$ref": "#/$defs/digest"},
+        "relationships_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "minted_artifacts": {
+      "type": "object",
+      "required": ["graph", "source_manifest", "build_receipt"],
+      "additionalProperties": false,
+      "properties": {
+        "graph": {
+          "allOf": [
+            {"$ref": "#/$defs/artifact"},
+            {"properties": {"schema_id": {"const": "https://domainspec.dev/schemas/minted-project/graph/v1"}}}
+          ]
+        },
+        "source_manifest": {
+          "allOf": [
+            {"$ref": "#/$defs/artifact"},
+            {"properties": {"schema_id": {"const": "https://domainspec.dev/schemas/minted-project/source-manifest/v1"}}}
+          ]
+        },
+        "build_receipt": {
+          "allOf": [
+            {"$ref": "#/$defs/artifact"},
+            {"properties": {"schema_id": {"const": "https://domainspec.dev/schemas/minted-project/build-receipt/v1"}}}
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "compiler": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["schema_id", "path", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_id": {"type": "string", "format": "uri"},
+        "path": {"$ref": "#/$defs/relative_path"},
+        "digest": {"$ref": "#/$defs/digest"}
+      }
+    }
+  },
+  "x-iolm": {
+    "role": "candidate-input",
+    "authority": "non-authoritative",
+    "forbidden_gate_evidence": ["G-DSV2-SG"]
+  }
+}

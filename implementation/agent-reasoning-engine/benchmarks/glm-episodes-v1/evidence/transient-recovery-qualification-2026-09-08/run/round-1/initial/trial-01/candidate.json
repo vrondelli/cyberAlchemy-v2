@@ -1,0 +1,14 @@
+{
+  "authority_effect": "none",
+  "changes": [
+    {
+      "expected_file_sha256": "232889b6b40b24ba20b08b4846966169fc4d98945f8906d9ce70b157b4b1d123",
+      "operation": "replace-file",
+      "path": "src/subject.mjs",
+      "utf8": "import {isDeepStrictEqual} from 'node:util';\nexport function scoreResponse(gold, text) {\n  if (typeof text !== 'string') return {passed:false,reason:'response_not_text'};\n  let value; try { value=JSON.parse(text); } catch { return {passed:false,reason:'invalid_json'}; }\n  const ok = isDeepStrictEqual(normalize(value), normalize(gold.expected));\n  return {passed:ok,reason:ok?'exact_json_match':'answer_mismatch'};\n}\nfunction normalize(v) {\n  if (Array.isArray(v)) return v.map(normalize);\n  if (v && typeof v === 'object') {\n    const o = {};\n    for (const k of Object.keys(v).sort()) o[k] = normalize(v[k]);\n    return o;\n  }\n  return v;\n}\n"
+    }
+  ],
+  "expected_base_tree_sha256": "df0267c7d80a3300b8e870b985e97aaa7a5094343ca38dd0a06b393e1e3fc320",
+  "rationale": "Fix exact-json-scoring mutation: compare parsed JSON structurally with isDeepStrictEqual after normalizing object key order (objects unordered; arrays, types, missing/extra members remain significant). Preserve response_not_text and invalid_json reasons and the exact_json_match/answer_mismatch reasons.",
+  "schema_version": "are.patch-set-candidate/v1"
+}

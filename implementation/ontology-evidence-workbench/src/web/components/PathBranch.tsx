@@ -1,0 +1,2 @@
+import type { PathResult } from "../contracts/scene";
+export function PathBranch({ result, names }: { readonly result: Extract<PathResult, { status: "found" }>; readonly names: ReadonlyMap<string, string> }) { return <ol className="path-branch">{result.nodeIds.map((id, index) => <li key={id}><span>{index + 1}</span><strong>{names.get(id) ?? id}</strong>{result.relations[index] && <small>{result.relations[index]!.label} →</small>}</li>)}</ol>; }

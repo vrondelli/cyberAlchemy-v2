@@ -1,0 +1,291 @@
+--- a/codex-rs/http-client/src/lib.rs
++++ b/codex-rs/http-client/src/lib.rs
+@@ -2,6 +2,7 @@
+ mod chatgpt_hosts;
+ mod client;
+ mod client_builder;
++mod context_gate;
+ mod custom_ca;
+ mod error;
+ mod outbound_proxy;
+@@ -62,3 +63,6 @@
+ pub use crate::request_gate::GateDenied;
+ pub use crate::request_gate::GatedReqwestTransport;
+ pub use crate::request_gate::RequestGate;
++
++pub use crate::context_gate::ContextGateConfig;
++pub use crate::context_gate::ContextGateTransport;
+--- /dev/null
++++ b/codex-rs/http-client/src/context_gate.rs
+@@ -0,0 +1,204 @@
++//! Offline host integration with an external context policy. No default activation.
++use crate::{
++    GateDenied, GatedReqwestTransport, HttpTransport, Request, RequestBody, RequestCompression,
++    RequestGate, ReqwestTransport, Response, StreamResponse, TransportError,
++};
++use futures::StreamExt;
++use serde_json::{Value, json};
++use sha2::{Digest, Sha256};
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::time::{Duration, SystemTime, UNIX_EPOCH};
++
++static SEQUENCE: AtomicU64 = AtomicU64::new(0);
++const MAX_BYTES: usize = 1_048_576;
++
++/// Explicit programmatic configuration for a loopback-only construction prototype.
++#[derive(Clone, PartialEq)]
++pub struct ContextGateConfig {
++    endpoint: String,
++    scope: String,
++    maximum_output_tokens: u64,
++}
++
++impl std::fmt::Debug for ContextGateConfig {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.debug_struct("ContextGateConfig").finish_non_exhaustive()
++    }
++}
++
++fn loopback(url: &str) -> bool {
++    reqwest::Url::parse(url).is_ok_and(|url| {
++        url.scheme() == "http"
++            && matches!(url.host_str(), Some("127.0.0.1" | "[::1]"))
++            && url.username().is_empty()
++            && url.password().is_none()
++            && url.query().is_none()
++            && url.fragment().is_none()
++    })
++}
++
++impl ContextGateConfig {
++    pub fn new(
++        endpoint: String,
++        scope: String,
++        maximum_output_tokens: u64,
++    ) -> Result<Self, GateDenied> {
++        if !loopback(&endpoint)
++            || scope.is_empty()
++            || scope.len() > 256
++            || maximum_output_tokens == 0
++            || maximum_output_tokens > 1_000_000
++        {
++            return Err(GateDenied);
++        }
++        Ok(Self {
++            endpoint,
++            scope,
++            maximum_output_tokens,
++        })
++    }
++
++    /// Reports the native compaction attempt, then stops even if a peer incorrectly permits it.
++    pub async fn before_compaction(&self) -> Result<(), GateDenied> {
++        let _ = self.decide("native_compaction", "").await;
++        Err(GateDenied)
++    }
++
++    async fn decide(&self, kind: &str, body: &str) -> Result<(), GateDenied> {
++        let request_id = format!(
++            "{}-{}",
++            SystemTime::now()
++                .duration_since(UNIX_EPOCH)
++                .map_err(|_| GateDenied)?
++                .as_nanos(),
++            SEQUENCE.fetch_add(1, Ordering::Relaxed)
++        );
++        let request_digest = format!("{:x}", Sha256::digest(body.as_bytes()));
++        let message = json!({"version":1,"scope":self.scope,"request_id":request_id,"request_digest":request_digest,"kind":kind,"body":body});
++        let client = reqwest::Client::builder()
++            .redirect(reqwest::redirect::Policy::none())
++            .retry(reqwest::retry::never())
++            .no_proxy()
++            .timeout(Duration::from_secs(2))
++            .build()
++            .map_err(|_| GateDenied)?;
++        let response = client
++            .post(&self.endpoint)
++            .json(&message)
++            .send()
++            .await
++            .map_err(|_| GateDenied)?;
++        if response.status() != http::StatusCode::OK {
++            return Err(GateDenied);
++        }
++        let mut bytes = Vec::new();
++        let mut stream = response.bytes_stream();
++        while let Some(chunk) = stream.next().await {
++            let chunk = chunk.map_err(|_| GateDenied)?;
++            if bytes.len() + chunk.len() > 16_384 {
++                return Err(GateDenied);
++            }
++            bytes.extend_from_slice(&chunk);
++        }
++        let result: Value = serde_json::from_slice(&bytes).map_err(|_| GateDenied)?;
++        if result["version"] != 1
++            || result["scope"] != self.scope
++            || result["request_id"] != request_id
++            || result["request_digest"] != request_digest
++            || result["action"] != "continue"
++        {
++            return Err(GateDenied);
++        }
++        Ok(())
++    }
++
++    fn prepare(&self, mut request: Request) -> Result<Request, TransportError> {
++        if !loopback(&request.url)
++            || request.method != http::Method::POST
++            || !reqwest::Url::parse(&request.url)
++                .is_ok_and(|url| url.path().ends_with("/responses"))
++            || request.compression != RequestCompression::None
++            || request.headers.contains_key(http::header::CONTENT_ENCODING)
++        {
++            return Err(TransportError::Build("ARE unsupported request path".into()));
++        }
++        let prepared = request
++            .prepare_body_for_send()
++            .map_err(|_| TransportError::Build("ARE invalid body".into()))?;
++        let bytes = prepared.body_bytes();
++        if bytes.len() > MAX_BYTES {
++            return Err(TransportError::Build("ARE request too large".into()));
++        }
++        let mut body: Value = serde_json::from_slice(&bytes)
++            .map_err(|_| TransportError::Build("ARE invalid JSON".into()))?;
++        let object = body
++            .as_object_mut()
++            .ok_or_else(|| TransportError::Build("ARE object required".into()))?;
++        if object.contains_key("previous_response_id")
++            || object.get("background").is_some_and(|v| v != false)
++        {
++            return Err(TransportError::Build(
++                "ARE requires complete foreground context".into(),
++            ));
++        }
++        object.insert(
++            "max_output_tokens".into(),
++            self.maximum_output_tokens.into(),
++        );
++        object.insert("store".into(), false.into());
++        request.body = Some(RequestBody::Json(body));
++        request.headers.remove(http::header::CONTENT_LENGTH);
++        request
++            .into_prepared()
++            .map_err(|_| TransportError::Build("ARE invalid prepared body".into()))
++    }
++}
++
++impl RequestGate for ContextGateConfig {
++    async fn authorize(&self, request: &Request) -> Result<(), GateDenied> {
++        let body = request
++            .prepare_body_for_send()
++            .map_err(|_| GateDenied)?
++            .body_bytes();
++        if body.len() > MAX_BYTES {
++            return Err(GateDenied);
++        }
++        let body = std::str::from_utf8(&body).map_err(|_| GateDenied)?;
++        self.decide("provider", body).await
++    }
++}
++
++/// Existing host transport or an explicitly selected offline policy gate.
++pub enum ContextGateTransport {
++    Standard(ReqwestTransport),
++    Gated {
++        config: ContextGateConfig,
++        transport: GatedReqwestTransport<ContextGateConfig>,
++    },
++}
++
++impl ContextGateTransport {
++    pub fn gated(config: ContextGateConfig) -> Result<Self, TransportError> {
++        let transport = GatedReqwestTransport::new(config.clone(), Duration::from_secs(3))?;
++        Ok(Self::Gated { config, transport })
++    }
++}
++
++impl HttpTransport for ContextGateTransport {
++    async fn execute(&self, request: Request) -> Result<Response, TransportError> {
++        match self {
++            Self::Standard(transport) => transport.execute(request).await,
++            Self::Gated { config, transport } => transport.execute(config.prepare(request)?).await,
++        }
++    }
++    async fn stream(&self, request: Request) -> Result<StreamResponse, TransportError> {
++        match self {
++            Self::Standard(transport) => transport.stream(request).await,
++            Self::Gated { config, transport } => transport.stream(config.prepare(request)?).await,
++        }
++    }
++}
++
++#[cfg(test)]
++#[path = "context_gate_tests.rs"]
++mod tests;
+--- /dev/null
++++ b/codex-rs/http-client/src/context_gate_tests.rs
+@@ -0,0 +1,40 @@
++use super::*;
++use pretty_assertions::assert_eq;
++
++#[tokio::test]
++async fn unsupported_request_stops_without_contacting_policy_or_provider() {
++    let gate =
++        ContextGateConfig::new("http://127.0.0.1:1/decision".into(), "scope".into(), 32).unwrap();
++    let transport = ContextGateTransport::gated(gate).unwrap();
++    for url in [
++        "https://example.com/responses",
++        "http://127.0.0.1:1/responses/compact",
++        "http://127.0.0.1:1/responses?secret=synthetic",
++    ] {
++        let error = transport
++            .execute(Request::new(http::Method::POST, url.into()).with_json(&json!({"input":[]})))
++            .await
++            .unwrap_err();
++        assert_eq!(
++            error.to_string(),
++            TransportError::Build("ARE unsupported request path".into()).to_string()
++        );
++    }
++}
++
++#[tokio::test]
++async fn missing_policy_stops_requests_and_compaction() {
++    let gate =
++        ContextGateConfig::new("http://127.0.0.1:1/decision".into(), "scope".into(), 32).unwrap();
++    assert!(gate.before_compaction().await.is_err());
++    let transport = ContextGateTransport::gated(gate).unwrap();
++    assert!(
++        transport
++            .execute(
++                Request::new(http::Method::POST, "http://127.0.0.1:1/responses".into())
++                    .with_json(&json!({"input":[]}))
++            )
++            .await
++            .is_err()
++    );
++}
+--- /dev/null
++++ b/codex-rs/http-client/examples/context_gate_probe.rs
+@@ -0,0 +1,21 @@
++//! Offline bridge probe. Arguments contain only synthetic loopback test configuration.
++use codex_http_client::{ContextGateConfig, ContextGateTransport, HttpTransport, Request};
++use http::Method;
++
++#[tokio::main(flavor = "current_thread")]
++async fn main() {
++    let args: Vec<_> = std::env::args().collect();
++    let config = ContextGateConfig::new(args[1].clone(), "fixture-scope".into(), 32).unwrap();
++    let result = if args[2] == "compact" {
++        config.before_compaction().await.map_err(|_| ())
++    } else {
++        let transport = ContextGateTransport::gated(config).unwrap();
++        let body: serde_json::Value = serde_json::from_str(&args[3]).unwrap();
++        transport
++            .execute(Request::new(Method::POST, args[2].clone()).with_json(&body))
++            .await
++            .map(|_| ())
++            .map_err(|_| ())
++    };
++    println!("{}", if result.is_ok() { "allowed" } else { "stopped" });
++}

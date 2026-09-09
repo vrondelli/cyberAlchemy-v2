@@ -1,0 +1,170 @@
+{
+  "schemas": {
+    "Provider": {
+      "binding_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "binding_version": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "tenant_allowed": {
+        "type": "boolean"
+      },
+      "task": {
+        "type": "string",
+        "const": "text.generate"
+      },
+      "context_limit": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "output_limit": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "streaming": {
+        "type": "boolean"
+      },
+      "rank": {
+        "type": "integer",
+        "min": 0,
+        "max": 1000000
+      }
+    },
+    "Catalog": {
+      "tenant_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "policy_version": {
+        "type": "identifier",
+        "max": 128
+      },
+      "providers": {
+        "type": "list",
+        "items": "Provider",
+        "max": 100
+      }
+    },
+    "RoutingRequest": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "tenant_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "task": {
+        "type": "string",
+        "const": "text.generate"
+      },
+      "model": {
+        "type": "identifier",
+        "optional": true,
+        "max": 128
+      },
+      "required_context_tokens": {
+        "type": "integer",
+        "min": 0,
+        "max": 1000000
+      },
+      "max_output_tokens": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "stream": {
+        "type": "boolean"
+      }
+    },
+    "Envelope": {
+      "request": {
+        "type": "RoutingRequest"
+      },
+      "catalog": {
+        "type": "Catalog",
+        "optional": true
+      }
+    },
+    "Decision": {
+      "request_id": {
+        "type": "identifier"
+      },
+      "status": {
+        "type": "string",
+        "pattern": "^(selected|unavailable)$"
+      },
+      "policy_version": {
+        "type": "identifier"
+      },
+      "binding_id": {
+        "type": "identifier",
+        "optional": true
+      },
+      "binding_version": {
+        "type": "identifier",
+        "optional": true
+      },
+      "model": {
+        "type": "identifier",
+        "optional": true
+      }
+    }
+  },
+  "integrations": {
+    "ProviderCatalog": {
+      "query": {
+        "tenant_id": "input.request.tenant_id"
+      },
+      "transport": "provided-or-http",
+      "provided": "input.catalog",
+      "output": "Catalog",
+      "urlEnv": "INFERENCE_CATALOG_URL",
+      "secretEnv": "INFERENCE_CATALOG_TOKEN",
+      "timeout": 3000,
+      "maxBytes": 65536
+    }
+  },
+  "flows": {},
+  "endpoint": {
+    "id": "InternalSelectProvider",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/internal/select-provider",
+    "input": "Envelope",
+    "output": "Decision",
+    "authEnv": "INFERENCE_INTERNAL_TOKEN",
+    "maxBytes": 65536,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "selected": 200,
+      "unavailable": 503
+    },
+    "errors": {
+      "FUNCTION_ENV_REQUIRED": 503,
+      "FUNCTION_OUTPUT_SCHEMA": 500,
+      "FUNCTION_URL": 503,
+      "FUNCTION_INTEGRATION_TIMEOUT": 504,
+      "FUNCTION_INTEGRATION_LIMIT": 502,
+      "FUNCTION_INTEGRATION_SCHEMA": 502,
+      "FUNCTION_INTEGRATION_STATUS": 502,
+      "FUNCTION_INTEGRATION_FAILED": 502
+    },
+    "result": "SelectProvider"
+  },
+  "portability": "node-rust-v1"
+}

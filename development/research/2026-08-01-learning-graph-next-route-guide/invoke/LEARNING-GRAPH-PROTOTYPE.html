@@ -1,0 +1,1161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Candidate-only visual learning graph for the DomainSpec implementation-conformance fixture.">
+  <title>Learning Graph · Evidence Before Identity</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b11;
+      --surface: #0e1520;
+      --surface-2: #141e2c;
+      --surface-3: #1a2636;
+      --line: #2b3a4e;
+      --line-strong: #49617d;
+      --ink: #f4f2e9;
+      --muted: #9daabd;
+      --quiet: #708096;
+      --semantic: #58d5df;
+      --profile: #aab7ff;
+      --observation: #a7df72;
+      --finding: #ffad7f;
+      --session: #e8a4ff;
+      --gap: #ffcf66;
+      --admission: #74b7ff;
+      --danger: #ff7e8d;
+      --focus: #fff2a8;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .42);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--bg); }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background:
+      radial-gradient(circle at 12% -10%, rgba(88, 213, 223, .12), transparent 28rem),
+      radial-gradient(circle at 88% 0%, rgba(232, 164, 255, .1), transparent 30rem),
+      var(--bg);
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, [tabindex="0"]:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+    .app { min-height: 100vh; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      min-height: 78px;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 11, 17, .92);
+      backdrop-filter: blur(18px);
+    }
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border: 1px solid rgba(88, 213, 223, .45);
+      border-radius: 13px;
+      color: var(--semantic);
+      background: linear-gradient(145deg, rgba(88, 213, 223, .16), rgba(170, 183, 255, .08));
+      box-shadow: inset 0 0 24px rgba(88, 213, 223, .06);
+      font-weight: 900;
+      letter-spacing: -.08em;
+    }
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--semantic);
+      font-size: 10px;
+      font-weight: 850;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(17px, 2vw, 22px); letter-spacing: -.025em; }
+    .header-meta { display: flex; align-items: center; justify-content: end; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 30px;
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(14, 21, 32, .8);
+      font-size: 11px;
+    }
+    .badge strong { color: var(--ink); }
+    .badge.candidate { border-color: rgba(255, 207, 102, .46); color: #f5d991; background: rgba(70, 54, 19, .42); }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      min-height: calc(100vh - 79px);
+    }
+    .main { min-width: 0; padding: 20px; }
+    .boundary-banner {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 13px 15px;
+      border: 1px solid rgba(255, 207, 102, .34);
+      border-radius: 14px;
+      background: linear-gradient(100deg, rgba(78, 59, 18, .52), rgba(31, 28, 23, .55));
+      color: #f5dfaa;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .boundary-icon {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border: 1px solid rgba(255, 207, 102, .45);
+      border-radius: 8px;
+      font-weight: 900;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(210px, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin: 16px 0 12px;
+    }
+    .search-wrap { position: relative; }
+    .search-wrap svg {
+      position: absolute;
+      top: 50%;
+      left: 13px;
+      width: 17px;
+      height: 17px;
+      transform: translateY(-50%);
+      color: var(--quiet);
+      pointer-events: none;
+    }
+    #graph-search {
+      width: 100%;
+      height: 42px;
+      padding: 0 14px 0 40px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--ink);
+      background: rgba(14, 21, 32, .88);
+    }
+    #graph-search::placeholder { color: var(--quiet); }
+    .view-actions { display: flex; gap: 8px; }
+    .control-button {
+      min-height: 42px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(14, 21, 32, .88);
+      cursor: pointer;
+    }
+    .control-button:hover { border-color: var(--line-strong); background: var(--surface-2); }
+    .control-button.active { border-color: var(--session); color: #f2cbff; background: rgba(98, 51, 111, .32); }
+    .legend {
+      display: flex;
+      gap: 7px;
+      padding: 2px 0 14px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .layer-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      white-space: nowrap;
+      color: var(--muted);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .layer-chip::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--chip-color);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--chip-color) 55%, transparent);
+    }
+    .layer-chip.active { color: var(--ink); border-color: color-mix(in srgb, var(--chip-color) 52%, var(--line)); }
+    .layer-chip:not(.active) { opacity: .46; }
+    .graph-shell {
+      position: relative;
+      overflow: hidden;
+      min-height: 610px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        radial-gradient(circle at 50% 0%, rgba(88, 213, 223, .055), transparent 30rem),
+        #090f18;
+      background-size: 32px 32px, 32px 32px, auto, auto;
+      box-shadow: var(--shadow);
+    }
+    .graph-toolbar {
+      position: absolute;
+      z-index: 4;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .mini-badge {
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--muted);
+      background: rgba(9, 15, 24, .9);
+      font-size: 10px;
+    }
+    .graph-scroll { width: 100%; min-height: 610px; overflow: auto; }
+    #learning-graph {
+      display: block;
+      width: max(100%, 1810px);
+      min-width: 1810px;
+      height: 780px;
+    }
+    .layer-band { fill: rgba(19, 29, 43, .58); stroke: var(--line); stroke-width: 1.4; }
+    .layer-title { fill: var(--ink); font-size: 13px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .layer-count { fill: var(--quiet); font-size: 10px; }
+    .edge-line {
+      fill: none;
+      stroke: #718198;
+      stroke-width: 2.2;
+      opacity: .72;
+      vector-effect: non-scaling-stroke;
+      marker-end: url(#arrow);
+      transition: opacity 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
+    }
+    .edge-hit { fill: none; stroke: transparent; stroke-width: 18; cursor: pointer; }
+    .edge-group.is-dimmed .edge-line { opacity: .08; }
+    .edge-group.is-highlighted .edge-line { opacity: 1; stroke: var(--focus); stroke-width: 3.4; }
+    .edge-group:focus-visible .edge-line { opacity: 1; stroke: var(--focus); stroke-width: 3.4; }
+    .edge-label {
+      fill: #aab6c7;
+      font-size: 9px;
+      paint-order: stroke;
+      stroke: #090f18;
+      stroke-width: 5px;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .node { cursor: pointer; transition: opacity 140ms ease; }
+    .node.is-dimmed { opacity: .17; }
+    .node.is-match .node-card { filter: drop-shadow(0 0 10px rgba(255, 242, 168, .42)); }
+    .node.is-selected .node-card,
+    .node:focus-visible .node-card {
+      stroke: var(--focus);
+      stroke-width: 3.5;
+      filter: drop-shadow(0 0 12px rgba(255, 242, 168, .3));
+    }
+    .node-card { fill: var(--surface-2); stroke: var(--node-color); stroke-width: 2; rx: 14; }
+    .node-kicker { fill: var(--node-color); font-size: 9px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+    .node-label { fill: var(--ink); font-size: 13px; font-weight: 820; }
+    .node-proof { fill: var(--muted); font-size: 9px; }
+    .node-status-bg { fill: rgba(255,255,255,.055); stroke: rgba(255,255,255,.08); }
+    .node-status { fill: #bdc7d4; font-size: 8px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+    .node-index { fill: rgba(255,255,255,.055); stroke: var(--node-color); }
+    .node-index-text { fill: var(--ink); font-size: 10px; font-weight: 900; text-anchor: middle; }
+    .story-panel {
+      margin-top: 16px;
+      border: 1px solid rgba(232, 164, 255, .28);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(64, 31, 73, .26), rgba(14, 21, 32, .82));
+      overflow: hidden;
+    }
+    .story-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 15px 17px;
+      border-bottom: 1px solid var(--line);
+    }
+    .story-head h2 { margin: 2px 0 0; font-size: 15px; }
+    .story-status { color: #f2cbff; font-size: 11px; }
+    .story-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+    .story-step {
+      position: relative;
+      min-height: 150px;
+      padding: 15px;
+      background: var(--surface);
+    }
+    .story-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      z-index: 2;
+      top: 18px;
+      right: -8px;
+      color: var(--session);
+      font-size: 14px;
+    }
+    .step-number { color: var(--session); font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .story-step h3 { margin: 7px 0; font-size: 12px; }
+    .story-step p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .story-step strong { color: var(--ink); }
+    .story-step.abstain { background: linear-gradient(145deg, rgba(255, 126, 141, .13), var(--surface)); }
+    .story-step.route { background: linear-gradient(145deg, rgba(116, 183, 255, .13), var(--surface)); }
+    .inspector {
+      position: sticky;
+      top: 79px;
+      align-self: start;
+      height: calc(100vh - 79px);
+      overflow: auto;
+      border-left: 1px solid var(--line);
+      background: rgba(10, 16, 25, .96);
+    }
+    .inspector-inner { padding: 20px; }
+    .inspector-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .inspector h2 { margin: 4px 0 0; font-size: 19px; line-height: 1.25; }
+    .icon-button {
+      display: none;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .inspector-summary { margin: 15px 0; color: var(--muted); font-size: 12px; line-height: 1.58; }
+    .meta-list { display: grid; gap: 8px; margin: 0; }
+    .meta-row {
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    .meta-row dt { margin: 0 0 4px; color: var(--quiet); font-size: 9px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .meta-row dd { margin: 0; color: #d4dbe5; font-size: 10px; line-height: 1.48; overflow-wrap: anywhere; }
+    .inspector-section { margin-top: 18px; }
+    .inspector-section h3 { margin: 0 0 9px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    .inspector-section ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .callout {
+      margin-top: 15px;
+      padding: 11px;
+      border: 1px solid rgba(255, 207, 102, .34);
+      border-radius: 10px;
+      color: #f5dfaa;
+      background: rgba(71, 54, 19, .34);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .route-lock {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 12px;
+      padding: 7px 9px;
+      border: 1px solid rgba(116, 183, 255, .35);
+      border-radius: 999px;
+      color: #bcdcff;
+      background: rgba(32, 63, 94, .32);
+      font-size: 10px;
+      font-weight: 750;
+    }
+    .mobile-inspector-button { display: none; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 1180px) {
+      .layout { grid-template-columns: 1fr; }
+      .inspector {
+        position: fixed;
+        z-index: 30;
+        top: 0;
+        right: 0;
+        width: min(390px, 94vw);
+        height: 100vh;
+        border-left: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        transform: translateX(105%);
+        transition: transform 180ms ease;
+      }
+      .inspector.open { transform: translateX(0); }
+      .icon-button { display: inline-grid; place-items: center; flex: 0 0 auto; }
+      .mobile-inspector-button { display: inline-block; }
+    }
+    @media (max-width: 760px) {
+      .topbar { position: static; grid-template-columns: 1fr; padding: 12px 15px; }
+      .header-meta { justify-content: start; }
+      .badge.metric-badge { display: none; }
+      .main { padding: 13px; }
+      .controls { grid-template-columns: 1fr; }
+      .view-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .graph-shell, .graph-scroll { min-height: 520px; }
+      #learning-graph { height: 650px; }
+      .story-grid { grid-template-columns: 1fr; }
+      .story-step { min-height: auto; }
+      .story-step:not(:last-child)::after { content: "↓"; top: auto; right: 16px; bottom: -9px; }
+      .boundary-banner { grid-template-columns: 1fr; }
+      .graph-toolbar { left: 12px; right: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">LG</div>
+        <div>
+          <p class="eyebrow">Evidence-bound learner projection</p>
+          <h1>Learning Graph · Evidence Before Identity</h1>
+        </div>
+      </div>
+      <div class="header-meta" aria-label="Prototype status">
+        <span class="badge candidate">Candidate visual · authority none</span>
+        <span class="badge metric-badge"><strong id="node-count">11</strong> nodes</span>
+        <span class="badge metric-badge"><strong id="edge-count">9</strong> relations</span>
+        <span class="badge"><strong>Offline</strong> · zero requests</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <main class="main">
+        <div class="boundary-banner" role="note" aria-label="Authority boundary">
+          <span class="boundary-icon" aria-hidden="true">!</span>
+          <div><strong>Read this as a map of evidence, not a verdict.</strong> The graph preserves semantic concept, profile expectation, supplied observation, expected finding, session text, evidence gap, and workflow admission as separate layers. Geometry, color, focus, and proximity create no ontology meaning, owner admission, execution authority, comprehension proof, or accessibility-conformance proof.</div>
+        </div>
+
+        <section aria-labelledby="graph-heading">
+          <h2 id="graph-heading" class="sr-only">Interactive visual learning graph</h2>
+          <div class="controls">
+            <label class="search-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <span class="sr-only">Search graph nodes</span>
+              <input id="graph-search" type="search" placeholder="Search LegacyLimitRule, evidence gap, profile…" autocomplete="off">
+            </label>
+            <div class="view-actions">
+              <button id="legacy-path" class="control-button" type="button" aria-pressed="false">Follow Legacy path</button>
+              <button id="open-inspector" class="control-button mobile-inspector-button" type="button">Open inspector</button>
+              <button id="reset-view" class="control-button" type="button">Reset view</button>
+            </div>
+          </div>
+          <div id="layer-legend" class="legend" aria-label="Filter graph by evidence layer"></div>
+
+          <div class="graph-shell">
+            <div class="graph-toolbar" aria-label="Graph status">
+              <span id="match-status" class="mini-badge" role="status">All 11 records visible</span>
+              <span class="mini-badge">Select a node or relation</span>
+            </div>
+            <div id="graph-scroll" class="graph-scroll" tabindex="0" aria-label="Scrollable learning graph canvas">
+              <svg id="learning-graph" viewBox="0 0 1810 780" role="graphics-document" aria-label="Learning graph with seven evidence layers, eleven records, and nine typed relations">
+                <defs>
+                  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#718198"></path>
+                  </marker>
+                </defs>
+                <g id="band-layer" data-layer="bands"></g>
+                <g id="edge-layer" data-layer="relations"></g>
+                <g id="node-layer" data-layer="records"></g>
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <section class="story-panel" aria-labelledby="story-title">
+          <div class="story-head">
+            <div>
+              <p class="eyebrow">Guided learner path</p>
+              <h2 id="story-title">Why the graph abstains on LegacyLimitRule</h2>
+            </div>
+            <span class="story-status">Presentation path · no workflow transition</span>
+          </div>
+          <div class="story-grid">
+            <article class="story-step">
+              <span class="step-number">01 · Ask</span>
+              <h3>Broad identity question</h3>
+              <p>“Is <strong>LegacyLimitRule</strong> a DomainSpec Rule?”</p>
+            </article>
+            <article class="story-step">
+              <span class="step-number">02 · Inspect</span>
+              <h3>Separate the layers</h3>
+              <p>Candidate concept ≠ profile expectation ≠ supplied observation ≠ expected finding.</p>
+            </article>
+            <article class="story-step abstain">
+              <span class="step-number">03 · Withhold</span>
+              <h3>ABSTAIN</h3>
+              <p>The fixture cannot establish Rule identity. Abstention is the correct result, not a graph failure.</p>
+            </article>
+            <article class="story-step">
+              <span class="step-number">04 · Name</span>
+              <h3>Four missing witnesses</h3>
+              <p>Current semantic binding, native parser/compiler observation, real source digest, unsupported set.</p>
+            </article>
+            <article class="story-step">
+              <span class="step-number">05 · Revise</span>
+              <h3>Evidence question</h3>
+              <p>What owner-resolved current semantic binding and native TypeScript adapter evidence would be required before <strong>LegacyLimitRule</strong> could be evaluated for Rule identity?</p>
+            </article>
+            <article class="story-step route">
+              <span class="step-number">06 · Suggest</span>
+              <h3>Display-only destination</h3>
+              <p><strong>TypeScript adapter owner</strong> is a candidate string, not an admitted or executable route.</p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <aside id="inspector" class="inspector" aria-labelledby="inspector-title">
+        <div class="inspector-inner">
+          <div class="inspector-head">
+            <div>
+              <p id="inspector-kicker" class="eyebrow">How to read this map</p>
+              <h2 id="inspector-title">Select a record</h2>
+            </div>
+            <button id="close-inspector" class="icon-button" type="button" aria-label="Close inspector">×</button>
+          </div>
+          <div id="inspector-content">
+            <p class="inspector-summary">Each card is one exact record class with its own proof tier and owner boundary. Select a node to inspect its stable ID, binding, status, and claim ceiling. Select a line to inspect the relation rule.</p>
+            <dl class="meta-list">
+              <div class="meta-row"><dt>Recommended start</dt><dd>Choose “Follow Legacy path” or select the LegacyLimitRule observation.</dd></div>
+              <div class="meta-row"><dt>Reading rule</dt><dd>Lines show typed candidate relationships. They do not create semantic identity or admission.</dd></div>
+              <div class="meta-row"><dt>Current ceiling</dt><dd>Candidate-local fixture presentation only.</dd></div>
+            </dl>
+            <div class="callout"><strong>MaxAmountRule:</strong> the fixture reports <code>FIXTURE_HAS_NO_REPORTED_FINDING</code>. That is not positive per-assertion proof, semantic conformance, runtime proof, or owner admission.</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    (function () {
+      const NS = "http://www.w3.org/2000/svg";
+      const layers = [
+        {id: "semantic", label: "Semantic concept", short: "Meaning", color: "#58d5df", x: 24, width: 230},
+        {id: "profile", label: "Profile expectation", short: "Expectation", color: "#aab7ff", x: 278, width: 230},
+        {id: "observation", label: "Source observation", short: "Observation", color: "#a7df72", x: 532, width: 230},
+        {id: "finding", label: "Evaluation finding", short: "Finding", color: "#ffad7f", x: 786, width: 230},
+        {id: "session", label: "Session", short: "Session", color: "#e8a4ff", x: 1040, width: 230},
+        {id: "gap", label: "Evidence gap", short: "Absence", color: "#ffcf66", x: 1294, width: 230},
+        {id: "admission", label: "Workflow admission", short: "Display only", color: "#74b7ff", x: 1548, width: 238}
+      ];
+
+      const nodes = [
+        {
+          id: "semantic:architecture.RuleImplementation",
+          label: "Rule Implementation",
+          record_class: "semantic_concept",
+          layer: "semantic",
+          proof_tier: "candidate semantic anchor",
+          status: "candidate alignment",
+          binding: "ontology.json@sha256:4b67ba1d631b11a09ab073a1e8003ccc0367a3c49e625693c54b2a7ddf3bbcd3#/concept_types/2",
+          summary: "Candidate architecture concept aligned to DS-D1.7. Source shape cannot mint semantic identity.",
+          claim_ceiling: "Candidate alignment to DS-D1.7 only; source shape cannot mint semantic identity.",
+          x: 38, y: 245
+        },
+        {
+          id: "profile:architecture.base-domain",
+          label: "Base Domain Profile",
+          record_class: "profile_expectation",
+          layer: "profile",
+          proof_tier: "candidate expectation",
+          status: "candidate",
+          binding: "base-domain.profile.json@sha256:2e877fa59399f82fd192310689634a07659e65531941efe1db4abb5f6e903873#/constraints/0-5",
+          summary: "Portable candidate constraints used to evaluate a possible Rule implementation.",
+          claim_ceiling: "An expectation is not an observation, finding, or semantic admission.",
+          x: 292, y: 150
+        },
+        {
+          id: "profile:architecture.typescript-strict",
+          label: "TypeScript Strict Profile",
+          record_class: "profile_expectation",
+          layer: "profile",
+          proof_tier: "language expectation",
+          status: "candidate",
+          binding: "typescript-strict.profile.json@sha256:79496329856b53da6f3d5c66521c194ad7fc4251c879b0d91a9aed2d0d94666b#/constraints/0-5",
+          summary: "TypeScript-specific candidate constraints. They remain distinct from supplied facts.",
+          claim_ceiling: "Candidate TypeScript expectation only; not adapter or runtime evidence.",
+          x: 292, y: 370
+        },
+        {
+          id: "observation:implementation.payment.MaxAmountRule",
+          label: "MaxAmountRule",
+          record_class: "source_observation",
+          layer: "observation",
+          proof_tier: "supplied fixture",
+          status: "fixture_only",
+          binding: "typescript-observed-facts.json@sha256:74d637de8b6a8c96246df037b85088cad4b80f22207db74ed9218eea874fcf67#/elements/0",
+          summary: "A supplied TypeScript facts record. The expected fixture reports no finding for this subject.",
+          claim_ceiling: "FIXTURE_HAS_NO_REPORTED_FINDING; no positive per-assertion, semantic, live-source, runtime, or admission proof.",
+          x: 546, y: 150
+        },
+        {
+          id: "observation:implementation.payment.LegacyLimitRule",
+          label: "LegacyLimitRule",
+          record_class: "source_observation",
+          layer: "observation",
+          proof_tier: "supplied fixture",
+          status: "fixture_only",
+          binding: "typescript-observed-facts.json@sha256:74d637de8b6a8c96246df037b85088cad4b80f22207db74ed9218eea874fcf67#/elements/2",
+          summary: "A supplied example observation whose binding is empty and non-current. It cannot establish Rule identity.",
+          claim_ceiling: "Supplied fixture only. ABSTAIN on Rule identity under the frozen evidence.",
+          x: 546, y: 370
+        },
+        {
+          id: "evaluation:example.typescript.rule-operation",
+          label: "Expected evaluation",
+          record_class: "evaluation_finding",
+          layer: "finding",
+          proof_tier: "expected fixture result",
+          status: "fixture_expected_result",
+          binding: "typescript-evaluation.expected.json@sha256:dd82fc27f21a87f9ef965f245c3149224d3d91823da902047a3d7fa5c74adee3#/findings/0-7",
+          summary: "Expected mismatch findings for the supplied fixture. This is not a live evaluator or owner verdict.",
+          claim_ceiling: "Expected fixture evaluation only; not runtime correctness or semantic admission.",
+          x: 800, y: 370
+        },
+        {
+          id: "session:confusion.rule-identity",
+          label: "Learner self-report",
+          record_class: "session_confusion",
+          layer: "session",
+          proof_tier: "session-local fixture",
+          status: "proposed_session_local_fixture",
+          binding: "Frozen self-report fixture; no personal identifier or durable learner state.",
+          summary: "“I cannot tell whether a TypeScript function that returns boolean is thereby a DomainSpec Rule.”",
+          claim_ceiling: "Self-reported confusion only; no comprehension state is inferred.",
+          x: 1054, y: 94
+        },
+        {
+          id: "session:question.rule-identity.v1",
+          label: "Question v1",
+          record_class: "session_question",
+          layer: "session",
+          proof_tier: "session-local fixture",
+          status: "proposed_session_local_fixture",
+          binding: "Exact frozen session question.",
+          summary: "Is LegacyLimitRule a DomainSpec Rule?",
+          claim_ceiling: "A broad session question, not a canonical ontology node or verdict.",
+          x: 1054, y: 300
+        },
+        {
+          id: "session:question.rule-identity.v2",
+          label: "Question v2",
+          record_class: "session_question",
+          layer: "session",
+          proof_tier: "deterministic revision",
+          status: "proposed_session_local_fixture",
+          binding: "Derived only when all four frozen revision premises are true.",
+          summary: "What owner-resolved current semantic binding and native TypeScript adapter evidence would be required before LegacyLimitRule could be evaluated for Rule identity?",
+          claim_ceiling: "Evidence-requirement question only; it neither asserts identity nor initiates a route.",
+          x: 1054, y: 506
+        },
+        {
+          id: "gap:typescript-real-source-and-binding",
+          label: "Real-source & binding gap",
+          record_class: "evidence_gap",
+          layer: "gap",
+          proof_tier: "observed closed-set absence",
+          status: "observed_absence",
+          binding: "Frozen source set lacks four declared witnesses.",
+          summary: "Current semantic binding, native parser/compiler observation, real source digest, and unsupported-set declaration are absent.",
+          claim_ceiling: "An evidence gap is not a semantic verdict or workflow admission.",
+          missing: [
+            "owner-resolved current semantic binding",
+            "native TypeScript parser or compiler observation",
+            "real source-artifact digest",
+            "unsupported-set declaration"
+          ],
+          x: 1308, y: 370
+        },
+        {
+          id: "suggestion:acquire-typescript-adapter-evidence",
+          label: "TypeScript evidence route",
+          record_class: "route_suggestion",
+          layer: "admission",
+          proof_tier: "display-only suggestion",
+          status: "suggested",
+          binding: "ontology.json@sha256:4b67ba1d631b11a09ab073a1e8003ccc0367a3c49e625693c54b2a7ddf3bbcd3#/language_projections/0/drift_owner",
+          summary: "Candidate destination string: TypeScript adapter owner. No route is selected, admitted, dispatched, or executed.",
+          claim_ceiling: "Display-only verification package; authority_effect: none.",
+          destination_owner_route: "TypeScript adapter owner",
+          verification_question: "Can a native parser or compiler fixture produce a frozen observation for an exact TypeScript source artifact with an owner-resolved current semantic binding?",
+          proposed_witness: "language owner plus native parser/compiler fixtures plus explicit unsupported set",
+          prerequisites: [
+            "exact source-artifact path and SHA-256",
+            "native parser/compiler identity and version",
+            "owner-resolved current binding",
+            "frozen typed observation",
+            "explicit unsupported set"
+          ],
+          invalidation: "TypeScript tool, configuration, profile, or source digest changes",
+          authority_effect: "none",
+          x: 1562, y: 370
+        }
+      ];
+
+      const relations = [
+        {
+          id: "profile-constrains-candidate-type:base-rule",
+          from: "profile:architecture.base-domain",
+          to: "semantic:architecture.RuleImplementation",
+          label: "constrains candidate type",
+          rule: "Constraints apply to candidate evaluation; they do not establish semantic identity."
+        },
+        {
+          id: "profile-constrains-candidate-type:typescript-rule",
+          from: "profile:architecture.typescript-strict",
+          to: "semantic:architecture.RuleImplementation",
+          label: "constrains candidate type",
+          rule: "Expectation remains distinct from observation."
+        },
+        {
+          id: "observation-evaluated-against-profile:max-amount",
+          from: "observation:implementation.payment.MaxAmountRule",
+          to: "profile:architecture.typescript-strict",
+          label: "evaluated against profile",
+          rule: "Compare supplied fixture properties against the extended candidate profile."
+        },
+        {
+          id: "observation-evaluated-against-profile:legacy-limit",
+          from: "observation:implementation.payment.LegacyLimitRule",
+          to: "profile:architecture.typescript-strict",
+          label: "evaluated against profile",
+          rule: "Expected fixture results are not runtime or semantic-admission verdicts."
+        },
+        {
+          id: "finding-reports-evaluation:legacy-limit",
+          from: "evaluation:example.typescript.rule-operation",
+          to: "observation:implementation.payment.LegacyLimitRule",
+          label: "reports fixture evaluation",
+          rule: "Findings 0-6 report element mismatches and finding 7 reports a dependency mismatch."
+        },
+        {
+          id: "session-focuses-on:rule-identity",
+          from: "session:question.rule-identity.v1",
+          to: "observation:implementation.payment.LegacyLimitRule",
+          label: "focuses inspection on",
+          rule: "A session-local focus selection controls inspection only and asserts no semantic relation."
+        },
+        {
+          id: "inspection-identifies-evidence-gap:legacy-limit",
+          from: "session:question.rule-identity.v1",
+          to: "gap:typescript-real-source-and-binding",
+          label: "identifies evidence gap",
+          rule: "Inspection identifies absent evidence without deciding Rule identity."
+        },
+        {
+          id: "question-revision-supersedes:rule-identity-v2-v1",
+          from: "session:question.rule-identity.v2",
+          to: "session:question.rule-identity.v1",
+          label: "revises question",
+          rule: "Replace a broad identity question with a falsifiable evidence-requirement question in the same session."
+        },
+        {
+          id: "suggestion-addresses-evidence-gap:typescript-adapter",
+          from: "suggestion:acquire-typescript-adapter-evidence",
+          to: "gap:typescript-real-source-and-binding",
+          label: "addresses evidence gap",
+          rule: "Render a candidate evidence-acquisition suggestion only while immutable gap inputs remain current; never treat it as owner admission or execution authority."
+        }
+      ];
+
+      const dom = {
+        bands: document.querySelector("#band-layer"),
+        edges: document.querySelector("#edge-layer"),
+        nodes: document.querySelector("#node-layer"),
+        legend: document.querySelector("#layer-legend"),
+        search: document.querySelector("#graph-search"),
+        matchStatus: document.querySelector("#match-status"),
+        inspector: document.querySelector("#inspector"),
+        inspectorKicker: document.querySelector("#inspector-kicker"),
+        inspectorTitle: document.querySelector("#inspector-title"),
+        inspectorContent: document.querySelector("#inspector-content"),
+        openInspector: document.querySelector("#open-inspector"),
+        closeInspector: document.querySelector("#close-inspector"),
+        legacyPath: document.querySelector("#legacy-path"),
+        reset: document.querySelector("#reset-view"),
+        graphScroll: document.querySelector("#graph-scroll")
+      };
+      const nodeWidth = 202;
+      const nodeHeight = 116;
+      const byId = new Map(nodes.map(function (node) { return [node.id, node]; }));
+      const layerById = new Map(layers.map(function (layer) { return [layer.id, layer]; }));
+      const activeLayers = new Set(layers.map(function (layer) { return layer.id; }));
+      const legacyNodeIds = new Set([
+        "semantic:architecture.RuleImplementation",
+        "profile:architecture.typescript-strict",
+        "observation:implementation.payment.LegacyLimitRule",
+        "evaluation:example.typescript.rule-operation",
+        "session:question.rule-identity.v1",
+        "session:question.rule-identity.v2",
+        "gap:typescript-real-source-and-binding",
+        "suggestion:acquire-typescript-adapter-evidence"
+      ]);
+      const legacyRelationIds = new Set([
+        "profile-constrains-candidate-type:typescript-rule",
+        "observation-evaluated-against-profile:legacy-limit",
+        "finding-reports-evaluation:legacy-limit",
+        "session-focuses-on:rule-identity",
+        "inspection-identifies-evidence-gap:legacy-limit",
+        "question-revision-supersedes:rule-identity-v2-v1",
+        "suggestion-addresses-evidence-gap:typescript-adapter"
+      ]);
+      let selectedId = null;
+      let legacyMode = false;
+
+      function svg(name, attributes) {
+        const element = document.createElementNS(NS, name);
+        Object.entries(attributes || {}).forEach(function (entry) {
+          element.setAttribute(entry[0], String(entry[1]));
+        });
+        return element;
+      }
+
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function clip(value, limit) {
+        const text = String(value == null ? "" : value);
+        return text.length > limit ? text.slice(0, limit - 1) + "…" : text;
+      }
+
+      function edgePath(relation) {
+        const from = byId.get(relation.from);
+        const to = byId.get(relation.to);
+        const fromCenter = {x: from.x + nodeWidth / 2, y: from.y + nodeHeight / 2};
+        const toCenter = {x: to.x + nodeWidth / 2, y: to.y + nodeHeight / 2};
+        if (from.layer === to.layer) {
+          const direction = to.y < from.y ? -1 : 1;
+          const startY = fromCenter.y + direction * nodeHeight / 2;
+          const endY = toCenter.y - direction * nodeHeight / 2;
+          const controlX = fromCenter.x + 58;
+          return "M " + fromCenter.x + " " + startY + " C " + controlX + " " + startY + ", " + controlX + " " + endY + ", " + toCenter.x + " " + endY;
+        }
+        const movingRight = toCenter.x > fromCenter.x;
+        const startX = fromCenter.x + (movingRight ? nodeWidth / 2 : -nodeWidth / 2);
+        const endX = toCenter.x + (movingRight ? -nodeWidth / 2 : nodeWidth / 2);
+        const bend = Math.max(52, Math.abs(endX - startX) * .42);
+        return "M " + startX + " " + fromCenter.y + " C " + (startX + (movingRight ? bend : -bend)) + " " + fromCenter.y + ", " + (endX + (movingRight ? -bend : bend)) + " " + toCenter.y + ", " + endX + " " + toCenter.y;
+      }
+
+      function relationMidpoint(relation) {
+        const from = byId.get(relation.from);
+        const to = byId.get(relation.to);
+        return {
+          x: (from.x + to.x) / 2 + nodeWidth / 2,
+          y: (from.y + to.y) / 2 + nodeHeight / 2 - 7
+        };
+      }
+
+      function renderBands() {
+        layers.forEach(function (layer) {
+          const group = svg("g", {"data-layer-id": layer.id});
+          const rect = svg("rect", {class: "layer-band", x: layer.x, y: 62, width: layer.width, height: 675, rx: 17});
+          rect.style.setProperty("stroke", layer.color);
+          rect.style.setProperty("stroke-opacity", ".3");
+          const title = svg("text", {class: "layer-title", x: layer.x + 14, y: 35});
+          title.textContent = layer.short;
+          title.style.setProperty("fill", layer.color);
+          const count = svg("text", {class: "layer-count", x: layer.x + 14, y: 51});
+          const countValue = nodes.filter(function (node) { return node.layer === layer.id; }).length;
+          count.textContent = countValue + (countValue === 1 ? " record" : " records") + " · " + layer.label;
+          group.append(rect, title, count);
+          dom.bands.append(group);
+        });
+      }
+
+      function renderLegend() {
+        layers.forEach(function (layer) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "layer-chip active";
+          button.dataset.layer = layer.id;
+          button.style.setProperty("--chip-color", layer.color);
+          button.setAttribute("aria-pressed", "true");
+          button.textContent = layer.label;
+          button.addEventListener("click", function () {
+            if (activeLayers.has(layer.id)) activeLayers.delete(layer.id);
+            else activeLayers.add(layer.id);
+            if (activeLayers.size === 0) layers.forEach(function (item) { activeLayers.add(item.id); });
+            document.querySelectorAll(".layer-chip").forEach(function (chip) {
+              const active = activeLayers.has(chip.dataset.layer);
+              chip.classList.toggle("active", active);
+              chip.setAttribute("aria-pressed", String(active));
+            });
+            applyVisibility();
+          });
+          dom.legend.append(button);
+        });
+      }
+
+      function renderEdges() {
+        relations.forEach(function (relation) {
+          const group = svg("g", {
+            class: "edge-group",
+            tabindex: "0",
+            role: "button",
+            "aria-label": relation.label + ". " + relation.rule,
+            "data-relation-id": relation.id,
+            "data-from": relation.from,
+            "data-to": relation.to
+          });
+          const pathValue = edgePath(relation);
+          const line = svg("path", {class: "edge-line", d: pathValue});
+          const hit = svg("path", {class: "edge-hit", d: pathValue});
+          const midpoint = relationMidpoint(relation);
+          const label = svg("text", {class: "edge-label", x: midpoint.x, y: midpoint.y, "text-anchor": "middle"});
+          label.textContent = relation.label;
+          const title = svg("title");
+          title.textContent = relation.id + ": " + relation.rule;
+          group.append(line, hit, label, title);
+          group.addEventListener("click", function () { selectRelation(relation); });
+          group.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              selectRelation(relation);
+            }
+          });
+          dom.edges.append(group);
+        });
+      }
+
+      function renderNodes() {
+        nodes.forEach(function (node, index) {
+          const layer = layerById.get(node.layer);
+          const group = svg("g", {
+            class: "node",
+            transform: "translate(" + node.x + " " + node.y + ")",
+            tabindex: "0",
+            role: "button",
+            "aria-label": node.label + ". " + node.record_class + ". " + node.proof_tier + ".",
+            "data-node-id": node.id,
+            "data-layer": node.layer
+          });
+          group.style.setProperty("--node-color", layer.color);
+          const card = svg("rect", {class: "node-card", width: nodeWidth, height: nodeHeight});
+          const kicker = svg("text", {class: "node-kicker", x: 14, y: 20});
+          kicker.textContent = layer.short + " · " + node.record_class.replaceAll("_", " ");
+          const label = svg("text", {class: "node-label", x: 14, y: 45});
+          label.textContent = clip(node.label, 27);
+          const proof = svg("text", {class: "node-proof", x: 14, y: 63});
+          proof.textContent = clip(node.proof_tier, 32);
+          const statusWidth = Math.min(174, Math.max(74, node.status.length * 5.6 + 16));
+          const statusBg = svg("rect", {class: "node-status-bg", x: 14, y: 76, width: statusWidth, height: 23, rx: 7});
+          const status = svg("text", {class: "node-status", x: 22, y: 91});
+          status.textContent = clip(node.status.replaceAll("_", " "), 29);
+          const indexCircle = svg("circle", {class: "node-index", cx: nodeWidth - 18, cy: 18, r: 10});
+          const indexText = svg("text", {class: "node-index-text", x: nodeWidth - 18, y: 21});
+          indexText.textContent = String(index + 1);
+          const title = svg("title");
+          title.textContent = node.id + ": " + node.summary;
+          group.append(card, kicker, label, proof, statusBg, status, indexCircle, indexText, title);
+          group.addEventListener("click", function () { selectNode(node); });
+          group.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              selectNode(node);
+            }
+          });
+          dom.nodes.append(group);
+        });
+      }
+
+      function metaRow(term, value) {
+        return '<div class="meta-row"><dt>' + escapeHtml(term) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
+      }
+
+      function openInspector() {
+        dom.inspector.classList.add("open");
+      }
+
+      function closeInspector() {
+        dom.inspector.classList.remove("open");
+      }
+
+      function selectNode(node) {
+        selectedId = node.id;
+        document.querySelectorAll(".node").forEach(function (element) {
+          element.classList.toggle("is-selected", element.dataset.nodeId === node.id);
+        });
+        document.querySelectorAll(".edge-group").forEach(function (element) {
+          const incident = element.dataset.from === node.id || element.dataset.to === node.id;
+          element.classList.toggle("is-highlighted", incident);
+        });
+        dom.inspectorKicker.textContent = layerById.get(node.layer).label + " · " + node.proof_tier;
+        dom.inspectorTitle.textContent = node.label;
+        let extra = "";
+        if (node.missing) {
+          extra += '<div class="inspector-section"><h3>Missing evidence</h3><ul>' + node.missing.map(function (item) { return "<li>" + escapeHtml(item) + "</li>"; }).join("") + "</ul></div>";
+        }
+        if (node.destination_owner_route) {
+          extra += '<div class="inspector-section"><h3>Verification package</h3><dl class="meta-list">' +
+            metaRow("Destination string", node.destination_owner_route) +
+            metaRow("Question", node.verification_question) +
+            metaRow("Proposed witness", node.proposed_witness) +
+            metaRow("Invalidation", node.invalidation) +
+            metaRow("Authority effect", node.authority_effect) +
+            '</dl><h3 style="margin-top:14px">Prerequisites</h3><ul>' +
+            node.prerequisites.map(function (item) { return "<li>" + escapeHtml(item) + "</li>"; }).join("") +
+            '</ul><span class="route-lock">Display only · no action control</span></div>';
+        }
+        dom.inspectorContent.innerHTML =
+          '<p class="inspector-summary">' + escapeHtml(node.summary) + '</p>' +
+          '<dl class="meta-list">' +
+          metaRow("Stable ID", node.id) +
+          metaRow("Record class", node.record_class) +
+          metaRow("Status", node.status) +
+          metaRow("Binding", node.binding) +
+          metaRow("Claim ceiling", node.claim_ceiling) +
+          "</dl>" + extra +
+          '<div class="callout">Focus changes presentation state only. It records no comprehension, confusion, identity, selection, admission, or execution state.</div>';
+        openInspector();
+      }
+
+      function selectRelation(relation) {
+        selectedId = relation.id;
+        document.querySelectorAll(".node").forEach(function (element) {
+          const incident = element.dataset.nodeId === relation.from || element.dataset.nodeId === relation.to;
+          element.classList.toggle("is-selected", incident);
+        });
+        document.querySelectorAll(".edge-group").forEach(function (element) {
+          element.classList.toggle("is-highlighted", element.dataset.relationId === relation.id);
+        });
+        dom.inspectorKicker.textContent = "Typed candidate relation";
+        dom.inspectorTitle.textContent = relation.label;
+        dom.inspectorContent.innerHTML =
+          '<p class="inspector-summary">' + escapeHtml(relation.rule) + '</p>' +
+          '<dl class="meta-list">' +
+          metaRow("Relation ID", relation.id) +
+          metaRow("From", relation.from) +
+          metaRow("To", relation.to) +
+          metaRow("Authority effect", "none") +
+          "</dl>" +
+          '<div class="callout">This line preserves a bounded candidate relation. Its geometry and direction do not supply semantic identity, source truth, workflow admission, or execution authority.</div>';
+        openInspector();
+      }
+
+      function applyVisibility() {
+        const query = dom.search.value.trim().toLowerCase();
+        let visibleCount = 0;
+        document.querySelectorAll(".node").forEach(function (element) {
+          const node = byId.get(element.dataset.nodeId);
+          const layerVisible = activeLayers.has(node.layer);
+          const haystack = [
+            node.id, node.label, node.record_class, node.proof_tier, node.status,
+            node.binding, node.summary, node.claim_ceiling
+          ].join(" ").toLowerCase();
+          const queryMatch = !query || haystack.includes(query);
+          const legacyMatch = !legacyMode || legacyNodeIds.has(node.id);
+          const visible = layerVisible && queryMatch && legacyMatch;
+          element.classList.toggle("is-dimmed", !visible);
+          element.classList.toggle("is-match", Boolean(query) && queryMatch && layerVisible);
+          element.setAttribute("aria-hidden", String(!layerVisible));
+          if (visible) visibleCount += 1;
+        });
+        document.querySelectorAll(".edge-group").forEach(function (element) {
+          const relation = relations.find(function (item) { return item.id === element.dataset.relationId; });
+          const from = byId.get(relation.from);
+          const to = byId.get(relation.to);
+          const endpointsVisible = activeLayers.has(from.layer) && activeLayers.has(to.layer);
+          const legacyVisible = !legacyMode || legacyRelationIds.has(relation.id);
+          const queryVisible = !query || [from, to].some(function (node) {
+            return [node.id, node.label, node.record_class, node.summary].join(" ").toLowerCase().includes(query);
+          });
+          element.classList.toggle("is-dimmed", !(endpointsVisible && legacyVisible && queryVisible));
+        });
+        dom.matchStatus.textContent = visibleCount + (visibleCount === 1 ? " record visible" : " records visible");
+      }
+
+      function resetView() {
+        selectedId = null;
+        legacyMode = false;
+        activeLayers.clear();
+        layers.forEach(function (layer) { activeLayers.add(layer.id); });
+        dom.search.value = "";
+        dom.legacyPath.classList.remove("active");
+        dom.legacyPath.setAttribute("aria-pressed", "false");
+        document.querySelectorAll(".layer-chip").forEach(function (chip) {
+          chip.classList.add("active");
+          chip.setAttribute("aria-pressed", "true");
+        });
+        document.querySelectorAll(".node").forEach(function (element) { element.classList.remove("is-selected"); });
+        document.querySelectorAll(".edge-group").forEach(function (element) { element.classList.remove("is-highlighted"); });
+        applyVisibility();
+        dom.graphScroll.scrollTo({left: 0, top: 0, behavior: "smooth"});
+      }
+
+      renderBands();
+      renderLegend();
+      renderEdges();
+      renderNodes();
+      applyVisibility();
+
+      dom.search.addEventListener("input", applyVisibility);
+      dom.legacyPath.addEventListener("click", function () {
+        legacyMode = !legacyMode;
+        dom.legacyPath.classList.toggle("active", legacyMode);
+        dom.legacyPath.setAttribute("aria-pressed", String(legacyMode));
+        applyVisibility();
+        if (legacyMode) {
+          selectNode(byId.get("observation:implementation.payment.LegacyLimitRule"));
+          dom.graphScroll.scrollTo({left: 430, top: 180, behavior: "smooth"});
+        }
+      });
+      dom.reset.addEventListener("click", resetView);
+      dom.openInspector.addEventListener("click", openInspector);
+      dom.closeInspector.addEventListener("click", closeInspector);
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") closeInspector();
+      });
+
+      const endpointClosure = relations.every(function (relation) {
+        return byId.has(relation.from) && byId.has(relation.to);
+      });
+      window.__LEARNING_GRAPH_PROTOTYPE_RECEIPT__ = Object.freeze({
+        ready: endpointClosure,
+        node_count: nodes.length,
+        edge_count: relations.length,
+        layer_count: layers.length,
+        endpoint_closure: endpointClosure,
+        authority_effect: "none",
+        external_requests: 0,
+        selected_swu: null,
+        product_host_mutated: false
+      });
+    }());
+  </script>
+</body>
+</html>

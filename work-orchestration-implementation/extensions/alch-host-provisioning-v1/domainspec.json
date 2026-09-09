@@ -1,0 +1,59 @@
+{
+  "schema_version": "alch-host-provisioning-source/v1",
+  "status": "prototype",
+  "id": "alch-host-local-v1",
+  "capability_ref": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK",
+  "deadline_seconds": 120,
+  "step_timeout_seconds": 30,
+  "runtime_configuration": {
+    "schema": "alch-host-fixture/v1",
+    "runtime": "rust",
+    "max_concurrency": 1,
+    "network": "disabled",
+    "activated": false
+  },
+  "operations": [
+    {
+      "id": "validate",
+      "depends_on": [],
+      "adapter": "local-contract"
+    },
+    {
+      "id": "configure",
+      "depends_on": [
+        "validate"
+      ],
+      "adapter": "ansible-local"
+    },
+    {
+      "id": "verify-config",
+      "depends_on": [
+        "configure"
+      ],
+      "adapter": "independent-config-read"
+    },
+    {
+      "id": "verify-storage",
+      "depends_on": [
+        "configure"
+      ],
+      "adapter": "independent-storage-probe"
+    },
+    {
+      "id": "ready",
+      "depends_on": [
+        "verify-config",
+        "verify-storage"
+      ],
+      "adapter": "local-readiness-receipt"
+    }
+  ],
+  "policy": {
+    "effect": "private-tmp-files-only",
+    "retry": "reconcile-before-repeat",
+    "compensation": "none-automatic",
+    "failure": "stop",
+    "history": "sqlite-single-owner"
+  },
+  "open_questions_ref": "README.md#open-questions"
+}

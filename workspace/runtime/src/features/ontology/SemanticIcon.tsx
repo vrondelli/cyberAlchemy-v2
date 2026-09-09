@@ -1,0 +1,7 @@
+import type { ReactNode } from "react";
+import type { SemanticIconKey } from "./graph";
+
+const paths: Record<SemanticIconKey, ReactNode> = {
+  factory: <><path d="M3 21V10l6 3V8l6 4V5h4v16"/><path d="M3 21h18M7 17h2m3 0h2m3 0h2"/></>, product: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></>, project: <><path d="M3 6h7l2 2h9v11H3z"/><path d="M3 10h18"/></>, goal: <><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="m15 9 5-5m-5 0h5v5"/></>, capability: <><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1"/><circle cx="12" cy="12" r="4"/></>, participant: <><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-5 3.5-7 8-7s7.2 2 8 7"/></>, outcome: <><path d="M5 21V4m0 1h12l-2 4 2 4H5"/><path d="m9 17 2 2 4-5"/></>, artifact: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6m-6 4h6"/></>, collection: <><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></>, entry: <><path d="M4 21V3h12v18M4 21h16"/><path d="M10 12h10m-3-3 3 3-3 3"/></>, external: <><path d="M14 4h6v6m0-6-9 9"/><path d="M18 13v7H4V6h7"/></>, unknown: <><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1.2 1-1.2 1.7m0 4h.01"/></>,
+};
+export function SemanticIcon({ icon }: { icon: SemanticIconKey }) { return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[icon]}</svg>; }

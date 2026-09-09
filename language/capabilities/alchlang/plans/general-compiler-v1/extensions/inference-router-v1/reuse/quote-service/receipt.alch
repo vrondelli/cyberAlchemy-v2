@@ -1,0 +1,34 @@
+# Independent fixture; meanings and Open Questions: README.md.
+domain quote-receipt "Quote receipt"
+profile declarative-function-v1
+portability node-rust-v1
+owner service-fixture-owner
+logic sfol-v1
+schema Input:
+  total: integer min 1 max 10000
+  currency: string const "USD"
+schema Output:
+  status: string const "ok"
+  value: Input
+
+mapping Wrapped:
+  meaning "Validate the operation quote before returning it to the caller."
+  target Output
+  field status = "ok"
+  field value = input
+result Result:
+  when true yield Wrapped
+
+endpoint Function:
+  target node-http
+  runtime node>=26.8.1
+  method POST
+  path "/internal/receipt"
+  input Input
+  output Output
+  result Result
+  auth-env QUOTE_INTERNAL_TOKEN
+  max-bytes 65536
+  timeout-ms 5000
+  error-status 422
+  status ok 200

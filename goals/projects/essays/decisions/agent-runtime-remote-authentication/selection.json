@@ -1,0 +1,53 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-REMOTE-AUTHENTICATION",
+  "question": "How does a remote client establish a bounded identity before requesting Essays capabilities?",
+  "request_digest": "bddd17f6609bfb8f3d268c745a4d070f3ca85c6fba2af6104de2d1cd5219045a",
+  "selected_option_id": "OPT-AUTH-PAIRING-DPOP",
+  "selected_option": "Explicit owner-approved device pairing registers one asymmetric client key, then short-lived audience- and scope-restricted sender-constrained access tokens use DPoP proofs, rotating refresh credentials, expiry, and revocation.",
+  "rationale": "The user explicitly selected OPT-AUTH-PAIRING-DPOP after the gate presented pairing plus DPoP, OIDC plus PKCE and DPoP, and mutual-TLS alternatives. Pairing keeps the first local-first vertical independent of an external identity provider while retaining per-device proof and selective revocation.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-AUTH-PAIRING-DPOP",
+    "recorded_at": "2026-09-01T16:19:07+01:00"
+  },
+  "binding_effect": {
+    "remote_authentication": "owner-approved-device-pairing-with-dpop",
+    "required_semantics": [
+      "pairing is visible to the owner, requires an explicit owner confirmation, is single-use, and expires",
+      "each client generates and retains its own asymmetric private key; the private key never leaves that client",
+      "issued access tokens are short-lived, audience-restricted, resource-restricted, scope-restricted, and sender-constrained to the paired public key",
+      "every protected request carries a DPoP proof bound to the HTTP method and target URI with a unique identifier and bounded clock window",
+      "the verifier rejects proof replay, key mismatch, expired tokens, wrong audience, wrong resource, wrong method, wrong URI, and insufficient scope",
+      "refresh credentials rotate, reuse is detected, and device credentials can expire, be revoked, and be replaced through an owner-visible recovery path",
+      "pairing, token validity, and DPoP proof establish client authentication only; every Essays command still requires capability, expected-revision, idempotency, policy, and effect checks",
+      "authentication decisions and outcomes produce redacted evidence without persisting private keys, bearer material, pairing secrets, or reusable proofs"
+    ],
+    "non_implications": [
+      "pairing does not grant editorial, workspace, agent, browser, publication, or external-effect authority",
+      "a valid token or DPoP proof does not bypass semantic command validation or explicit effect authorization",
+      "this selection does not choose cryptographic libraries, key storage, token formats, endpoint paths, deployment topology, or public exposure",
+      "this selection does not satisfy the Essays security-owner gate or prove protocol security, implementation conformance, release, or deployment"
+    ]
+  },
+  "owner_gate": {
+    "required_owner": "Essays security owner",
+    "status": "pending",
+    "effect_until_satisfied": "remote exposure prohibited"
+  },
+  "remaining_blockers": [
+    "Essays security-owner review of the remote authentication binding",
+    "remote capability authorization and grant semantics",
+    "desktop host",
+    "WebAssembly posture",
+    "browser driver and effect rules",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [
+    "Cryptographic crates, platform key stores, token representation, nonce challenges, endpoint paths, recovery UX, and deployment configuration are later implementation and security bindings."
+  ],
+  "assumptions": [],
+  "authority_effect": "none"
+}

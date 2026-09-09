@@ -1,0 +1,58 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.architecture-decision/v1",
+  "decision_id": "CA2-DECISION-ESSAYS-AGENT-RUNTIME-WEBASSEMBLY-BUDGETS",
+  "question": "Which initial safety ceilings bound each first-vertical WebAssembly invocation?",
+  "request_digest": "fc36898331a047c4bee197144392afe21cc145e34f5eb21b3f5d0f69f28d5488",
+  "selected_option_id": "OPT-WASM-BUDGET-BALANCED",
+  "selected_option": "Balanced first-vertical ceilings: 64 MiB linear memory, 8,192 table elements, one instance, 4 MiB input, 4 MiB output, 256 KiB structured logs, 50 million deterministic fuel units, a 5-second wall watchdog, and two concurrent component invocations per daemon.",
+  "rationale": "The user explicitly selected OPT-WASM-BUDGET-BALANCED. It supplies bounded room for non-trivial pure-proposal analysis without adopting the substantially larger resource and responsiveness exposure of the throughput profile.",
+  "decision_source": {
+    "kind": "user-selection",
+    "exact_text": "OPT-WASM-BUDGET-BALANCED",
+    "recorded_at": "2026-09-01T17:48:32+01:00"
+  },
+  "binding_effect": {
+    "webassembly_budget_profile": "balanced-first-vertical",
+    "ceilings": {
+      "linear_memory_bytes_per_store": 67108864,
+      "table_elements_per_store": 8192,
+      "instances_per_store": 1,
+      "decoded_input_bytes_per_invocation": 4194304,
+      "decoded_output_bytes_per_invocation": 4194304,
+      "structured_log_bytes_per_invocation": 262144,
+      "deterministic_fuel_units_per_invocation": 50000000,
+      "wall_watchdog_milliseconds_per_invocation": 5000,
+      "concurrent_invocations_per_daemon": 2
+    },
+    "required_semantics": [
+      "all ceilings apply before or during allocation and execution; exceeding any ceiling fails the invocation closed",
+      "input, output, and log limits apply to decoded canonical payload bytes so compression or framing cannot bypass them",
+      "fuel exhaustion deterministically traps the invocation under the exact pinned Wasmtime configuration",
+      "the wall watchdog cancels or traps overlong execution as defense in depth and does not define a deterministic instruction point",
+      "cancellation, traps, deadline expiry, excess output, or resource refusal produce no partial proposal and no accepted-state mutation",
+      "the daemon applies bounded queueing and rejects excess work rather than exceeding the two-invocation concurrency ceiling",
+      "benchmark and conformance evidence may lower any ceiling; increasing a ceiling requires a new reviewed decision",
+      "a Wasmtime or compilation-configuration change invalidates fuel calibration and requires renewed budget evidence"
+    ],
+    "non_implications": [
+      "the selected ceilings are not latency, throughput, capacity, compatibility, or user-experience guarantees",
+      "the selected ceilings do not prove representative components complete within them",
+      "the selected ceilings do not satisfy the pending WebAssembly security-owner gate",
+      "this decision does not authorize implementation, component execution, resource reservation, release, or deployment"
+    ]
+  },
+  "remaining_blockers": [
+    "benchmark and conformance evidence for the balanced WebAssembly ceilings",
+    "Essays security-owner review of the pure-proposal WebAssembly capability profile",
+    "WebAssembly component identity, signing, provenance, cache, and evidence rules",
+    "Essays security-owner review of the remote authentication binding",
+    "remote capability authorization and grant semantics",
+    "browser driver and effect rules",
+    "supported platforms and measurable budgets",
+    "Product Capability decision and dependent contracts",
+    "authored ontology closure and DomainSpec generation"
+  ],
+  "deferred_decisions": [],
+  "assumptions": [],
+  "authority_effect": "none"
+}

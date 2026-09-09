@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Mint Inspector — Zagr Marketplace</title>
+  <style>
+    :root {
+      --ink: #f3f0e8;
+      --muted: #aab6b8;
+      --faint: #718084;
+      --bg: #071015;
+      --panel: #0d1920;
+      --panel-2: #12232b;
+      --line: #29404a;
+      --line-strong: #3b5964;
+      --mint: #68dfba;
+      --mint-dark: #123f36;
+      --amber: #ffc86b;
+      --amber-dark: #493615;
+      --coral: #ff8f83;
+      --coral-dark: #4d2524;
+      --blue: #7fc9ff;
+      --blue-dark: #163449;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .28);
+      --radius: 18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(104, 223, 186, .11), transparent 31rem),
+        radial-gradient(circle at 93% 8%, rgba(255, 200, 107, .08), transparent 28rem),
+        var(--bg);
+      font-family: var(--sans);
+      line-height: 1.55;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    a { color: var(--mint); }
+    [hidden] { display: none !important; }
+
+    .skip-link {
+      position: fixed;
+      left: 1rem;
+      top: 1rem;
+      z-index: 100;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      opacity: 0;
+      color: #071015;
+      background: var(--mint);
+      border-radius: 10px;
+      font-weight: 800;
+    }
+    .skip-link:focus {
+      width: auto;
+      height: auto;
+      margin: 0;
+      padding: .7rem 1rem;
+      overflow: visible;
+      clip-path: none;
+      opacity: 1;
+    }
+
+    .shell { width: min(1480px, calc(100% - 2rem)); margin: 0 auto; }
+    .hero { padding: 2.4rem 0 1.5rem; }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+      margin: 0 0 .85rem;
+      color: var(--mint);
+      font-family: var(--mono);
+      font-size: .78rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 2.2rem; height: 1px; background: var(--mint); }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 2rem; align-items: end; }
+    h1 { margin: 0; max-width: 850px; font-size: clamp(2.65rem, 6vw, 6.4rem); line-height: .93; letter-spacing: -.065em; }
+    h1 span { color: var(--mint); }
+    .lede { max-width: 720px; margin: 1.35rem 0 0; color: #c8d1d0; font-size: clamp(1rem, 1.5vw, 1.24rem); }
+    .identity {
+      padding: 1.15rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(18, 35, 43, .94), rgba(9, 20, 26, .94));
+      box-shadow: var(--shadow);
+    }
+    .identity-label { margin: 0 0 .4rem; color: var(--faint); font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; }
+    .identity-value { margin: 0 0 1rem; overflow-wrap: anywhere; font-family: var(--mono); font-size: .9rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .chip, .status {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      min-height: 1.8rem;
+      padding: .26rem .63rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: #dbe4e3;
+      background: rgba(255, 255, 255, .035);
+      font-family: var(--mono);
+      font-size: .72rem;
+      line-height: 1.2;
+    }
+    .chip.good, .status.good { color: var(--mint); border-color: rgba(104, 223, 186, .45); background: rgba(104, 223, 186, .08); }
+    .chip.warn, .status.warn { color: var(--amber); border-color: rgba(255, 200, 107, .42); background: rgba(255, 200, 107, .08); }
+    .chip.stop, .status.stop { color: var(--coral); border-color: rgba(255, 143, 131, .45); background: rgba(255, 143, 131, .08); }
+
+    .truth-banner {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 1rem;
+      align-items: center;
+      margin: 1.3rem 0 1.5rem;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(255, 200, 107, .36);
+      border-radius: 15px;
+      background: linear-gradient(90deg, rgba(73, 54, 21, .66), rgba(18, 35, 43, .72));
+    }
+    .truth-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; color: var(--amber); background: var(--amber-dark); font-weight: 900; }
+    .truth-banner strong { display: block; color: var(--amber); }
+    .truth-banner p { margin: .15rem 0 0; color: #d8d4c8; }
+    .truth-banner .proof { color: var(--muted); font-family: var(--mono); font-size: .72rem; text-align: right; }
+
+    .workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr) 300px; gap: 1.15rem; align-items: start; padding-bottom: 3rem; }
+    .rail, .evidence-rail { position: sticky; top: 1rem; }
+    .rail {
+      padding: .7rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(13, 25, 32, .88);
+      backdrop-filter: blur(16px);
+    }
+    .rail-label { margin: .35rem .55rem .65rem; color: var(--faint); font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
+    .nav-button {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: .7rem;
+      padding: .72rem .75rem;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+    .nav-button:hover { color: var(--ink); background: rgba(255,255,255,.035); }
+    .nav-button:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+    .nav-button[aria-selected="true"] { color: var(--ink); border-color: var(--line-strong); background: var(--panel-2); }
+    .nav-index { min-width: 1.8rem; color: var(--faint); font-family: var(--mono); font-size: .7rem; }
+    .nav-button[aria-selected="true"] .nav-index { color: var(--mint); }
+
+    main { min-width: 0; }
+    .panel {
+      padding: clamp(1.1rem, 2vw, 1.8rem);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(18, 35, 43, .92), rgba(10, 21, 27, .96));
+      box-shadow: var(--shadow);
+    }
+    .panel-head { display: flex; justify-content: space-between; gap: 1rem; align-items: start; margin-bottom: 1.4rem; }
+    .panel-kicker { margin: 0 0 .35rem; color: var(--mint); font-family: var(--mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.7rem); line-height: 1.08; letter-spacing: -.035em; }
+    h3 { margin: 0; font-size: 1rem; }
+    .panel-intro { max-width: 760px; margin: .65rem 0 0; color: var(--muted); }
+    .evidence-tag { display: inline-flex; gap: .35rem; align-items: center; color: var(--blue); font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+    .evidence-tag::before { content: ""; width: .46rem; height: .46rem; border-radius: 50%; background: currentColor; }
+    .inference-tag { color: var(--amber); }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; margin: 1.25rem 0; }
+    .metric { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: rgba(6, 15, 20, .44); }
+    .metric-value { display: block; color: var(--mint); font-size: clamp(1.65rem, 3vw, 2.35rem); line-height: 1; font-weight: 760; letter-spacing: -.04em; }
+    .metric-label { display: block; margin-top: .45rem; color: var(--muted); font-size: .82rem; }
+    .metric small { display: block; margin-top: .25rem; color: var(--faint); font-family: var(--mono); font-size: .65rem; }
+
+    .section-block { margin-top: 1.4rem; padding-top: 1.4rem; border-top: 1px solid var(--line); }
+    .section-title { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; margin-bottom: .85rem; }
+    .section-title p { margin: 0; color: var(--faint); font-size: .8rem; }
+    .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1.25fr; gap: .7rem; align-items: stretch; }
+    .flow-node { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: rgba(7,16,21,.66); }
+    .flow-node strong { display: block; margin-bottom: .35rem; }
+    .flow-node span { color: var(--muted); font-size: .82rem; }
+    .flow-arrow { display: grid; place-items: center; color: var(--mint); font-size: 1.35rem; }
+    .parity-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: .55rem; }
+    .parity-item { position: relative; padding: .85rem; border: 1px solid rgba(104,223,186,.28); border-radius: 12px; background: rgba(104,223,186,.055); }
+    .parity-item::after { content: "same digest"; display: block; margin-top: .45rem; color: var(--mint); font-family: var(--mono); font-size: .64rem; text-transform: uppercase; }
+    .parity-item strong { font-size: .88rem; }
+    .parity-item span { display: block; color: var(--muted); font-size: .73rem; }
+
+    .facet-grid, .card-grid, .projection-grid, .gap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    .facet-card, .record-card, .projection-card, .gap-card {
+      min-width: 0;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(7, 16, 21, .58);
+    }
+    .facet-number { display: inline-grid; place-items: center; width: 2rem; height: 2rem; margin-bottom: .85rem; border-radius: 8px; color: #071015; background: var(--mint); font-family: var(--mono); font-weight: 800; }
+    .facet-card p, .record-card p, .projection-card p, .gap-card p { margin: .45rem 0 0; color: var(--muted); font-size: .86rem; }
+    .facet-proof { margin-top: .8rem !important; padding-top: .7rem; border-top: 1px dashed var(--line); color: #c7d0cf !important; }
+
+    .toolbar { display: flex; gap: .7rem; align-items: center; margin-bottom: 1rem; }
+    .search {
+      width: min(100%, 520px);
+      padding: .72rem .85rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 11px;
+      color: var(--ink);
+      background: #071015;
+    }
+    .search:focus { outline: 2px solid var(--mint); outline-offset: 2px; }
+    .result-count { color: var(--faint); font-family: var(--mono); font-size: .72rem; }
+    .records { display: grid; gap: .75rem; }
+    .record-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; }
+    .record-id { color: var(--faint); font-family: var(--mono); font-size: .66rem; overflow-wrap: anywhere; }
+    .record-card h3 { margin-top: .3rem; }
+    .boundary { margin-top: .7rem !important; padding: .65rem .75rem; border-left: 2px solid var(--amber); color: #d9d5ca !important; background: rgba(255,200,107,.055); }
+    .source-list { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .7rem; }
+    .source-pill { padding: .22rem .46rem; border-radius: 6px; color: var(--blue); background: rgba(127,201,255,.08); font-family: var(--mono); font-size: .6rem; overflow-wrap: anywhere; }
+    .inspect-button {
+      align-self: start;
+      padding: .52rem .68rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: .74rem;
+    }
+    .inspect-button:hover, .inspect-button:focus-visible { color: var(--ink); border-color: var(--mint); outline: none; }
+
+    .rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
+    .rule { padding: .85rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(7,16,21,.55); }
+    .rule-id { color: var(--mint); font-family: var(--mono); font-size: .68rem; }
+    .rule p { margin: .42rem 0; font-size: .82rem; }
+    .rule small { color: var(--faint); }
+
+    .timeline { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: .55rem; margin: 1.2rem 0; }
+    .timeline::before { content: ""; position: absolute; z-index: 0; left: 8%; right: 8%; top: 1.05rem; height: 2px; background: var(--line-strong); }
+    .timeline-step { position: relative; z-index: 1; text-align: center; }
+    .timeline-dot { display: grid; place-items: center; width: 2.15rem; height: 2.15rem; margin: 0 auto .55rem; border: 2px solid var(--line-strong); border-radius: 50%; color: var(--faint); background: var(--panel); font-family: var(--mono); font-size: .72rem; }
+    .timeline-step.done .timeline-dot { color: #071015; border-color: var(--mint); background: var(--mint); }
+    .timeline-step.current .timeline-dot { color: #071015; border-color: var(--amber); background: var(--amber); box-shadow: 0 0 0 5px rgba(255,200,107,.1); }
+    .timeline-step.blocked .timeline-dot { color: var(--coral); border-color: var(--coral); }
+    .timeline-step strong { display: block; font-size: .75rem; }
+    .timeline-step span { display: block; color: var(--faint); font-size: .65rem; }
+    .state-table { width: 100%; border-collapse: collapse; }
+    .state-table th, .state-table td { padding: .72rem .65rem; border-bottom: 1px solid var(--line); text-align: left; font-size: .82rem; }
+    .state-table th { color: var(--faint); font-family: var(--mono); font-size: .65rem; letter-spacing: .07em; text-transform: uppercase; }
+    .state-table td:first-child { color: #dfe5e3; font-weight: 700; }
+
+    .source-card { padding: 1rem; border: 1px solid var(--line); border-radius: 14px; background: rgba(7,16,21,.58); }
+    .source-card + .source-card { margin-top: .7rem; }
+    .source-head { display: flex; gap: .8rem; justify-content: space-between; }
+    .source-path { margin: .55rem 0; color: #d7dedc; font-family: var(--mono); font-size: .73rem; overflow-wrap: anywhere; }
+    .source-selector { color: var(--muted); font-size: .8rem; }
+    .hash { color: var(--faint); font-family: var(--mono); font-size: .62rem; overflow-wrap: anywhere; }
+
+    .projection-card { display: flex; flex-direction: column; gap: .45rem; }
+    .projection-count { color: var(--mint); font-size: 2rem; font-weight: 800; line-height: 1; }
+    .projection-card .digest { margin-top: auto; padding-top: .75rem; color: var(--faint); font-family: var(--mono); font-size: .61rem; overflow-wrap: anywhere; }
+    .code-tabs { display: flex; gap: .4rem; margin: 1rem 0 .55rem; }
+    .code-tab { padding: .48rem .7rem; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; font-size: .75rem; }
+    .code-tab[aria-selected="true"] { color: #071015; border-color: var(--mint); background: var(--mint); }
+    pre { max-height: 440px; margin: 0; padding: 1rem; overflow: auto; border: 1px solid var(--line); border-radius: 12px; color: #cde8df; background: #050b0e; font-family: var(--mono); font-size: .72rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .file-inventory { columns: 2; gap: 1.5rem; margin: 0; padding-left: 1.15rem; }
+    .file-inventory li { break-inside: avoid; margin: .28rem 0; color: var(--muted); font-family: var(--mono); font-size: .68rem; }
+
+    .gap-card { border-style: dashed; }
+    .gap-card h3 { color: var(--amber); }
+    .gap-card.stop h3 { color: var(--coral); }
+    .proof-ceiling { margin-top: 1rem; padding: 1rem; border: 1px solid rgba(255,143,131,.36); border-radius: 14px; background: rgba(77,37,36,.34); }
+    .proof-ceiling strong { color: var(--coral); }
+    .proof-ceiling p { margin: .35rem 0 0; color: #dfcbc8; }
+
+    .evidence-rail {
+      min-height: 360px;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(13,25,32,.9);
+    }
+    .rail-mark { display: inline-flex; align-items: center; gap: .4rem; color: var(--blue); font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+    .rail-mark::before { content: ""; width: .55rem; height: .55rem; border-radius: 50%; background: var(--blue); }
+    .evidence-rail h2 { margin-top: .7rem; font-size: 1.25rem; letter-spacing: -.02em; }
+    .evidence-rail h3 { margin-top: 1rem; color: var(--faint); font-family: var(--mono); font-size: .65rem; letter-spacing: .08em; text-transform: uppercase; }
+    .evidence-rail p { margin: .35rem 0 0; color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+    .rail-inference { padding: .7rem; border: 1px dashed rgba(255,200,107,.38); border-radius: 10px; background: rgba(255,200,107,.04); }
+    .rail-inference h3 { margin-top: 0; color: var(--amber); }
+    .rail-reset { width: 100%; margin-top: 1rem; padding: .62rem; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: transparent; cursor: pointer; }
+    .rail-reset:hover { color: var(--ink); border-color: var(--mint); }
+
+    .footer { display: flex; justify-content: space-between; gap: 1.5rem; padding: 1.2rem 0 2rem; border-top: 1px solid var(--line); color: var(--faint); font-size: .72rem; }
+    .footer code { color: var(--muted); font-family: var(--mono); }
+
+    @media (max-width: 1120px) {
+      .workspace { grid-template-columns: 190px minmax(0, 1fr); }
+      .evidence-rail { position: static; grid-column: 2; min-height: 0; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 780px) {
+      .shell { width: min(100% - 1rem, 720px); }
+      .hero { padding-top: 1.25rem; }
+      .hero-grid { grid-template-columns: 1fr; gap: 1.1rem; }
+      h1 { font-size: clamp(2.8rem, 15vw, 4.4rem); }
+      .truth-banner { grid-template-columns: auto 1fr; }
+      .truth-banner .proof { grid-column: 1 / -1; text-align: left; }
+      .workspace { display: block; }
+      .rail { position: sticky; top: 0; z-index: 20; display: flex; gap: .35rem; margin-bottom: .65rem; padding: .45rem; overflow-x: auto; border-radius: 13px; }
+      .rail-label { display: none; }
+      .nav-button { flex: 0 0 auto; width: auto; padding: .6rem .7rem; white-space: nowrap; }
+      .nav-index { display: none; }
+      .panel { border-radius: 14px; }
+      .evidence-rail { margin-top: .65rem; }
+      .flow { grid-template-columns: 1fr; }
+      .flow-arrow { transform: rotate(90deg); }
+      .parity-strip, .facet-grid, .card-grid, .projection-grid, .gap-grid { grid-template-columns: 1fr; }
+      .rules { grid-template-columns: 1fr 1fr; }
+      .timeline { grid-template-columns: 1fr; gap: .7rem; }
+      .timeline::before { top: 1rem; bottom: 1rem; left: 1.05rem; right: auto; width: 2px; height: auto; }
+      .timeline-step { display: grid; grid-template-columns: 2.2rem 1fr; gap: .7rem; text-align: left; align-items: center; }
+      .timeline-dot { margin: 0; }
+      .file-inventory { columns: 1; }
+      .footer { display: block; }
+    }
+    @media (max-width: 480px) {
+      .metrics, .rules { grid-template-columns: 1fr; }
+      .record-card { grid-template-columns: 1fr; }
+      .inspect-button { justify-self: start; }
+      .panel-head, .section-title, .source-head { display: block; }
+      .panel-head .status, .source-head .status { margin-top: .7rem; }
+      .state-table { display: block; overflow-x: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#inspector-main">Skip to inspector</a>
+
+  <header class="hero shell">
+    <p class="eyebrow">Candidate-local runtime view · L0</p>
+    <div class="hero-grid">
+      <div>
+        <h1>Mint <span>Inspector</span></h1>
+        <p class="lede">A human view of the Zagr Marketplace authority package: what it says, where each claim came from, what the runtime validated, and—just as importantly—what still does not exist.</p>
+      </div>
+      <section class="identity" aria-label="Package identity">
+        <p class="identity-label">Package</p>
+        <p class="identity-value">PKG.ZAGR.MARKETPLACE.CANDIDATE</p>
+        <div class="chips">
+          <span class="chip warn">candidate</span>
+          <span class="chip">private</span>
+          <span class="chip good">package valid</span>
+          <span class="chip stop">authority: none</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="truth-banner" role="note" aria-label="Proof boundary">
+      <div class="truth-icon" aria-hidden="true">!</div>
+      <div>
+        <strong>Nothing has been minted.</strong>
+        <p>This is the validated recipe and its no-write projections. No target repository, policy enforcement, ratification, promotion, or deployment occurred.</p>
+      </div>
+      <div class="proof">proof ceiling<br>L0 developer integration</div>
+    </div>
+  </header>
+
+  <div class="workspace shell">
+    <nav class="rail" aria-label="Inspector views" role="tablist" aria-orientation="vertical">
+      <p class="rail-label">Views</p>
+      <button class="nav-button" role="tab" aria-selected="true" aria-controls="panel-overview" id="tab-overview" data-view="overview"><span class="nav-index">01</span>Overview</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-facets" id="tab-facets" data-view="facets" tabindex="-1"><span class="nav-index">02</span>Four facets</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-definitions" id="tab-definitions" data-view="definitions" tabindex="-1"><span class="nav-index">03</span>Definitions</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-constitution" id="tab-constitution" data-view="constitution" tabindex="-1"><span class="nav-index">04</span>Constitution</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-authority" id="tab-authority" data-view="authority" tabindex="-1"><span class="nav-index">05</span>Authority</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-sources" id="tab-sources" data-view="sources" tabindex="-1"><span class="nav-index">06</span>Sources</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-projections" id="tab-projections" data-view="projections" tabindex="-1"><span class="nav-index">07</span>Projections</button>
+      <button class="nav-button" role="tab" aria-selected="false" aria-controls="panel-gaps" id="tab-gaps" data-view="gaps" tabindex="-1"><span class="nav-index">08</span>Gaps</button>
+    </nav>
+
+    <main id="inspector-main" tabindex="-1">
+      <section class="panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" data-panel="overview" data-lane="surface components flow internal_dependencies external_dependencies">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Surface · what exists now</p>
+            <h2>A checked semantic package, not a cast system.</h2>
+            <p class="panel-intro">Mint took five pinned source bindings and organized their claims into typed records. The runtime proved those records can produce four digest-consistent, no-write views.</p>
+          </div>
+          <span class="evidence-tag">source-backed</span>
+        </div>
+
+        <div class="metrics" aria-label="Package record counts">
+          <div class="metric"><span class="metric-value">6</span><span class="metric-label">definitions</span><small>all proposed</small></div>
+          <div class="metric"><span class="metric-value">9</span><span class="metric-label">baseline rules</span><small>B1–B9</small></div>
+          <div class="metric"><span class="metric-value">5</span><span class="metric-label">source bindings</span><small>private + digest-bound</small></div>
+          <div class="metric"><span class="metric-value">0</span><span class="metric-label">writes performed</span><small>Zagr unchanged</small></div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title"><h3>What moved through the runtime</h3><p>source → package → views</p></div>
+          <div class="flow" aria-label="Mint package flow">
+            <div class="flow-node"><strong>Zagr + Mint sources</strong><span>Five immutable local bindings establish provenance and ownership.</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-node"><strong>Typed authority package</strong><span>Definitions, constitution, rules, method, kind, decision, action, and lifecycle states.</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-node"><strong>No-write projections</strong><span>Validation receipt, 18-file Markdown preview, Cedar subset, and TPTP FOF subset.</span></div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title"><h3>Projection parity</h3><p>custom Mint shape · one semantic identity</p></div>
+          <div class="parity-strip" aria-label="Projection digest parity">
+            <div class="parity-item"><strong>Package check</strong><span>valid · 11 checks</span></div>
+            <div class="parity-item"><strong>Markdown</strong><span>ready · 18 files</span></div>
+            <div class="parity-item"><strong>Cedar</strong><span>ready · 1 policy</span></div>
+            <div class="parity-item"><strong>First-order logic</strong><span>ready · 25 statements</span></div>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title"><h3>Runtime evidence</h3><span class="evidence-tag">live test receipts</span></div>
+          <p class="panel-intro">The focused same-run probe passed, the complete Mint runtime suite passed all 95 tests, and the Zagr tree digest stayed exactly <code>fc01a0a91db5…8a89</code> before and after.</p>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title"><h3>Why this matters</h3><span class="evidence-tag inference-tag">human reading</span></div>
+          <p class="panel-intro">The useful result is not “Mint approved Marketplace.” It is narrower: the same candidate meaning survived validation and three representations without writing to Zagr or silently acquiring authority.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-facets" role="tabpanel" aria-labelledby="tab-facets" data-panel="facets" data-lane="properties components" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Properties · four-facet method</p>
+            <h2>Every governed action answers four different questions.</h2>
+            <p class="panel-intro">The action here is only <code>ACTION.VALIDATE-PACKAGE</code>. Each facet is bound, so “validated” cannot accidentally mean “authorized” or “executed.”</p>
+          </div>
+          <span class="status good">4 / 4 bound</span>
+        </div>
+        <div class="facet-grid">
+          <article class="facet-card">
+            <span class="facet-number">1</span><h3>Classification</h3>
+            <p><strong>What kind of action is this?</strong> A local validation action performed by the Mint runtime.</p>
+            <p class="facet-proof">Bound to <code>FACET.CLASSIFICATION</code>. It is not mint, apply, promote, or ratify.</p>
+          </article>
+          <article class="facet-card">
+            <span class="facet-number">2</span><h3>Schema</h3>
+            <p><strong>What structure must it obey?</strong> The authority-package schema, identity/reference closure, lifecycle axes, and B1–B9 baseline.</p>
+            <p class="facet-proof">Bound to <code>FACET.SCHEMA</code>. All 11 package checks passed.</p>
+          </article>
+          <article class="facet-card">
+            <span class="facet-number">3</span><h3>Human continuation</h3>
+            <p><strong>Who can decide what happens next?</strong> The Marketplace authority owner, through the still-pending owner gate.</p>
+            <p class="facet-proof">Bound to <code>FACET.HUMAN-CONTINUATION</code>. The runtime cannot ratify its own output.</p>
+          </article>
+          <article class="facet-card">
+            <span class="facet-number">4</span><h3>Machine-checkable</h3>
+            <p><strong>What can software prove now?</strong> Schema validity, closed references, exact digests, projection parity, parse parity, and zero-write counters.</p>
+            <p class="facet-proof">Bound to <code>FACET.MACHINE-CHECKABLE</code>. This proves structure, not real-world enforcement.</p>
+          </article>
+        </div>
+        <div class="proof-ceiling"><strong>Facet boundary</strong><p>Four complete facets make the action legible and auditable. They do not give the action more authority than its declared kind.</p></div>
+      </section>
+
+      <section class="panel" id="panel-definitions" role="tabpanel" aria-labelledby="tab-definitions" data-panel="definitions" data-lane="properties components external_dependencies" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Components · vocabulary</p>
+            <h2>Six definitions, each with a boundary.</h2>
+            <p class="panel-intro">The meaning says what the term claims. The boundary says what this candidate package does not do.</p>
+          </div>
+          <span class="status warn">all proposed</span>
+        </div>
+        <div class="toolbar">
+          <label for="definition-search" class="visually-hidden">Filter definitions</label>
+          <input id="definition-search" class="search" type="search" placeholder="Filter by term, meaning, boundary, or source…" autocomplete="off">
+          <span class="result-count" id="definition-count" aria-live="polite">6 shown</span>
+        </div>
+        <div class="records" id="definition-records"></div>
+      </section>
+
+      <section class="panel" id="panel-constitution" role="tabpanel" aria-labelledby="tab-constitution" data-panel="constitution" data-lane="components internal_dependencies lifecycle" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Components · constitution</p>
+            <h2>Marketplace baseline B1–B9.</h2>
+            <p class="panel-intro">One candidate constitution groups nine proposed rules. These are package-governance rules; they do not implement Zagr business behavior or database enforcement.</p>
+          </div>
+          <span class="status warn">candidate</span>
+        </div>
+        <div class="rules" id="rule-records"></div>
+        <div class="section-block">
+          <div class="section-title"><h3>Dependency shape</h3><span class="evidence-tag">source-backed</span></div>
+          <div class="flow">
+            <div class="flow-node"><strong>Definitions</strong><span>The six typed meanings establish the vocabulary.</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-node"><strong>Rules B1–B9</strong><span>Each rule currently references the Authority Package definition.</span></div>
+            <div class="flow-arrow" aria-hidden="true">→</div>
+            <div class="flow-node"><strong>Constitution</strong><span><code>CONSTITUTION.MARKETPLACE</code> inventories the ordered baseline.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-authority" role="tabpanel" aria-labelledby="tab-authority" data-panel="authority" data-lane="properties lifecycle flow risk_questions" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Lifecycle · authority posture</p>
+            <h2>Validated meaning stops before authority.</h2>
+            <p class="panel-intro">Lifecycle, evidence, commitment, and ratification remain separate. A green validator result cannot move the owner gate.</p>
+          </div>
+          <span class="status stop">authority effect: none</span>
+        </div>
+
+        <div class="timeline" aria-label="Candidate lifecycle">
+          <div class="timeline-step done"><div class="timeline-dot">1</div><strong>Authored</strong><span>records exist</span></div>
+          <div class="timeline-step done"><div class="timeline-dot">2</div><strong>Validated</strong><span>package valid</span></div>
+          <div class="timeline-step current"><div class="timeline-dot">3</div><strong>Owner gate</strong><span>pending / defer</span></div>
+          <div class="timeline-step blocked"><div class="timeline-dot">4</div><strong>Ratified</strong><span>not reached</span></div>
+          <div class="timeline-step blocked"><div class="timeline-dot">5</div><strong>Applied</strong><span>not reached</span></div>
+        </div>
+
+        <table class="state-table">
+          <thead><tr><th>Record</th><th>Artifact kind</th><th>Lifecycle</th><th>Commitment</th><th>Owner route</th></tr></thead>
+          <tbody>
+            <tr><td>Package</td><td>authority package</td><td><span class="status warn">candidate</span></td><td>provisional</td><td>mint-runtime-owner</td></tr>
+            <tr><td>Definitions</td><td>definition × 6</td><td><span class="status warn">proposed</span></td><td>provisional</td><td>Mint / Zagr owners</td></tr>
+            <tr><td>Constitution</td><td>constitution</td><td><span class="status warn">candidate</span></td><td>provisional</td><td>marketplace-constitution-owner</td></tr>
+            <tr><td>Authority kind</td><td>authority-kind</td><td><span class="status warn">proposed</span></td><td>provisional</td><td>marketplace-authority-owner</td></tr>
+            <tr><td>Method</td><td>method</td><td><span class="status warn">candidate</span></td><td>provisional</td><td>mint-runtime-owner</td></tr>
+            <tr><td>Owner decision</td><td>decision</td><td><span class="status stop">pending</span></td><td>provisional</td><td>marketplace-authority-owner</td></tr>
+          </tbody>
+        </table>
+
+        <div class="section-block card-grid">
+          <article class="record-card"><div><span class="record-id">KIND.MARKETPLACE-CANDIDATE</span><h3>Candidate authority kind</h3><p>Scope: candidate Marketplace package only. Ratification state: proposed. Authority effect: none.</p></div><button class="inspect-button" data-inspect-title="Candidate authority kind" data-inspect-ref="fixture → authority_kinds[0]" data-inspect-source="The record declares authority_effect none and ratification_state proposed." data-inspect-note="The name contains authority, but the record is explicitly non-authoritative until an owner act occurs.">Inspect evidence</button></article>
+          <article class="record-card"><div><span class="record-id">DECISION.OWNER-GATE</span><h3>Owner gate</h3><p>Question: should the candidate authority kind be ratified? Current selection: defer. Decision state: pending.</p></div><button class="inspect-button" data-inspect-title="Owner gate" data-inspect-ref="fixture → decisions[0]" data-inspect-source="The selected option is defer; rationale says runtime validation cannot decide owner authority." data-inspect-note="This is the deliberate stop that prevents a validator from promoting its own package.">Inspect evidence</button></article>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-sources" role="tabpanel" aria-labelledby="tab-sources" data-panel="sources" data-lane="external_dependencies properties risk_questions" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">External dependencies · provenance</p>
+            <h2>Five private sources own the claims.</h2>
+            <p class="panel-intro">Mint owns the package structure and baseline. Zagr owns Marketplace meanings. Every binding records a path, selector, digest, visibility, and zero authority effect.</p>
+          </div>
+          <span class="status good">5 / 5 bound</span>
+        </div>
+        <div id="source-records"></div>
+        <div class="proof-ceiling"><strong>Private boundary</strong><p>These locators are repository-local evidence references. This prototype makes no network request and does not copy private source prose into a public package.</p></div>
+      </section>
+
+      <section class="panel" id="panel-projections" role="tabpanel" aria-labelledby="tab-projections" data-panel="projections" data-lane="components flow internal_dependencies" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Flow · machine projections</p>
+            <h2>One package, four consistent results.</h2>
+            <p class="panel-intro">All results carry package digest <code>86600028…380</code> and semantic digest <code>ed939be1…0de</code>. The Cedar and FOL parsers also reconstructed matching internal syntax trees.</p>
+          </div>
+          <span class="status good">parity pass</span>
+        </div>
+
+        <div class="projection-grid">
+          <article class="projection-card"><span class="projection-count">11</span><h3>Package checks</h3><p>Schema, identity, references, action linkage, four facets, lifecycle axes, sources, B1–B9, kind/method, projections, and no-write ceiling.</p><span class="digest">receipt b02f7db7…3b90</span></article>
+          <article class="projection-card"><span class="projection-count">18</span><h3>Markdown files</h3><p>A complete in-memory human package. No file was written to a target.</p><span class="digest">inventory db88f80f…4bc9</span></article>
+          <article class="projection-card"><span class="projection-count">1</span><h3>Cedar policy</h3><p>Internal-subset policy structure for the candidate package-check method.</p><span class="digest">inventory df292c8c…13a72</span></article>
+          <article class="projection-card"><span class="projection-count">25</span><h3>FOL statements</h3><p>Facts, relations, and three invariants in the internal TPTP FOF subset.</p><span class="digest">program e3efbf82…5b3f</span></article>
+        </div>
+
+        <div class="code-tabs" role="tablist" aria-label="Projection details">
+          <button class="code-tab" role="tab" aria-selected="true" data-code="cedar">Cedar</button>
+          <button class="code-tab" role="tab" aria-selected="false" data-code="fol">First-order logic</button>
+          <button class="code-tab" role="tab" aria-selected="false" data-code="markdown">18-file inventory</button>
+        </div>
+        <div id="code-cedar" data-code-panel="cedar"><pre><code id="cedar-code"></code></pre></div>
+        <div id="code-fol" data-code-panel="fol" hidden><pre><code id="fol-code"></code></pre></div>
+        <div id="code-markdown" data-code-panel="markdown" hidden><ol class="file-inventory" id="markdown-files"></ol></div>
+        <div class="proof-ceiling"><strong>Projection boundary</strong><p>Cedar evidence is internal structural parity, not official Cedar authorization. FOL evidence is structural parity, not theorem proving or satisfiability. Markdown stayed in memory.</p></div>
+      </section>
+
+      <section class="panel" id="panel-gaps" role="tabpanel" aria-labelledby="tab-gaps" data-panel="gaps" data-lane="risk_questions lifecycle" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Risk questions · what remains</p>
+            <h2>Green checks do not erase the missing layers.</h2>
+            <p class="panel-intro">These are boundaries evidenced by the current package and completion audit, not speculative defects.</p>
+          </div>
+          <span class="evidence-tag">evidence boundary</span>
+        </div>
+        <div class="gap-grid">
+          <article class="gap-card stop"><h3>No minted target</h3><p>The runtime rendered 18 Markdown files in memory only. There is no target directory, applied constitution, or emitted package.</p></article>
+          <article class="gap-card stop"><h3>No authority transition</h3><p>The owner decision remains pending with “defer.” Promotion transitions are empty and authority effect is none.</p></article>
+          <article class="gap-card"><h3>No real enforcement</h3><p>The package describes subtree visibility, RBAC/RLS, roles, and audit invariants. It does not operate a database or authorize a request.</p></article>
+          <article class="gap-card"><h3>No official formal-engine proof</h3><p>Cedar and TPTP FOF outputs pass internal parse parity only. No official Cedar evaluator or theorem prover ran.</p></article>
+          <article class="gap-card"><h3>No publication or deployment</h3><p>The result remains private and candidate-local. Browser visibility on loopback is not a release or remote availability.</p></article>
+          <article class="gap-card"><h3>L1 needs a new route</h3><p>Materializing a Marketplace target would be a target-writing remint route with its own plan, admission, integrity checks, and acceptance contract.</p></article>
+        </div>
+        <div class="proof-ceiling"><strong>Maximum honest claim</strong><p>Mint can validate this source-bound candidate package and derive digest-consistent Markdown, Cedar-subset, and FOL-subset views without changing Zagr. Nothing more is proven here.</p></div>
+      </section>
+    </main>
+
+    <aside class="evidence-rail" aria-live="polite" aria-label="Evidence and interpretation inspector">
+      <span class="rail-mark">Evidence inspector</span>
+      <h2 id="rail-title">Package overview</h2>
+      <h3>Source-backed fact</h3>
+      <p id="rail-source">The package is candidate, private, valid, and reports zero authority effect and zero writes.</p>
+      <h3>Reference</h3>
+      <p id="rail-ref">fixture identity + projection summary</p>
+      <div class="rail-inference">
+        <h3>Human reading · inference</h3>
+        <p id="rail-note">This is a safe object to inspect and discuss. It is not an approved or applied constitution.</p>
+      </div>
+      <button class="rail-reset" type="button" id="rail-reset">Reset inspector</button>
+    </aside>
+  </div>
+
+  <footer class="footer shell">
+    <span>Mint Inspector prototype · source snapshot 2026-08-07</span>
+    <span>package <code>86600028ce21…89380</code> · Zagr tree <code>fc01a0a91db5…8a89</code></span>
+  </footer>
+
+  <script>
+    const definitions = [
+      { id: "DEF.AUTHORITY-PACKAGE", term: "Authority Package", meaning: "A private candidate graph whose typed records are the sole semantic input to later no-write projections.", boundary: "Validation and projection do not ratify, promote, render to a target, apply, or remint.", sources: ["SRC.MINT.AUTHORITY-PACKAGE-DESIGN", "SRC.MINT.AUTHORITY-PACKAGE-SCHEMA"], owner: "mint-runtime-owner" },
+      { id: "DEF.NODE-TREE", term: "Marketplace Node Tree", meaning: "ZAGR, Revendores, and sub-merchants form one recursive Node tree at arbitrary depth.", boundary: "This candidate records the source claim; it does not create, mutate, or enforce the tree.", sources: ["SRC.ZAGR.DOMAIN-LEDGER", "SRC.ZAGR.MARKETPLACE-README", "SRC.ZAGR.MARKETPLACE-DOMAIN"], owner: "zagr-marketplace-owner" },
+      { id: "DEF.SUBTREE-VISIBILITY", term: "Subtree Visibility", meaning: "An authenticated user is scoped to the Node subtree rooted at the user home_node_id.", boundary: "The source requires persisted RLS enforcement; this package is not runtime authorization or enforcement.", sources: ["SRC.ZAGR.MARKETPLACE-README", "SRC.ZAGR.MARKETPLACE-DOMAIN"], owner: "zagr-marketplace-owner" },
+      { id: "DEF.MARKETPLACE-RBAC-RLS", term: "Marketplace RBAC and RLS Boundary", meaning: "Marketplace combines role grants with Postgres row-level security so application bugs cannot widen subtree visibility.", boundary: "The package describes the boundary but makes no authorization decision and performs no database operation.", sources: ["SRC.ZAGR.DOMAIN-LEDGER", "SRC.ZAGR.MARKETPLACE-README", "SRC.ZAGR.MARKETPLACE-DOMAIN"], owner: "zagr-marketplace-owner" },
+      { id: "DEF.USER-ROLE-ASSIGNMENT", term: "UserRoleAssignment", meaning: "An explicit role grant binds a User to a Node within the subtree of the user home node, with source-defined implicit ADMIN behavior.", boundary: "This candidate does not grant, revoke, or evaluate a role.", sources: ["SRC.ZAGR.DOMAIN-LEDGER", "SRC.ZAGR.MARKETPLACE-DOMAIN"], owner: "zagr-marketplace-owner" },
+      { id: "DEF.ACCESS-AUDIT-LOG", term: "AccessAuditLog", meaning: "Marketplace owns an append-only audit record whose update and delete paths are forbidden by the source invariants.", boundary: "This package neither emits audit records nor proves database enforcement.", sources: ["SRC.ZAGR.DOMAIN-LEDGER", "SRC.ZAGR.MARKETPLACE-README", "SRC.ZAGR.MARKETPLACE-DOMAIN"], owner: "zagr-marketplace-owner" }
+    ];
+
+    const rules = [
+      ["B1", "Identity is explicit.", "schema"],
+      ["B2", "Sources are bound.", "schema"],
+      ["B3", "Definitions are typed.", "schema"],
+      ["B4", "Actions account for four facets.", "semantic"],
+      ["B5", "Lifecycle axes remain separate.", "semantic"],
+      ["B6", "Authority remains owner-bound.", "semantic"],
+      ["B7", "Methods and kinds agree.", "semantic"],
+      ["B8", "Projections declare parity.", "semantic"],
+      ["B9", "Validation has no authority effect.", "semantic"]
+    ];
+
+    const sources = [
+      { id: "SRC.MINT.AUTHORITY-PACKAGE-DESIGN", owner: "Mint", path: "cyberAlchemy-v2/development/mint/development/refinement-runs/20260807T032926Z-post-runtime-next-steps/stages/06-invoke-design/DESIGN.md", selector: "D-04; D-14; Authority Boundary", sha: "a07dd30d6f4dde5068059a9cb618cbe95a4f0091d1072987f96077ace4387da1" },
+      { id: "SRC.MINT.AUTHORITY-PACKAGE-SCHEMA", owner: "Mint", path: "cyberAlchemy-v2/development/mint/runtime/contracts/authority-package.v0.1.schema.json", selector: "$", sha: "830e5dad6fbcefebb8c4daae3616987a0628a5e9a7b13758a81564db3594e005" },
+      { id: "SRC.ZAGR.DOMAIN-LEDGER", owner: "Zagr", path: "projects/zagr/docs/DOMAIN-LEDGER.md", selector: "marketplace row; Cross-domain seams", sha: "fa253c8ae9cff9ad4032d934bf3e59417e90b94089375f1bc5888084fccb5687" },
+      { id: "SRC.ZAGR.MARKETPLACE-README", owner: "Zagr", path: "projects/zagr/docs/features/zagr-marketplace/README.md", selector: "What this domain does; Risks this domain prevents; Map of this folder", sha: "788005fe201d483c009f96338106b68367af4caa109b33c2cf210db7a8f95b59" },
+      { id: "SRC.ZAGR.MARKETPLACE-DOMAIN", owner: "Zagr", path: "projects/zagr/docs/features/zagr-marketplace/specs/domain.md", selector: "Node; UserRoleAssignment; AccessAuditLog; invariants", sha: "083f052501a6436d2c14841e0fe4b97dc86454ab166e04e83d9a01ac08ade40b" }
+    ];
+
+    const markdownFiles = [
+      "authority/AUTHORITY-MODEL.md", "authority/source-spine.md", "authority/promotion-policy.md", "authority/constitutions/marketplace-CONSTITUTION.md", "definitions/DEFINITIONS.md", "definitions/DEFINITIONS-INDEX.md", "definitions/DEFINITION-DRIFT-AUDIT.md", "authority/METHODS-CATALOGUE.md", "definitions/DEFINITION-LOCALIZATION-ROUTE.md", "authority/AUTHORITY-POSTURES.md", "authority/boundaries.md", "authority/imports/README.md", "authority/constitutions/CONSTITUTION-IMPORT-PACK.md", "authority/README.md", "authority/decisions/README.md", "authority/constitutions/marketplace-BASELINE-CONSTITUTION.md", "authority/BASELINE-PRIMITIVES.md", "authority/PROJECT-SPACE-ROLES.md"
+    ];
+
+    const cedarPolicy = `permit(
+  principal == MintAuthorityKind::"KIND.MARKETPLACE-CANDIDATE",
+  action == MintMethod::"METHOD.PACKAGE-CHECK",
+  resource == MintDomain::"DOMAIN.MARKETPLACE"
+) when {
+  context.packageMaturity == "candidate"
+};
+
+// Internal Cedar subset only.
+// Structural parse parity: pass.
+// This policy was not evaluated as a real authorization decision.`;
+
+    const folProgram = `fof(constitution_0492d5cf7a027b41, axiom, constitution('CONSTITUTION.MARKETPLACE')).
+fof(rule_a7b9db5eabb0a6f1, axiom, rule('RULE.B1')).
+fof(rule_constitution_297df51c4ce5cbd5, axiom, rule_constitution('RULE.B1','CONSTITUTION.MARKETPLACE')).
+fof(rule_f849cd1a200cdc5a, axiom, rule('RULE.B2')).
+fof(rule_constitution_568ab3b6a8ad0de4, axiom, rule_constitution('RULE.B2','CONSTITUTION.MARKETPLACE')).
+fof(rule_fe2a3e21b1843fbd, axiom, rule('RULE.B3')).
+fof(rule_constitution_4f38f5f44202c346, axiom, rule_constitution('RULE.B3','CONSTITUTION.MARKETPLACE')).
+fof(rule_cb453c050870dd21, axiom, rule('RULE.B4')).
+fof(rule_constitution_d24f25168cb9d6b9, axiom, rule_constitution('RULE.B4','CONSTITUTION.MARKETPLACE')).
+fof(rule_d9ad33779e00705c, axiom, rule('RULE.B5')).
+fof(rule_constitution_f498f80cc2f7be97, axiom, rule_constitution('RULE.B5','CONSTITUTION.MARKETPLACE')).
+fof(rule_ba9f99636626d503, axiom, rule('RULE.B6')).
+fof(rule_constitution_3228770212a28fe9, axiom, rule_constitution('RULE.B6','CONSTITUTION.MARKETPLACE')).
+fof(rule_745c2dcc55b94dff, axiom, rule('RULE.B7')).
+fof(rule_constitution_d1ab54bcd664afb9, axiom, rule_constitution('RULE.B7','CONSTITUTION.MARKETPLACE')).
+fof(rule_adf975e1eca0c8a6, axiom, rule('RULE.B8')).
+fof(rule_constitution_ca5f14a1516e4243, axiom, rule_constitution('RULE.B8','CONSTITUTION.MARKETPLACE')).
+fof(rule_2e056b623126cc0f, axiom, rule('RULE.B9')).
+fof(rule_constitution_70475ec94757fac8, axiom, rule_constitution('RULE.B9','CONSTITUTION.MARKETPLACE')).
+fof(authority_kind_381a5257112da55f, axiom, authority_kind('KIND.MARKETPLACE-CANDIDATE')).
+fof(method_e77629e85ccf9168, axiom, method('METHOD.PACKAGE-CHECK')).
+fof(method_kind_a9d815784f307502, axiom, method_kind('METHOD.PACKAGE-CHECK','KIND.MARKETPLACE-CANDIDATE')).
+fof(rule_constitution_total, axiom, ! [R] : (rule(R) => ? [C] : (constitution(C) & rule_constitution(R,C)))).
+fof(rule_constitution_functional, axiom, ! [R,C1,C2] : ((rule_constitution(R,C1) & rule_constitution(R,C2)) => C1 = C2)).
+fof(method_kind_total, axiom, ! [M] : (method(M) => ? [K] : (authority_kind(K) & method_kind(M,K)))).
+
+% Internal TPTP FOF subset only.
+% 25/25 statements passed structural parse parity.
+% No theorem prover or satisfiability engine ran.`;
+
+    const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
+
+    function renderDefinitions(query = "") {
+      const needle = query.trim().toLowerCase();
+      const visible = definitions.filter(item => JSON.stringify(item).toLowerCase().includes(needle));
+      const container = document.getElementById("definition-records");
+      container.innerHTML = visible.length ? visible.map(item => `
+        <article class="record-card">
+          <div>
+            <span class="record-id">${escapeHtml(item.id)}</span>
+            <h3>${escapeHtml(item.term)}</h3>
+            <p>${escapeHtml(item.meaning)}</p>
+            <p class="boundary"><strong>Boundary:</strong> ${escapeHtml(item.boundary)}</p>
+            <div class="source-list">${item.sources.map(source => `<span class="source-pill">${escapeHtml(source)}</span>`).join("")}</div>
+          </div>
+          <button class="inspect-button" data-inspect-title="${escapeHtml(item.term)}" data-inspect-ref="fixture → ${escapeHtml(item.id)}" data-inspect-source="${escapeHtml(item.meaning)}" data-inspect-note="${escapeHtml(item.boundary)}">Inspect evidence</button>
+        </article>`).join("") : `<p class="panel-intro">No definitions match “${escapeHtml(query)}”.</p>`;
+      document.getElementById("definition-count").textContent = `${visible.length} shown`;
+      bindInspectors(container);
+    }
+
+    function renderRules() {
+      document.getElementById("rule-records").innerHTML = rules.map(([id, text, mode]) => `
+        <article class="rule"><span class="rule-id">RULE.${id}</span><p>${escapeHtml(text)}</p><small>${escapeHtml(mode)} validation · proposed</small></article>`).join("");
+    }
+
+    function renderSources() {
+      document.getElementById("source-records").innerHTML = sources.map(item => `
+        <article class="source-card">
+          <div class="source-head"><div><span class="record-id">${escapeHtml(item.id)}</span><h3>${escapeHtml(item.owner)}-owned source</h3></div><span class="status good">private-local</span></div>
+          <p class="source-path">${escapeHtml(item.path)}</p>
+          <p class="source-selector"><strong>Selector:</strong> ${escapeHtml(item.selector)}</p>
+          <p class="hash">SHA-256 ${escapeHtml(item.sha)}</p>
+          <button class="inspect-button" data-inspect-title="${escapeHtml(item.id)}" data-inspect-ref="${escapeHtml(item.path)} → ${escapeHtml(item.selector)}" data-inspect-source="This exact local source binding is private, digest-bound, and declares authority effect none." data-inspect-note="The source owns claims attributed to it; inclusion in the package does not transfer ownership to Mint.">Inspect evidence</button>
+        </article>`).join("");
+      bindInspectors(document.getElementById("source-records"));
+    }
+
+    function renderProjectionDetails() {
+      document.getElementById("cedar-code").textContent = cedarPolicy;
+      document.getElementById("fol-code").textContent = folProgram;
+      document.getElementById("markdown-files").innerHTML = markdownFiles.map(file => `<li>${escapeHtml(file)}</li>`).join("");
+    }
+
+    const defaults = {
+      title: "Package overview",
+      source: "The package is candidate, private, valid, and reports zero authority effect and zero writes.",
+      ref: "fixture identity + projection summary",
+      note: "This is a safe object to inspect and discuss. It is not an approved or applied constitution."
+    };
+
+    function updateEvidence(data = defaults) {
+      document.getElementById("rail-title").textContent = data.title;
+      document.getElementById("rail-source").textContent = data.source;
+      document.getElementById("rail-ref").textContent = data.ref;
+      document.getElementById("rail-note").textContent = data.note;
+    }
+
+    function bindInspectors(root = document) {
+      root.querySelectorAll(".inspect-button").forEach(button => {
+        if (button.dataset.bound === "true") return;
+        button.dataset.bound = "true";
+        button.addEventListener("click", () => updateEvidence({
+          title: button.dataset.inspectTitle,
+          source: button.dataset.inspectSource,
+          ref: button.dataset.inspectRef,
+          note: button.dataset.inspectNote
+        }));
+      });
+    }
+
+    function activateView(view, focus = false) {
+      document.querySelectorAll("[data-panel]").forEach(panel => { panel.hidden = panel.dataset.panel !== view; });
+      document.querySelectorAll(".nav-button").forEach(button => {
+        const active = button.dataset.view === view;
+        button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
+        if (active && focus) button.focus();
+      });
+      history.replaceState(null, "", `#${view}`);
+    }
+
+    const navButtons = [...document.querySelectorAll(".nav-button")];
+    navButtons.forEach((button, index) => {
+      button.addEventListener("click", () => activateView(button.dataset.view));
+      button.addEventListener("keydown", event => {
+        if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        let next = index;
+        if (["ArrowDown", "ArrowRight"].includes(event.key)) next = (index + 1) % navButtons.length;
+        if (["ArrowUp", "ArrowLeft"].includes(event.key)) next = (index - 1 + navButtons.length) % navButtons.length;
+        if (event.key === "Home") next = 0;
+        if (event.key === "End") next = navButtons.length - 1;
+        activateView(navButtons[next].dataset.view, true);
+      });
+    });
+
+    document.querySelectorAll(".code-tab").forEach(button => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".code-tab").forEach(tab => tab.setAttribute("aria-selected", String(tab === button)));
+        document.querySelectorAll("[data-code-panel]").forEach(panel => { panel.hidden = panel.dataset.codePanel !== button.dataset.code; });
+      });
+    });
+
+    document.getElementById("definition-search").addEventListener("input", event => renderDefinitions(event.target.value));
+    document.getElementById("rail-reset").addEventListener("click", () => updateEvidence());
+    document.querySelectorAll(".visually-hidden").forEach(element => Object.assign(element.style, { position: "absolute", width: "1px", height: "1px", padding: "0", margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: "0" }));
+
+    renderDefinitions();
+    renderRules();
+    renderSources();
+    renderProjectionDetails();
+    bindInspectors();
+    const requestedView = location.hash.slice(1);
+    if (navButtons.some(button => button.dataset.view === requestedView)) activateView(requestedView);
+  </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/private/mint/pilot-contract/v0.1",
+  "title": "MintPilotContractV0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "pilot_id", "request_id", "run_date", "domain", "sources", "authority", "inputs", "isolation", "contracts", "effects", "zagr_snapshot", "proof_ceiling"],
+  "properties": {
+    "schema_version": {"const": "mint.pilot-contract.v0.1"},
+    "pilot_id": {"type": "string", "minLength": 1},
+    "request_id": {"type": "string", "minLength": 1},
+    "run_date": {"type": "string", "format": "date"},
+    "domain": {
+      "type": "object", "additionalProperties": false,
+      "required": ["domain_id", "governed_subject", "owner_selection"],
+      "properties": {
+        "domain_id": {"type": "string", "minLength": 1},
+        "governed_subject": {"type": "string", "minLength": 1},
+        "owner_selection": {
+          "type": "object", "additionalProperties": false,
+          "required": ["evidence_ref", "evidence_sha256", "owner_route"],
+          "properties": {
+            "evidence_ref": {"type": "string", "minLength": 1},
+            "evidence_sha256": {"$ref": "#/$defs/digest"},
+            "owner_route": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "selector", "sha256", "status", "precedence_disposition", "owner_route"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "selector": {"type": "string", "minLength": 1},
+          "sha256": {"$ref": "#/$defs/digest"},
+          "status": {"const": "current"},
+          "precedence_disposition": {"enum": ["primary", "supplemental"]},
+          "owner_route": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["triage_receipt_ref", "triage_receipt_sha256", "triage_verdict", "authority_owner_route", "blocked_use", "ratification_status"],
+      "properties": {
+        "triage_receipt_ref": {"type": "string", "minLength": 1},
+        "triage_receipt_sha256": {"$ref": "#/$defs/digest"},
+        "triage_verdict": {"const": "new-authority (domain-local)"},
+        "authority_owner_route": {"type": "string", "minLength": 1},
+        "blocked_use": {"type": "string", "minLength": 1},
+        "ratification_status": {"const": "pending"}
+      }
+    },
+    "inputs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manifest_ref", "manifest_sha256", "render_input_ref", "render_input_sha256", "joined_closeout_ref", "joined_closeout_sha256", "runtime_ref", "runtime_sha256", "template_root", "template_set_sha256", "ir_ref", "ir_sha256"],
+      "properties": {
+        "manifest_ref": {"type": "string", "minLength": 1}, "manifest_sha256": {"$ref": "#/$defs/digest"},
+        "render_input_ref": {"type": "string", "minLength": 1}, "render_input_sha256": {"$ref": "#/$defs/digest"},
+        "joined_closeout_ref": {"type": "string", "minLength": 1}, "joined_closeout_sha256": {"$ref": "#/$defs/digest"},
+        "runtime_ref": {"type": "string", "minLength": 1}, "runtime_sha256": {"$ref": "#/$defs/digest"},
+        "template_root": {"type": "string", "minLength": 1}, "template_set_sha256": {"$ref": "#/$defs/digest"},
+        "ir_ref": {"type": "string", "minLength": 1}, "ir_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "isolation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target_path", "allowed_root", "journal_root", "visibility", "target_must_be_absent", "protected_paths", "workspace_root", "zagr_root"],
+      "properties": {
+        "target_path": {"type": "string", "minLength": 1},
+        "allowed_root": {"type": "string", "minLength": 1},
+        "journal_root": {"type": "string", "minLength": 1},
+        "visibility": {"const": "private"},
+        "target_must_be_absent": {"const": true},
+        "protected_paths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "workspace_root": {"type": "string", "minLength": 1},
+        "zagr_root": {"type": "string", "minLength": 1}
+      }
+    },
+    "contracts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plan", "render", "apply", "recover"],
+      "properties": {
+        "plan": {"const": "mint.plan.v0.1"},
+        "render": {"const": "mint.render-input.v0.1"},
+        "apply": {"const": "mint.apply-request.v0.1"},
+        "recover": {"const": "mint.apply-request.v0.1"}
+      }
+    },
+    "effects": {
+      "type": "object", "additionalProperties": false,
+      "required": ["filesystem", "external_commands", "network", "git", "scaffolder"],
+      "properties": {
+        "filesystem": {"const": false}, "external_commands": {"const": false},
+        "network": {"const": false}, "git": {"const": false}, "scaffolder": {"const": false}
+      }
+    },
+    "zagr_snapshot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["root", "selectors", "before_sha256", "after_check_required"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "selectors": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "before_sha256": {"$ref": "#/$defs/digest"},
+        "after_check_required": {"const": true}
+      }
+    },
+    "proof_ceiling": {"const": "pilot input admission only; no render, apply, recover, mint, ratification, promotion, release, deployment, or production proof"}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

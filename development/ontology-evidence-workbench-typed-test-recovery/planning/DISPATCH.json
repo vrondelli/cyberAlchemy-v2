@@ -1,0 +1,98 @@
+{
+  "dispatch_id": "oewfr-work-pack-one-swu-route-v1",
+  "intent": {
+    "raw": "Execute the OEW typed-test recovery work pack one admitted SWU at a time without retrying SWU006.",
+    "objective": "Preflight one exact unit, execute it through Task Session, and synchronize only its declared evidence before selecting a successor.",
+    "target_artifact": "cyberAlchemy-v2/development/ontology-evidence-workbench-typed-test-recovery/planning/WORK-PACK.md"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence", "scu_swu_reduction", "recomposition_proof", "validation_loop",
+    "owner_boundary_check", "handle_handoff", "residue_ledger",
+    "execution_receipt_handoff", "authority_split_gate",
+    "artifact_contract_bridge", "concrete_path_evidence",
+    "state_namespace_boundary", "approval_semantics_map"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "explanation": "The selected route executes one overlapping-file SWU at a time; parallel or sibling delegation would add merge risk without independent work lanes.",
+    "binding_mode": "descriptive",
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed"
+  },
+  "subagent_lifecycle": {"status": "none", "agents": []},
+  "steps": [
+    {
+      "step_id": "s1-readiness",
+      "name": "Freeze exact selected-SWU baseline",
+      "capability_ref": "task-session",
+      "mode": "preflight",
+      "pattern": "validation",
+      "parallel": false,
+      "techniques": ["concrete_path_evidence", "state_namespace_boundary", "validation_loop"],
+      "inputs": [{"kind":"artifact","ref":"planning/WORK-PACK.md"},{"kind":"artifact","ref":"planning/SWU-MANIFEST.json"}],
+      "outputs": [{"kind":"receipt","ref":"planning/work-pack/session-evidence/<SWU>/<attempt-id>/preflight.json"}],
+      "evidence_artifact": "planning/work-pack/session-evidence/<SWU>/<attempt-id>/preflight.json",
+      "stop_conditions": ["stop on source drift, target overlap, unresolved authority, or broadened write scope"]
+    },
+    {
+      "step_id": "s2-execute-one",
+      "name": "Execute one selected SWU",
+      "capability_ref": "task-session",
+      "mode": "execute",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": ["s1-readiness"],
+      "techniques": ["sequence", "scu_swu_reduction", "validation_loop", "owner_boundary_check", "execution_receipt_handoff", "artifact_contract_bridge"],
+      "inputs": [{"kind":"receipt","ref":"planning/work-pack/session-evidence/<SWU>/<attempt-id>/preflight.json"},{"kind":"artifact","ref":"planning/work-pack/tasks/<TASK>.md"}],
+      "outputs": [{"kind":"receipt","ref":"planning/work-pack/session-evidence/<SWU>/<attempt-id>/receipt.json"}],
+      "stop_conditions": ["stop after one SWU", "stop on failed acceptance-critical validation", "stop before network build browser retry public mutation or undeclared writes"]
+    },
+    {
+      "step_id": "s3-synchronize",
+      "name": "Synchronize exact terminal result",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "handoff",
+      "parallel": false,
+      "depends_on_steps": ["s2-execute-one"],
+      "techniques": ["sequence", "handle_handoff", "residue_ledger", "execution_receipt_handoff", "authority_split_gate", "approval_semantics_map", "recomposition_proof"],
+      "inputs": [{"kind":"receipt","ref":"planning/work-pack/session-evidence/<SWU>/<attempt-id>/receipt.json"}],
+      "outputs": [{"kind":"handoff","ref":"invoke:refresh:apply-approved-or-proposal-only"},{"kind":"ledger","ref":"planning/WORK-PACK.md#blocker-and-residue-ledger"}],
+      "stop_conditions": ["do not infer apply approval", "do not select a successor unless the exact deterministic policy and owner receipt pass"]
+    }
+  ],
+  "gates": [
+    {"gate_id":"g1-preflight","kind":"validation","owner":"task-session","condition":"Exact target inventory, baseline, source anchors, and authority boundaries pass before mutation.","on_fail":"block"},
+    {"gate_id":"g2-one-unit","kind":"policy","owner":"task-session","condition":"Only the selected SWU may mutate its declared targets and must run its exact validation.","on_fail":"block"},
+    {"gate_id":"g3-receipt","kind":"validation","owner":"invoke","condition":"Terminal and owner receipts bind exact targets, results, blockers, residue, and successor policy.","on_fail":"block"},
+    {"gate_id":"g4-authority","kind":"promotion_guardrail","owner":"lifecycle-owner","condition":"Planning, evidence, or observer output never implies retry, build, browser, completion, release, deployment, or promotion authority.","on_fail":"block"}
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": ["preflight-started", "preflight-terminal", "swu-started", "swu-terminal", "refresh-terminal"],
+    "signal_grouping": "dispatch_id plus SWU id and attempt id"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {"boundary_id":"b-task-session","kind":"capability_handoff","from_owner":"invoke","to_owner":"task-session","applies_to_steps":["s2-execute-one"],"contract":"Task Session may execute exactly one admitted SWU and return a terminal receipt; it cannot infer another SWU or retry.","on_violation":"block"},
+      {"boundary_id":"b-private-evidence","kind":"evidence_return","from_owner":"private-oew-builder","to_owner":"task-session","applies_to_steps":["s2-execute-one","s3-synchronize"],"contract":"Consumer receives a bounded reference; the private schema and raw streams remain producer-owned.","on_violation":"block"},
+      {"boundary_id":"b-authority","kind":"human_approval","from_owner":"planning-evidence","to_owner":"lifecycle-owner","applies_to_steps":["s3-synchronize"],"contract":"A fresh runtime attempt requires separate direct approval after package closure.","on_violation":"block"}
+    ],
+    "authority": {"lifecycle":"OEW/OEWSN owner","execution":"task-session","validation":"declared SWU validators","evidence":"private OEW producer plus Task Session references","memory":"Inventory/Necronomicon owners","promotion":"ontology/glossary/release owners"},
+    "receipts": [
+      {"receipt_id":"selected-swu-terminal","producer":"task-session","required_fields":["session_id","artifacts","validation_result","dispatch_id","step_id","capability_ref","status","validation","blockers","residue","handoff_note"],"stores":["planning/work-pack/session-evidence/<SWU>/<attempt-id>/receipt.json"],"on_missing":"block"}
+    ],
+    "state_namespaces": [
+      {"namespace":"private-oew-source","owner":"private OEW implementation","write_policy":"only declared SWU target inventory"},
+      {"namespace":"session-evidence","owner":"task-session","write_policy":"attempt-local receipts only"},
+      {"namespace":"generated-runs","owner":"future authorized builder attempt","write_policy":"forbidden in this work-pack"}
+    ]
+  },
+  "promotion_guardrails": [
+    "Execution evidence cannot promote Inventory, Ontology, glossary, sigil, spell, release, or production state.",
+    "A failure artifact cannot satisfy the failed typed-test gate or renew consumed authorization.",
+    "Private OEW schema content cannot be copied into public Arcanum without a separate owner-approved maintenance route."
+  ]
+}

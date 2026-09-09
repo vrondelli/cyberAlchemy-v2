@@ -1,0 +1,45 @@
+# Candidate typed service function. Open questions: README.md.
+domain inference-result "Service inference-result"
+profile declarative-function-v1
+portability node-rust-v1
+owner inference-router-owner
+logic sfol-v1
+schema Text:
+  text: string max 32768
+schema Observation:
+  value: integer nullable min 0 max 1000000000
+  provenance: string pattern "^(unavailable|provider-reported)$"
+schema Usage:
+  input_tokens: Observation
+  output_tokens: Observation
+schema Input:
+  request_id: identifier max 128
+  model: identifier max 128
+  output: Text
+  finish_reason: string pattern "^(stop|length|content_filter|unknown)$"
+  usage: Usage
+schema Output:
+  status: string const "ok"
+  value: Input
+
+mapping Wrapped:
+  meaning "Validate and expose the JSON result supplied by the inference operation."
+  target Output
+  field status = "ok"
+  field value = input
+result Result:
+  when true yield Wrapped
+
+endpoint Function:
+  target node-http
+  runtime node>=26.8.1
+  method POST
+  path "/internal/inference-result"
+  input Input
+  output Output
+  result Result
+  auth-env INFERENCE_INTERNAL_TOKEN
+  max-bytes 65536
+  timeout-ms 5000
+  error-status 422
+  status ok 200

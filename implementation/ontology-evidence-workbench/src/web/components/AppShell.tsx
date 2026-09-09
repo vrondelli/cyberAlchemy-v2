@@ -1,0 +1,2 @@
+import type { ReactNode } from "react";
+export function AppShell({ header, trust, toolbar, main, portals, inspector, workspace, overlay }: { readonly header: ReactNode; readonly trust: ReactNode; readonly toolbar: ReactNode; readonly main: ReactNode; readonly portals: ReactNode; readonly inspector: ReactNode; readonly workspace: ReactNode; readonly overlay?: ReactNode }) { return <div className="app-shell">{header}{trust}{toolbar}<div className="app-shell__content"><div className="app-shell__primary">{main}{portals}{workspace}</div>{inspector}</div>{overlay}</div>; }

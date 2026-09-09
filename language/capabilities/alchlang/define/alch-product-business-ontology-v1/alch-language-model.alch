@@ -1,0 +1,105 @@
+domain alch-semantic-core "Alch governed domain meaning"
+owner alch-language-owner
+
+enum SemanticDisposition:
+  value reuse "Use an existing owned definition without changing its meaning"
+  value specialize "Narrow an existing definition to the bounded context"
+  value propose "Introduce a candidate definition for owner review"
+  value open "Preserve unresolved required meaning"
+
+enum DeclarationFamily:
+  value identity "Identity-bearing domain concept"
+  value immutable-value "Immutable value semantics"
+  value data-shape "Closed typed field shape"
+  value vocabulary "Closed named value set"
+  value rule "Domain constraint or invariant"
+  value state "Lifecycle state and transition semantics"
+  value behavior "Requested or evaluated domain behavior"
+  value authority "Permission and decision scope"
+  value integration "Transport, normalization and persistence contract"
+  value presentation "Interaction and presentation contract"
+
+value-object SemanticIdentity:
+  id: identifier required
+  boundedContext: string required
+  equality id, boundedContext
+
+entity GovernedDomainDescription:
+  descriptionId: identifier required
+  domainName: string required
+  domainOwnerId: identifier required
+  authorityDeclared: boolean required
+  status: string required
+
+entity OntologyTerm:
+  termId: identifier required
+  name: string required
+  meaning: string required
+  termOwnerId: identifier required
+  disposition: string required
+
+entity OntologyEdge:
+  edgeId: identifier required
+  sourceTermRef: identifier required
+  relationType: string required
+  targetTermRef: identifier required
+  businessSentence: string required
+  edgeOwnerId: identifier required
+
+entity DomainDeclaration:
+  declarationId: identifier required
+  family: string required
+  representation: string required
+  declarationOwnerId: identifier required
+
+actor DomainOwner
+actor DomainParticipant
+actor SystemBuilder
+
+states GovernedDomainDescription:
+  initial draft
+  draft -> reviewed
+  reviewed -> accepted when MeaningIsClosed emits DomainMeaningAccepted
+  draft -> blocked
+  reviewed -> blocked
+
+rule MeaningIsClosed:
+  status == "reviewed"
+
+rule RecordsAreDataShapesOnly:
+  representation != "record" or family == "data-shape"
+
+rule AuthorityIsPreserved:
+  authorityDeclared == true
+
+boundary domain-meaning-authority:
+  owner alch-language-owner
+
+permission accept-domain-meaning:
+  actor DomainOwner
+  action AcceptDomainMeaning
+  when MeaningIsClosed
+  boundary domain-meaning-authority
+
+action AcceptDomainMeaning:
+  actor DomainOwner
+  subject GovernedDomainDescription
+  requires MeaningIsClosed
+  permission accept-domain-meaning
+  boundary domain-meaning-authority
+  emits DomainMeaningAccepted
+
+event DomainMeaningAccepted:
+  subject GovernedDomainDescription
+  payload descriptionId
+  boundary domain-meaning-authority
+
+example record-non-collapse:
+  kind negative
+  expected rejected
+  rules RecordsAreDataShapesOnly
+
+example closed-domain-meaning:
+  kind positive
+  expected accepted
+  rules MeaningIsClosed, AuthorityIsPreserved

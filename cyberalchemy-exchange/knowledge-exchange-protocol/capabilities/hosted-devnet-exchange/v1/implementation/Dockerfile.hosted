@@ -1,0 +1,16 @@
+FROM rust:1.94-bookworm AS build
+
+WORKDIR /workspace/cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/hosted-devnet-exchange/v1/implementation
+COPY cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/hosted-devnet-exchange/v1/implementation/ ./
+COPY arcanum/docs/assets/cyberalchemy-mark.svg /workspace/arcanum/docs/assets/cyberalchemy-mark.svg
+COPY arcanum/docs/assets/cyberalchemy-orb-imagegen-v1.png /workspace/arcanum/docs/assets/cyberalchemy-orb-imagegen-v1.png
+RUN cargo build --locked --release --features ui --bin hosted
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /workspace/cyberAlchemy-v2/product/knowledge-exchange-protocol/capabilities/hosted-devnet-exchange/v1/implementation/target/release/hosted /usr/local/bin/kep-hosted-devnet
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/kep-hosted-devnet"]

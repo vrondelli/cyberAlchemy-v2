@@ -1,0 +1,62 @@
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kep
+      POSTGRES_USER: kep
+      POSTGRES_PASSWORD: ${KEP_DB_PASSWORD:?KEP_DB_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kep -d kep"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    volumes:
+      - kep-postgres:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  application:
+    image: sha256:22f561380e0ca24d1cacbc97ffabd187014ab3052ff3526b88e3676166354a35
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      CA2_KEP_BIND: 0.0.0.0:8080
+      CA2_KEP_DATABASE_URL: postgres://kep:${KEP_DB_PASSWORD}@database/kep
+      CA2_KEP_DEVNET_RPC_URL: ${CA2_KEP_DEVNET_RPC_URL:-https://api.devnet.solana.com}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "http://127.0.0.1:8080/ready"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${EDGE_NETWORK:-troqar_edge}
+      - traefik.http.routers.kep-hosted-devnet.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.kep-hosted-devnet.rule=Host(`kep.cyberalchemylab.com`)
+      - traefik.http.routers.kep-hosted-devnet.tls=true
+      - traefik.http.routers.kep-hosted-devnet.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.services.kep-hosted-devnet.loadbalancer.server.port=8080
+    networks:
+      - backend
+      - edge
+
+volumes:
+  kep-postgres:
+
+networks:
+  backend:
+    internal: true
+  edge:
+    external: true
+    name: ${EDGE_NETWORK:-troqar_edge}

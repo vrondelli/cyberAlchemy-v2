@@ -1,0 +1,71 @@
+{
+  "revision": "6af345407d9c2a568da9d01b6c4b81a9e61495c0",
+  "source": "https://github.com/openai/codex",
+  "installed_binary_revision_match": "not established",
+  "paths": [
+    {
+      "path": "codex-rs/core/src/session/turn.rs",
+      "symbols": [
+        "run_pre_sampling_compact",
+        "run_auto_compact",
+        "run_sampling_request",
+        "try_run_sampling_request"
+      ],
+      "finding": "Native pre-sampling and mid-turn compaction plus outer sampling retries need lifecycle gating.",
+      "coverage": "not implemented"
+    },
+    {
+      "path": "codex-rs/core/src/client.rs",
+      "symbols": [
+        "stream_responses_api",
+        "stream_responses_websocket",
+        "prewarm_websocket",
+        "compact_conversation_history",
+        "summarize_memories"
+      ],
+      "finding": "HTTP auth recovery, WebSocket incremental state and fallback, warmup and auxiliary inference require explicit coverage.",
+      "coverage": "not implemented"
+    },
+    {
+      "path": "codex-rs/codex-api/src/endpoint/session.rs",
+      "symbols": [
+        "stream_encoded_json_with",
+        "execute_with"
+      ],
+      "finding": "Endpoint retries invoke transport repeatedly after auth application.",
+      "coverage": "new transport authorizes each call if selected; host selection absent"
+    },
+    {
+      "path": "codex-rs/http-client/src/request.rs",
+      "symbols": [
+        "into_prepared",
+        "prepare_body_for_send"
+      ],
+      "finding": "Compression can discard original JSON. Wire length cannot establish model token bounds.",
+      "coverage": "new transport rejects compressed requests"
+    },
+    {
+      "path": "codex-rs/http-client/src/client.rs",
+      "symbols": [
+        "RequestBuilder::send",
+        "execute_without_request_logging"
+      ],
+      "finding": "reqwest can send internally; outer checks alone cannot cover redirects/retries.",
+      "coverage": "new dedicated client disables redirects and retries"
+    },
+    {
+      "path": "codex-rs/codex-client/src/retry.rs",
+      "symbols": [
+        "RetryOn::should_retry"
+      ],
+      "finding": "TransportError::Build is not retryable in this lower retry policy.",
+      "coverage": "source inspection only; outer sampling error propagation remains unverified"
+    }
+  ],
+  "open_questions": [
+    "How does the full host surface a bounded logical request and effective output cap?",
+    "How should gate denial stop outer sampling without repetition?",
+    "How will tools settle before context handover?",
+    "How should existing proxy, TLS and credential policy be preserved by host wiring?"
+  ]
+}

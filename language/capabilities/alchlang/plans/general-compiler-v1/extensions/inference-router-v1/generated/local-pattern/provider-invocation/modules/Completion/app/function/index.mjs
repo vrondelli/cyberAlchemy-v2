@@ -1,0 +1,15 @@
+import * as module_Provider from '../../modules/Provider/app/function/index.mjs';
+import * as module_Public from '../../modules/Public/app/function/index.mjs';
+import {createBoundary} from '../../runtime/boundary.mjs';
+import {createTracedInvoker} from '../../runtime/invocation-trace.mjs';
+import ontology from '../../provenance/function/ontology.json' with {type:'json'};
+import manifest from '../../manifest.json' with {type:'json'};
+import {execute,validateInput} from './behavior.mjs';
+import api from '../../domain/typescript/lib/index.js';
+import model from '../../provenance/function/function.json' with {type:'json'};
+import bindings from '../../provenance/function/bindings.json' with {type:'json'};
+const modules={Provider:(input,env,io,observe)=>module_Provider.createInvoker(observe).invoke(input,env,io),Public:(input,env,io,observe)=>module_Public.createInvoker(observe).invoke(input,env,io)};
+export function createInvoker(observe){const relay=event=>{const n=ontology.nodes.find(n=>n.name===event.declaration)??ontology.nodes.find(n=>n.kind==='result');observe?.({...event,definition:event.definition??(n?{name:n.name,id:n.id,source:n.source,clauses:n.clauses}:null)});};return createBoundary(model,bindings,scope=>execute(scope,api,relay),scope=>validateInput(scope,relay),modules,relay,(scope,binding)=>execute(scope,api,relay,binding),(scope,binding)=>execute(scope,api,relay,binding,'input'));};
+export const {invoke,handler}=createInvoker();
+export const invokeWithTrace=createTracedInvoker(model,bindings,api,execute,validateInput,ontology,{...{"source_sha256":"58709c45fc11d8e8dd145bc16ac8bcc6e6121656cfc195d5ad765d25a573902a","ontology_sha256":"dca1829b232305ff8b276c9b4ea00f3fc8ccc894bb63ae93e301f1a9dd6b5a46","behavior_sha256":"5407c5f0ffe3ac257dd768f04a9e6730b1ffc68a2a7370d43bb373556f76e8d7","contract_sha256":"726cf2514e9f5a46ca4349fefd80fe1a16dd6dceb6155d669f40bd3467f626f0"},manifest},createBoundary,modules);
+export default {fetch:handler};

@@ -1,0 +1,2241 @@
+{
+  "source_text": "# Public contract and normalization. Open questions: HOST.md.\ndomain public-request \"Public inference request\"\nprofile declarative-function-v1\nowner inference-router-owner\nlogic sfol-v1\n\nschema Message:\n  role: string pattern \"^(system|user|assistant)$\"\n  content: string pattern \"[\\\\s\\\\S]+\" max 32768\n\nschema Conversation:\n  messages: Message[] max 100\n\nschema Routing:\n  strategy: string pattern \"^(balanced|cost|latency)$\" optional\n\nschema Parameters:\n  max_output_tokens: integer min 1 max 1000000 optional\n\nschema Input:\n  task: string const \"text.generate\"\n  input: Conversation\n  model: identifier max 128 optional\n  routing: Routing optional\n  parameters: Parameters optional\n  stream: boolean optional\n\nschema Output:\n  status: string const \"normalized\"\n  task: string const \"text.generate\"\n  messages: Message[] max 100\n  model: identifier max 128 optional\n  strategy: string pattern \"^(balanced|cost|latency)$\"\n  max_output_tokens: integer min 1 max 1000000\n  stream: boolean\n\nschema Options:\n  routing: Routing\n  parameters: Parameters\n\nmapping DefaultRouting:\n  meaning \"Default routing options when omitted.\"\n  target Routing\n  field strategy = \"balanced\"\n\nmapping DefaultParameters:\n  meaning \"Default generation parameters when omitted.\"\n  target Parameters\n  field max_output_tokens = 256\n\nmapping ResolvedOptions:\n  meaning \"Materialize optional option objects before accessing their fields.\"\n  target Options\n  field routing = coalesce(input.routing, DefaultRouting)\n  field parameters = coalesce(input.parameters, DefaultParameters)\n\nmapping Normalize:\n  meaning \"Normalize the public inference envelope with explicit defaults.\"\n  target Output\n  field status = \"normalized\"\n  field task = input.task\n  field messages = input.input.messages\n  field model = input.model\n  field strategy = coalesce(ResolvedOptions.routing.strategy, \"balanced\")\n  field max_output_tokens = coalesce(ResolvedOptions.parameters.max_output_tokens, 256)\n  field stream = coalesce(input.stream, false)\n\nresult PublicRequest:\n  require count(input.input.messages) > 0 else \"MESSAGES_REQUIRED\"\n  require exists row in input.input.messages: row.role == \"user\" else \"USER_MESSAGE_REQUIRED\"\n  when true yield Normalize\n\nendpoint PublicNormalizer:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/public-request\"\n  input Input\n  output Output\n  result PublicRequest\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 65536\n  timeout-ms 5000\n  error-status 422\n  status normalized 200\n",
+  "contract": {
+    "schema_version": "domainspec.declarative-function/v1",
+    "records": {
+      "Message": {
+        "role": "String",
+        "content": "String"
+      },
+      "Conversation": {
+        "messages": "Message[]"
+      },
+      "Routing": {
+        "strategy": "String?"
+      },
+      "Parameters": {
+        "max_output_tokens": "Int?"
+      },
+      "Input": {
+        "task": "String",
+        "input": "Conversation",
+        "model": "String?",
+        "routing": "Routing?",
+        "parameters": "Parameters?",
+        "stream": "Bool?"
+      },
+      "Output": {
+        "status": "String",
+        "task": "String",
+        "messages": "Message[]",
+        "model": "String?",
+        "strategy": "String",
+        "max_output_tokens": "Int",
+        "stream": "Bool"
+      },
+      "Options": {
+        "routing": "Routing",
+        "parameters": "Parameters"
+      }
+    },
+    "roots": {
+      "input": "Input"
+    },
+    "calculations": {},
+    "nodes": [
+      {
+        "id": "DefaultRouting",
+        "kind": "Mapping",
+        "fields": {
+          "strategy": {
+            "op": "literal",
+            "value": "balanced"
+          }
+        },
+        "ontology": "ALCH-DE0B07D3227AF16134D7E270",
+        "meaning": "Default routing options when omitted.",
+        "target": "Routing"
+      },
+      {
+        "id": "DefaultParameters",
+        "kind": "Mapping",
+        "fields": {
+          "max_output_tokens": {
+            "op": "literal",
+            "value": 256
+          }
+        },
+        "ontology": "ALCH-87F7EA0B2168A926C7443E48",
+        "meaning": "Default generation parameters when omitted.",
+        "target": "Parameters"
+      },
+      {
+        "id": "ResolvedOptions",
+        "kind": "Mapping",
+        "fields": {
+          "routing": {
+            "op": "call",
+            "name": "coalesce",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "routing"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "DefaultRouting"
+                ]
+              }
+            ]
+          },
+          "parameters": {
+            "op": "call",
+            "name": "coalesce",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "parameters"
+                ]
+              },
+              {
+                "op": "path",
+                "path": [
+                  "DefaultParameters"
+                ]
+              }
+            ]
+          }
+        },
+        "ontology": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "meaning": "Materialize optional option objects before accessing their fields.",
+        "target": "Options"
+      },
+      {
+        "id": "Normalize",
+        "kind": "Mapping",
+        "fields": {
+          "status": {
+            "op": "literal",
+            "value": "normalized"
+          },
+          "task": {
+            "op": "path",
+            "path": [
+              "input",
+              "task"
+            ]
+          },
+          "messages": {
+            "op": "path",
+            "path": [
+              "input",
+              "input",
+              "messages"
+            ]
+          },
+          "model": {
+            "op": "path",
+            "path": [
+              "input",
+              "model"
+            ]
+          },
+          "strategy": {
+            "op": "call",
+            "name": "coalesce",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "ResolvedOptions",
+                  "routing",
+                  "strategy"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": "balanced"
+              }
+            ]
+          },
+          "max_output_tokens": {
+            "op": "call",
+            "name": "coalesce",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "ResolvedOptions",
+                  "parameters",
+                  "max_output_tokens"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": 256
+              }
+            ]
+          },
+          "stream": {
+            "op": "call",
+            "name": "coalesce",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "stream"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": false
+              }
+            ]
+          }
+        },
+        "ontology": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+        "meaning": "Normalize the public inference envelope with explicit defaults.",
+        "target": "Output"
+      }
+    ],
+    "assertions": [
+      {
+        "condition": {
+          "op": "call",
+          "name": "gt",
+          "args": [
+            {
+              "op": "call",
+              "name": "count",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "input",
+                    "input",
+                    "messages"
+                  ]
+                }
+              ]
+            },
+            {
+              "op": "literal",
+              "value": 0
+            }
+          ]
+        },
+        "code": "MESSAGES_REQUIRED"
+      },
+      {
+        "condition": {
+          "op": "exists",
+          "binding": "row",
+          "collection": {
+            "op": "path",
+            "path": [
+              "input",
+              "input",
+              "messages"
+            ]
+          },
+          "where": {
+            "op": "call",
+            "name": "eq",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "row",
+                  "role"
+                ]
+              },
+              {
+                "op": "literal",
+                "value": "user"
+              }
+            ]
+          }
+        },
+        "code": "USER_MESSAGE_REQUIRED"
+      }
+    ],
+    "results": [
+      {
+        "condition": {
+          "op": "literal",
+          "value": true
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "Normalize"
+          ]
+        }
+      }
+    ],
+    "output": "Output"
+  },
+  "model": {
+    "schemas": {
+      "Message": {
+        "role": {
+          "type": "string",
+          "pattern": "^(system|user|assistant)$"
+        },
+        "content": {
+          "type": "string",
+          "pattern": "[\\s\\S]+",
+          "max": 32768
+        }
+      },
+      "Conversation": {
+        "messages": {
+          "type": "list",
+          "items": "Message",
+          "max": 100
+        }
+      },
+      "Routing": {
+        "strategy": {
+          "type": "string",
+          "pattern": "^(balanced|cost|latency)$",
+          "optional": true
+        }
+      },
+      "Parameters": {
+        "max_output_tokens": {
+          "type": "integer",
+          "min": 1,
+          "max": 1000000,
+          "optional": true
+        }
+      },
+      "Input": {
+        "task": {
+          "type": "string",
+          "const": "text.generate"
+        },
+        "input": {
+          "type": "Conversation"
+        },
+        "model": {
+          "type": "identifier",
+          "max": 128,
+          "optional": true
+        },
+        "routing": {
+          "type": "Routing",
+          "optional": true
+        },
+        "parameters": {
+          "type": "Parameters",
+          "optional": true
+        },
+        "stream": {
+          "type": "boolean",
+          "optional": true
+        }
+      },
+      "Output": {
+        "status": {
+          "type": "string",
+          "const": "normalized"
+        },
+        "task": {
+          "type": "string",
+          "const": "text.generate"
+        },
+        "messages": {
+          "type": "list",
+          "items": "Message",
+          "max": 100
+        },
+        "model": {
+          "type": "identifier",
+          "max": 128,
+          "optional": true
+        },
+        "strategy": {
+          "type": "string",
+          "pattern": "^(balanced|cost|latency)$"
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "min": 1,
+          "max": 1000000
+        },
+        "stream": {
+          "type": "boolean"
+        }
+      },
+      "Options": {
+        "routing": {
+          "type": "Routing"
+        },
+        "parameters": {
+          "type": "Parameters"
+        }
+      }
+    },
+    "integrations": {},
+    "flows": {},
+    "endpoint": {
+      "id": "PublicNormalizer",
+      "target": "node-http",
+      "runtime": "node>=26.8.1",
+      "method": "POST",
+      "path": "/internal/public-request",
+      "input": "Input",
+      "output": "Output",
+      "authEnv": "INFERENCE_INTERNAL_TOKEN",
+      "maxBytes": 65536,
+      "timeout": 5000,
+      "errorStatus": 422,
+      "statuses": {
+        "normalized": 200
+      },
+      "errors": {},
+      "result": "PublicRequest"
+    }
+  },
+  "bindings": [],
+  "ontology": {
+    "schema_version": "domainspec.composition-ontology/v1",
+    "domain": "public-request",
+    "source": {
+      "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+      "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+    },
+    "nodes": [
+      {
+        "id": "ALCH-82DD81A16A24EA2E4AC51E3A",
+        "name": "Message",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Message",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Message, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 7,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 7,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "role",
+            "ontology": "ALCH-82DD81A16A24EA2E4AC51E3A#role",
+            "type": "string",
+            "required": true,
+            "meaning": "role is a string property of Message.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 8,
+            "line": 8,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 8,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 8,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "content",
+            "ontology": "ALCH-82DD81A16A24EA2E4AC51E3A#content",
+            "type": "string",
+            "required": true,
+            "meaning": "content is a string property of Message.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 9,
+            "line": 9,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 9,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 9,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "role: string pattern \"^(system|user|assistant)$\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 8,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "content: string pattern \"[\\\\s\\\\S]+\" max 32768",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 9,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "role": "String",
+          "content": "String"
+        },
+        "constraints": {
+          "role": {
+            "type": "string",
+            "pattern": "^(system|user|assistant)$"
+          },
+          "content": {
+            "type": "string",
+            "pattern": "[\\s\\S]+",
+            "max": 32768
+          }
+        }
+      },
+      {
+        "id": "ALCH-E9735F61562B832535EE2522",
+        "name": "Conversation",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Conversation",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Conversation, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 11,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 11,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "messages",
+            "ontology": "ALCH-E9735F61562B832535EE2522#messages",
+            "type": "Message[]",
+            "required": true,
+            "meaning": "messages is a Message[] property of Conversation.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 12,
+            "line": 12,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 12,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 12,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "messages: Message[] max 100",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 12,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "messages": "Message[]"
+        },
+        "constraints": {
+          "messages": {
+            "type": "list",
+            "items": "Message",
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": "ALCH-4B656E739388437F6D369BD5",
+        "name": "Routing",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Routing",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Routing, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 14,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 14,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "strategy",
+            "ontology": "ALCH-4B656E739388437F6D369BD5#strategy",
+            "type": "string",
+            "required": false,
+            "meaning": "strategy is a string property of Routing.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 15,
+            "line": 15,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 15,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 15,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "strategy: string pattern \"^(balanced|cost|latency)$\" optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 15,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "strategy": "String?"
+        },
+        "constraints": {
+          "strategy": {
+            "type": "string",
+            "pattern": "^(balanced|cost|latency)$",
+            "optional": true
+          }
+        }
+      },
+      {
+        "id": "ALCH-80688D99B295E170F49C2A56",
+        "name": "Parameters",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Parameters",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Parameters, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 17,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 17,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "max_output_tokens",
+            "ontology": "ALCH-80688D99B295E170F49C2A56#max_output_tokens",
+            "type": "integer",
+            "required": false,
+            "meaning": "max_output_tokens is a integer property of Parameters.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 18,
+            "line": 18,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 18,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 18,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "max_output_tokens: integer min 1 max 1000000 optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 18,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "max_output_tokens": "Int?"
+        },
+        "constraints": {
+          "max_output_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000,
+            "optional": true
+          }
+        }
+      },
+      {
+        "id": "ALCH-6EA5F213E96136FC04E25A60",
+        "name": "Input",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Input",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Input, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 20,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 20,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "task",
+            "ontology": "ALCH-6EA5F213E96136FC04E25A60#task",
+            "type": "string",
+            "required": true,
+            "meaning": "task is a string property of Input.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 21,
+            "line": 21,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 21,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 21,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "input",
+            "ontology": "ALCH-6EA5F213E96136FC04E25A60#input",
+            "type": "Conversation",
+            "required": true,
+            "meaning": "input is a Conversation property of Input.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 22,
+            "line": 22,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 22,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 22,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "model",
+            "ontology": "ALCH-6EA5F213E96136FC04E25A60#model",
+            "type": "identifier",
+            "required": false,
+            "meaning": "model is a identifier property of Input.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 23,
+            "line": 23,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 23,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 23,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "routing",
+            "ontology": "ALCH-6EA5F213E96136FC04E25A60#routing",
+            "type": "Routing",
+            "required": false,
+            "meaning": "routing is a Routing property of Input.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 24,
+            "line": 24,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 24,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 24,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "parameters",
+            "ontology": "ALCH-6EA5F213E96136FC04E25A60#parameters",
+            "type": "Parameters",
+            "required": false,
+            "meaning": "parameters is a Parameters property of Input.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 25,
+            "line": 25,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 25,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 25,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "stream",
+            "ontology": "ALCH-6EA5F213E96136FC04E25A60#stream",
+            "type": "boolean",
+            "required": false,
+            "meaning": "stream is a boolean property of Input.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 26,
+            "line": 26,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 26,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 26,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "task: string const \"text.generate\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 21,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "input: Conversation",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 22,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "model: identifier max 128 optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 23,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "routing: Routing optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 24,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "parameters: Parameters optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 25,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "stream: boolean optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 26,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "task": "String",
+          "input": "Conversation",
+          "model": "String?",
+          "routing": "Routing?",
+          "parameters": "Parameters?",
+          "stream": "Bool?"
+        },
+        "constraints": {
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "input": {
+            "type": "Conversation"
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128,
+            "optional": true
+          },
+          "routing": {
+            "type": "Routing",
+            "optional": true
+          },
+          "parameters": {
+            "type": "Parameters",
+            "optional": true
+          },
+          "stream": {
+            "type": "boolean",
+            "optional": true
+          }
+        }
+      },
+      {
+        "id": "ALCH-F085444D22E352803D2D13C4",
+        "name": "Output",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Output",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Output, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 28,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 28,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "status",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#status",
+            "type": "string",
+            "required": true,
+            "meaning": "status is a string property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 29,
+            "line": 29,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 29,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 29,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "task",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#task",
+            "type": "string",
+            "required": true,
+            "meaning": "task is a string property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 30,
+            "line": 30,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 30,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 30,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "messages",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#messages",
+            "type": "Message[]",
+            "required": true,
+            "meaning": "messages is a Message[] property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 31,
+            "line": 31,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 31,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 31,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "model",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#model",
+            "type": "identifier",
+            "required": false,
+            "meaning": "model is a identifier property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 32,
+            "line": 32,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 32,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 32,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "strategy",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#strategy",
+            "type": "string",
+            "required": true,
+            "meaning": "strategy is a string property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 33,
+            "line": 33,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 33,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 33,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "max_output_tokens",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#max_output_tokens",
+            "type": "integer",
+            "required": true,
+            "meaning": "max_output_tokens is a integer property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 34,
+            "line": 34,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 34,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 34,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "stream",
+            "ontology": "ALCH-F085444D22E352803D2D13C4#stream",
+            "type": "boolean",
+            "required": true,
+            "meaning": "stream is a boolean property of Output.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 35,
+            "line": 35,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 35,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 35,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "status: string const \"normalized\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 29,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "task: string const \"text.generate\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 30,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "messages: Message[] max 100",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 31,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "model: identifier max 128 optional",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 32,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "strategy: string pattern \"^(balanced|cost|latency)$\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 33,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "max_output_tokens: integer min 1 max 1000000",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 34,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "stream: boolean",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 35,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "status": "String",
+          "task": "String",
+          "messages": "Message[]",
+          "model": "String?",
+          "strategy": "String",
+          "max_output_tokens": "Int",
+          "stream": "Bool"
+        },
+        "constraints": {
+          "status": {
+            "type": "string",
+            "const": "normalized"
+          },
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "messages": {
+            "type": "list",
+            "items": "Message",
+            "max": 100
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128,
+            "optional": true
+          },
+          "strategy": {
+            "type": "string",
+            "pattern": "^(balanced|cost|latency)$"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      },
+      {
+        "id": "ALCH-7662AA1B8F41A802F4F69DAA",
+        "name": "Options",
+        "kind": "schema",
+        "meta_type": null,
+        "stable_key": "Options",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Boundary record Options, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 37,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 37,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [
+          {
+            "name": "routing",
+            "ontology": "ALCH-7662AA1B8F41A802F4F69DAA#routing",
+            "type": "Routing",
+            "required": true,
+            "meaning": "routing is a Routing property of Options.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 38,
+            "line": 38,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 38,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 38,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "name": "parameters",
+            "ontology": "ALCH-7662AA1B8F41A802F4F69DAA#parameters",
+            "type": "Parameters",
+            "required": true,
+            "meaning": "parameters is a Parameters property of Options.",
+            "meaning_origin": "derived-structural",
+            "meaning_line": 39,
+            "line": 39,
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 39,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            },
+            "meaning_source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 39,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "clauses": [
+          {
+            "text": "routing: Routing",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 38,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "parameters: Parameters",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 39,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": {
+          "routing": "Routing",
+          "parameters": "Parameters"
+        },
+        "constraints": {
+          "routing": {
+            "type": "Routing"
+          },
+          "parameters": {
+            "type": "Parameters"
+          }
+        }
+      },
+      {
+        "id": "ALCH-DE0B07D3227AF16134D7E270",
+        "name": "DefaultRouting",
+        "kind": "mapping",
+        "meta_type": "Mapping",
+        "stable_key": "DefaultRouting",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Default routing options when omitted.",
+          "origin": "authored",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 42,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 41,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [],
+        "clauses": [
+          {
+            "text": "target Routing",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 43,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field strategy = \"balanced\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 44,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": {
+          "id": "DefaultRouting",
+          "kind": "Mapping",
+          "fields": {
+            "strategy": {
+              "op": "literal",
+              "value": "balanced"
+            }
+          },
+          "ontology": "ALCH-DE0B07D3227AF16134D7E270",
+          "meaning": "Default routing options when omitted.",
+          "target": "Routing"
+        },
+        "record_type": null
+      },
+      {
+        "id": "ALCH-87F7EA0B2168A926C7443E48",
+        "name": "DefaultParameters",
+        "kind": "mapping",
+        "meta_type": "Mapping",
+        "stable_key": "DefaultParameters",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Default generation parameters when omitted.",
+          "origin": "authored",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 47,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 46,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [],
+        "clauses": [
+          {
+            "text": "target Parameters",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 48,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field max_output_tokens = 256",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 49,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": {
+          "id": "DefaultParameters",
+          "kind": "Mapping",
+          "fields": {
+            "max_output_tokens": {
+              "op": "literal",
+              "value": 256
+            }
+          },
+          "ontology": "ALCH-87F7EA0B2168A926C7443E48",
+          "meaning": "Default generation parameters when omitted.",
+          "target": "Parameters"
+        },
+        "record_type": null
+      },
+      {
+        "id": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "name": "ResolvedOptions",
+        "kind": "mapping",
+        "meta_type": "Mapping",
+        "stable_key": "ResolvedOptions",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Materialize optional option objects before accessing their fields.",
+          "origin": "authored",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 52,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 51,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [],
+        "clauses": [
+          {
+            "text": "target Options",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 53,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field routing = coalesce(input.routing, DefaultRouting)",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 54,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field parameters = coalesce(input.parameters, DefaultParameters)",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 55,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": {
+          "id": "ResolvedOptions",
+          "kind": "Mapping",
+          "fields": {
+            "routing": {
+              "op": "call",
+              "name": "coalesce",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "input",
+                    "routing"
+                  ]
+                },
+                {
+                  "op": "path",
+                  "path": [
+                    "DefaultRouting"
+                  ]
+                }
+              ]
+            },
+            "parameters": {
+              "op": "call",
+              "name": "coalesce",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "input",
+                    "parameters"
+                  ]
+                },
+                {
+                  "op": "path",
+                  "path": [
+                    "DefaultParameters"
+                  ]
+                }
+              ]
+            }
+          },
+          "ontology": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+          "meaning": "Materialize optional option objects before accessing their fields.",
+          "target": "Options"
+        },
+        "record_type": null
+      },
+      {
+        "id": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+        "name": "Normalize",
+        "kind": "mapping",
+        "meta_type": "Mapping",
+        "stable_key": "Normalize",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Normalize the public inference envelope with explicit defaults.",
+          "origin": "authored",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 58,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 57,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [],
+        "clauses": [
+          {
+            "text": "target Output",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 59,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field status = \"normalized\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 60,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field task = input.task",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 61,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field messages = input.input.messages",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 62,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field model = input.model",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 63,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field strategy = coalesce(ResolvedOptions.routing.strategy, \"balanced\")",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 64,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field max_output_tokens = coalesce(ResolvedOptions.parameters.max_output_tokens, 256)",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 65,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "field stream = coalesce(input.stream, false)",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 66,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": {
+          "id": "Normalize",
+          "kind": "Mapping",
+          "fields": {
+            "status": {
+              "op": "literal",
+              "value": "normalized"
+            },
+            "task": {
+              "op": "path",
+              "path": [
+                "input",
+                "task"
+              ]
+            },
+            "messages": {
+              "op": "path",
+              "path": [
+                "input",
+                "input",
+                "messages"
+              ]
+            },
+            "model": {
+              "op": "path",
+              "path": [
+                "input",
+                "model"
+              ]
+            },
+            "strategy": {
+              "op": "call",
+              "name": "coalesce",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "ResolvedOptions",
+                    "routing",
+                    "strategy"
+                  ]
+                },
+                {
+                  "op": "literal",
+                  "value": "balanced"
+                }
+              ]
+            },
+            "max_output_tokens": {
+              "op": "call",
+              "name": "coalesce",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "ResolvedOptions",
+                    "parameters",
+                    "max_output_tokens"
+                  ]
+                },
+                {
+                  "op": "literal",
+                  "value": 256
+                }
+              ]
+            },
+            "stream": {
+              "op": "call",
+              "name": "coalesce",
+              "args": [
+                {
+                  "op": "path",
+                  "path": [
+                    "input",
+                    "stream"
+                  ]
+                },
+                {
+                  "op": "literal",
+                  "value": false
+                }
+              ]
+            }
+          },
+          "ontology": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+          "meaning": "Normalize the public inference envelope with explicit defaults.",
+          "target": "Output"
+        },
+        "record_type": null
+      },
+      {
+        "id": "ALCH-7318EACF9C98BBFB24D61534",
+        "name": "PublicRequest",
+        "kind": "result",
+        "meta_type": "Query",
+        "stable_key": "PublicRequest",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Query PublicRequest, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 68,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 68,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [],
+        "clauses": [
+          {
+            "text": "require count(input.input.messages) > 0 else \"MESSAGES_REQUIRED\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 69,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "require exists row in input.input.messages: row.role == \"user\" else \"USER_MESSAGE_REQUIRED\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 70,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "when true yield Normalize",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 71,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": null,
+        "assertions": [
+          {
+            "condition": {
+              "op": "call",
+              "name": "gt",
+              "args": [
+                {
+                  "op": "call",
+                  "name": "count",
+                  "args": [
+                    {
+                      "op": "path",
+                      "path": [
+                        "input",
+                        "input",
+                        "messages"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "op": "literal",
+                  "value": 0
+                }
+              ]
+            },
+            "code": "MESSAGES_REQUIRED"
+          },
+          {
+            "condition": {
+              "op": "exists",
+              "binding": "row",
+              "collection": {
+                "op": "path",
+                "path": [
+                  "input",
+                  "input",
+                  "messages"
+                ]
+              },
+              "where": {
+                "op": "call",
+                "name": "eq",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "row",
+                      "role"
+                    ]
+                  },
+                  {
+                    "op": "literal",
+                    "value": "user"
+                  }
+                ]
+              }
+            },
+            "code": "USER_MESSAGE_REQUIRED"
+          }
+        ],
+        "cases": [
+          {
+            "condition": {
+              "op": "literal",
+              "value": true
+            },
+            "value": {
+              "op": "path",
+              "path": [
+                "Normalize"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "ALCH-F28E977C472A6A1642056491",
+        "name": "PublicNormalizer",
+        "kind": "endpoint",
+        "meta_type": "Interface",
+        "stable_key": "PublicNormalizer",
+        "key_origin": "derived",
+        "identity_origin": "derived",
+        "meaning": {
+          "text": "Interface PublicNormalizer, structurally derived from its Alch declaration.",
+          "origin": "derived-structural",
+          "source": {
+            "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+            "line": 73,
+            "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+          }
+        },
+        "source": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 73,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        },
+        "properties": [],
+        "clauses": [
+          {
+            "text": "target node-http",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 74,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "runtime node>=26.8.1",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 75,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "method POST",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 76,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "path \"/internal/public-request\"",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 77,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "input Input",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 78,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "output Output",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 79,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "result PublicRequest",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 80,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "auth-env INFERENCE_INTERNAL_TOKEN",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 81,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "max-bytes 65536",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 82,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "timeout-ms 5000",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 83,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "error-status 422",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 84,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          },
+          {
+            "text": "status normalized 200",
+            "source": {
+              "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+              "line": 85,
+              "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+            }
+          }
+        ],
+        "typed_contract": null,
+        "record_type": null,
+        "binding": {
+          "id": "PublicNormalizer",
+          "target": "node-http",
+          "runtime": "node>=26.8.1",
+          "method": "POST",
+          "path": "/internal/public-request",
+          "input": "Input",
+          "output": "Output",
+          "authEnv": "INFERENCE_INTERNAL_TOKEN",
+          "maxBytes": 65536,
+          "timeout": 5000,
+          "errorStatus": 422,
+          "statuses": {
+            "normalized": 200
+          },
+          "errors": {},
+          "result": "PublicRequest"
+        }
+      }
+    ],
+    "references": [
+      {
+        "source": "ALCH-DE0B07D3227AF16134D7E270",
+        "target": "ALCH-4B656E739388437F6D369BD5",
+        "role": "maps-to",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 41,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-87F7EA0B2168A926C7443E48",
+        "target": "ALCH-80688D99B295E170F49C2A56",
+        "role": "maps-to",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 46,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "target": "ALCH-7662AA1B8F41A802F4F69DAA",
+        "role": "maps-to",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 51,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "target": "ALCH-6EA5F213E96136FC04E25A60",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 51,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "target": "ALCH-DE0B07D3227AF16134D7E270",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 51,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "target": "ALCH-87F7EA0B2168A926C7443E48",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 51,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+        "target": "ALCH-F085444D22E352803D2D13C4",
+        "role": "maps-to",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 57,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+        "target": "ALCH-6EA5F213E96136FC04E25A60",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 57,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+        "target": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 57,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-F28E977C472A6A1642056491",
+        "target": "ALCH-7318EACF9C98BBFB24D61534",
+        "role": "exposes",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 73,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-F28E977C472A6A1642056491",
+        "target": "ALCH-6EA5F213E96136FC04E25A60",
+        "role": "input",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 73,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-F28E977C472A6A1642056491",
+        "target": "ALCH-F085444D22E352803D2D13C4",
+        "role": "output",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 73,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-7318EACF9C98BBFB24D61534",
+        "target": "ALCH-F085444D22E352803D2D13C4",
+        "role": "returns",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 68,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-7318EACF9C98BBFB24D61534",
+        "target": "ALCH-6EA5F213E96136FC04E25A60",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 68,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-7318EACF9C98BBFB24D61534",
+        "target": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+        "role": "depends-on",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 68,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-E9735F61562B832535EE2522",
+        "target": "ALCH-82DD81A16A24EA2E4AC51E3A",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 11,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-6EA5F213E96136FC04E25A60",
+        "target": "ALCH-E9735F61562B832535EE2522",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 20,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-6EA5F213E96136FC04E25A60",
+        "target": "ALCH-4B656E739388437F6D369BD5",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 20,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-6EA5F213E96136FC04E25A60",
+        "target": "ALCH-80688D99B295E170F49C2A56",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 20,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-F085444D22E352803D2D13C4",
+        "target": "ALCH-82DD81A16A24EA2E4AC51E3A",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 28,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-7662AA1B8F41A802F4F69DAA",
+        "target": "ALCH-4B656E739388437F6D369BD5",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 37,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      },
+      {
+        "source": "ALCH-7662AA1B8F41A802F4F69DAA",
+        "target": "ALCH-80688D99B295E170F49C2A56",
+        "role": "property-type",
+        "evidence": {
+          "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/public-request.alch",
+          "line": 37,
+          "sha256": "8c513f7c9bf6156b5a025b97ae565d36fe95ce012af79e424f19879f0ff4ee6a"
+        }
+      }
+    ],
+    "composition_trace": {
+      "profile": "domainspec.declarative-function/v1",
+      "observation_profile": "domainspec.declarative-observation/v1",
+      "nodes": [
+        {
+          "id": "DefaultRouting",
+          "kind": "Mapping",
+          "ontology": "ALCH-DE0B07D3227AF16134D7E270",
+          "meaning": "Default routing options when omitted.",
+          "type": "Routing",
+          "dependencies": []
+        },
+        {
+          "id": "DefaultParameters",
+          "kind": "Mapping",
+          "ontology": "ALCH-87F7EA0B2168A926C7443E48",
+          "meaning": "Default generation parameters when omitted.",
+          "type": "Parameters",
+          "dependencies": []
+        },
+        {
+          "id": "ResolvedOptions",
+          "kind": "Mapping",
+          "ontology": "ALCH-5635FC7AF8EDA94EEDC2B31A",
+          "meaning": "Materialize optional option objects before accessing their fields.",
+          "type": "Options",
+          "dependencies": [
+            "DefaultParameters",
+            "DefaultRouting"
+          ]
+        },
+        {
+          "id": "Normalize",
+          "kind": "Mapping",
+          "ontology": "ALCH-8EF4CA5DB6D8EE7BE4020CF0",
+          "meaning": "Normalize the public inference envelope with explicit defaults.",
+          "type": "Output",
+          "dependencies": [
+            "ResolvedOptions"
+          ]
+        }
+      ],
+      "authority_effect": "none",
+      "ontology_admitted": false
+    },
+    "status": "generated-scaffold",
+    "reference_semantics": "compiler dependencies; not admitted ontology relationships",
+    "authority_effect": "none",
+    "ontology_admitted": false,
+    "source_format": "alchlang"
+  },
+  "id": "function",
+  "schema_version": "domainspec.project-composition/v1",
+  "core_bindings": {}
+}

@@ -1,0 +1,272 @@
+{
+  "dispatch_id": "oew-first-working-version-selection-a-20260728",
+  "parent_dispatch_id": "oew-first-working-version-refresh-20260728",
+  "intent": {
+    "raw": "do next steps",
+    "objective": "Apply option A to the exact four-unit private L1 frontier and hand off only SWU-OEW-008F to Task Session.",
+    "target_artifact": "selection state, reconciled Define question, and mutation-blocked Task Session handoff"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "frame_handoff",
+    "concrete_path_evidence",
+    "owner_boundary_check",
+    "artifact_contract_bridge",
+    "execution_receipt_handoff",
+    "authority_split_gate"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "explanation": "The selected route is a serial private state transition and no delegation was requested.",
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed"
+  },
+  "subagent_lifecycle": {
+    "status": "none",
+    "agents": []
+  },
+  "steps": [
+    {
+      "step_id": "lookup-current-evidence",
+      "name": "Check the repository Inventory without transferring authority",
+      "capability_ref": "inventory",
+      "capability_metadata": {
+        "source": ".agents/skills/inventory/SKILL.md",
+        "validation_note": "Installed Inventory capability; machine index lookup readiness passed."
+      },
+      "mode": "lookup",
+      "pattern": "sequential",
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": ".arcanum/inventory/index.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "frame",
+          "ref": "excluded stale audit entry and current receipt set"
+        }
+      ],
+      "techniques": [
+        "concrete_path_evidence",
+        "owner_boundary_check"
+      ],
+      "stop_conditions": [
+        "inventory lookup readiness is blocked"
+      ]
+    },
+    {
+      "step_id": "select-refresh-context",
+      "name": "Bind the selected frontier and current receipts",
+      "capability_ref": "context-builder",
+      "mode": "standard-strict",
+      "pattern": "sequential",
+      "depends_on_steps": [
+        "lookup-current-evidence"
+      ],
+      "inputs": [
+        {
+          "kind": "decision",
+          "ref": "G-OEW-L1-FIRST-WORKING-VERSION-SELECTION decision receipt"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "frame",
+          "ref": "CONTEXT-PACK.md and context-pack.json"
+        }
+      ],
+      "techniques": [
+        "frame_handoff",
+        "concrete_path_evidence"
+      ],
+      "stop_conditions": [
+        "any selection, frontier, target, closeout, or authority obligation lacks current evidence"
+      ]
+    },
+    {
+      "step_id": "apply-selection-refresh",
+      "name": "Validate and apply the exact selection state",
+      "capability_ref": "invoke",
+      "mode": "refresh-apply-approved",
+      "pattern": "sequential",
+      "depends_on_steps": [
+        "select-refresh-context"
+      ],
+      "inputs": [
+        {
+          "kind": "frame",
+          "ref": "strict selection context"
+        },
+        {
+          "kind": "decision",
+          "ref": "option A decision receipt"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "material-package.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "refresh-receipt.json"
+        }
+      ],
+      "techniques": [
+        "artifact_contract_bridge",
+        "owner_boundary_check",
+        "authority_split_gate"
+      ],
+      "stop_conditions": [
+        "staged digest, dependency, owner, publication, selection uniqueness, or byte equality fails"
+      ]
+    },
+    {
+      "step_id": "handoff-008f",
+      "name": "Handoff only SWU-OEW-008F to fresh preflight",
+      "capability_ref": "task-session",
+      "mode": "preflight-then-execute",
+      "pattern": "handoff",
+      "depends_on_steps": [
+        "apply-selection-refresh"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "selection refresh receipt"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "handoff",
+          "ref": "SWU-OEW-008F"
+        }
+      ],
+      "techniques": [
+        "execution_receipt_handoff",
+        "owner_boundary_check"
+      ],
+      "stop_conditions": [
+        "fresh Task Session preflight or mutation-admission receipt does not pass"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "G-OEW-SELECTION-CURRENT",
+      "kind": "human_approval",
+      "owner": "human execution owner",
+      "condition": "Option A and its exact four-unit frontier are bound to the current decision receipt.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEW-SELECTION-MATERIAL",
+      "kind": "validation",
+      "owner": "Invoke material validator",
+      "condition": "All six staged targets pass dependency, owner, publication, and byte-equality checks.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEW-008F-MUTATION",
+      "kind": "validation",
+      "owner": "Task Session",
+      "condition": "Implementation mutation begins only after fresh 008F material and mutation-admission receipts pass.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "G-OEW-AUTHORITY-CEILING",
+      "kind": "promotion_guardrail",
+      "owner": "ontology and release owners",
+      "condition": "No selection or execution receipt claims ontology admission, publication, release, deployment, or production authority.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": "oew-first-working-version-refresh-20260728",
+    "trace_events": [
+      "inventory-lookup-ready",
+      "context-selected",
+      "selection-staged",
+      "material-validated",
+      "selection-applied",
+      "task-session-handoff"
+    ],
+    "signal_grouping": "oew-first-working-version-series-20260728"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "decision-to-refresh",
+        "kind": "human_approval",
+        "from_owner": "human execution owner",
+        "to_owner": "invoke",
+        "applies_to_steps": [
+          "apply-selection-refresh"
+        ],
+        "contract": "The decision authorizes only the exact four-unit series and selects only 008F initially.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "refresh-to-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": [
+          "handoff-008f"
+        ],
+        "contract": "Selection does not imply preflight or mutation-admission pass.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "Invoke owns the private selection-state refresh.",
+      "execution": "Task Session owns one selected SWU at a time.",
+      "validation": "Invoke and Task Session validators own their respective receipts.",
+      "evidence": "Private OEW receipt owners.",
+      "promotion": "Ontology, publication, release, deployment, and production owners remain separate."
+    },
+    "receipts": [
+      {
+        "receipt_id": "selection-refresh-receipt",
+        "producer": "invoke",
+        "required_fields": [
+          "artifacts",
+          "validation_result",
+          "status",
+          "blockers",
+          "handoff_note"
+        ],
+        "stores": [
+          "private OEW selection evidence"
+        ],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "008f-task-session-receipt",
+        "producer": "task-session",
+        "required_fields": [
+          "session_id",
+          "artifacts",
+          "validation_result",
+          "status",
+          "blockers",
+          "handoff_note"
+        ],
+        "stores": [
+          "private OEW execution evidence"
+        ],
+        "on_missing": "block"
+      }
+    ]
+  },
+  "promotion_guardrails": [
+    "Authority effect remains none.",
+    "Do not claim L2 access, manual UX acceptance, ontology admission, publication, release, deployment, or production readiness.",
+    "The predecessor refresh already validated the reduced four-unit frontier; this run applies selection state only."
+  ]
+}

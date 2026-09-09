@@ -1,0 +1,273 @@
+--- a/understand-anything-plugin/packages/dashboard/src/oew/keyboard.ts
++++ b/understand-anything-plugin/packages/dashboard/src/oew/keyboard.ts
+@@ -10,6 +10,53 @@
+   {keys: ["t"], command: "view-table", label: "Table view"},
+ ]);
+ 
++export const RELATION_ACTIVATION_KEYS = Object.freeze(["Enter", " "]);
++
++export function isRelationActivationKey(event) {
++  return RELATION_ACTIVATION_KEYS.includes(String(event?.key ?? ""));
++}
++
++export function restoreRelationFocus(root = document) {
++  const relations = Array.from(
++    root.querySelectorAll('.oew-edge[aria-current="true"]'),
++  );
++  if (relations.length === 1) {
++    relations[0].focus();
++    return Object.freeze({
++      restored: root.activeElement === relations[0],
++      target: "selected-relation",
++      fallbackUsed: false,
++      reason: root.activeElement === relations[0]
++        ? null
++        : "RELATION_FOCUS_REJECTED",
++    });
++  }
++  if (relations.length > 1) {
++    return Object.freeze({
++      restored: false,
++      target: null,
++      fallbackUsed: false,
++      reason: "RELATION_FOCUS_AMBIGUOUS",
++    });
++  }
++  const heading = root.querySelector("[data-oew-scene-heading]");
++  if (!heading) {
++    return Object.freeze({
++      restored: false,
++      target: null,
++      fallbackUsed: true,
++      reason: "SCENE_HEADING_MISSING",
++    });
++  }
++  heading.focus();
++  return Object.freeze({
++    restored: root.activeElement === heading,
++    target: "scene-heading",
++    fallbackUsed: true,
++    reason: root.activeElement === heading ? null : "SCENE_FOCUS_REJECTED",
++  });
++}
++
+ export function keyboardCommand(event) {
+   const key = lowerKey(event.key);
+   if ((event.metaKey || event.ctrlKey) && key === "k") return "open-search";
+--- a/understand-anything-plugin/packages/dashboard/src/oew/store.ts
++++ b/understand-anything-plugin/packages/dashboard/src/oew/store.ts
+@@ -15,6 +15,7 @@
+  * @property {string | null} selectedSourceRef
+  * @property {string | null} selectedPresentationId
+  * @property {OewSourceIndexEntry["kind"] | null} selectedKind
++ * @property {{sourceRef: string, presentationId: string} | null} relationFocusReturn
+  * @property {OewFilters} filters
+  * @property {"none"} authorityEffect
+  * @typedef {(state: OewStoreState) => void} OewStoreListener
+@@ -25,6 +26,8 @@
+  * @property {(sourceRef: string) => OewSourceIndexEntry | null} getBySourceRef
+  * @property {(sourceRef: string) => OewStoreState} selectSourceRef
+  * @property {() => OewStoreState} clearSelection
++ * @property {(sourceRef: string) => {sourceRef: string, presentationId: string}} armRelationFocusReturn
++ * @property {() => {sourceRef: string, presentationId: string} | null} consumeRelationFocusReturn
+  * @property {(listener: unknown) => () => boolean} subscribe
+  */
+ 
+@@ -43,6 +46,7 @@
+     selectedSourceRef: null,
+     selectedPresentationId: null,
+     selectedKind: null,
++    relationFocusReturn: null,
+     filters: {
+       text: "",
+       kind: [],
+@@ -86,10 +90,31 @@
+         selectedSourceRef: null,
+         selectedPresentationId: null,
+         selectedKind: null,
++        relationFocusReturn: null,
+       };
+       emit();
+       return state;
+     },
++    armRelationFocusReturn(sourceRef = "") {
++      const selected = bundle.sourceRefIndex[sourceRef];
++      if (!selected || selected.kind !== "edge") {
++        throw new OewBundleError("RELATION_INSTANCE_REQUIRED", sourceRef);
++      }
++      const frame = Object.freeze({
++        sourceRef,
++        presentationId: selected.presentationId,
++      });
++      state = {...state, relationFocusReturn: frame};
++      emit();
++      return frame;
++    },
++    consumeRelationFocusReturn() {
++      const frame = state.relationFocusReturn;
++      if (!frame) return null;
++      state = {...state, relationFocusReturn: null};
++      emit();
++      return frame;
++    },
+     /** @param {unknown} listener */
+     subscribe(listener = JSON.parse("null")) {
+       if (typeof listener !== "function") {
+--- a/understand-anything-plugin/packages/dashboard/src/oew/OewApp.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/oew/OewApp.tsx
+@@ -8,7 +8,12 @@
+ import TrustRail from "./TrustRail.tsx";
+ import {loadOewBundle} from "./loadOewBundle.ts";
+ import {createOewStore} from "./store.ts";
+-import {buildDeepLink, keyboardCommand, parseDeepLink} from "./keyboard.ts";
++import {
++  buildDeepLink,
++  keyboardCommand,
++  parseDeepLink,
++  restoreRelationFocus,
++} from "./keyboard.ts";
+ import {
+   deriveRelationPresentationRecord,
+   RELATION_PRESENTATION_RECORD_SCHEMA,
+@@ -230,7 +235,12 @@
+       sourceRef = bundle.sourceRefs[0];
+       setRecoveryNotice(`Unknown evidence recovered to ${sourceRef}.`);
+     }
++    const entry = store?.getBySourceRef(sourceRef);
+     store?.selectSourceRef(sourceRef);
++    if (entry?.kind === "edge") {
++      store?.armRelationFocusReturn(sourceRef);
++      setInspectorOpen(true);
++    }
+     setSelectedSourceRef(sourceRef);
+     setView(nextView);
+     setCommandOpen(false);
+@@ -238,6 +248,18 @@
+     window.history.replaceState(null, "", url);
+   };
+ 
++  const closeInspector = () => {
++    const returnFrame = store?.consumeRelationFocusReturn();
++    setInspectorOpen(false);
++    if (!returnFrame) return;
++    window.requestAnimationFrame(() => {
++      const restored = restoreRelationFocus(document);
++      if (!restored.restored) {
++        setRecoveryNotice(`Focus restoration blocked: ${restored.reason}.`);
++      }
++    });
++  };
++
+   useEffect(() => {
+     const listener = (event) => {
+       if (["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName) && event.key !== "Escape") return;
+@@ -271,6 +293,9 @@
+ 
+   return (
+     <div className="oew-app">
++      <h1 className="oew-sr-only" data-oew-scene-heading tabIndex={-1}>
++        Evidence graph
++      </h1>
+       <TrustRail receipt={bundle.receipt} onOpenReceipts={() => setReceiptsOpen(true)} />
+       {recoveryNotice && (
+         <div className="oew-recovery" role="status">
+@@ -297,7 +322,7 @@
+         {inspectorOpen && (
+           <EvidenceInspector
+             entry={selectedSourceRef ? bundle.sourceRefIndex[selectedSourceRef] : null}
+-            onClose={() => setInspectorOpen(false)}
++            onClose={closeInspector}
+             relationRecord={relationRecords[selectedSourceRef] ?? null}
+           />
+         )}
+--- a/understand-anything-plugin/packages/dashboard/src/oew/navigation.test.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/oew/navigation.test.tsx
+@@ -1,6 +1,13 @@
+ // @ts-nocheck
+ import {describe, expect, it} from "vitest";
+-import {buildDeepLink, keyboardCommand, parseDeepLink} from "./keyboard.ts";
++import {
++  buildDeepLink,
++  isRelationActivationKey,
++  keyboardCommand,
++  parseDeepLink,
++  restoreRelationFocus,
++} from "./keyboard.ts";
++import {createOewStore} from "./store.ts";
+ 
+ describe("navigation contracts", () => {
+   it("maps documented keys and recovers invalid deep links", () => {
+@@ -12,4 +19,73 @@
+       recoveredInvalidSelection: true,
+     });
+   });
++
++  it("admits only native Enter and Space activation keys", () => {
++    expect(isRelationActivationKey({key: "Enter"})).toBe(true);
++    expect(isRelationActivationKey({key: " "})).toBe(true);
++    expect(isRelationActivationKey({key: "ArrowRight"})).toBe(false);
++    expect(isRelationActivationKey({key: "Space"})).toBe(false);
++  });
++
++  it("restores one selected actionable relation and excludes inert geometry", () => {
++    document.body.innerHTML = `
++      <span class="oew-constellation" aria-hidden="true"></span>
++      <button class="oew-edge" aria-current="true">exact relation</button>
++      <h1 data-oew-scene-heading tabindex="-1">Evidence graph</h1>
++    `;
++    const inert = document.querySelector(".oew-constellation");
++    expect(inert?.tabIndex).toBe(-1);
++    expect(inert?.getAttribute("role")).toBe(null);
++    expect(restoreRelationFocus(document)).toEqual({
++      restored: true,
++      target: "selected-relation",
++      fallbackUsed: false,
++      reason: null,
++    });
++    expect(document.activeElement?.textContent).toBe("exact relation");
++  });
++
++  it("uses the scene heading fallback and blocks ambiguous relation focus", () => {
++    document.body.innerHTML = `
++      <h1 data-oew-scene-heading tabindex="-1">Evidence graph</h1>
++    `;
++    expect(restoreRelationFocus(document)).toMatchObject({
++      restored: true,
++      target: "scene-heading",
++      fallbackUsed: true,
++    });
++    document.body.innerHTML = `
++      <button class="oew-edge" aria-current="true">one</button>
++      <button class="oew-edge" aria-current="true">two</button>
++    `;
++    expect(restoreRelationFocus(document)).toEqual({
++      restored: false,
++      target: null,
++      fallbackUsed: false,
++      reason: "RELATION_FOCUS_AMBIGUOUS",
++    });
++  });
++
++  it("binds restoration to one exact relation instance", () => {
++    const bundle = {
++      sourceRefs: ["R1", "F1"],
++      sourceRefIndex: {
++        R1: {sourceRef: "R1", presentationId: "edge:R1", kind: "edge"},
++        F1: {sourceRef: "F1", presentationId: "node:F1", kind: "node"},
++      },
++    };
++    const store = createOewStore(bundle);
++    expect(store.armRelationFocusReturn("R1")).toEqual({
++      sourceRef: "R1",
++      presentationId: "edge:R1",
++    });
++    expect(store.consumeRelationFocusReturn()).toEqual({
++      sourceRef: "R1",
++      presentationId: "edge:R1",
++    });
++    expect(store.consumeRelationFocusReturn()).toBe(null);
++    expect(() => store.armRelationFocusReturn("F1")).toThrow(
++      "RELATION_INSTANCE_REQUIRED: F1",
++    );
++  });
+ });

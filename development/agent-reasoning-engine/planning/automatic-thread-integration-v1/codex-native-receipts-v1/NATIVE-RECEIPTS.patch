@@ -1,0 +1,429 @@
+--- a/codex-rs/core/tests/suite/mod.rs
++++ b/codex-rs/core/tests/suite/mod.rs
+@@ -196,4 +196,5 @@
+ mod worktree_trust;
+ 
+ mod context_gate;
++mod context_receipts;
+ mod context_recovery;
+--- /dev/null
++++ b/codex-rs/core/tests/suite/context_receipts.rs
+@@ -0,0 +1,216 @@
++#![cfg(target_os = "linux")]
++//! Native-owned receipts and abrupt-exit recovery against an offline provider.
++#[path = "context_receipt_store.rs"]
++mod receipt_store;
++use codex_client::ContextGateConfig;
++use codex_protocol::protocol::{EventMsg, Op};
++use core_test_support::responses::{self, ev_assistant_message, ev_completed_with_tokens, sse};
++use core_test_support::test_codex::{TestCodex, test_codex};
++use core_test_support::wait_for_event;
++use pretty_assertions::assert_eq;
++use receipt_store::Store;
++use serde_json::{Value, json};
++use std::collections::HashMap;
++use wiremock::matchers::{method, path};
++use wiremock::{Mock, ResponseTemplate};
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++#[ignore = "requires the explicit offline recovery supervisor"]
++async fn context_receipts_native_driver() -> anyhow::Result<()> {
++    let endpoint = std::env::var("ARE_OFFLINE_RECEIPT_COORDINATOR")?;
++    anyhow::ensure!(endpoint.starts_with("http://127.0.0.1:"));
++    let client = codex_client::HttpClientBuilder::new()
++        .without_redirects()
++        .without_request_logging()
++        .build_direct()?;
++    let directory = std::env::var("ARE_OFFLINE_RECEIPT_DIRECTORY")?;
++    let binding = std::env::var("ARE_OFFLINE_RECEIPT_BINDING")?;
++    let mut store = Store::open(std::path::Path::new(&directory), &binding)?;
++    let server = responses::start_mock_server().await;
++    Mock::given(method("POST"))
++        .and(path("/v1/responses"))
++        .respond_with(
++            ResponseTemplate::new(200)
++                .insert_header("content-type", "text/event-stream")
++                .set_body_string(sse(vec![
++                    ev_assistant_message("m", "offline-recovery-result"),
++                    ev_completed_with_tokens("r", 10),
++                ])),
++        )
++        .mount(&server)
++        .await;
++    let mut contexts: HashMap<String, (TestCodex, String, bool)> = HashMap::new();
++    let mut reply = json!({"ready":true});
++    loop {
++        let command: Value = client
++            .post(&endpoint)
++            .json(&reply)
++            .send()
++            .await?
++            .error_for_status()?
++            .json()
++            .await?;
++        let kind = command["kind"].as_str().expect("fixture command kind");
++        match kind {
++            "lookup" => {
++                reply = store.lookup(&command["operation"])?;
++            }
++
++            "open" => {
++                if let Some(receipt) = store.context(&command["request"])? {
++                    reply = receipt;
++                    continue;
++                }
++                let handover = command["handover_id"].as_str().expect("handover");
++                let text = command["capsule_text"].as_str().expect("capsule");
++                anyhow::ensure!(text.len() <= 4096, "bounded native fixture capsule");
++                if !contexts.contains_key(handover) {
++                    let gate = ContextGateConfig::new(
++                        command["policy_endpoint"].as_str().expect("policy").into(),
++                        command["scope"].as_str().expect("scope").into(),
++                        32,
++                    )
++                    .expect("offline gate");
++                    let test = test_codex()
++                        .with_config(move |config| {
++                            config.experimental_context_gate = Some(gate);
++                            config.model = Some("gpt-5.1".into());
++                        })
++                        .build_with_auto_env(&server)
++                        .await?;
++                    test.codex.inject_response_items(vec![serde_json::from_value(json!({
++                        "type":"message", "role":"user", "content":[{"type":"input_text","text":text}]
++                    }))?]).await?;
++                    contexts.insert(handover.into(), (test, text.into(), false));
++                }
++                let (test, restored, sealed) = &contexts[handover];
++                assert_eq!(restored, text);
++                assert!(!sealed);
++                let history = test.codex.conversation_history_snapshot().await;
++                let items: Vec<Value> = history
++                    .items()
++                    .map(serde_json::to_value)
++                    .collect::<Result<_, _>>()?;
++                assert!(!items.iter().any(|item| item["role"] == "assistant"));
++                assert_eq!(
++                    items
++                        .iter()
++                        .filter(
++                            |item| item["content"].as_array().is_some_and(|content| content
++                                .iter()
++                                .any(|part| part["text"].as_str() == Some(text)))
++                        )
++                        .count(),
++                    1
++                );
++                reply = json!({"context_id":test.session_configured.session_id.to_string(),"restored":true,"fresh_history":true,
++                    "handover_id":command["request"]["handover_id"],"generation":command["request"]["generation"],"capsule_digest":command["request"]["capsule"]["capsule_digest"],"evidence_ref":"native-receipt:opened"});
++                store.opened(&command["request"], &reply)?;
++                crash_at(&store, &command, "after-open")?;
++            }
++            "step" => {
++                let operation = &command["operation"];
++                let found = store.lookup(operation)?;
++                if found["status"] != "not_started" {
++                    reply = found;
++                    continue;
++                }
++                store.begin(operation)?;
++                crash_at(&store, &command, "before-step")?;
++                let handover = command["handover_id"].as_str().expect("handover");
++                if !contexts.contains_key(handover) {
++                    reply = operation.clone();
++                    reply["status"] = json!("recycle");
++                    reply["provider_sent"] = json!(false);
++                    reply["effects_started"] = json!(false);
++                    reply["evidence_ref"] = json!("native-receipt:lost-context");
++                    store.complete(operation, &reply)?;
++                    continue;
++                }
++                let (test, capsule, sealed) = &contexts[handover];
++                assert!(!sealed);
++                let before = server
++                    .received_requests()
++                    .await
++                    .expect("native requests")
++                    .iter()
++                    .filter(|r| r.method == "POST" && r.url.path() == "/v1/responses")
++                    .count();
++                test.codex
++                    .start_or_steer_turn(codex_core::TurnInputRequest::user_input(vec![
++                        codex_protocol::user_input::UserInput::Text {
++                            text: command["input"].as_str().expect("input").into(),
++                            text_elements: vec![],
++                        },
++                    ]))
++                    .await?;
++                let event = wait_for_event(&test.codex, |e| {
++                    matches!(e, EventMsg::Error(_) | EventMsg::TurnComplete(_))
++                })
++                .await;
++                let stopped = matches!(event, EventMsg::Error(_));
++                if stopped {
++                    wait_for_event(&test.codex, |e| matches!(e, EventMsg::TurnComplete(_))).await;
++                }
++                let requests: Vec<_> = server
++                    .received_requests()
++                    .await
++                    .expect("native requests")
++                    .into_iter()
++                    .filter(|r| r.method == "POST" && r.url.path() == "/v1/responses")
++                    .collect();
++                if stopped {
++                    assert_eq!(requests.len(), before);
++                } else {
++                    assert_eq!(requests.len(), before + 1);
++                    let body: Value = serde_json::from_slice(
++                        &requests.last().expect("native provider request").body,
++                    )?;
++                    assert_eq!(body["max_output_tokens"], 32);
++                    assert_eq!(body["store"], false);
++                    let input = body["input"].as_array().expect("full input");
++                    let restored = input
++                        .iter()
++                        .filter(|item| {
++                            item["content"].as_array().is_some_and(|content| {
++                                content
++                                    .iter()
++                                    .any(|part| part["text"].as_str() == Some(capsule))
++                            })
++                        })
++                        .count();
++                    assert_eq!(restored, 1);
++                }
++                store.audit(&json!({"kind":"provider","operation_id":operation["operation_id"],"item_id":operation["item"]["id"],"provider_calls":requests.len()-before}))?;
++                crash_at(&store, &command, "after-provider")?;
++                reply = client.post(format!("{endpoint}/classify")).json(&json!({"operation":operation,"stopped":stopped,"provider_calls":requests.len()-before})).send().await?.error_for_status()?.json().await?;
++                store.complete(operation, &reply)?;
++                crash_at(&store, &command, "after-receipt")?;
++            }
++            "seal" => {
++                let handover = command["handover_id"].as_str().expect("handover");
++                if let Some((test, _, sealed)) = contexts.get_mut(handover)
++                    && !*sealed
++                {
++                    test.codex.submit(Op::Shutdown).await?;
++                    wait_for_event(&test.codex, |e| matches!(e, EventMsg::ShutdownComplete)).await;
++                    *sealed = true;
++                }
++                reply = store.seal(&command["context"])?;
++                crash_at(&store, &command, "after-seal")?;
++            }
++            "finish" => break,
++            other => anyhow::bail!("unsupported fixture command {other}"),
++        }
++    }
++    Ok(())
++}
++
++fn crash_at(store: &Store, command: &Value, boundary: &str) -> anyhow::Result<()> {
++    if command["fault"] == boundary {
++        store.audit(&json!({"kind":"intentional-abrupt-exit","boundary":boundary}))?;
++        // Intentional fixture crash: no destructors, no acknowledgement, kernel releases lock.
++        std::process::exit(86);
++    }
++    Ok(())
++}
+--- /dev/null
++++ b/codex-rs/core/tests/suite/context_receipt_store.rs
+@@ -0,0 +1,199 @@
++//! Linux offline native-driver receipt store. Checksums detect accidental corruption;
++//! exact records bind requests. This is not a hostile-store authentication boundary.
++use anyhow::{Context, ensure};
++use serde_json::{Value, json};
++use sha1::{Digest, Sha1};
++use std::fs::{self, File, OpenOptions};
++use std::io::Write;
++use std::os::unix::fs::OpenOptionsExt;
++use std::path::{Path, PathBuf};
++
++pub struct Store {
++    root: PathBuf,
++    _lock: File,
++    state: Value,
++}
++impl Store {
++    pub fn open(root: &Path, binding: &str) -> anyhow::Result<Self> {
++        ensure!(!binding.is_empty(), "store binding required");
++        fs::create_dir_all(root)?;
++        let lock = OpenOptions::new()
++            .create(true)
++            .truncate(false)
++            .read(true)
++            .write(true)
++            .mode(0o600)
++            .open(root.join("writer.lock"))?;
++        lock.try_lock().context("native receipt writer busy")?;
++        let file = root.join("receipts.json");
++        let state = if file.exists() {
++            ensure!(
++                fs::metadata(&file)?.len() <= 4_194_304,
++                "receipt store too large"
++            );
++            let envelope: Value = serde_json::from_slice(&fs::read(file)?)?;
++            let payload = envelope["payload"]
++                .as_str()
++                .context("receipt payload missing")?;
++            ensure!(
++                envelope["checksum"] == format!("{:x}", Sha1::digest(payload.as_bytes())),
++                "receipt integrity failed"
++            );
++            let state: Value = serde_json::from_str(payload)?;
++            ensure!(
++                state["version"] == 1 && state["binding"] == binding,
++                "receipt scope drift"
++            );
++            state
++        } else {
++            json!({"version":1,"binding":binding,"contexts":{},"operations":{}})
++        };
++        let store = Self {
++            root: root.into(),
++            _lock: lock,
++            state,
++        };
++        store.save()?;
++        Ok(store)
++    }
++    fn save(&self) -> anyhow::Result<()> {
++        let payload = serde_json::to_string(&self.state)?;
++        ensure!(payload.len() <= 2_000_000, "receipt store too large");
++        let envelope =
++            json!({"checksum":format!("{:x}",Sha1::digest(payload.as_bytes())),"payload":payload});
++        let temp = self.root.join(format!("{}.tmp", uuid::Uuid::new_v4()));
++        let mut file = OpenOptions::new()
++            .create_new(true)
++            .write(true)
++            .mode(0o600)
++            .open(&temp)?;
++        let bytes = serde_json::to_vec(&envelope)?;
++        ensure!(bytes.len() <= 4_194_304, "receipt envelope too large");
++        file.write_all(&bytes)?;
++        file.sync_all()?;
++        fs::rename(temp, self.root.join("receipts.json"))?;
++        File::open(&self.root)?.sync_all()?;
++        Ok(())
++    }
++    pub fn context(&self, request: &Value) -> anyhow::Result<Option<Value>> {
++        let id = request["handover_id"]
++            .as_str()
++            .context("handover required")?;
++        let value = &self.state["contexts"][id];
++        if value.is_null() {
++            return Ok(None);
++        }
++        ensure!(value["request"] == *request, "handover request drift");
++        Ok(Some(value["receipt"].clone()))
++    }
++    pub fn opened(&mut self, request: &Value, receipt: &Value) -> anyhow::Result<()> {
++        ensure!(self.context(request)?.is_none(), "context already stored");
++        let id = request["handover_id"]
++            .as_str()
++            .context("handover required")?;
++        self.state["contexts"][id] = json!({"request":request,"receipt":receipt,"sealed":false});
++        self.save()
++    }
++    fn bound_context(&self, operation: &Value) -> anyhow::Result<()> {
++        let contexts = self.state["contexts"].as_object().context("contexts")?;
++        ensure!(
++            contexts.values().any(|entry| entry["receipt"]["context_id"]
++                == operation["context_id"]
++                && entry["receipt"]["generation"] == operation["generation"]
++                && entry["receipt"]["capsule_digest"] == operation["capsule_digest"]),
++            "unknown context binding"
++        );
++        Ok(())
++    }
++    pub fn lookup(&self, operation: &Value) -> anyhow::Result<Value> {
++        self.bound_context(operation)?;
++        let id = operation["operation_id"]
++            .as_str()
++            .context("operation required")?;
++        let record = &self.state["operations"][id];
++        let mut result = operation.clone();
++        result["evidence_ref"] = json!(format!("native-receipt:{id}"));
++        if record.is_null() {
++            result["status"] = json!("not_started");
++            return Ok(result);
++        }
++        ensure!(record["operation"] == *operation, "operation request drift");
++        if record["receipt"].is_null() {
++            result["status"] = json!("unknown");
++            return Ok(result);
++        }
++        Ok(record["receipt"].clone())
++    }
++    pub fn begin(&mut self, operation: &Value) -> anyhow::Result<()> {
++        ensure!(
++            self.lookup(operation)?["status"] == "not_started",
++            "operation already recorded"
++        );
++        let id = operation["operation_id"]
++            .as_str()
++            .context("operation required")?;
++        self.state["operations"][id] = json!({"operation":operation,"receipt":null});
++        self.save()
++    }
++    pub fn complete(&mut self, operation: &Value, receipt: &Value) -> anyhow::Result<()> {
++        ensure!(
++            self.lookup(operation)?["status"] == "unknown",
++            "operation not pending"
++        );
++        for key in ["operation_id", "context_id", "generation"] {
++            ensure!(receipt[key] == operation[key], "receipt binding drift");
++        }
++        ensure!(
++            receipt["status"] == "completed"
++                || (receipt["status"] == "recycle"
++                    && receipt["provider_sent"] == false
++                    && receipt["effects_started"] == false),
++            "terminal receipt required"
++        );
++        let id = operation["operation_id"]
++            .as_str()
++            .context("operation required")?;
++        self.state["operations"][id]["receipt"] = receipt.clone();
++        self.save()
++    }
++    pub fn seal(&mut self, context: &Value) -> anyhow::Result<Value> {
++        self.bound_context(context)?;
++        let uncertain = self.state["operations"]
++            .as_object()
++            .context("operations")?
++            .values()
++            .filter(|entry| {
++                entry["operation"]["context_id"] == context["context_id"]
++                    && entry["receipt"].is_null()
++            })
++            .count();
++        let mut receipt = context.clone();
++        receipt["sealed"] = json!(uncertain == 0);
++        receipt["pending"] = json!(0);
++        receipt["uncertain"] = json!(uncertain);
++        receipt["evidence_ref"] = json!("native-receipt:sealed");
++        if uncertain == 0 {
++            for entry in self.state["contexts"]
++                .as_object_mut()
++                .context("contexts")?
++                .values_mut()
++            {
++                if entry["receipt"]["context_id"] == context["context_id"] {
++                    entry["sealed"] = json!(true);
++                }
++            }
++            self.save()?;
++        }
++        Ok(receipt)
++    }
++    pub fn audit(&self, value: &Value) -> anyhow::Result<()> {
++        let mut file = OpenOptions::new()
++            .create(true)
++            .append(true)
++            .mode(0o600)
++            .open(self.root.join("fixture-audit.jsonl"))?;
++        writeln!(file, "{}", serde_json::to_string(value)?)?;
++        file.sync_all()?;
++        Ok(())
++    }
++}

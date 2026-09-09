@@ -1,0 +1,251 @@
+{
+  "schema_version": "minted-graph/v1",
+  "authority": "generated-semantic-read-model",
+  "project_id": "cyberalchemy-workspace",
+  "language": {
+    "profile_digest": "6d2500e8764ae4c34a58f981a877e180b93448f4aa773e6e861215677279a886",
+    "kinds_digest": "bc800afdca36fa701a13ec611e7ee0ef928a4c8d259d48dfac2880a3cc8cbbc4",
+    "relationships_digest": "82c55ea1ad031d3135c5b8a85162e44b4e85f296b54057fda0dc38131ab376a1"
+  },
+  "source_set_digest": "268ef676c5b6d2837ce0345547c8cfdb54e00359594e3c963fa71f704794b6cc",
+  "nodes": [
+    {
+      "node_id": "cyberalchemy-workspace.CyberAlchemyWorkspaceInterface",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Interface",
+      "intent": "Expose only the local inspect query to the frontend and grant the interface no semantic, validation, admission, or Project authority.",
+      "body": {
+        "interface_kind": "local-read-only-application-boundary"
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.InspectWorkspace",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Query",
+      "intent": "Read the current immutable Workspace Snapshot without editing sources, changing authority, inferring admission, or invoking a Project action.",
+      "body": {
+        "state_change": "no"
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceBinding",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Binding",
+      "intent": "Bind the Workspace page to one immutable local snapshot query and invalidate only when the generated semantic source epoch changes.",
+      "body": {
+        "mode": "fetch",
+        "target_kind": "Query",
+        "target_ref": "InspectWorkspace",
+        "trigger": "workspace-route-open",
+        "parameter_mapping": "none",
+        "result_mapping": "workspace-snapshot-to-workspace-view-model",
+        "cache_key": "workspace-source-epoch",
+        "invalidation": "generated-source-epoch-change-only"
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceExplorer",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Component",
+      "intent": "Present searchable read-only definition, product, project, and ontology collections with detail provenance, boundaries, claim ceilings, and explicit Project entry navigation.",
+      "body": {
+        "typed_inputs": "WorkspaceViewModel",
+        "typed_outputs": "WorkspaceRecordSelectionIntent|ProjectEntryNavigationIntent",
+        "independent_route": "false",
+        "domain_data_authority": "false",
+        "validation_authority": "false",
+        "access_authority": "false"
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceHomePage",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Page",
+      "intent": "Own the local root route where a person can browse the four collections and select a Project entry without editing semantic sources.",
+      "body": {
+        "route_path": "/",
+        "terminal": "true",
+        "access_context": "local-reader",
+        "primary_content": "workspace-explorer",
+        "layout_ref": "WorkspaceShell",
+        "unit_inventory": "WorkspaceExplorer"
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceRecord",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Value Object",
+      "intent": "Project one semantic record while preserving its non-collapsible collection, stable identity, label, status, meaning, owner route, provenance, boundary, claim ceiling, source epoch, and optional Project entry target.",
+      "body": {
+        "fields": [
+          {
+            "name": "collection",
+            "type": "Definition|Product|Project|Ontology",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "record_id",
+            "type": "SemanticRecordId",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "label",
+            "type": "Text",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "status",
+            "type": "Text",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "meaning",
+            "type": "Text",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "owner_route",
+            "type": "Text",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "source_refs",
+            "type": "ReferenceSet",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "boundary",
+            "type": "Text",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "claim_ceiling",
+            "type": "Text",
+            "required": true,
+            "identity": false
+          },
+          {
+            "name": "project_entry_ref",
+            "type": "OptionalLocalRoute",
+            "required": false,
+            "identity": false
+          }
+        ],
+        "equality": "Two Workspace Records are equal only when all projected fields and their source epoch are equal."
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceShell",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Layout",
+      "intent": "Provide clean shared navigation for CyberAlchemy meaning and Project entry without presenting mutation or admission controls.",
+      "body": {
+        "slots": "product-mark,collection-navigation,page-content,source-epoch",
+        "shared_chrome": "compact-workspace-header",
+        "page_specific_content": "false",
+        "wrap_target": "Page"
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceSnapshot",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "Entity",
+      "intent": "Own one immutable, version-identified projection of source-owned definitions, products, projects, and ontologies without owning their meaning or authority.",
+      "body": {
+        "fields": [
+          {
+            "name": "snapshot_id",
+            "type": "WorkspaceSnapshotId",
+            "identity": true
+          },
+          {
+            "name": "source_epoch",
+            "type": "Digest",
+            "identity": false
+          },
+          {
+            "name": "generated_at",
+            "type": "Timestamp",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "AuthorityEffectNone",
+            "identity": false
+          }
+        ]
+      }
+    },
+    {
+      "node_id": "cyberalchemy-workspace.WorkspaceViewModel",
+      "feature_id": "cyberalchemy-workspace",
+      "kind": "View Model",
+      "intent": "Group Workspace Records into four typed collections while keeping source epoch, status, meaning, owner, provenance, boundary, claim ceiling, and Project entry targets visible.",
+      "body": {
+        "typed_fields": "snapshot_id:string,source_epoch:digest,definitions:WorkspaceRecord[],products:WorkspaceRecord[],projects:WorkspaceRecord[],ontologies:WorkspaceRecord[]",
+        "source_refs": "WorkspaceSnapshot,WorkspaceRecord",
+        "display_context": "workspace-home-page",
+        "display_roles": "navigation,identity,status,meaning,owner,provenance,boundary,claim-ceiling,project-entry",
+        "domain_authority": "false"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "cyberalchemy-workspace.edge.binding-fetches-inspection",
+      "type": "fetches",
+      "from": "cyberalchemy-workspace.WorkspaceBinding",
+      "to": "cyberalchemy-workspace.InspectWorkspace"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.explorer-displays-view-model",
+      "type": "displays",
+      "from": "cyberalchemy-workspace.WorkspaceExplorer",
+      "to": "cyberalchemy-workspace.WorkspaceViewModel"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.home-renders-explorer",
+      "type": "renders",
+      "from": "cyberalchemy-workspace.WorkspaceHomePage",
+      "to": "cyberalchemy-workspace.WorkspaceExplorer"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.inspect-reads-snapshot",
+      "type": "reads",
+      "from": "cyberalchemy-workspace.InspectWorkspace",
+      "to": "cyberalchemy-workspace.WorkspaceSnapshot"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.interface-exposes-inspect",
+      "type": "exposes",
+      "from": "cyberalchemy-workspace.CyberAlchemyWorkspaceInterface",
+      "to": "cyberalchemy-workspace.InspectWorkspace"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.shell-wraps-home",
+      "type": "wraps",
+      "from": "cyberalchemy-workspace.WorkspaceShell",
+      "to": "cyberalchemy-workspace.WorkspaceHomePage"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.snapshot-contains-record",
+      "type": "contains",
+      "from": "cyberalchemy-workspace.WorkspaceSnapshot",
+      "to": "cyberalchemy-workspace.WorkspaceRecord"
+    },
+    {
+      "edge_id": "cyberalchemy-workspace.edge.view-model-derives-snapshot",
+      "type": "derives",
+      "from": "cyberalchemy-workspace.WorkspaceViewModel",
+      "to": "cyberalchemy-workspace.WorkspaceSnapshot"
+    }
+  ]
+}

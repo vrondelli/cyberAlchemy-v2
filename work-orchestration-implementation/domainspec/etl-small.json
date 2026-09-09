@@ -1,0 +1,58 @@
+{
+  "schema_version": "cav2-domainspec-etl/v1",
+  "project_id": "customer-etl",
+  "capability_ref": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK",
+  "profile": {
+    "id": "work-orchestration-etl-candidate",
+    "version": "0.1",
+    "authority_effect": "none"
+  },
+  "concepts": [
+    {"node_id": "CustomerSource", "kind": "Entity", "intent": "Synthetic source records identified by customer_id."},
+    {"node_id": "WarehouseCustomer", "kind": "Entity", "intent": "Normalized customer records stored behind the bounded load adapter."},
+    {"node_id": "CustomerEtl", "kind": "Workflow", "intent": "Coordinate extract, normalize, validate, and load in order."},
+    {"node_id": "ExtractCustomerRows", "kind": "Operation", "intent": "Read the selected synthetic customer source."},
+    {"node_id": "NormalizeCustomerRows", "kind": "Operation", "intent": "Apply the selected record mapping to extracted rows."},
+    {"node_id": "CustomerRecordMapping", "kind": "Mapping", "intent": "Trim names and normalize email addresses to lowercase."},
+    {"node_id": "ValidateCustomerRows", "kind": "Operation", "intent": "Evaluate the complete normalized batch before load."},
+    {"node_id": "CustomerRecordValid", "kind": "Rule", "intent": "Require non-empty customer_id, name, and syntactically bounded email fields."},
+    {"node_id": "LoadWarehouseRows", "kind": "Operation", "intent": "Idempotently load the validated batch through the contained adapter."},
+    {"node_id": "RowsExtracted", "kind": "Event", "intent": "Record successful extraction of the selected batch."},
+    {"node_id": "RowsNormalized", "kind": "Event", "intent": "Record successful deterministic mapping of the batch."},
+    {"node_id": "RowsValidated", "kind": "Event", "intent": "Record that the complete batch passed the validation gate."},
+    {"node_id": "RowsLoaded", "kind": "Event", "intent": "Record successful idempotent load completion."}
+  ],
+  "relationships": [
+    {"edge_id": "workflow-orchestrates-extract", "type": "orchestrates", "from": "CustomerEtl", "to": "ExtractCustomerRows", "order": 1},
+    {"edge_id": "workflow-orchestrates-normalize", "type": "orchestrates", "from": "CustomerEtl", "to": "NormalizeCustomerRows", "order": 2},
+    {"edge_id": "workflow-orchestrates-validate", "type": "orchestrates", "from": "CustomerEtl", "to": "ValidateCustomerRows", "order": 3},
+    {"edge_id": "workflow-orchestrates-load", "type": "orchestrates", "from": "CustomerEtl", "to": "LoadWarehouseRows", "order": 4},
+    {"edge_id": "extract-reads-source", "type": "reads", "from": "ExtractCustomerRows", "to": "CustomerSource"},
+    {"edge_id": "mapping-maps-warehouse-customer", "type": "maps", "from": "CustomerRecordMapping", "to": "WarehouseCustomer"},
+    {"edge_id": "valid-rule-enforces-load", "type": "enforces", "from": "CustomerRecordValid", "to": "LoadWarehouseRows"},
+    {"edge_id": "load-creates-warehouse-customer", "type": "creates", "from": "LoadWarehouseRows", "to": "WarehouseCustomer"},
+    {"edge_id": "extract-produces-extracted", "type": "produces", "from": "ExtractCustomerRows", "to": "RowsExtracted"},
+    {"edge_id": "normalize-produces-normalized", "type": "produces", "from": "NormalizeCustomerRows", "to": "RowsNormalized"},
+    {"edge_id": "validate-produces-validated", "type": "produces", "from": "ValidateCustomerRows", "to": "RowsValidated"},
+    {"edge_id": "load-produces-loaded", "type": "produces", "from": "LoadWarehouseRows", "to": "RowsLoaded"}
+  ],
+  "workflow": {
+    "workflow_ref": "CustomerEtl",
+    "start_event": "EtlRequested",
+    "mapping_ref": "CustomerRecordMapping",
+    "validation_rule_ref": "CustomerRecordValid",
+    "idempotency_key": "job_id",
+    "steps": [
+      {"operation_ref": "ExtractCustomerRows", "accepted_event": "EtlRequested", "command_type": "RunExtract", "completion_event_ref": "RowsExtracted"},
+      {"operation_ref": "NormalizeCustomerRows", "accepted_event": "RowsExtracted", "command_type": "RunNormalize", "completion_event_ref": "RowsNormalized"},
+      {"operation_ref": "ValidateCustomerRows", "accepted_event": "RowsNormalized", "command_type": "RunValidation", "completion_event_ref": "RowsValidated"},
+      {"operation_ref": "LoadWarehouseRows", "accepted_event": "RowsValidated", "command_type": "RunLoad", "completion_event_ref": "RowsLoaded"}
+    ]
+  },
+  "effect_boundary": {
+    "operation_ref": "LoadWarehouseRows",
+    "adapter": "contained-in-memory-warehouse",
+    "effect": "idempotent-upsert-synthetic-rows",
+    "external_effect": "none"
+  }
+}

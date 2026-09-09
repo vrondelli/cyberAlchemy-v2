@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/validation/artifact-admission/receipt.schema.json",
+  "title": "CyberAlchemy v2 Artifact Admission Receipt",
+  "description": "Candidate deterministic receipt shape. A passing receipt is validation evidence, not authority promotion.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "record",
+    "phase",
+    "tool_status",
+    "verdict",
+    "exit_code",
+    "checks",
+    "policy_sources",
+    "targets",
+    "blockers",
+    "flags",
+    "deferrals",
+    "residue"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "admission_id",
+        "path"
+      ],
+      "properties": {
+        "admission_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "phase": {
+      "enum": [
+        "pre",
+        "post"
+      ]
+    },
+    "tool_status": {
+      "enum": [
+        "ok",
+        "error"
+      ]
+    },
+    "verdict": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "pass",
+        "flag",
+        "block",
+        "defer",
+        null
+      ]
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    },
+    "policy_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/policy_source"
+      }
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "blockers": {
+      "$ref": "#/$defs/finding_array"
+    },
+    "flags": {
+      "$ref": "#/$defs/finding_array"
+    },
+    "deferrals": {
+      "$ref": "#/$defs/finding_array"
+    },
+    "residue": {
+      "$ref": "#/$defs/finding_array"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "tool_status": {
+            "const": "error"
+          }
+        },
+        "required": [
+          "tool_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "verdict": {
+            "const": null
+          },
+          "exit_code": {
+            "const": 2
+          },
+          "checks": {
+            "minItems": 1,
+            "contains": {
+              "properties": {
+                "result": {
+                  "const": "error"
+                }
+              },
+              "required": [
+                "result"
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "verdict": {
+            "enum": [
+              "pass",
+              "flag",
+              "block",
+              "defer"
+            ]
+          },
+          "checks": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "result": {
+                    "const": "error"
+                  }
+                },
+                "required": [
+                  "result"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "pass"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "block"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "flag"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 3
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "defer"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 4
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "check": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "rule_ref",
+        "result",
+        "evidence",
+        "message"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "pattern": "^AAV-[A-Z0-9-]+$"
+        },
+        "rule_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "flag",
+            "block",
+            "defer",
+            "error"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_route": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "policy_source": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256",
+        "rule_refs"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rule_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "message",
+        "owner_route"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_route": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "finding_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  }
+}

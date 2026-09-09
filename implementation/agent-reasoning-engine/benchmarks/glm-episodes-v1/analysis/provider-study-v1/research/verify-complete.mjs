@@ -1,0 +1,18 @@
+// Full-cohort integrity before interpreting quality. Open questions: FINAL-SCREEN.md.
+import {readFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+import {verifyFreeze,trialState,save,checkCounts} from '../controller.mjs';
+import {diagnosePatch} from '../../../../../packages/coding-agent-runtime/patch-schema.mjs';
+assert.equal(process.argv.length,5);const [frozen,run,output]=process.argv.slice(2).map(p=>resolve(p)),m=verifyFreeze(frozen),sha=b=>createHash('sha256').update(b).digest('hex'),read=p=>JSON.parse(readFileSync(p)),schedule=read(join(frozen,'schedule.json'));
+assert.equal(schedule.length,120);assert.equal(existsSync(join(run,'controller.lock')),false);const rows=[],sources=[];let models=0,tokens=0,failed_receipts=0,unknown_model_usage=0;
+for(const row of schedule){
+ const state=trialState(run,row,m.digest);assert.equal(state.status,'completed');const r=state.result,a=read(join(state.root,'agent-result.json'));assert.deepEqual(a.receipts,r.receipts);assert.equal(a.effect_applied,false);assert.deepEqual(checkCounts(r.receipts,row),r.counts);
+ const prepared=new URL(`../../controlled-study-v1/prepared/fixtures/${row.fixture}/`,import.meta.url),task=read(new URL('task.json',prepared));
+ for(const p of task.observation_allowlist)assert.deepEqual(readFileSync(join(state.root,'fixture',p)),readFileSync(new URL(p,prepared)));
+ const dispatches=a.recycling?.dispatches??[];assert.ok(dispatches.every(d=>d.projected_upper_bound<row.soft_limit-256&&d.projected_upper_bound<=16384));
+ for(const receipt of r.receipts){assert.equal(receipt.automatic_retries,0);if(receipt.status!==200)failed_receipts++;if(receipt.kind==='model'){models++;if(Number.isFinite(receipt.input_tokens)){assert.ok(receipt.input_tokens<=receipt.reserved_input_tokens);assert.ok(receipt.output_tokens<=receipt.output_cap);}else unknown_model_usage++;}else if(receipt.kind==='tokenizer')tokens++;}
+ let validation=null;if(r.validation_ref){validation=read(join(state.root,r.validation_ref));assert.equal(validation.worker_cleanup_verified,true);assert.equal(validation.subject_sha256,sha(a.candidate.changes[0].utf8));assert.equal(diagnosePatch(a.candidate).ok,true);sources.push({path:join(state.root,r.validation_ref),sha256:sha(readFileSync(join(state.root,r.validation_ref)))});}
+ assert.equal(r.initial_pass,a.status==='AWAITING_APPROVAL'&&validation?.ok===true);if(r.initial_pass){assert.equal(a.completion_gate.passed,true);assert.equal(a.delivery_progress.delivery_unknown_call_ids.length,0);}
+ for(const p of ['result.json','agent-result.json','started.json','completed.json'])sources.push({path:join(state.root,p),sha256:sha(readFileSync(join(state.root,p)))});
+ rows.push({id:row.id,initial_pass:r.initial_pass,recycles:a.recycling?.recycles??null,required_reads_passed:a.completion_gate?.passed??null});
+}
+assert.ok(models<=1600&&tokens<=3200);verifyFreeze(frozen);const result={cohort_complete:true,evidence_consistent:true,trials:120,initial_passes:rows.filter(r=>r.initial_pass).length,models,tokenizers:tokens,failed_receipts,unknown_model_usage,recycled_trials:rows.filter(r=>r.recycles>0).length,unsafe_dispatches:0,fixture_mutations:0,automatic_retries:0,rows,sources,verifier_sha256:sha(readFileSync(new URL('verify-complete.mjs',import.meta.url))),scope:'Integrity and accounting audit, not a claim of perfect quality or continuity without exposure.',authority_effect:'none',open_questions_ref:'FINAL-SCREEN.md'};save(output,result);console.log(JSON.stringify({...result,rows:undefined,sources:undefined}));

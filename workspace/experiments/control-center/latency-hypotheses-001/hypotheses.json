@@ -1,0 +1,58 @@
+[
+  {
+    "id": "frame-wait",
+    "boundaries": ["handshake"],
+    "statement": "Frame scheduling may account for more of the handshake measurement than the status IPC round trip.",
+    "mechanism": "The existing interval ends after a requestAnimationFrame callback, so main-thread scheduling contributes to its duration.",
+    "falsifier": "In a qualified paired campaign, post-status frame wait is no greater than status IPC in most sessions and the controlled scheduling change does not reduce it.",
+    "metrics": ["chat-cold-ipc-handshake"],
+    "baseline": "Current status invoke plus subsequent frame callback, with additive phase spans.",
+    "treatment": "Same instrumentation and status semantics; defer only identified unrelated startup UI work until after the callback.",
+    "prediction": "Post-status frame-wait span decreases while status IPC span and status semantics remain stable.",
+    "controls": ["Same window visibility and refresh mode", "Same status response semantics", "Identical instrumentation in both arms"],
+    "required_spans": ["frontend status invoke round trip", "frontend status response to frame callback"],
+    "confounders": ["Background window throttling", "Instrumentation overhead", "Host load"]
+  },
+  {
+    "id": "startup-phases",
+    "boundaries": ["connect", "upstream-ready", "connect-to-ready"],
+    "statement": "Late prewarm completion or upstream initialization may explain startup delay even when chat_connect itself is short.",
+    "mechanism": "Native prewarm, process acquisition, bridge startup, initialize and thread/start are distinct intervals; process presence does not imply readiness.",
+    "falsifier": "Correlated qualified sessions show readiness already emitted before binding, with neither prewarm waiting nor upstream initialization on the launch-to-ready critical path; a scheduling-only prewarm change does not improve that path.",
+    "metrics": ["chat.connect-to-ready"],
+    "baseline": "Current native prewarm placement with process-local spans and launch/session correlation.",
+    "treatment": "Move only the prewarm scheduling point earlier without reusing a process from a previous desktop session or changing initialization semantics.",
+    "prediction": "Launch-to-visible-ready decreases if prewarm overlap is limiting; if initialization duration dominates unchanged, that alternative remains open.",
+    "controls": ["Fresh desktop and bridge processes in each arm", "Same provider, model and request", "Same initialization and permission behavior"],
+    "required_spans": ["native prewarm start/end and outcome", "native acquisition and mutex wait", "Node bridge entry to session.ready", "Node initialize round trip", "Node thread/start round trip", "frontend monotonic connect to ready receive"],
+    "confounders": ["Provider variability", "Prewarm failure and fallback spawn", "OS filesystem caches are not reset by a fresh process"]
+  },
+  {
+    "id": "ready-replay",
+    "boundaries": ["replay", "connect-to-ready"],
+    "statement": "Buffered session.ready delivery may dominate the observed connect-to-ready interval after upstream initialization has finished.",
+    "mechanism": "Event binding and replay determine when a previously emitted ready event reaches the frontend.",
+    "falsifier": "Correlated qualified traces show ready is never buffered or replay residence is negligible, and changing replay scheduling alone does not reduce visible-ready latency.",
+    "metrics": ["chat.connect-to-ready"],
+    "baseline": "Existing event bind and replay order with ready-event identity and native buffer-residence spans.",
+    "treatment": "Prioritize replay immediately after binding, preserving event ordering, deduplication and delivery semantics.",
+    "prediction": "Native buffer residence and frontend ready-receive delay decrease without reducing upstream initialization duration.",
+    "controls": ["Same ready-event identity across emission, buffering and receipt", "No dropped or duplicate events", "Identical ready semantics"],
+    "required_spans": ["native buffer enqueue to dequeue", "frontend replay invoke round trip", "ready event correlation ID and replay flag"],
+    "confounders": ["Ready emitted after binding", "Event ordering bugs", "Cross-process clock subtraction"]
+  },
+  {
+    "id": "projection-scroll",
+    "boundaries": ["projection", "paint"],
+    "statement": "Frontend batching and conditional scrolling may explain delta-to-frame delay independently of upstream delta production.",
+    "mechanism": "The oldest batched delta anchors the metric, projection is timestamped before scrolling, and paint ends at a frame callback rather than presented pixels.",
+    "falsifier": "Qualified correlated spans show batching, DOM update and scrolling are small relative to delivery, and coalescing redundant scroll operations does not improve receive-to-frame timing.",
+    "metrics": ["chat.delta-to-projection", "chat.delta-to-paint"],
+    "baseline": "Current batching, DOM update and conditional scrolling with additive frontend spans.",
+    "treatment": "Coalesce redundant scroll operations within each existing batch while preserving text order and user scroll intent.",
+    "prediction": "Scroll cost and frontend receive-to-frame decrease without changing content, delta ordering or existing metric definitions.",
+    "controls": ["Same replayable delta stream and essay length", "Same viewport and user scroll position", "Separate provider runs from deterministic delivery fixtures"],
+    "required_spans": ["frontend receive to flush", "frontend DOM update", "frontend conditional scroll", "frontend projection to frame callback"],
+    "confounders": ["Cross-process wall-clock adjustment", "Delta batch-size variation", "Frame callback is not pixel presentation"]
+  }
+]

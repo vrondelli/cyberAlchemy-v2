@@ -1,0 +1,422 @@
+{
+  "schemas": {
+    "Input": {
+      "request": {
+        "type": "Select__RoutingRequest"
+      },
+      "catalog": {
+        "type": "Select__Catalog"
+      },
+      "messages": {
+        "type": "list",
+        "items": "Request__Message",
+        "max": 100
+      }
+    },
+    "Output": {
+      "status": {
+        "type": "string",
+        "const": "ok"
+      },
+      "value": {
+        "type": "Input"
+      }
+    },
+    "Select__Provider": {
+      "binding_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "binding_version": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "tenant_allowed": {
+        "type": "boolean"
+      },
+      "task": {
+        "type": "string",
+        "const": "text.generate"
+      },
+      "context_limit": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "output_limit": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "streaming": {
+        "type": "boolean"
+      },
+      "rank": {
+        "type": "integer",
+        "min": 0,
+        "max": 1000000
+      }
+    },
+    "Select__Catalog": {
+      "tenant_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "policy_version": {
+        "type": "identifier",
+        "max": 128
+      },
+      "providers": {
+        "type": "list",
+        "items": "Select__Provider",
+        "max": 100
+      }
+    },
+    "Select__RoutingRequest": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "tenant_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "task": {
+        "type": "string",
+        "const": "text.generate"
+      },
+      "model": {
+        "type": "identifier",
+        "optional": true,
+        "max": 128
+      },
+      "required_context_tokens": {
+        "type": "integer",
+        "min": 0,
+        "max": 1000000
+      },
+      "max_output_tokens": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "stream": {
+        "type": "boolean"
+      }
+    },
+    "Select__Envelope": {
+      "request": {
+        "type": "Select__RoutingRequest"
+      },
+      "catalog": {
+        "type": "Select__Catalog",
+        "optional": true
+      }
+    },
+    "Select__Decision": {
+      "request_id": {
+        "type": "identifier"
+      },
+      "status": {
+        "type": "string",
+        "pattern": "^(selected|unavailable)$"
+      },
+      "policy_version": {
+        "type": "identifier"
+      },
+      "binding_id": {
+        "type": "identifier",
+        "optional": true
+      },
+      "binding_version": {
+        "type": "identifier",
+        "optional": true
+      },
+      "model": {
+        "type": "identifier",
+        "optional": true
+      }
+    },
+    "Request__Message": {
+      "role": {
+        "type": "string",
+        "pattern": "^(system|user|assistant)$"
+      },
+      "content": {
+        "type": "string",
+        "max": 32768
+      }
+    },
+    "Request__Input": {
+      "messages": {
+        "type": "list",
+        "items": "Request__Message",
+        "max": 100
+      },
+      "stream": {
+        "type": "boolean",
+        "optional": true
+      },
+      "remote_model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "max_output_tokens": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      }
+    },
+    "Request__Output": {
+      "status": {
+        "type": "string",
+        "const": "mapped"
+      },
+      "messages": {
+        "type": "list",
+        "items": "Request__Message",
+        "max": 100
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "max_tokens": {
+        "type": "integer",
+        "min": 1,
+        "max": 1000000
+      },
+      "stream": {
+        "type": "boolean"
+      }
+    }
+  },
+  "integrations": {},
+  "flows": {},
+  "endpoint": {
+    "id": "Function",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/internal/invocation-input",
+    "input": "Input",
+    "output": "Output",
+    "authEnv": "INFERENCE_INTERNAL_TOKEN",
+    "maxBytes": 262144,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "ok": 200
+    },
+    "errors": {},
+    "result": "Result"
+  },
+  "modules": {
+    "Select": {
+      "source_sha256": "7003f50f2cef4d37b2d0cfc68658675f27984923eb5e047b075eac63e0dea388",
+      "source_text": "# Candidate internal selector. Trusted host supplies tenant and catalog.\n# Open questions and execution gaps: PROTOTYPE.md.\ndomain inference-provider-selection \"Inference provider selection\"\nprofile declarative-function-v1\nportability node-rust-v1\nowner inference-router-owner\nlogic sfol-v1\n\nschema Provider:\n  binding_id: identifier max 128\n  binding_version: identifier max 128\n  model: identifier max 128\n  enabled: boolean\n  tenant_allowed: boolean\n  task: string const \"text.generate\"\n  context_limit: integer min 1 max 1000000\n  output_limit: integer min 1 max 1000000\n  streaming: boolean\n  rank: integer min 0 max 1000000\n\nschema Catalog:\n  tenant_id: identifier max 128\n  policy_version: identifier max 128\n  providers: Provider[] max 100\n\nschema RoutingRequest:\n  request_id: identifier max 128\n  tenant_id: identifier max 128\n  task: string const \"text.generate\"\n  model: identifier optional max 128\n  required_context_tokens: integer min 0 max 1000000\n  max_output_tokens: integer min 1 max 1000000\n  stream: boolean\n\nschema Envelope:\n  request: RoutingRequest\n  catalog: Catalog optional\n\nschema Decision:\n  request_id: identifier\n  status: string pattern \"^(selected|unavailable)$\"\n  policy_version: identifier\n  binding_id: identifier optional\n  binding_version: identifier optional\n  model: identifier optional\n\nintegration ProviderCatalog:\n  transport provided-or-http\n  provided input.catalog\n  output Catalog\n  url-env INFERENCE_CATALOG_URL\n  secret-env INFERENCE_CATALOG_TOKEN\n  query tenant_id input.request.tenant_id\n  timeout-ms 3000\n  max-bytes 65536\n\nquery Eligible:\n  meaning \"Filter enabled tenant-permitted task bindings by explicit alias, streaming and token limits.\"\n  from row in catalog.providers\n  where row.enabled and row.tenant_allowed and row.task == input.request.task and row.model == coalesce(input.request.model, row.model) and (not input.request.stream or row.streaming) and row.context_limit >= input.request.required_context_tokens and row.output_limit >= input.request.max_output_tokens\n  select row\n\nquery BestRank:\n  meaning \"Retain every eligible binding at the minimum configured strategy rank.\"\n  from row in Eligible\n  where forall other in Eligible: other.rank >= row.rank\n  select row\n\nquery Winner:\n  meaning \"Break rank ties by sorted stable binding identifier, independent of catalog order.\"\n  from row in BestRank\n  where row.binding_id == first(sort(column(BestRank, \"binding_id\")))\n  select row\n\nrule Available:\n  meaning \"A provider satisfies the hard constraints.\"\n  condition exists row in Winner: true\n\nmapping Selected:\n  meaning \"Pin the selected public alias, private binding version and policy version for the host.\"\n  input row: Provider\n  target Decision\n  field request_id = input.request.request_id\n  field status = \"selected\"\n  field policy_version = catalog.policy_version\n  field binding_id = row.binding_id\n  field binding_version = row.binding_version\n  field model = row.model\n\nmapping Unavailable:\n  meaning \"No eligible binding; do not substitute a forbidden or incompatible provider.\"\n  target Decision\n  field request_id = input.request.request_id\n  field status = \"unavailable\"\n  field policy_version = catalog.policy_version\n\nresult SelectProvider:\n  bind catalog from ProviderCatalog\n  require catalog.tenant_id == input.request.tenant_id else \"CATALOG_TENANT_MISMATCH\"\n  require count(distinct(column(catalog.providers, \"binding_id\"))) == count(catalog.providers) else \"DUPLICATE_BINDING\"\n  when Available yield Selected(one(Winner))\n  when not Available yield Unavailable\n\nendpoint InternalSelectProvider:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/select-provider\"\n  input Envelope\n  output Decision\n  result SelectProvider\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 65536\n  timeout-ms 5000\n  error-status 422\n  status selected 200\n  status unavailable 503\n  error FUNCTION_ENV_REQUIRED 503\n  error FUNCTION_OUTPUT_SCHEMA 500\n  error FUNCTION_URL 503\n  error FUNCTION_INTEGRATION_TIMEOUT 504\n  error FUNCTION_INTEGRATION_LIMIT 502\n  error FUNCTION_INTEGRATION_SCHEMA 502\n  error FUNCTION_INTEGRATION_STATUS 502\n  error FUNCTION_INTEGRATION_FAILED 502\n",
+      "input": "Envelope",
+      "output": "Decision",
+      "schemas": {
+        "Provider": {
+          "binding_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "binding_version": {
+            "type": "identifier",
+            "max": 128
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "tenant_allowed": {
+            "type": "boolean"
+          },
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "context_limit": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "output_limit": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "streaming": {
+            "type": "boolean"
+          },
+          "rank": {
+            "type": "integer",
+            "min": 0,
+            "max": 1000000
+          }
+        },
+        "Catalog": {
+          "tenant_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "policy_version": {
+            "type": "identifier",
+            "max": 128
+          },
+          "providers": {
+            "type": "list",
+            "items": "Provider",
+            "max": 100
+          }
+        },
+        "RoutingRequest": {
+          "request_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "tenant_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "task": {
+            "type": "string",
+            "const": "text.generate"
+          },
+          "model": {
+            "type": "identifier",
+            "optional": true,
+            "max": 128
+          },
+          "required_context_tokens": {
+            "type": "integer",
+            "min": 0,
+            "max": 1000000
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        },
+        "Envelope": {
+          "request": {
+            "type": "RoutingRequest"
+          },
+          "catalog": {
+            "type": "Catalog",
+            "optional": true
+          }
+        },
+        "Decision": {
+          "request_id": {
+            "type": "identifier"
+          },
+          "status": {
+            "type": "string",
+            "pattern": "^(selected|unavailable)$"
+          },
+          "policy_version": {
+            "type": "identifier"
+          },
+          "binding_id": {
+            "type": "identifier",
+            "optional": true
+          },
+          "binding_version": {
+            "type": "identifier",
+            "optional": true
+          },
+          "model": {
+            "type": "identifier",
+            "optional": true
+          }
+        }
+      },
+      "statuses": {
+        "selected": 200,
+        "unavailable": 503
+      }
+    },
+    "Request": {
+      "source_sha256": "2ed130ad1b266f256baac746cd7ea8666fa8409730e2a08d5f00ad5b183811f1",
+      "source_text": "# Local JSON provider-mapping prototype. Open questions: DISPATCH.md.\ndomain provider-request \"Provider request mapper\"\nprofile declarative-function-v1\nportability node-rust-v1\nowner inference-router-owner\nlogic sfol-v1\n\nschema Message:\n  role: string pattern \"^(system|user|assistant)$\"\n  content: string max 32768\n\nschema Input:\n  messages: Message[] max 100\n  stream: boolean optional\n  remote_model: identifier max 128\n  max_output_tokens: integer min 1 max 1000000\n\nschema Output:\n  status: string const \"mapped\"\n  messages: Message[] max 100\n  model: identifier max 128\n  max_tokens: integer min 1 max 1000000\n  stream: boolean\n\nmapping RequestBody:\n  meaning \"Map canonical conversation to the configured fixture provider JSON request.\"\n  target Output\n  field status = \"mapped\"\n  field messages = input.messages\n  field model = input.remote_model\n  field max_tokens = input.max_output_tokens\n  field stream = coalesce(input.stream, false)\n\nresult Map:\n  require forall row in input.messages: row.content != \"\" else \"MESSAGE_CONTENT_REQUIRED\"\n  require count(input.messages) > 0 else \"MESSAGES_REQUIRED\"\n  require exists row in input.messages: row.role == \"user\" else \"USER_MESSAGE_REQUIRED\"\n  when true yield RequestBody\n\nendpoint Mapper:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/provider-request\"\n  input Input\n  output Output\n  result Map\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 65536\n  timeout-ms 5000\n  error-status 422\n  status mapped 200\n",
+      "input": "Input",
+      "output": "Output",
+      "schemas": {
+        "Message": {
+          "role": {
+            "type": "string",
+            "pattern": "^(system|user|assistant)$"
+          },
+          "content": {
+            "type": "string",
+            "max": 32768
+          }
+        },
+        "Input": {
+          "messages": {
+            "type": "list",
+            "items": "Message",
+            "max": 100
+          },
+          "stream": {
+            "type": "boolean",
+            "optional": true
+          },
+          "remote_model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          }
+        },
+        "Output": {
+          "status": {
+            "type": "string",
+            "const": "mapped"
+          },
+          "messages": {
+            "type": "list",
+            "items": "Message",
+            "max": 100
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "max_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      },
+      "statuses": {
+        "mapped": 200
+      }
+    }
+  },
+  "portability": "node-rust-v1"
+}

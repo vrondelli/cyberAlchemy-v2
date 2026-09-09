@@ -1,0 +1,1 @@
+Inventory: copper, tin, iron.

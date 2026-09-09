@@ -1,0 +1,62 @@
+{
+  "schema_version": "alchlang.governed-domain-description/v1-candidate",
+  "domain_id": "customer-credit-release",
+  "title": "Customer credit release",
+  "capability_ref": "CA2-REF-CAP-CUSTOMER-CREDIT-RELEASE",
+  "business_ontology_ref": "cav2.alchlang.example.customer-credit-release.business",
+  "owner_route": "reference credit-domain owner",
+  "primary_subject": {
+    "term_id": "customer",
+    "fields": [
+      {"id": "customer-id", "type": "uuid", "required": true},
+      {"id": "risk-score", "type": "integer", "required": true},
+      {"id": "status", "type": "string", "required": true}
+    ]
+  },
+  "terms": [
+    {"id": "customer", "meaning": "The customer whose approved credit may be released."},
+    {"id": "risk-assessment", "meaning": "The sourced current risk score and its provenance."},
+    {"id": "credit-decision", "meaning": "The customer credit lifecycle state."}
+  ],
+  "ontology_edges": [
+    {"id": "credit-customer-has-risk", "type": "has_current", "source": "customer", "target": "risk-assessment"},
+    {"id": "credit-customer-has-decision", "type": "occupies", "source": "customer", "target": "credit-decision"}
+  ],
+  "rules": [
+    {"id": "approved-release", "description": "Credit may be released only from approved state.", "predicate": "status-equals-approved", "action_refs": ["release-credit"]},
+    {"id": "risk-provenance-known", "description": "Risk provenance must be known before release.", "predicate": "risk-provenance-known", "action_refs": ["release-credit"]},
+    {"id": "high-risk-confirmation", "description": "Risk score at or below 472 requires human confirmation.", "predicate": "high-risk-requires-confirmation", "action_refs": ["release-credit"]},
+    {"id": "credit-release-authority", "description": "The confirmation must come from the bounded credit authority.", "predicate": "credit-authority-current", "action_refs": ["release-credit"]}
+  ],
+  "state_machine": {
+    "id": "credit-decision",
+    "states": ["pending", "approved", "rejected", "released"],
+    "initial": "pending",
+    "transitions": [
+      {"id": "approve-credit", "from": "pending", "to": "approved", "rule_ref": null, "event_ref": null},
+      {"id": "reject-credit", "from": "pending", "to": "rejected", "rule_ref": null, "event_ref": null},
+      {"id": "release-credit", "from": "approved", "to": "released", "rule_ref": "approved-release", "event_ref": "credit-released"}
+    ]
+  },
+  "events": [
+    {"id": "credit-released", "description": "Credit was released after all checks passed.", "payload": ["customer-id", "amount"]}
+  ],
+  "actions": [
+    {"id": "release-credit", "description": "Attempt to release approved credit.", "reads": ["customer"], "writes": ["customer.status"], "event_refs": ["credit-released"], "rule_refs": ["approved-release", "risk-provenance-known", "high-risk-confirmation", "credit-release-authority"], "authority_boundary_ref": "credit-release-authority", "failure_continuation": "return-denied-or-blocked"}
+  ],
+  "permissions": [
+    {"id": "high-risk-confirmation", "actor": "credit-operator", "action_ref": "release-credit", "condition": "human confirmation is required when riskScore <= 472"}
+  ],
+  "authority_boundaries": [
+    {"id": "credit-release-authority", "scope": "this reference release only", "operation": "confirm release", "effect": "in-memory adapter invocation"}
+  ],
+  "examples": [
+    {"id": "approved-low-risk", "kind": "positive", "expected": "released"},
+    {"id": "pending-denied", "kind": "negative", "expected": "denied"},
+    {"id": "score-472", "kind": "boundary", "expected": "confirmation-required"},
+    {"id": "unknown-provenance", "kind": "missing-information", "expected": "blocked"}
+  ],
+  "open_questions": [],
+  "runtime_profile": "credit-release-reference-v1",
+  "authority_effect": "none"
+}

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cav2://work-orchestration/domainspec-etl/v1",
+  "type": "object",
+  "required": ["schema_version", "project_id", "capability_ref", "profile", "concepts", "relationships", "workflow", "effect_boundary"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "cav2-domainspec-etl/v1"},
+    "project_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]+$"},
+    "capability_ref": {"const": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK"},
+    "profile": {
+      "type": "object",
+      "required": ["id", "version", "authority_effect"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"const": "work-orchestration-etl-candidate"},
+        "version": {"const": "0.1"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "concepts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["node_id", "kind", "intent"],
+        "additionalProperties": false,
+        "properties": {
+          "node_id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]+$"},
+          "kind": {"enum": ["Entity", "Event", "Mapping", "Operation", "Rule", "Workflow"]},
+          "intent": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["edge_id", "type", "from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "edge_id": {"type": "string", "minLength": 1},
+          "type": {"enum": ["creates", "enforces", "maps", "orchestrates", "produces", "reads"]},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "order": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "required": ["workflow_ref", "start_event", "steps", "mapping_ref", "validation_rule_ref", "idempotency_key"],
+      "additionalProperties": false,
+      "properties": {
+        "workflow_ref": {"type": "string"},
+        "start_event": {"type": "string"},
+        "mapping_ref": {"type": "string"},
+        "validation_rule_ref": {"type": "string"},
+        "idempotency_key": {"const": "job_id"},
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["operation_ref", "accepted_event", "command_type", "completion_event_ref"],
+            "additionalProperties": false,
+            "properties": {
+              "operation_ref": {"type": "string"},
+              "accepted_event": {"type": "string"},
+              "command_type": {"type": "string"},
+              "completion_event_ref": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "effect_boundary": {
+      "type": "object",
+      "required": ["operation_ref", "adapter", "effect", "external_effect"],
+      "additionalProperties": false,
+      "properties": {
+        "operation_ref": {"type": "string"},
+        "adapter": {"const": "contained-in-memory-warehouse"},
+        "effect": {"const": "idempotent-upsert-synthetic-rows"},
+        "external_effect": {"const": "none"}
+      }
+    }
+  }
+}

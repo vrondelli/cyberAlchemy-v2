@@ -1,0 +1,69 @@
+{
+  "schema_version": "domainspec.request-custody/v1-candidate",
+  "limits": {
+    "retention_ms": 60000,
+    "max_entries": 128,
+    "max_bytes": 65536,
+    "reservation_ms": 5000
+  },
+  "identity": {
+    "version": "inference-normalized-v1",
+    "request": "request",
+    "payload": "messages",
+    "scope": "tenant_id",
+    "request_id": "request_id",
+    "stream": "stream",
+    "defaults": {
+      "stream": false,
+      "max_output_tokens": 256
+    },
+    "exclude": [
+      "request_id"
+    ]
+  },
+  "decisions": {
+    "execute": "execute",
+    "replay": "replay",
+    "reject": {
+      "conflict": "IDEMPOTENCY_CONFLICT",
+      "in_progress": "REQUEST_IN_PROGRESS",
+      "stream_not_replayable": "STREAM_NOT_REPLAYABLE",
+      "previous_failure": "PREVIOUS_REQUEST_FAILED"
+    }
+  },
+  "lifecycle": {
+    "attempts": 1,
+    "outcome": "write-once",
+    "expiry": "outcome-and-transport-settled",
+    "backend": "bounded-memory"
+  },
+  "module": {
+    "input": {
+      "type": {
+        "exists": {
+          "type": "boolean"
+        },
+        "matches": {
+          "type": "boolean"
+        },
+        "pending": {
+          "type": "boolean"
+        },
+        "stream": {
+          "type": "boolean"
+        },
+        "succeeded": {
+          "type": "boolean"
+        }
+      }
+    },
+    "output": {
+      "type": {
+        "status": {
+          "type": "string",
+          "pattern": "^(execute|conflict|in_progress|stream_not_replayable|replay|previous_failure)$"
+        }
+      }
+    }
+  }
+}

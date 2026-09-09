@@ -1,0 +1,677 @@
+{
+  "schema_version": "domainspec.declarative-function/v1",
+  "portability": "node-rust-v1",
+  "records": {
+    "Input": {
+      "request_id": "String",
+      "model": "String",
+      "result": "Provider__Output"
+    },
+    "Output": {
+      "status": "String",
+      "value": "Public__Input"
+    },
+    "Provider__Input": {
+      "answer": "String",
+      "stop_reason": "String",
+      "prompt_tokens": "Int?",
+      "completion_tokens": "Int?"
+    },
+    "Provider__Output": {
+      "status": "String",
+      "text": "String",
+      "finish_reason": "String",
+      "input_tokens": "Int?",
+      "output_tokens": "Int?"
+    },
+    "Public__Text": {
+      "text": "String"
+    },
+    "Public__Observation": {
+      "value": "Int?",
+      "provenance": "String"
+    },
+    "Public__Usage": {
+      "input_tokens": "Public__Observation",
+      "output_tokens": "Public__Observation"
+    },
+    "Public__Input": {
+      "request_id": "String",
+      "model": "String",
+      "output": "Public__Text",
+      "finish_reason": "String",
+      "usage": "Public__Usage"
+    },
+    "Public__Output": {
+      "status": "String",
+      "value": "Public__Input"
+    }
+  },
+  "roots": {
+    "input": "Input"
+  },
+  "calculations": {},
+  "nodes": [
+    {
+      "id": "Text",
+      "kind": "Mapping",
+      "fields": {
+        "text": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "text"
+          ]
+        }
+      },
+      "ontology": "ALCH-B32919BF131E5F5A83341BE3",
+      "meaning": "Expose normalized provider text.",
+      "target": "Public__Text"
+    },
+    {
+      "id": "InputReported",
+      "kind": "Mapping",
+      "fields": {
+        "value": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "input_tokens"
+          ]
+        },
+        "provenance": {
+          "op": "literal",
+          "value": "provider-reported"
+        }
+      },
+      "ontology": "ALCH-4713B907994E83945E216805",
+      "meaning": "Preserve input_tokens observation provenance.",
+      "target": "Public__Observation"
+    },
+    {
+      "id": "InputUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "value": {
+          "op": "literal",
+          "value": null
+        },
+        "provenance": {
+          "op": "literal",
+          "value": "unavailable"
+        }
+      },
+      "ontology": "ALCH-AA0AF5A41B8DA9042E01BC97",
+      "meaning": "Preserve input_tokens observation provenance.",
+      "target": "Public__Observation"
+    },
+    {
+      "id": "OutputReported",
+      "kind": "Mapping",
+      "fields": {
+        "value": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "output_tokens"
+          ]
+        },
+        "provenance": {
+          "op": "literal",
+          "value": "provider-reported"
+        }
+      },
+      "ontology": "ALCH-AF85AB5EA96837899720D4A2",
+      "meaning": "Preserve output_tokens observation provenance.",
+      "target": "Public__Observation"
+    },
+    {
+      "id": "OutputUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "value": {
+          "op": "literal",
+          "value": null
+        },
+        "provenance": {
+          "op": "literal",
+          "value": "unavailable"
+        }
+      },
+      "ontology": "ALCH-D75C28940E4C0D6C009756B3",
+      "meaning": "Preserve output_tokens observation provenance.",
+      "target": "Public__Observation"
+    },
+    {
+      "id": "UsageReportedReported",
+      "kind": "Mapping",
+      "fields": {
+        "input_tokens": {
+          "op": "path",
+          "path": [
+            "InputReported"
+          ]
+        },
+        "output_tokens": {
+          "op": "path",
+          "path": [
+            "OutputReported"
+          ]
+        }
+      },
+      "ontology": "ALCH-AD0087B5AAEA695BB2D5D1A1",
+      "meaning": "Carry both independent token observations.",
+      "target": "Public__Usage"
+    },
+    {
+      "id": "BodyReportedReported",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "model"
+          ]
+        },
+        "output": {
+          "op": "path",
+          "path": [
+            "Text"
+          ]
+        },
+        "finish_reason": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "finish_reason"
+          ]
+        },
+        "usage": {
+          "op": "path",
+          "path": [
+            "UsageReportedReported"
+          ]
+        }
+      },
+      "ontology": "ALCH-ABD2CF75479A02FED35206A6",
+      "meaning": "Form the public completion using pinned identity.",
+      "target": "Public__Input"
+    },
+    {
+      "id": "WrappedReportedReported",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "BodyReportedReported"
+          ]
+        }
+      },
+      "ontology": "ALCH-C5F6ABC3AFB5E6634250BB20",
+      "meaning": "Return the public completion.",
+      "target": "Output"
+    },
+    {
+      "id": "UsageReportedUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "input_tokens": {
+          "op": "path",
+          "path": [
+            "InputReported"
+          ]
+        },
+        "output_tokens": {
+          "op": "path",
+          "path": [
+            "OutputUnavailable"
+          ]
+        }
+      },
+      "ontology": "ALCH-3FD0C5D8A5B8B73404C4D4C4",
+      "meaning": "Carry both independent token observations.",
+      "target": "Public__Usage"
+    },
+    {
+      "id": "BodyReportedUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "model"
+          ]
+        },
+        "output": {
+          "op": "path",
+          "path": [
+            "Text"
+          ]
+        },
+        "finish_reason": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "finish_reason"
+          ]
+        },
+        "usage": {
+          "op": "path",
+          "path": [
+            "UsageReportedUnavailable"
+          ]
+        }
+      },
+      "ontology": "ALCH-EC3B6F5AA6E2541AC4260371",
+      "meaning": "Form the public completion using pinned identity.",
+      "target": "Public__Input"
+    },
+    {
+      "id": "WrappedReportedUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "BodyReportedUnavailable"
+          ]
+        }
+      },
+      "ontology": "ALCH-AAFD19DFD551321C1C9E887E",
+      "meaning": "Return the public completion.",
+      "target": "Output"
+    },
+    {
+      "id": "UsageUnavailableReported",
+      "kind": "Mapping",
+      "fields": {
+        "input_tokens": {
+          "op": "path",
+          "path": [
+            "InputUnavailable"
+          ]
+        },
+        "output_tokens": {
+          "op": "path",
+          "path": [
+            "OutputReported"
+          ]
+        }
+      },
+      "ontology": "ALCH-AFD46A772D3FD0E428C328FC",
+      "meaning": "Carry both independent token observations.",
+      "target": "Public__Usage"
+    },
+    {
+      "id": "BodyUnavailableReported",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "model"
+          ]
+        },
+        "output": {
+          "op": "path",
+          "path": [
+            "Text"
+          ]
+        },
+        "finish_reason": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "finish_reason"
+          ]
+        },
+        "usage": {
+          "op": "path",
+          "path": [
+            "UsageUnavailableReported"
+          ]
+        }
+      },
+      "ontology": "ALCH-D3478211835433B67BEABAAB",
+      "meaning": "Form the public completion using pinned identity.",
+      "target": "Public__Input"
+    },
+    {
+      "id": "WrappedUnavailableReported",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "BodyUnavailableReported"
+          ]
+        }
+      },
+      "ontology": "ALCH-CAFE2321C81E1CDA221E2127",
+      "meaning": "Return the public completion.",
+      "target": "Output"
+    },
+    {
+      "id": "UsageUnavailableUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "input_tokens": {
+          "op": "path",
+          "path": [
+            "InputUnavailable"
+          ]
+        },
+        "output_tokens": {
+          "op": "path",
+          "path": [
+            "OutputUnavailable"
+          ]
+        }
+      },
+      "ontology": "ALCH-B8561576B5A812A5DDABDE30",
+      "meaning": "Carry both independent token observations.",
+      "target": "Public__Usage"
+    },
+    {
+      "id": "BodyUnavailableUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "request_id": {
+          "op": "path",
+          "path": [
+            "input",
+            "request_id"
+          ]
+        },
+        "model": {
+          "op": "path",
+          "path": [
+            "input",
+            "model"
+          ]
+        },
+        "output": {
+          "op": "path",
+          "path": [
+            "Text"
+          ]
+        },
+        "finish_reason": {
+          "op": "path",
+          "path": [
+            "input",
+            "result",
+            "finish_reason"
+          ]
+        },
+        "usage": {
+          "op": "path",
+          "path": [
+            "UsageUnavailableUnavailable"
+          ]
+        }
+      },
+      "ontology": "ALCH-F8C327C73B7D44356D31A722",
+      "meaning": "Form the public completion using pinned identity.",
+      "target": "Public__Input"
+    },
+    {
+      "id": "WrappedUnavailableUnavailable",
+      "kind": "Mapping",
+      "fields": {
+        "status": {
+          "op": "literal",
+          "value": "ok"
+        },
+        "value": {
+          "op": "path",
+          "path": [
+            "BodyUnavailableUnavailable"
+          ]
+        }
+      },
+      "ontology": "ALCH-C1C2E06BAA52BA30177BF3C2",
+      "meaning": "Return the public completion.",
+      "target": "Output"
+    }
+  ],
+  "assertions": [],
+  "results": [
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "present",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "result",
+                  "input_tokens"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "present",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "result",
+                  "output_tokens"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "WrappedReportedReported"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "present",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "result",
+                  "input_tokens"
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "call",
+                "name": "present",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "result",
+                      "output_tokens"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "WrappedReportedUnavailable"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "call",
+                "name": "present",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "result",
+                      "input_tokens"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "present",
+            "args": [
+              {
+                "op": "path",
+                "path": [
+                  "input",
+                  "result",
+                  "output_tokens"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "WrappedUnavailableReported"
+        ]
+      }
+    },
+    {
+      "condition": {
+        "op": "call",
+        "name": "and",
+        "args": [
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "call",
+                "name": "present",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "result",
+                      "input_tokens"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "op": "call",
+            "name": "not",
+            "args": [
+              {
+                "op": "call",
+                "name": "present",
+                "args": [
+                  {
+                    "op": "path",
+                    "path": [
+                      "input",
+                      "result",
+                      "output_tokens"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "value": {
+        "op": "path",
+        "path": [
+          "WrappedUnavailableUnavailable"
+        ]
+      }
+    }
+  ],
+  "output": "Output"
+}

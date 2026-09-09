@@ -1,0 +1,121 @@
+{
+  "schemas": {
+    "Identity": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      }
+    },
+    "Input": {
+      "identity": {
+        "type": "Identity"
+      },
+      "event": {
+        "type": "ProviderDelta__Input"
+      }
+    },
+    "Frame": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "text": {
+        "type": "string",
+        "max": 32768
+      }
+    },
+    "Output": {
+      "status": {
+        "type": "string",
+        "const": "ok"
+      },
+      "value": {
+        "type": "Frame"
+      }
+    },
+    "ProviderDelta__Input": {
+      "text": {
+        "type": "string",
+        "max": 32768
+      }
+    },
+    "ProviderDelta__Output": {
+      "status": {
+        "type": "string",
+        "const": "mapped"
+      },
+      "text": {
+        "type": "string",
+        "max": 32768
+      }
+    }
+  },
+  "integrations": {
+    "Normalize": {
+      "query": {},
+      "transport": "module-local",
+      "module": "ProviderDelta",
+      "input": "input.event",
+      "output": "ProviderDelta__Output",
+      "timeout": 5000,
+      "maxBytes": 65536
+    }
+  },
+  "flows": {},
+  "endpoint": {
+    "id": "Function",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/internal/stream-delta",
+    "input": "Input",
+    "output": "Output",
+    "authEnv": "INFERENCE_INTERNAL_TOKEN",
+    "maxBytes": 65536,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "ok": 200
+    },
+    "errors": {},
+    "result": "Result"
+  },
+  "modules": {
+    "ProviderDelta": {
+      "source_sha256": "3abede7f7d2b1f084e7cf6014b39a1c4184ee4d19a59dbc675321644d097eefd",
+      "source_text": "# Candidate provider SSE delta mapping. Open questions: STREAMING.md.\ndomain provider-stream-delta \"Provider stream delta\"\nprofile declarative-function-v1\nportability node-rust-v1\nowner inference-router-owner\nlogic sfol-v1\n\nschema Input:\n  text: string max 32768\n\nschema Output:\n  status: string const \"mapped\"\n  text: string max 32768\n\nmapping Delta:\n  meaning \"Preserve provider text fragments without mixing providers or repeating accumulated output.\"\n  target Output\n  field status = \"mapped\"\n  field text = input.text\n\nresult Map:\n  when true yield Delta\n\nendpoint Mapper:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/provider-stream-delta\"\n  input Input\n  output Output\n  result Map\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 65536\n  timeout-ms 5000\n  error-status 422\n  status mapped 200\n",
+      "input": "Input",
+      "output": "Output",
+      "schemas": {
+        "Input": {
+          "text": {
+            "type": "string",
+            "max": 32768
+          }
+        },
+        "Output": {
+          "status": {
+            "type": "string",
+            "const": "mapped"
+          },
+          "text": {
+            "type": "string",
+            "max": 32768
+          }
+        }
+      },
+      "statuses": {
+        "mapped": 200
+      }
+    }
+  },
+  "portability": "node-rust-v1"
+}

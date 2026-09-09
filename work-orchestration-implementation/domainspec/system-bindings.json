@@ -1,0 +1,46 @@
+{
+  "schema_version": "cav2-work-orchestration-system-bindings/v1",
+  "binding_id": "cav2.work-orchestration.rwo-runtime-binding",
+  "capability_ref": "CA2-CAP-EXECUTE-BOUNDED-COMPOSITE-WORK",
+  "domainspec_source": "domainspec/bounded-composite-work.json",
+  "realization_decision": "cyberAlchemy-v2/authority/decisions/work-orchestration-rwo-realization/selection.json",
+  "components": [
+    {"id": "rwo-rust-core", "role": "frozen-structural-compiler-reducer", "implementation": "projects/cyberalchemy-orchestrator/implementations/rwo-rust/src/lib.rs"},
+    {"id": "dag-definition-parser", "role": "local-bounded-dag-definition-validator", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/dag.rs#DagDefinition"},
+    {"id": "dag-engine", "role": "local-fanout-fanin-retry-and-terminal-state-realization", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/dag.rs#DagEngine"},
+    {"id": "dag-run-host", "role": "local-deadline-bounded-history-coupled-dag-host", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/host.rs#run_dag"},
+    {"id": "accepted-history-port", "role": "single-accepted-history-authority-port", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/ports.rs#AcceptedHistoryPort"},
+    {"id": "contained-history-reference", "role": "reference-port-implementation", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/ports.rs#InMemoryAcceptedHistory"},
+    {"id": "structured-agent-shell", "role": "bounded-command-batch-executor-adapter", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/executor.rs#StructuredAgentShell"},
+    {"id": "micro-swarm-cli", "role": "contained-local-dag-run-entrypoint", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/bin/micro_swarm.rs"},
+    {"id": "http-adapter", "role": "protocol-adapter", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/ports.rs#accept_http_event"},
+    {"id": "grpc-adapter", "role": "protocol-adapter", "implementation": "cyberAlchemy-v2/work-orchestration-implementation/runtime/src/ports.rs#accept_grpc_event"}
+  ],
+  "contracts": [
+    {"id": "accepted-history-contract", "path": "ports/accepted-history.json"},
+    {"id": "bounded-dag-definition-contract", "path": "schemas/rwo-dag-definition.schema.json"},
+    {"id": "structured-agent-executor-contract", "path": "ports/structured-agent-executor.json"},
+    {"id": "http-contract", "path": "protocols/http.json"},
+    {"id": "grpc-contract", "path": "protocols/grpc.json"}
+  ],
+  "bridges": [
+    {"business_ref": "operation:CompileComposition", "system_ref": "rwo-rust-core", "relation": "realized_by"},
+    {"business_ref": "operation:ReduceAcceptedEvent", "system_ref": "rwo-rust-core", "relation": "realized_by"},
+    {"business_ref": "invariant:finite acyclic graphs release root nodes immediately and dependency nodes only under declared all, any, or quorum policy", "system_ref": "dag-engine", "relation": "realized_by"},
+    {"business_ref": "invariant:join inputs contain canonical successful dependency output references and impossible joins fail closed", "system_ref": "dag-engine", "relation": "realized_by"},
+    {"business_ref": "invariant:attempts, parallelism, and the global deadline are explicit positive bounds", "system_ref": "dag-run-host", "relation": "realized_by"},
+    {"business_ref": "DomainSpec:historical-research-micro-swarm-42", "system_ref": "micro-swarm-cli", "relation": "realized_by"},
+    {"business_ref": "invariant:exactly one accepted-history authority exists per stream", "system_ref": "accepted-history-port", "relation": "realized_by"},
+    {"business_ref": "invariant:cursor and the complete zero-or-more command batch are persisted atomically with the accepted event", "system_ref": "accepted-history-port", "relation": "realized_by"},
+    {"business_ref": "operation:DispatchCommandBatch", "system_ref": "structured-agent-shell", "relation": "realized_by"},
+    {"business_ref": "invariant:protocol adapters cannot change structural meaning", "system_ref": "http-adapter", "relation": "tested_by"},
+    {"business_ref": "invariant:protocol adapters cannot change structural meaning", "system_ref": "grpc-adapter", "relation": "tested_by"}
+  ],
+  "realization_boundary": {
+    "frozen_semantic_core": "rwo-rust-core",
+    "local_candidate_components": ["dag-definition-parser", "dag-engine", "dag-run-host", "accepted-history-port", "contained-history-reference", "structured-agent-shell", "micro-swarm-cli", "http-adapter", "grpc-adapter"],
+    "excluded_claims": ["semantic-core-extension", "binding-acceptance", "runtime-conformance", "production-recovery", "deployment", "external-effect-authority"]
+  },
+  "status": "candidate",
+  "authority_effect": "none"
+}

@@ -1,0 +1,156 @@
+{
+  "schema_version": "cav2-kep-hosted-devnet-protocol-conformance-assessment/v1",
+  "assessment_id": "CA2-ASSESS-KEP-HOSTED-DEVNET-PROTOCOL-CONFORMANCE-001",
+  "assessed_at": "2026-09-03",
+  "route_id": "CA2-ROUTE-VALIDATE",
+  "authorization": {
+    "source": "current-chat",
+    "scope": "one fresh non-effectful protocol-only post-acceptance conformance assessment",
+    "accepted_decision_sha256": "36c801bcbcaec8bab5eb5482d30f9d6179f4a3dc9d0f9de6465387ac4da66003",
+    "permitted": [
+      "exact-target validators",
+      "Rust tests with no default features",
+      "one disposable loopback PostgreSQL database",
+      "exact local evidence writes"
+    ],
+    "prohibited": [
+      "UI assessment",
+      "reusable or non-disposable credentials",
+      "RPC submission",
+      "Devnet transactions",
+      "deployment",
+      "publication",
+      "release",
+      "other external effects"
+    ]
+  },
+  "accepted_target": {
+    "decision_id": "CA2-DECISION-KEP-HOSTED-DEVNET-PROTOCOL-BINDING-ACCEPTANCE-001",
+    "decision_path": "../decisions/protocol-implementation-binding-acceptance-001.json",
+    "decision_sha256": "36c801bcbcaec8bab5eb5482d30f9d6179f4a3dc9d0f9de6465387ac4da66003",
+    "candidate_id": "CA2-CANDIDATE-KEP-HOSTED-DEVNET-PROTOCOL-BINDING-001",
+    "candidate_sha256": "9f7085ce7147a92c67b8028f9f327fbe0852a76497e178290b8c073f0ce292c5",
+    "binding_id": "CA2-D65-KEP-HOSTED-DEVNET-PROTOCOL-001",
+    "binding_scope": "protocol-kernel-without-participant-ui",
+    "binding_record_sha256": "6d1b19414e8a76ef9e1e1d95cea39abb80d84a232a5437c37fa13cc56c2e8dc0",
+    "implementation_material_sha256": "8bb300efd40fbaa4b839fa0a173ff4e8c6a109553bf13b475795993e16814375"
+  },
+  "predecessor": {
+    "system_ontology_admission_sha256": "7b16adbccae027686cc7316699c9a45985e0fdc0fba628063c85d10f358b5677",
+    "admitted_candidate_sha256": "37b5b8531e13058bc39a61ee7572ea3059376cd54851f9717f19e02de2359aa4",
+    "admitted_candidate_set_digest": "8aa30019a659b5131c9f524e7bcdb3b7679b7ea5712e3e8e6ebd28a46d281c1f",
+    "lifecycle_status": "admitted"
+  },
+  "execution_environment": {
+    "network_effect": "none",
+    "rpc_calls": 0,
+    "devnet_transactions": 0,
+    "ui_files_assessed": 0,
+    "database": {
+      "engine": "PostgreSQL 17 Alpine from pre-existing local image",
+      "image_id": "1bea307dfb3e",
+      "exposure": "dynamic loopback-only port",
+      "authentication": "ephemeral local trust; no password or reusable credential",
+      "database_name": "ca2_kep_conformance",
+      "cleanup": "PASS-container-removed"
+    }
+  },
+  "checks": [
+    {
+      "check_id": "accepted-target-current-before-execution",
+      "status": "PASS",
+      "evidence": "The acceptance validator reproduced decision 36c801bc, candidate 9f7085ce, binding record 6d1b1941, and implementation material 8bb300ef before tests."
+    },
+    {
+      "check_id": "rust-format",
+      "status": "PASS",
+      "command": "cargo fmt --manifest-path implementation/Cargo.toml -- --check"
+    },
+    {
+      "check_id": "no-default-features-suite",
+      "status": "PASS",
+      "command": "cargo test --manifest-path implementation/Cargo.toml --no-default-features -- --nocapture",
+      "evidence": "The library, observer binary, server binary, integration targets, and documentation tests compiled without the optional UI feature."
+    },
+    {
+      "check_id": "two-identity-grant-decrypt-reissue",
+      "status": "PASS",
+      "evidence": "The third-party vertical proved owners {A} to {A,B}, exact recipient decryption, and revision-2 reissue preserving owners and epoch."
+    },
+    {
+      "check_id": "postgres-migration-persistence-recovery",
+      "status": "PASS",
+      "command": "cargo test --manifest-path implementation/Cargo.toml --no-default-features --test postgres_persistence -- --ignored --nocapture",
+      "evidence": "The protocol migrated an empty database, persisted identity and encrypted artifact state, recovered both after reopening, and preserved journal/archive records."
+    },
+    {
+      "check_id": "postgres-catalog-counts",
+      "status": "PASS",
+      "evidence": {
+        "application_state_rows": 1,
+        "event_journal_rows": 2,
+        "encrypted_archive_rows": 1
+      }
+    },
+    {
+      "check_id": "disposable-postgres-cleanup",
+      "status": "PASS",
+      "evidence": "The exact disposable container no longer existed after the test."
+    },
+    {
+      "check_id": "accepted-target-current-after-execution",
+      "status": "PASS",
+      "evidence": "The acceptance validator reproduced the exact accepted target again after tests and database cleanup."
+    }
+  ],
+  "selector_assessment": {
+    "graph_nodes": [
+      {"selector": "access-projection", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue", "postgres-migration-persistence-recovery"]},
+      {"selector": "bound-solana-program", "status": "PASS", "evidence_mode": "static-binding", "evidence_refs": ["accepted-target-current-before-execution"], "claim_limit": "Exact Devnet program identity is bound; public RPC availability was not assessed."},
+      {"selector": "ciphertext-repository", "status": "PASS", "evidence_refs": ["postgres-migration-persistence-recovery", "postgres-catalog-counts"]},
+      {"selector": "devnet-finality-observer", "status": "PASS", "evidence_mode": "local-adapter", "evidence_refs": ["two-identity-grant-decrypt-reissue"], "claim_limit": "Finalized-only behavior was exercised through the deterministic local gateway; public RPC was prohibited."},
+      {"selector": "encrypted-artifact", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue", "postgres-migration-persistence-recovery"]},
+      {"selector": "hosted-exchange-api", "status": "PASS", "evidence_refs": ["no-default-features-suite", "two-identity-grant-decrypt-reissue"]},
+      {"selector": "hosted-grant", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "hosted-reissue", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "knowledge-identity", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue", "postgres-migration-persistence-recovery"]},
+      {"selector": "third-party-flow", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "wallet-signature-verifier", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue", "postgres-migration-persistence-recovery"]}
+    ],
+    "graph_edges": [
+      {"selector": "api-observes-devnet-finality", "status": "PASS", "evidence_mode": "local-adapter", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "api-persists-ciphertext", "status": "PASS", "evidence_refs": ["postgres-migration-persistence-recovery", "postgres-catalog-counts"]},
+      {"selector": "api-verifies-wallet-signature", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "finality-observer-reads-program", "status": "PASS", "evidence_mode": "static-binding", "evidence_refs": ["accepted-target-current-before-execution"], "claim_limit": "No public RPC read was authorized."},
+      {"selector": "grant-produces-access", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "grant-reads-artifact", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "grant-reads-identity", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "reissue-preserves-access", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "third-party-tests-grant", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "third-party-tests-reissue", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]}
+    ],
+    "runtime_constraints": [
+      {"selector": "ciphertext-only-persistence", "status": "PASS", "evidence_refs": ["postgres-migration-persistence-recovery", "postgres-catalog-counts"]},
+      {"selector": "client-held-secret-material", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue", "accepted-target-current-before-execution"]},
+      {"selector": "devnet-only", "status": "PASS", "evidence_mode": "static-binding", "evidence_refs": ["accepted-target-current-before-execution"]},
+      {"selector": "finalized-observation-only", "status": "PASS", "evidence_mode": "local-adapter", "evidence_refs": ["two-identity-grant-decrypt-reissue"]},
+      {"selector": "no-hosted-transaction-signer", "status": "PASS", "evidence_refs": ["accepted-target-current-before-execution", "no-default-features-suite"]},
+      {"selector": "no-knowledge-consideration", "status": "PASS", "evidence_refs": ["two-identity-grant-decrypt-reissue"]}
+    ],
+    "excluded_ui_scope": {
+      "status": "not_evaluable-outside-accepted-target",
+      "graph_nodes": ["participant-workbench"],
+      "graph_edges": ["workbench-calls-api", "workbench-seals-artifact", "workbench-submits-devnet-instruction"]
+    }
+  },
+  "assessment_result": "PASS",
+  "protocol_binding_conformance": "conformant-local",
+  "d65_protocol_stage": "conformance-evidence-present-for-accepted-protocol-only-binding",
+  "live_devnet_runtime_integration": "not_evaluable-prohibited-by-assessment-envelope",
+  "full_hosted_capability_conformance": "not_evaluable-outside-accepted-target",
+  "security_certification": "not_evaluable",
+  "deployment_readiness": "not_evaluable",
+  "authority_effect": "none",
+  "external_effect": "none",
+  "claim_limit": "Proves local conformance of the exact accepted protocol-only Rust and SQL binding, including disposable PostgreSQL persistence. It does not prove public Devnet availability or transaction behavior, UI behavior, full hosted-capability conformance, security certification, production readiness, publication, release, deployment, or any external effect."
+}

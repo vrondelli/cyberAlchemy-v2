@@ -1,0 +1,285 @@
+{
+  "schemas": {
+    "Input": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "result": {
+        "type": "Provider__Output"
+      }
+    },
+    "Output": {
+      "status": {
+        "type": "string",
+        "const": "ok"
+      },
+      "value": {
+        "type": "Public__Input"
+      }
+    },
+    "Provider__Input": {
+      "answer": {
+        "type": "string",
+        "max": 32768
+      },
+      "stop_reason": {
+        "type": "string",
+        "pattern": "^(stop|length|content_filter|unknown)$"
+      },
+      "prompt_tokens": {
+        "type": "integer",
+        "optional": true,
+        "nullable": true,
+        "min": 0,
+        "max": 1000000000
+      },
+      "completion_tokens": {
+        "type": "integer",
+        "optional": true,
+        "nullable": true,
+        "min": 0,
+        "max": 1000000000
+      }
+    },
+    "Provider__Output": {
+      "status": {
+        "type": "string",
+        "const": "mapped"
+      },
+      "text": {
+        "type": "string",
+        "max": 32768
+      },
+      "finish_reason": {
+        "type": "string",
+        "pattern": "^(stop|length|content_filter|unknown)$"
+      },
+      "input_tokens": {
+        "type": "integer",
+        "optional": true,
+        "nullable": true,
+        "min": 0,
+        "max": 1000000000
+      },
+      "output_tokens": {
+        "type": "integer",
+        "optional": true,
+        "nullable": true,
+        "min": 0,
+        "max": 1000000000
+      }
+    },
+    "Public__Text": {
+      "text": {
+        "type": "string",
+        "max": 32768
+      }
+    },
+    "Public__Observation": {
+      "value": {
+        "type": "integer",
+        "nullable": true,
+        "min": 0,
+        "max": 1000000000
+      },
+      "provenance": {
+        "type": "string",
+        "pattern": "^(unavailable|provider-reported)$"
+      }
+    },
+    "Public__Usage": {
+      "input_tokens": {
+        "type": "Public__Observation"
+      },
+      "output_tokens": {
+        "type": "Public__Observation"
+      }
+    },
+    "Public__Input": {
+      "request_id": {
+        "type": "identifier",
+        "max": 128
+      },
+      "model": {
+        "type": "identifier",
+        "max": 128
+      },
+      "output": {
+        "type": "Public__Text"
+      },
+      "finish_reason": {
+        "type": "string",
+        "pattern": "^(stop|length|content_filter|unknown)$"
+      },
+      "usage": {
+        "type": "Public__Usage"
+      }
+    },
+    "Public__Output": {
+      "status": {
+        "type": "string",
+        "const": "ok"
+      },
+      "value": {
+        "type": "Public__Input"
+      }
+    }
+  },
+  "integrations": {},
+  "flows": {},
+  "endpoint": {
+    "id": "Function",
+    "target": "node-http",
+    "runtime": "node>=26.8.1",
+    "method": "POST",
+    "path": "/internal/invocation-completion",
+    "input": "Input",
+    "output": "Output",
+    "authEnv": "INFERENCE_INTERNAL_TOKEN",
+    "maxBytes": 262144,
+    "timeout": 5000,
+    "errorStatus": 422,
+    "statuses": {
+      "ok": 200
+    },
+    "errors": {},
+    "result": "Result"
+  },
+  "modules": {
+    "Provider": {
+      "source_sha256": "419159266b15f5c9b6db0ad163ad3648e8ed943630a0c1c9fb6bbc0de5690033",
+      "source_text": "# Local JSON provider-mapping prototype. Open questions: DISPATCH.md.\ndomain provider-response \"Provider response mapper\"\nprofile declarative-function-v1\nportability node-rust-v1\nowner inference-router-owner\nlogic sfol-v1\n\nschema Input:\n  answer: string max 32768\n  stop_reason: string pattern \"^(stop|length|content_filter|unknown)$\"\n  prompt_tokens: integer optional nullable min 0 max 1000000000\n  completion_tokens: integer optional nullable min 0 max 1000000000\n\nschema Output:\n  status: string const \"mapped\"\n  text: string max 32768\n  finish_reason: string pattern \"^(stop|length|content_filter|unknown)$\"\n  input_tokens: integer optional nullable min 0 max 1000000000\n  output_tokens: integer optional nullable min 0 max 1000000000\n\nmapping ResultBody:\n  meaning \"Normalize fixture provider output and preserve missing token observations.\"\n  target Output\n  field status = \"mapped\"\n  field text = input.answer\n  field finish_reason = input.stop_reason\n  field input_tokens = input.prompt_tokens\n  field output_tokens = input.completion_tokens\n\nresult Map:\n  when true yield ResultBody\n\nendpoint Mapper:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/provider-response\"\n  input Input\n  output Output\n  result Map\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 65536\n  timeout-ms 5000\n  error-status 422\n  status mapped 200\n",
+      "input": "Input",
+      "output": "Output",
+      "schemas": {
+        "Input": {
+          "answer": {
+            "type": "string",
+            "max": 32768
+          },
+          "stop_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          }
+        },
+        "Output": {
+          "status": {
+            "type": "string",
+            "const": "mapped"
+          },
+          "text": {
+            "type": "string",
+            "max": 32768
+          },
+          "finish_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          },
+          "output_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          }
+        }
+      },
+      "statuses": {
+        "mapped": 200
+      }
+    },
+    "Public": {
+      "source_sha256": "684058f2126cce660ed31c0a1052ce46d24e654704be02b0a16b2776346579de",
+      "source_text": "# Candidate typed service function. Open questions: README.md.\ndomain inference-result \"Service inference-result\"\nprofile declarative-function-v1\nportability node-rust-v1\nowner inference-router-owner\nlogic sfol-v1\nschema Text:\n  text: string max 32768\nschema Observation:\n  value: integer nullable min 0 max 1000000000\n  provenance: string pattern \"^(unavailable|provider-reported)$\"\nschema Usage:\n  input_tokens: Observation\n  output_tokens: Observation\nschema Input:\n  request_id: identifier max 128\n  model: identifier max 128\n  output: Text\n  finish_reason: string pattern \"^(stop|length|content_filter|unknown)$\"\n  usage: Usage\nschema Output:\n  status: string const \"ok\"\n  value: Input\n\nmapping Wrapped:\n  meaning \"Validate and expose the JSON result supplied by the inference operation.\"\n  target Output\n  field status = \"ok\"\n  field value = input\nresult Result:\n  when true yield Wrapped\n\nendpoint Function:\n  target node-http\n  runtime node>=26.8.1\n  method POST\n  path \"/internal/inference-result\"\n  input Input\n  output Output\n  result Result\n  auth-env INFERENCE_INTERNAL_TOKEN\n  max-bytes 65536\n  timeout-ms 5000\n  error-status 422\n  status ok 200\n",
+      "input": "Input",
+      "output": "Output",
+      "schemas": {
+        "Text": {
+          "text": {
+            "type": "string",
+            "max": 32768
+          }
+        },
+        "Observation": {
+          "value": {
+            "type": "integer",
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          },
+          "provenance": {
+            "type": "string",
+            "pattern": "^(unavailable|provider-reported)$"
+          }
+        },
+        "Usage": {
+          "input_tokens": {
+            "type": "Observation"
+          },
+          "output_tokens": {
+            "type": "Observation"
+          }
+        },
+        "Input": {
+          "request_id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "output": {
+            "type": "Text"
+          },
+          "finish_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "usage": {
+            "type": "Usage"
+          }
+        },
+        "Output": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": "Input"
+          }
+        }
+      },
+      "statuses": {
+        "ok": 200
+      }
+    }
+  },
+  "portability": "node-rust-v1"
+}

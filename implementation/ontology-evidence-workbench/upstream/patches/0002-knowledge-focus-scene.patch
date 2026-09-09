@@ -1,0 +1,239 @@
+--- a/understand-anything-plugin/packages/dashboard/src/components/KnowledgeGraphView.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/components/KnowledgeGraphView.tsx
+@@ -12,7 +12,13 @@
+ 
+ import CustomNode from "./CustomNode";
+ import type { CustomNodeData } from "./CustomNode";
++import KnowledgeFocusPortals from "./KnowledgeFocusPortals";
+ import { useDashboardStore } from "../store";
++import {
++  deriveKnowledgeFocusScene,
++  reduceKnowledgeFocusState,
++  sameOriginEvidenceSidecarUrl,
++} from "../knowledgeFocusScene";
+ import { NODE_WIDTH, NODE_HEIGHT } from "../utils/layout";
+ import {
+   createFallbackGrid,
+@@ -27,6 +33,20 @@
+ import { useI18n } from "../contexts/I18nContext";
+ import type { KnowledgeGraph } from "@understand-anything/core/types";
+ 
++interface FocusPortal {
++  id: string;
++  source: string;
++  target: string;
++  type: string;
++  description: string;
++  direction: string;
++  sourceRef: string | null;
++  sourceRelation: string | null;
++  presentationRelation: string;
++  authorityEffect: string | null;
++  evidenceRefs: string[];
++}
++
+ const nodeTypes = {
+   custom: CustomNode,
+ };
+@@ -121,8 +141,12 @@
+   const selectedNodeId = useDashboardStore((s) => s.selectedNodeId);
+   const focusNodeId = useDashboardStore((s) => s.focusNodeId);
+   const selectNode = useDashboardStore((s) => s.selectNode);
++  const setFocusNode = useDashboardStore((s) => s.setFocusNode);
++  const stopTour = useDashboardStore((s) => s.stopTour);
+   const searchResultsRaw = useDashboardStore((s) => s.searchResults);
++  const tourActive = useDashboardStore((s) => s.tourActive);
+   const tourHighlightedNodeIds = useDashboardStore((s) => s.tourHighlightedNodeIds);
++  const currentTourStep = useDashboardStore((s) => s.currentTourStep);
+   const knowledgeNodesVisible = useDashboardStore(
+     (s) => s.nodeTypeFilters.knowledge !== false,
+   );
+@@ -134,6 +158,8 @@
+     positionMap: EMPTY_POSITION_MAP,
+     edgeCounts: EMPTY_EDGE_COUNTS,
+   });
++  const [evidenceSidecar, setEvidenceSidecar] = useState<unknown>(null);
++  const [focusHistory, setFocusHistory] = useState<string[]>([]);
+ 
+   const onNodeClick = useCallback(
+     (nodeId: string) => selectNode(nodeId),
+@@ -150,6 +176,38 @@
+     [tourHighlightedNodeIds],
+   );
+ 
++  useEffect(() => {
++    let active = true;
++    const url = sameOriginEvidenceSidecarUrl(
++      window.location.href,
++      window.sessionStorage.getItem("understand-anything-token"),
++    );
++    void fetch(url, {
++      method: "GET",
++      cache: "no-store",
++      credentials: "omit",
++    })
++      .then((response) => response.ok ? response.json() : null)
++      .then((document) => {
++        if (active && document) setEvidenceSidecar(document);
++      })
++      .catch(() => {
++        // The retained dashboard also runs without an OEW sidecar. Graph-only
++        // focus remains available and reports evidence as unavailable.
++      });
++    return () => {
++      active = false;
++    };
++  }, []);
++
++  useEffect(() => {
++    if (!focusNodeId && !tourActive) setFocusHistory([]);
++  }, [focusNodeId, tourActive]);
++
++  useEffect(() => {
++    if (tourActive) setFocusHistory([]);
++  }, [currentTourStep, tourActive]);
++
+   // Filter graph — only recompute when graph data or filters change
+   const filteredGraph = useMemo((): KnowledgeGraph | null => {
+     if (!graph) return null;
+@@ -169,10 +227,54 @@
+     return { ...graph, nodes: filteredNodes, edges: filteredEdges };
+   }, [graph, knowledgeNodesVisible]);
+ 
++  const scene = useMemo(
++    () => deriveKnowledgeFocusScene({
++      graph: filteredGraph,
++      tourNodeIds: tourActive ? tourHighlightedNodeIds : [],
++      focusNodeId: tourActive ? null : focusNodeId,
++      sidecar: evidenceSidecar,
++    }),
++    [filteredGraph, tourActive, tourHighlightedNodeIds, focusNodeId, evidenceSidecar],
++  );
++
++  const displayGraph = useMemo(
++    () => scene.active
++      ? scene.graph as unknown as KnowledgeGraph
++      : filteredGraph,
++    [scene, filteredGraph],
++  );
++
++  const nodeName = useCallback(
++    (nodeId: string) => graph?.nodes.find((node) => node.id === nodeId)?.name ?? nodeId,
++    [graph],
++  );
++
++  const onPortalPivot = useCallback((portal: FocusPortal) => {
++    const sourceInside = scene.nodeIds.includes(portal.source);
++    const source = sourceInside ? portal.source : portal.target;
++    const target = sourceInside ? portal.target : portal.source;
++    const next = reduceKnowledgeFocusState(
++      { focusNodeId: source, history: focusHistory },
++      { type: "activate-portal", source, target },
++    );
++    stopTour();
++    setFocusHistory(next.history);
++    setFocusNode(next.focusNodeId);
++  }, [focusHistory, scene.nodeIds, setFocusNode, stopTour]);
++
++  const onFocusBack = useCallback(() => {
++    const next = reduceKnowledgeFocusState(
++      { focusNodeId, history: focusHistory },
++      { type: "back" },
++    );
++    setFocusHistory(next.history);
++    setFocusNode(next.focusNodeId);
++  }, [focusHistory, focusNodeId, setFocusNode]);
++
+   const preparedLayout = useMemo(() => {
+-    if (!filteredGraph) return null;
+-    return prepareLayout(filteredGraph);
+-  }, [filteredGraph]);
++    if (!displayGraph) return null;
++    return prepareLayout(displayGraph);
++  }, [displayGraph]);
+ 
+   // Run d3-force outside the main thread. A fresh worker per graph revision
+   // lets cleanup terminate an in-progress synchronous simulation immediately.
+@@ -242,8 +344,8 @@
+   }, [preparedLayout]);
+ 
+   const layoutIsReady =
+-    !!filteredGraph &&
+-    layoutState.graph === filteredGraph &&
++    !!displayGraph &&
++    layoutState.graph === displayGraph &&
+     layoutState.status === "ready";
+   const positionMap = layoutIsReady
+     ? layoutState.positionMap
+@@ -252,18 +354,18 @@
+ 
+   // Build visual nodes/edges — recomputes on selection/search/tour WITHOUT re-layout
+   const { nodes, edges } = useMemo(() => {
+-    if (!filteredGraph || !layoutIsReady) return { nodes: [], edges: [] };
++    if (!displayGraph || !layoutIsReady) return { nodes: [], edges: [] };
+ 
+     const neighborIds = new Set<string>();
+     if (focusNodeId || selectedNodeId) {
+       const focusId = focusNodeId ?? selectedNodeId;
+-      for (const edge of filteredGraph.edges) {
++      for (const edge of displayGraph.edges) {
+         if (edge.source === focusId) neighborIds.add(edge.target);
+         if (edge.target === focusId) neighborIds.add(edge.source);
+       }
+     }
+ 
+-    const rfNodes: Node[] = filteredGraph.nodes.map((node) => {
++    const rfNodes: Node[] = displayGraph.nodes.map((node) => {
+       const isSelected = node.id === selectedNodeId;
+       const isFocused = node.id === focusNodeId;
+       const isNeighbor = neighborIds.has(node.id);
+@@ -304,7 +406,7 @@
+     });
+ 
+     const activeId = focusNodeId ?? selectedNodeId;
+-    const rfEdges: Edge[] = filteredGraph.edges.map((e) => {
++    const rfEdges: Edge[] = displayGraph.edges.map((e) => {
+       const baseStyle = EDGE_STYLES[e.type] ?? EDGE_STYLES.related;
+       const isConnected = activeId && (e.source === activeId || e.target === activeId);
+ 
+@@ -330,9 +432,11 @@
+         target: e.target,
+         style,
+         animated: e.type === "contradicts" && (!activeId || !!isConnected),
+-        label: isConnected && e.type !== "related" && e.type !== "categorized_under"
+-          ? e.type.replace(/_/g, " ")
+-          : undefined,
++        label: scene.active
++          ? [e.type.replace(/_/g, " "), e.description].filter(Boolean).join(" · ")
++          : isConnected && e.type !== "related" && e.type !== "categorized_under"
++            ? e.type.replace(/_/g, " ")
++            : undefined,
+         labelStyle: { fill: "var(--color-text-muted)", fontSize: 9, opacity: 0.7 },
+         labelBgStyle: { fill: "var(--color-surface)", fillOpacity: 0.9 },
+         labelBgPadding: [4, 2] as [number, number],
+@@ -341,7 +445,7 @@
+     });
+ 
+     return { nodes: rfNodes, edges: rfEdges };
+-  }, [filteredGraph, layoutIsReady, selectedNodeId, focusNodeId, searchResults, tourSet, onNodeClick, positionMap, edgeCounts]);
++  }, [displayGraph, layoutIsReady, selectedNodeId, focusNodeId, searchResults, tourSet, onNodeClick, positionMap, edgeCounts, scene.active]);
+ 
+   if (!graph) {
+     return (
+@@ -407,6 +511,16 @@
+           className="!bg-surface !border !border-border-subtle"
+         />
+       </ReactFlow>
++      {scene.active && (
++        <KnowledgeFocusPortals
++          mode={scene.mode === "tour" ? "tour" : "focus"}
++          portals={scene.portals}
++          history={focusHistory}
++          nodeName={nodeName}
++          onPivot={onPortalPivot}
++          onBack={onFocusBack}
++        />
++      )}
+     </div>
+   );
+ }

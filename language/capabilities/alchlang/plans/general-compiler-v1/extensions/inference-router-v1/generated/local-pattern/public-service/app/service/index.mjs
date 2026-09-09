@@ -1,0 +1,13 @@
+import {invoke as Health} from '../../functions/Health/app/function/index.mjs';
+import {invoke as Models} from '../../functions/Models/app/function/index.mjs';
+import {invoke as Capabilities} from '../../functions/Capabilities/app/function/index.mjs';
+import {invoke as PublicRequest} from '../../functions/PublicRequest/app/function/index.mjs';
+import {invoke as InferenceResult} from '../../functions/InferenceResult/app/function/index.mjs';
+import {invoke as Errors} from '../../functions/Errors/app/function/index.mjs';
+import {createService} from './service-runtime.mjs';
+import {createNodeServiceServer} from './node-service-host.mjs';
+import plan from '../../routes.json' with {type:'json'};
+export const functions={Health,Models,Capabilities,PublicRequest,InferenceResult,Errors};
+export const createHandler=options=>createService(plan,functions,options);
+export const createServer=options=>{const handle=createHandler(options);return createNodeServiceServer(handle,handle.errorResponse);};
+export {plan};

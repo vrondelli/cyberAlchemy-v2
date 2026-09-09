@@ -1,0 +1,385 @@
+{
+  "schema_version": "domainspec.outbound-composition-trace/v1-candidate",
+  "steps": [
+    {
+      "index": 0,
+      "id": "Checked",
+      "kind": "local",
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request": {
+                "type": {
+                  "request_id": {
+                    "type": "identifier",
+                    "max": 128
+                  },
+                  "tenant_id": {
+                    "type": "identifier",
+                    "max": 128
+                  },
+                  "task": {
+                    "type": "string",
+                    "const": "text.generate"
+                  },
+                  "model": {
+                    "type": "identifier",
+                    "optional": true,
+                    "max": 128
+                  },
+                  "required_context_tokens": {
+                    "type": "integer",
+                    "min": 0,
+                    "max": 1000000
+                  },
+                  "max_output_tokens": {
+                    "type": "integer",
+                    "min": 1,
+                    "max": 1000000
+                  },
+                  "stream": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "catalog": {
+                "type": {
+                  "tenant_id": {
+                    "type": "identifier",
+                    "max": 128
+                  },
+                  "policy_version": {
+                    "type": "identifier",
+                    "max": 128
+                  },
+                  "providers": {
+                    "type": "list",
+                    "items": {
+                      "binding_id": {
+                        "type": "identifier",
+                        "max": 128
+                      },
+                      "binding_version": {
+                        "type": "identifier",
+                        "max": 128
+                      },
+                      "model": {
+                        "type": "identifier",
+                        "max": 128
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "tenant_allowed": {
+                        "type": "boolean"
+                      },
+                      "task": {
+                        "type": "string",
+                        "const": "text.generate"
+                      },
+                      "context_limit": {
+                        "type": "integer",
+                        "min": 1,
+                        "max": 1000000
+                      },
+                      "output_limit": {
+                        "type": "integer",
+                        "min": 1,
+                        "max": 1000000
+                      },
+                      "streaming": {
+                        "type": "boolean"
+                      },
+                      "rank": {
+                        "type": "integer",
+                        "min": 0,
+                        "max": 1000000
+                      }
+                    },
+                    "max": 100
+                  }
+                }
+              },
+              "messages": {
+                "type": "list",
+                "items": {
+                  "role": {
+                    "type": "string",
+                    "pattern": "^(system|user|assistant)$"
+                  },
+                  "content": {
+                    "type": "string",
+                    "max": 32768
+                  }
+                },
+                "max": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "index": 1,
+      "id": "Selected",
+      "kind": "local",
+      "output": {
+        "type": {
+          "request_id": {
+            "type": "identifier"
+          },
+          "status": {
+            "type": "string",
+            "pattern": "^(selected|unavailable)$"
+          },
+          "policy_version": {
+            "type": "identifier"
+          },
+          "binding_id": {
+            "type": "identifier",
+            "optional": true
+          },
+          "binding_version": {
+            "type": "identifier",
+            "optional": true
+          },
+          "model": {
+            "type": "identifier",
+            "optional": true
+          }
+        }
+      }
+    },
+    {
+      "index": 2,
+      "id": "Bound",
+      "kind": "binding",
+      "output": {
+        "type": {
+          "id": {
+            "type": "identifier",
+            "max": 128
+          },
+          "version": {
+            "type": "identifier",
+            "max": 128
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "remote_model": {
+            "type": "identifier",
+            "max": 128
+          }
+        }
+      }
+    },
+    {
+      "index": 3,
+      "id": "Payload",
+      "kind": "local",
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "mapped"
+          },
+          "messages": {
+            "type": "list",
+            "items": {
+              "role": {
+                "type": "string",
+                "pattern": "^(system|user|assistant)$"
+              },
+              "content": {
+                "type": "string",
+                "max": 32768
+              }
+            },
+            "max": 100
+          },
+          "model": {
+            "type": "identifier",
+            "max": 128
+          },
+          "max_tokens": {
+            "type": "integer",
+            "min": 1,
+            "max": 1000000
+          },
+          "stream": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "index": 4,
+      "id": "Exchange",
+      "kind": "http",
+      "output": {
+        "type": {
+          "answer": {
+            "type": "string",
+            "max": 32768
+          },
+          "stop_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          }
+        }
+      }
+    },
+    {
+      "index": 5,
+      "id": "Mapped",
+      "kind": "local",
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "mapped"
+          },
+          "text": {
+            "type": "string",
+            "max": 32768
+          },
+          "finish_reason": {
+            "type": "string",
+            "pattern": "^(stop|length|content_filter|unknown)$"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          },
+          "output_tokens": {
+            "type": "integer",
+            "optional": true,
+            "nullable": true,
+            "min": 0,
+            "max": 1000000000
+          }
+        }
+      }
+    },
+    {
+      "index": 6,
+      "id": "Complete",
+      "kind": "local",
+      "output": {
+        "type": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "value": {
+            "type": {
+              "request_id": {
+                "type": "identifier",
+                "max": 128
+              },
+              "model": {
+                "type": "identifier",
+                "max": 128
+              },
+              "output": {
+                "type": {
+                  "text": {
+                    "type": "string",
+                    "max": 32768
+                  }
+                }
+              },
+              "finish_reason": {
+                "type": "string",
+                "pattern": "^(stop|length|content_filter|unknown)$"
+              },
+              "usage": {
+                "type": {
+                  "input_tokens": {
+                    "type": {
+                      "value": {
+                        "type": "integer",
+                        "nullable": true,
+                        "min": 0,
+                        "max": 1000000000
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "pattern": "^(unavailable|provider-reported)$"
+                      }
+                    }
+                  },
+                  "output_tokens": {
+                    "type": {
+                      "value": {
+                        "type": "integer",
+                        "nullable": true,
+                        "min": 0,
+                        "max": 1000000000
+                      },
+                      "provenance": {
+                        "type": "string",
+                        "pattern": "^(unavailable|provider-reported)$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "authority_effect": "none",
+  "source": {
+    "path": "/home/vrondelli/projects/cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/inference-router-v1/local-invocation.alch",
+    "sha256": "ec0ff3fa77d46fa96ce9a480571f428182bad9fa710fbeaa828682a33c77e24d"
+  },
+  "modules": {
+    "Input": {
+      "source_sha256": "543b5112af902f1a43e4f79bbb2cacf6d276c9f93137da026d8397881e45011a",
+      "manifest_sha256": "54b2cbf364b23e1b63d1c9d1040e38d10a8a2fed6f89c1b7e859b19bef895571"
+    },
+    "Selector": {
+      "source_sha256": "7003f50f2cef4d37b2d0cfc68658675f27984923eb5e047b075eac63e0dea388",
+      "manifest_sha256": "818b8296adfabb2f67deab734e4fb22a7a9afc031cef13efa8818a4f38f06bdd"
+    },
+    "Request": {
+      "source_sha256": "2ed130ad1b266f256baac746cd7ea8666fa8409730e2a08d5f00ad5b183811f1",
+      "manifest_sha256": "628267a77b3a37f1b0340377b23513cf0e338696e9e3c2ff5cbe5e17a78f5f99"
+    },
+    "Response": {
+      "source_sha256": "419159266b15f5c9b6db0ad163ad3648e8ed943630a0c1c9fb6bbc0de5690033",
+      "manifest_sha256": "a548d17cc491a431cfe0795d7f2885bb0e87a64e41e31ce6b9262c2d836be15b"
+    },
+    "Completion": {
+      "source_sha256": "58709c45fc11d8e8dd145bc16ac8bcc6e6121656cfc195d5ad765d25a573902a",
+      "manifest_sha256": "b516149a73fcc9dc9598335ece9b506b3b2093ff28ad96f4e80a2ef4115809fc"
+    }
+  }
+}

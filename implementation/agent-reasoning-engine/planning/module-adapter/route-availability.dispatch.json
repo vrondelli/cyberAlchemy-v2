@@ -1,0 +1,153 @@
+{
+  "dispatch_id": "are-registered-route-availability-v1",
+  "open_questions_ref": "IMPLEMENTATION-LAYERING.md#open-questions",
+  "intent": {
+    "raw": "ARE should only route through a module route when that route is available; ARE must not own or enforce the module workflow.",
+    "objective": "Evaluate optional module availability for registry-owned routes before route selection.",
+    "target_artifact": "request-decision-router route availability decision",
+    "arcanum_vocabulary": ["route", "capability", "gate", "receipt"],
+    "operator_sentence": "Ask one exact capability about one registered route, preserve its receipt, and gate rather than fall through when an explicit route is unavailable."
+  },
+  "mode": "sequence",
+  "techniques": [
+    {
+      "id": "exact-capability-binding",
+      "source": "local-extension",
+      "purpose": "Keep registry route identity, module capability identity, and availability evidence distinct.",
+      "validation_note": "Adversarial fixtures independently vary registry, lifecycle, capability, and returned route identity."
+    }
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "explanation": "The implementation is one bounded in-process seam with coupled profile, port, router, and compiled-contract tests.",
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed"
+  },
+  "steps": [
+    {
+      "step_id": "resolve-registry-route",
+      "name": "Resolve verified registry route",
+      "capability_ref": "CA2-CAP-ROUTE-REPOSITORY-WORK",
+      "pattern": "route",
+      "inputs": [{"kind": "intent", "ref": "request-context"}],
+      "outputs": [{"kind": "frame", "ref": "verified-route-policy"}],
+      "stop_conditions": ["route is absent from the verified registry", "profile provenance is invalid"]
+    },
+    {
+      "step_id": "query-route-availability",
+      "name": "Query exact optional availability capability",
+      "capability_ref": "are.route-availability-query/v1",
+      "pattern": "decision",
+      "techniques": [
+        {
+          "id": "exact-capability-binding",
+          "source": "local-extension",
+          "purpose": "Bind the availability answer to the exact registered route and capability.",
+          "validation_note": "The identity-mismatch fixture must return repair_focus route-identity and no selected route."
+        }
+      ],
+      "inputs": [{"kind": "frame", "ref": "verified-route-policy"}],
+      "outputs": [{"kind": "decision", "ref": "availability-judgment"}, {"kind": "artifact", "ref": "module-invocation-receipt"}],
+      "stop_conditions": ["declared capability is missing", "capability result names another route", "provider result is blocked"]
+    },
+    {
+      "step_id": "select-available-route",
+      "name": "Select only among available registered routes",
+      "capability_ref": "CA2-CAP-ROUTE-REPOSITORY-WORK",
+      "pattern": "route",
+      "inputs": [{"kind": "decision", "ref": "availability-judgment"}, {"kind": "frame", "ref": "verified-route-policy"}],
+      "outputs": [{"kind": "decision", "ref": "capability-selection"}, {"kind": "trace_event", "ref": "route-availability-trace"}],
+      "stop_conditions": ["explicit objective route is unavailable", "more than one admissible route remains"]
+    },
+    {
+      "step_id": "validate-boundaries",
+      "name": "Validate no-fallback and authority boundaries",
+      "capability_ref": "route-availability-validation",
+      "pattern": "validation",
+      "inputs": [{"kind": "decision", "ref": "capability-selection"}, {"kind": "artifact", "ref": "module-invocation-receipt"}],
+      "outputs": [{"kind": "artifact", "ref": "route-availability-test-evidence"}],
+      "evidence_artifact": "implementation/agent-reasoning-engine/packages/request-decision-router/test/route-availability-alch.test.mjs",
+      "stop_conditions": ["unavailable explicit route falls through", "unbound route becomes globally dependent", "authority effect is not none"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "registry-ownership",
+      "kind": "policy",
+      "owner": "CyberAlchemy v2 route registry owner",
+      "condition": "Every candidate route already exists in the verified route registry and profile.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "no-workflow-transfer",
+      "kind": "policy",
+      "owner": "Agent Reasoning Engine runtime owner",
+      "condition": "Availability query neither invokes nor governs the module workflow.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "no-fallback",
+      "kind": "quality",
+      "owner": "request decision router",
+      "condition": "An unavailable explicit objective returns a gate without selecting an incidental lexical route.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "compiled-contract",
+      "kind": "validation",
+      "owner": "AlchLang compiler evidence",
+      "condition": "Fresh compilation is byte-identical and registry, lifecycle, capability, and identity cases remain orthogonal.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": null,
+    "trace_events": ["registry-route-resolved", "availability-receipt-recorded", "route-selected", "explicit-route-gated", "validation-completed"],
+    "signal_grouping": "route_id and availability capability id"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "module-to-router-availability",
+        "kind": "capability_handoff",
+        "from_owner": "optional module owner",
+        "to_owner": "request decision router",
+        "applies_to_steps": ["query-route-availability", "select-available-route"],
+        "contract": "Only a typed availability judgment and digest-bound receipt cross the boundary; workflow policy and execution remain with the module owner.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "verified route registry and profile",
+      "execution": "module workflow owner; outside this dispatch",
+      "validation": "router, module-port, and compiled Alch tests",
+      "evidence": "module receipt and route trace",
+      "promotion": "separate owner decision"
+    },
+    "receipts": [
+      {
+        "receipt_id": "route-availability-validation",
+        "producer": "local test suite",
+        "required_fields": ["artifacts", "validation_result", "residue"],
+        "stores": ["local workspace test output"],
+        "on_missing": "block"
+      }
+    ],
+    "promotion_splits": [
+      {
+        "source": "local implementation candidate",
+        "target": "module activation or governance admission",
+        "rule": "Passing route-availability tests grants no activation, workflow authority, publication, or enforcement.",
+        "on_violation": "block"
+      }
+    ]
+  },
+  "promotion_guardrails": [
+    "Do not let a module invent a route absent from the registry.",
+    "Do not treat availability as activation, authorization, or workflow execution.",
+    "Do not make Define, ontology, or Alch packages global prerequisites for unbound routes.",
+    "Do not add discovery or fallback provider priority."
+  ]
+}

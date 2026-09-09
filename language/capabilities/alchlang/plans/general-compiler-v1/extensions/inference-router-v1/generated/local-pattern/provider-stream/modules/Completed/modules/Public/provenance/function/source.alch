@@ -1,0 +1,130 @@
+# Open questions: invocation/PLAN.md.
+domain invocation-completion "invocation-completion"
+profile declarative-function-v1
+portability node-rust-v1
+owner inference-router-owner
+logic sfol-v1
+import Provider from "./provider-response.alch"
+import Public from "./service/inference-result.alch"
+schema Input:
+  request_id: identifier max 128
+  model: identifier max 128
+  result: Provider.Output
+schema Output:
+  status: string const "ok"
+  value: Public.Input
+mapping Text:
+  meaning "Expose normalized provider text."
+  target Public.Text
+  field text = input.result.text
+mapping InputReported:
+  meaning "Preserve input_tokens observation provenance."
+  target Public.Observation
+  field value = input.result.input_tokens
+  field provenance = "provider-reported"
+mapping InputUnavailable:
+  meaning "Preserve input_tokens observation provenance."
+  target Public.Observation
+  field value = null
+  field provenance = "unavailable"
+mapping OutputReported:
+  meaning "Preserve output_tokens observation provenance."
+  target Public.Observation
+  field value = input.result.output_tokens
+  field provenance = "provider-reported"
+mapping OutputUnavailable:
+  meaning "Preserve output_tokens observation provenance."
+  target Public.Observation
+  field value = null
+  field provenance = "unavailable"
+mapping UsageReportedReported:
+  meaning "Carry both independent token observations."
+  target Public.Usage
+  field input_tokens = InputReported
+  field output_tokens = OutputReported
+mapping BodyReportedReported:
+  meaning "Form the public completion using pinned identity."
+  target Public.Input
+  field request_id = input.request_id
+  field model = input.model
+  field output = Text
+  field finish_reason = input.result.finish_reason
+  field usage = UsageReportedReported
+mapping WrappedReportedReported:
+  meaning "Return the public completion."
+  target Output
+  field status = "ok"
+  field value = BodyReportedReported
+mapping UsageReportedUnavailable:
+  meaning "Carry both independent token observations."
+  target Public.Usage
+  field input_tokens = InputReported
+  field output_tokens = OutputUnavailable
+mapping BodyReportedUnavailable:
+  meaning "Form the public completion using pinned identity."
+  target Public.Input
+  field request_id = input.request_id
+  field model = input.model
+  field output = Text
+  field finish_reason = input.result.finish_reason
+  field usage = UsageReportedUnavailable
+mapping WrappedReportedUnavailable:
+  meaning "Return the public completion."
+  target Output
+  field status = "ok"
+  field value = BodyReportedUnavailable
+mapping UsageUnavailableReported:
+  meaning "Carry both independent token observations."
+  target Public.Usage
+  field input_tokens = InputUnavailable
+  field output_tokens = OutputReported
+mapping BodyUnavailableReported:
+  meaning "Form the public completion using pinned identity."
+  target Public.Input
+  field request_id = input.request_id
+  field model = input.model
+  field output = Text
+  field finish_reason = input.result.finish_reason
+  field usage = UsageUnavailableReported
+mapping WrappedUnavailableReported:
+  meaning "Return the public completion."
+  target Output
+  field status = "ok"
+  field value = BodyUnavailableReported
+mapping UsageUnavailableUnavailable:
+  meaning "Carry both independent token observations."
+  target Public.Usage
+  field input_tokens = InputUnavailable
+  field output_tokens = OutputUnavailable
+mapping BodyUnavailableUnavailable:
+  meaning "Form the public completion using pinned identity."
+  target Public.Input
+  field request_id = input.request_id
+  field model = input.model
+  field output = Text
+  field finish_reason = input.result.finish_reason
+  field usage = UsageUnavailableUnavailable
+mapping WrappedUnavailableUnavailable:
+  meaning "Return the public completion."
+  target Output
+  field status = "ok"
+  field value = BodyUnavailableUnavailable
+result Result:
+  when present(input.result.input_tokens) and present(input.result.output_tokens) yield WrappedReportedReported
+  when present(input.result.input_tokens) and not present(input.result.output_tokens) yield WrappedReportedUnavailable
+  when not present(input.result.input_tokens) and present(input.result.output_tokens) yield WrappedUnavailableReported
+  when not present(input.result.input_tokens) and not present(input.result.output_tokens) yield WrappedUnavailableUnavailable
+
+endpoint Function:
+  target node-http
+  runtime node>=26.8.1
+  method POST
+  path "/internal/invocation-completion"
+  input Input
+  output Output
+  result Result
+  auth-env INFERENCE_INTERNAL_TOKEN
+  max-bytes 262144
+  timeout-ms 5000
+  error-status 422
+  status ok 200

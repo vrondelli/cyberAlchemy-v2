@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/oew.adapter-receipt.v1.json",
+  "title": "Ontology Evidence Workbench Adapter Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "result",
+    "run_id",
+    "created_at",
+    "source_run",
+    "adapter",
+    "upstream_contract",
+    "artifacts",
+    "determinism",
+    "mapping_counts",
+    "protected_source_check",
+    "evidence_ceiling",
+    "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {"const": "oew.adapter-receipt.v1"},
+    "state": {"const": "receipt-complete"},
+    "result": {"const": "pass"},
+    "run_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "source_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "terminal_receipt_sha256", "authority_effect"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "terminal_receipt_sha256": {"$ref": "#/$defs/digest"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "canonicalization"],
+      "properties": {
+        "name": {"const": "@cyberalchemy/ontology-evidence-workbench"},
+        "version": {"type": "string", "minLength": 1},
+        "canonicalization": {"const": "canonical-json-key-order-v1"}
+      }
+    },
+    "upstream_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "types_sha256",
+        "schema_sha256"
+      ],
+      "properties": {
+        "repository": {"const": "https://github.com/Egonex-AI/Understand-Anything"},
+        "commit": {"pattern": "^[a-f0-9]{40}$", "type": "string"},
+        "types_sha256": {"$ref": "#/$defs/digest"},
+        "schema_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"$ref": "#/$defs/artifact"}
+    },
+    "determinism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["builds_compared", "byte_identical", "graph_sha256", "sidecar_sha256"],
+      "properties": {
+        "builds_compared": {"const": 2},
+        "byte_identical": {"const": true},
+        "graph_sha256": {"$ref": "#/$defs/digest"},
+        "sidecar_sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "mapping_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_nodes",
+        "presentation_nodes",
+        "sidecar_nodes",
+        "source_relations",
+        "presentation_edges",
+        "sidecar_edges"
+      ],
+      "properties": {
+        "source_nodes": {"type": "integer", "minimum": 1},
+        "presentation_nodes": {"type": "integer", "minimum": 1},
+        "sidecar_nodes": {"type": "integer", "minimum": 1},
+        "source_relations": {"type": "integer", "minimum": 1},
+        "presentation_edges": {"type": "integer", "minimum": 1},
+        "sidecar_edges": {"type": "integer", "minimum": 1}
+      }
+    },
+    "protected_source_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_subset_sha256",
+        "relation_subset_sha256",
+        "read_only",
+        "authority_effect"
+      ],
+      "properties": {
+        "node_subset_sha256": {"$ref": "#/$defs/digest"},
+        "relation_subset_sha256": {"$ref": "#/$defs/digest"},
+        "read_only": {"const": true},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "evidence_ceiling": {"type": "string", "minLength": 1},
+    "authority_effect": {"const": "none"}
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path", "sha256", "size_bytes"],
+      "properties": {
+        "role": {"enum": ["presentation-graph", "evidence-sidecar"]},
+        "path": {"enum": ["presentation-graph.json", "evidence-sidecar.json"]},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

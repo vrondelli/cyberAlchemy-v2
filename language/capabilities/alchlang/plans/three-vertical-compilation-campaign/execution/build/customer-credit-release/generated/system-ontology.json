@@ -1,0 +1,238 @@
+{
+  "authority_effect": "none",
+  "business_nodes": [
+    {
+      "id": "business:customer",
+      "meaning": "The customer whose approved credit may be released.",
+      "role": "ontology-term"
+    },
+    {
+      "id": "business:risk-assessment",
+      "meaning": "The sourced current risk score and its provenance.",
+      "role": "ontology-term"
+    },
+    {
+      "id": "business:credit-decision",
+      "meaning": "The customer credit lifecycle state.",
+      "role": "ontology-term"
+    }
+  ],
+  "ontology_id": "cav2.alchlang.example.customer-credit-release.system",
+  "relations": [
+    {
+      "id": "approved-release-enforces-release-credit",
+      "source": "system:customer-credit-release:approved-release",
+      "target": "system:customer-credit-release:release-credit",
+      "type": "enforces"
+    },
+    {
+      "id": "credit-release-authority-enforces-release-credit",
+      "source": "system:customer-credit-release:credit-release-authority",
+      "target": "system:customer-credit-release:release-credit",
+      "type": "enforces"
+    },
+    {
+      "id": "credit-released-transitions-credit-decision",
+      "source": "system:customer-credit-release:credit-released",
+      "target": "system:customer-credit-release:credit-decision",
+      "type": "transitions"
+    },
+    {
+      "id": "customer-emits-credit-released",
+      "source": "system:customer-credit-release:customer",
+      "target": "system:customer-credit-release:credit-released",
+      "type": "emits"
+    },
+    {
+      "id": "customer-performs-release-credit",
+      "source": "system:customer-credit-release:customer",
+      "target": "system:customer-credit-release:release-credit",
+      "type": "performs"
+    },
+    {
+      "id": "high-risk-confirmation-enforces-release-credit",
+      "source": "system:customer-credit-release:high-risk-confirmation",
+      "target": "system:customer-credit-release:release-credit",
+      "type": "enforces"
+    },
+    {
+      "id": "release-credit-produces-credit-released",
+      "source": "system:customer-credit-release:release-credit",
+      "target": "system:customer-credit-release:credit-released",
+      "type": "produces"
+    },
+    {
+      "id": "release-credit-reads-customer",
+      "source": "system:customer-credit-release:release-credit",
+      "target": "system:customer-credit-release:customer",
+      "type": "reads"
+    },
+    {
+      "id": "risk-provenance-known-enforces-release-credit",
+      "source": "system:customer-credit-release:risk-provenance-known",
+      "target": "system:customer-credit-release:release-credit",
+      "type": "enforces"
+    }
+  ],
+  "schema_version": "cav2.alchlang.generated-system-ontology/v1-candidate",
+  "source_graph_sha256": "2a7cea7605c29ef85db1a5d359dbdb26a1d7d94856c0d74338362581cc298640",
+  "system_nodes": [
+    {
+      "body": {
+        "description": "Credit may be released only from approved state.",
+        "predicate": "status-equals-approved"
+      },
+      "id": "system:customer-credit-release:approved-release",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Customer credit release lifecycle.",
+        "initial": "pending",
+        "states": [
+          "pending",
+          "approved",
+          "rejected",
+          "released"
+        ],
+        "transitions": [
+          {
+            "effect_event_ref": null,
+            "guard_ref": null,
+            "source_state": "pending",
+            "target_state": "approved",
+            "transition_id": "approve-credit"
+          },
+          {
+            "effect_event_ref": null,
+            "guard_ref": null,
+            "source_state": "pending",
+            "target_state": "rejected",
+            "transition_id": "reject-credit"
+          },
+          {
+            "effect_event_ref": "customer-credit-release:credit-released",
+            "guard_ref": "customer-credit-release:approved-release",
+            "source_state": "approved",
+            "target_state": "released",
+            "transition_id": "release-credit"
+          }
+        ]
+      },
+      "id": "system:customer-credit-release:credit-decision",
+      "role": "State Machine"
+    },
+    {
+      "body": {
+        "description": "The confirmation must come from the bounded credit authority.",
+        "predicate": "credit-authority-current"
+      },
+      "id": "system:customer-credit-release:credit-release-authority",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Credit was released after all checks passed.",
+        "event_type": "credit-released",
+        "occurred_at_policy": "required",
+        "occurrence_id": {
+          "field_id": "occurrence-id",
+          "required": true,
+          "type_ref": {
+            "kind": "primitive",
+            "name": "uuid"
+          }
+        },
+        "payload": [
+          {
+            "field_id": "customer-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "amount",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "decimal"
+            }
+          }
+        ],
+        "version": "1"
+      },
+      "id": "system:customer-credit-release:credit-released",
+      "role": "Event"
+    },
+    {
+      "body": {
+        "description": "The customer whose approved credit may be released.",
+        "fields": [
+          {
+            "field_id": "customer-id",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "uuid"
+            }
+          },
+          {
+            "field_id": "risk-score",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "integer"
+            }
+          },
+          {
+            "field_id": "status",
+            "required": true,
+            "type_ref": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          }
+        ],
+        "identity_field": "customer-id"
+      },
+      "id": "system:customer-credit-release:customer",
+      "role": "Entity"
+    },
+    {
+      "body": {
+        "description": "Risk score at or below 472 requires human confirmation.",
+        "predicate": "high-risk-requires-confirmation"
+      },
+      "id": "system:customer-credit-release:high-risk-confirmation",
+      "role": "Rule"
+    },
+    {
+      "body": {
+        "description": "Attempt to release approved credit.",
+        "effects": [
+          "credit-released"
+        ],
+        "failure_continuation": "return-denied-or-blocked",
+        "guard": "approved-release+risk-provenance-known+high-risk-confirmation+credit-release-authority",
+        "reads": [
+          "customer"
+        ],
+        "writes": [
+          "customer.status"
+        ]
+      },
+      "id": "system:customer-credit-release:release-credit",
+      "role": "Operation"
+    },
+    {
+      "body": {
+        "description": "Risk provenance must be known before release.",
+        "predicate": "risk-provenance-known"
+      },
+      "id": "system:customer-credit-release:risk-provenance-known",
+      "role": "Rule"
+    }
+  ]
+}

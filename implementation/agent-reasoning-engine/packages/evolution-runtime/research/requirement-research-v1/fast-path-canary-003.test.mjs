@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import test from 'node:test';
+import {buildFastPathCanaryManifest003,runLocalCanary003,verifyFastPathCanaryManifest003,verifyLiveCanary003,verifyLocalCanary003} from './run-fast-path-canary-003.mjs';
+const read=name=>JSON.parse(readFileSync(new URL(name,import.meta.url),'utf8'));
+test('canary 003 remains historical and detects expanded grammar source drift',()=>{const saved=read('fast-path-canary-manifest-003.json');
+  assert.notDeepEqual(saved,buildFastPathCanaryManifest003());assert.equal(verifyFastPathCanaryManifest003(saved,false),true);
+  assert.equal(verifyFastPathCanaryManifest003(saved,true),false);
+  assert.equal(saved.counterevidence_result_digest,read('fast-path-live-canary-result-002.json').result_digest);});
+test('canary 003 local result preserves strict routing',()=>{const manifest=read('fast-path-canary-manifest-003.json');
+  assert.throws(()=>runLocalCanary003(manifest));const historical=runLocalCanary003(manifest,false);
+  assert.equal(verifyLocalCanary003(historical,manifest,false),true);assert.equal(historical.summary.passed,24);assert.equal(historical.summary.model_calls,0);});
+test('saved canary 003 results are exact and tamper evident',()=>{const manifest=read('fast-path-canary-manifest-003.json'),local=read('fast-path-local-result-003.json'),live=read('fast-path-live-canary-result-003.json');
+  assert.equal(verifyLocalCanary003(local,manifest,false),true);assert.equal(verifyLiveCanary003(live,manifest),true);assert.equal(verifyLiveCanary003({...live,summary:{...live.summary,model_calls:0}},manifest),false);});

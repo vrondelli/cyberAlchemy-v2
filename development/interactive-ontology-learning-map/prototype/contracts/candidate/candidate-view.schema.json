@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/schemas/iolm/candidate-view/v1",
+  "title": "IOLM Candidate Normalized View",
+  "description": "A non-authoritative normalized candidate graph with stable identities and record-level provenance.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "posture",
+    "authority",
+    "candidate_id",
+    "project_id",
+    "source_set_digest",
+    "compiler",
+    "provenance",
+    "nodes",
+    "edges"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "iolm-candidate-view/v1"},
+    "posture": {"const": "candidate"},
+    "authority": {"const": "candidate-normalized-read-model"},
+    "candidate_id": {"$ref": "#/$defs/candidate_id"},
+    "project_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "source_set_digest": {"$ref": "#/$defs/digest"},
+    "compiler": {"$ref": "#/$defs/compiler"},
+    "provenance": {
+      "type": "object",
+      "required": [
+        "candidate_input_digest",
+        "candidate_build_receipt_digest",
+        "minted_graph_digest",
+        "minted_source_manifest_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_input_digest": {"$ref": "#/$defs/digest"},
+        "candidate_build_receipt_digest": {"$ref": "#/$defs/digest"},
+        "minted_graph_digest": {"$ref": "#/$defs/digest"},
+        "minted_source_manifest_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "edges": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/edge"}
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(?:\\.[A-Za-z][A-Za-z0-9-]*)+$"
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*\\.[A-Za-z][A-Za-z0-9]*$"
+    },
+    "edge_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*\\.edge\\.[a-z][a-z0-9-]*$"
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "compiler": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "record_provenance": {
+      "type": "object",
+      "required": ["source_path", "source_digest", "source_record_id"],
+      "additionalProperties": false,
+      "properties": {
+        "source_path": {"$ref": "#/$defs/relative_path"},
+        "source_digest": {"$ref": "#/$defs/digest"},
+        "source_record_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "node_id",
+        "feature_id",
+        "source_kind",
+        "intent",
+        "authority_effect",
+        "provenance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {"$ref": "#/$defs/node_id"},
+        "feature_id": {"type": "string", "minLength": 1},
+        "source_kind": {
+          "type": "object",
+          "required": ["namespace", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {"type": "string", "minLength": 1},
+            "value": {"type": "string", "minLength": 1}
+          }
+        },
+        "intent": {"type": "string", "minLength": 1},
+        "authority_effect": {"const": "none"},
+        "provenance": {"$ref": "#/$defs/record_provenance"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": [
+        "edge_id",
+        "source_relation_type",
+        "from",
+        "to",
+        "authority_effect",
+        "provenance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {"$ref": "#/$defs/edge_id"},
+        "source_relation_type": {
+          "type": "object",
+          "required": ["namespace", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "namespace": {"type": "string", "minLength": 1},
+            "value": {"type": "string", "minLength": 1}
+          }
+        },
+        "from": {"$ref": "#/$defs/node_id"},
+        "to": {"$ref": "#/$defs/node_id"},
+        "authority_effect": {"const": "none"},
+        "provenance": {"$ref": "#/$defs/record_provenance"}
+      }
+    }
+  },
+  "x-iolm": {
+    "role": "candidate-normalized-read-model",
+    "authority": "non-authoritative",
+    "forbidden_gate_evidence": ["G-DSV2-SG"]
+  }
+}

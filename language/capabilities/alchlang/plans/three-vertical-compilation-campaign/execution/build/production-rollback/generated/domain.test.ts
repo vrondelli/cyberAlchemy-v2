@@ -1,0 +1,11 @@
+import assert from "node:assert/strict"; import test from "node:test"; import { transition } from "./domain.machine.ts"; import { validateSubject } from "./domain.schema.ts"; import { eventContracts } from "./domain.events.ts"; import { rollbackDeployment, SandboxRollbackAdapter } from "./domain.tools.ts";
+const base = { serviceId: "s-1", incidentActive: true, targetApproved: true, targetCurrent: true, grantCurrent: true, confirmed: true, targetRevision: "r-1" };
+test("generated subject schema checks required fields", () => { validateSubject({ "service-id": "s-1", "current-revision": "r-2", status: "degraded" }); assert.throws(() => validateSubject({ "service-id": "s-1" })); });
+test("generated event contract is versioned", () => assert.equal(eventContracts["rollback-completed"].version, 1));
+test("authorized simulated rollback succeeds", () => { const adapter = new SandboxRollbackAdapter("success"); assert.equal(rollbackDeployment(base, adapter).outcome, "pass"); assert.equal(adapter.calls, 1); assert.equal(adapter.endpoint, null); });
+test("missing confirmation is denied", () => assert.equal(rollbackDeployment({ ...base, confirmed: false }, new SandboxRollbackAdapter("success")).code, "CONFIRMATION_REQUIRED"));
+test("revoked grant is denied", () => assert.equal(rollbackDeployment({ ...base, grantCurrent: false }, new SandboxRollbackAdapter("success")).code, "GRANT_NOT_CURRENT"));
+test("stale target is denied", () => assert.equal(rollbackDeployment({ ...base, targetCurrent: false }, new SandboxRollbackAdapter("success")).code, "TARGET_NOT_CURRENT"));
+test("timeout is uncertain rather than success", () => assert.equal(rollbackDeployment(base, new SandboxRollbackAdapter("timeout")).outcome, "uncertain"));
+test("adapter exposes no real endpoint", () => assert.equal(new SandboxRollbackAdapter("success").endpoint, null));
+test("state transition remains causal", () => assert.deepEqual(transition("rolling-back", "complete-rollback"), { state: "restored", event: "rollback-completed" }));

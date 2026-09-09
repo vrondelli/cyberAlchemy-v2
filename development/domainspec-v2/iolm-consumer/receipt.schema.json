@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://private.domainspec.local/schemas/iolm-domainspec-evidence-consumer-receipt.v1.json",
+  "title": "IOLM DomainSpec Evidence Consumer Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "run_id",
+    "freshness_id",
+    "contract",
+    "upstream",
+    "posture",
+    "iolm",
+    "checks",
+    "negatives",
+    "declared_writes",
+    "residue",
+    "non_admission",
+    "verdict"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "iolm-domainspec-evidence-consumer-receipt/v1"
+    },
+    "receipt_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "freshness_id": {"type": "string", "minLength": 1},
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": {"const": "IOLM-DOMAINSPEC-EVIDENCE-CONSUMER"},
+        "version": {"const": 1},
+        "digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "receipt_id", "receipt_digest", "owner", "handles"],
+      "properties": {
+        "stage": {"enum": ["evf-l0-core", "bte-core"]},
+        "receipt_id": {"type": "string", "minLength": 1},
+        "receipt_digest": {"$ref": "#/$defs/sha256"},
+        "owner": {"type": "string", "minLength": 1},
+        "handles": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/handle"}
+        },
+        "backend_node_kinds": {"type": "integer", "minimum": 0},
+        "backend_signatures": {"type": "integer", "minimum": 0}
+      }
+    },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["graph", "authority_gate", "authority_gate_state", "production_authorized"],
+      "properties": {
+        "graph": {"enum": ["candidate", "authoritative"]},
+        "authority_gate": {"const": "G-DSV2-SG"},
+        "authority_gate_state": {"enum": ["open", "pass"]},
+        "production_authorized": {"const": false}
+      }
+    },
+    "iolm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "snapshot_digest", "semantic_digest", "projection_digests", "deterministic_rebuild", "view_parity"],
+      "properties": {
+        "snapshot_id": {"type": "string", "minLength": 1},
+        "snapshot_digest": {"$ref": "#/$defs/sha256"},
+        "semantic_digest": {"$ref": "#/$defs/sha256"},
+        "projection_digests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["graph", "hierarchy", "table", "get"],
+          "properties": {
+            "graph": {"$ref": "#/$defs/sha256"},
+            "hierarchy": {"$ref": "#/$defs/sha256"},
+            "table": {"$ref": "#/$defs/sha256"},
+            "get": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "deterministic_rebuild": {"const": "pass"},
+        "view_parity": {"const": "pass"}
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "imported_ids_unchanged",
+        "imported_relations_unchanged",
+        "source_provenance_unchanged",
+        "semantic_bytes_unchanged_by_learner_state",
+        "semantic_hash_unchanged_by_navigation_state",
+        "negative_suite_passed"
+      ],
+      "properties": {
+        "imported_ids_unchanged": {"const": "pass"},
+        "imported_relations_unchanged": {"const": "pass"},
+        "source_provenance_unchanged": {"const": "pass"},
+        "semantic_bytes_unchanged_by_learner_state": {"const": "pass"},
+        "semantic_hash_unchanged_by_navigation_state": {"const": "pass"},
+        "negative_suite_passed": {"const": "pass"}
+      }
+    },
+    "negatives": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "uniqueItems": true,
+      "allOf": [
+        {"contains": {"properties": {"class": {"const": "missing"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "empty"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "stale-digest"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "unknown-id"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "duplicate"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "wrong-stage"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "self-authored-upstream"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "fixture-only"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "view-parity-drift"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "semantic-mutating-overlay"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "surviving-negative"}}, "required": ["class"]}}
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["class", "fixture_id", "verdict"],
+        "properties": {
+          "class": {
+            "enum": [
+              "missing",
+              "empty",
+              "stale-digest",
+              "unknown-id",
+              "duplicate",
+              "wrong-stage",
+              "self-authored-upstream",
+              "fixture-only",
+              "view-parity-drift",
+              "semantic-mutating-overlay",
+              "surviving-negative"
+            ]
+          },
+          "fixture_id": {"type": "string", "minLength": 1},
+          "verdict": {"const": "rejected"}
+        }
+      }
+    },
+    "declared_writes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^cyberAlchemy-v2/development/interactive-ontology-learning-map/prototype/runs/domainspec-consumer/"}
+    },
+    "residue": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "non_admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate_authority", "O_spec_ownership", "profile_admission", "fpr_closure", "production", "publication"],
+      "properties": {
+        "predicate_authority": {"const": false},
+        "O_spec_ownership": {"const": false},
+        "profile_admission": {"const": false},
+        "fpr_closure": {"const": false},
+        "production": {"const": false},
+        "publication": {"const": false}
+      }
+    },
+    "verdict": {"const": "pass"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"upstream": {"properties": {"stage": {"const": "evf-l0-core"}}}}},
+      "then": {
+        "properties": {
+          "upstream": {
+            "properties": {
+              "handles": {
+                "additionalProperties": false,
+                "required": ["source", "graph", "obligation", "test_case", "binding", "evaluator", "execution", "positive_receipt", "negative_receipt"],
+                "properties": {
+                  "source": {"$ref": "#/$defs/handle"},
+                  "graph": {"$ref": "#/$defs/handle"},
+                  "obligation": {"$ref": "#/$defs/handle"},
+                  "test_case": {"$ref": "#/$defs/handle"},
+                  "binding": {"$ref": "#/$defs/handle"},
+                  "evaluator": {"$ref": "#/$defs/handle"},
+                  "execution": {"$ref": "#/$defs/handle"},
+                  "positive_receipt": {"$ref": "#/$defs/handle"},
+                  "negative_receipt": {"$ref": "#/$defs/handle"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"upstream": {"properties": {"stage": {"const": "bte-core"}}}}},
+      "then": {
+        "properties": {
+          "upstream": {
+            "required": ["backend_node_kinds", "backend_signatures"],
+            "properties": {
+              "backend_node_kinds": {"const": 13},
+              "backend_signatures": {"const": 16},
+              "handles": {
+                "additionalProperties": false,
+                "required": ["source", "profile", "registry", "schema", "graph", "O_spec", "O_gen", "T_gen", "E_run", "binding", "evaluator", "mutations", "core_receipt"],
+                "properties": {
+                  "source": {"$ref": "#/$defs/handle"},
+                  "profile": {"$ref": "#/$defs/handle"},
+                  "registry": {"$ref": "#/$defs/handle"},
+                  "schema": {"$ref": "#/$defs/handle"},
+                  "graph": {"$ref": "#/$defs/handle"},
+                  "O_spec": {"$ref": "#/$defs/handle"},
+                  "O_gen": {"$ref": "#/$defs/handle"},
+                  "T_gen": {"$ref": "#/$defs/handle"},
+                  "E_run": {"$ref": "#/$defs/handle"},
+                  "binding": {"$ref": "#/$defs/handle"},
+                  "evaluator": {"$ref": "#/$defs/handle"},
+                  "mutations": {"$ref": "#/$defs/handle"},
+                  "core_receipt": {"$ref": "#/$defs/handle"}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

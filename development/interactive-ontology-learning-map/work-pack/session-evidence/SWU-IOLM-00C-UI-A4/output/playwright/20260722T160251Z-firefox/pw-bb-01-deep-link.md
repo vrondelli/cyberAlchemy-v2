@@ -1,0 +1,91 @@
+- generic [active] [ref=e1] [box=0,0,1280,1450]:
+  - generic [ref=e2] [box=0,0,1280,36]:
+    - text: Private fixture-backed candidate demo
+    - generic [ref=e4] [box=605,11,5,15]: ·
+    - text: "authority effect: none"
+    - generic [ref=e5] [box=788,11,5,15]: ·
+    - text: publication unauthorized
+  - main [ref=e6] [box=24,36,1232,1414]:
+    - generic [ref=e7] [box=24,36,1232,74]:
+      - link "Learning Map home" [ref=e8] [cursor=pointer] [box=24,57,155,31]:
+        - /url: /?lens=graph
+        - generic [ref=e9] [box=24,57,31,31]: ⌁
+        - generic [ref=e10] [box=65,64,114,18]: Learning Map
+      - generic "Build identity" [ref=e11] [box=885,58,372,29]:
+        - generic [ref=e12] [box=885,65,137,15]: DomainSpec specimen
+        - code [ref=e13] [box=1034,58,222,29]: key-and-door.fixture-demo.v1
+    - region [ref=e14] [box=24,110,1232,218]:
+      - generic [ref=e15] [box=24,162,784,130]:
+        - paragraph [ref=e16] [box=24,162,784,14]: Interactive ontology · specimen 01
+        - heading "Follow meaning through a small, inspectable system." [level=1] [ref=e17] [box=24,186,784,106]
+      - paragraph [ref=e18] [box=864,189,392,104]: Four records and three relations show how a Player, a Rule, an Operation, and an Event form one traceable model. Every view keeps the same stable identities.
+    - region [ref=e19] [box=24,328,1232,90]:
+      - generic [ref=e20] [box=47,349,402,48]:
+        - paragraph [ref=e21] [box=47,349,402,14]: Choose a reading
+        - paragraph [ref=e22] [box=47,373,402,24]: The complete Key & Door model
+      - group "Projection question" [ref=e23] [box=473,354,563,39]:
+        - button "Whole model" [pressed] [ref=e24] [cursor=pointer] [box=473,354,125,39]
+        - button "What does the Player do?" [ref=e25] [cursor=pointer] [box=606,354,218,39]
+      - generic [ref=e26] [box=1060,358,173,30]:
+        - strong [ref=e27] [box=1081,358,16,30]: "4"
+        - text: nodes
+        - generic [ref=e28] [box=1147,370,4,15]: /
+        - strong [ref=e29] [box=1158,358,16,30]: "3"
+        - text: relations
+    - region [ref=e30] [box=24,446,1232,915]:
+      - generic [ref=e31] [box=25,447,1230,98]:
+        - generic [ref=e32] [box=49,469,335,53]:
+          - paragraph [ref=e33] [box=49,469,335,14]: Three equivalent lenses
+          - heading "One model, different ways in" [level=2] [ref=e34] [box=49,493,335,29]
+        - tablist "Model lens" [ref=e35] [box=986,474,245,43]:
+          - tab "Graph" [selected] [ref=e36] [cursor=pointer] [box=990,478,74,35]
+          - tab "Outline" [ref=e37] [cursor=pointer] [box=1068,478,81,35]
+          - tab "Table" [ref=e38] [cursor=pointer] [box=1153,478,74,35]
+      - generic [ref=e39] [box=25,545,1230,815]:
+        - tabpanel [ref=e40] [box=25,545,928,815]:
+          - group "4 records and 3 directed relations" [ref=e53] [box=143,570,690,315]:
+            - button "Has Key Rule enforces Unlock Door" [ref=e54] [cursor=pointer] [box=250,642,242,94]: enforces
+            - button "Player performs Unlock Door" [ref=e58] [cursor=pointer] [box=250,720,242,94]: performs
+            - button "Unlock Door produces Door Unlocked" [ref=e62] [cursor=pointer] [box=487,717,242,21]: produces
+            - button "Door Unlocked, Event" [ref=e66] [cursor=pointer] [box=654,697,141,61]: EventDoor Unlocked
+            - button "Has Key Rule, Rule" [ref=e69] [cursor=pointer] [box=182,619,141,61]: RuleHas Key Rule
+            - button "Player, Entity" [ref=e72] [cursor=pointer] [box=182,775,141,61]: EntityPlayer
+            - button "Unlock Door, Operation" [pressed] [ref=e75] [cursor=pointer] [box=416,697,142,62]: OperationUnlock Door
+        - complementary [ref=e42] [box=953,545,302,815]:
+          - generic [ref=e43] [box=953,545,302,102]:
+            - paragraph [ref=e44] [box=977,569,254,14]: Persistent provenance
+            - heading "Inspect selection" [level=2] [ref=e45] [box=977,593,254,29]
+          - generic [ref=e46] [box=953,647,302,713]:
+            - paragraph [ref=e78] [box=977,669,254,14]: node
+            - heading "Unlock Door" [level=3] [ref=e79] [box=977,691,254,27]
+            - paragraph [ref=e80] [box=977,722,254,14]: key-and-door.UnlockDoor
+            - generic [ref=e81] [box=977,758,254,572]:
+              - term [ref=e82] [box=977,759,94,37]: Kind
+              - definition [ref=e83] [box=1071,759,160,37]: Operation
+              - term [ref=e84] [box=977,796,94,37]: Feature
+              - definition [ref=e85] [box=1071,796,160,37]: key-and-door
+              - term [ref=e86] [box=977,833,94,37]: Artifact role
+              - definition [ref=e87] [box=1071,833,160,37]: generated-read-model
+              - term [ref=e88] [box=977,870,94,37]: Posture
+              - definition [ref=e89] [box=1071,870,160,37]: candidate
+              - term [ref=e90] [box=977,907,94,53]: Authority effect
+              - definition [ref=e91] [box=1071,907,160,53]: none
+              - term [ref=e92] [box=977,960,94,37]: Validation
+              - definition [ref=e93] [box=1071,960,160,37]: pass
+              - term [ref=e94] [box=977,997,94,53]: Owner route
+              - definition [ref=e95] [box=1071,997,160,53]: private-learning-map-product-owner
+              - term [ref=e96] [box=977,1050,94,53]: Source
+              - definition [ref=e97] [box=1071,1050,160,53]: specs/key-and-door/nodes/unlock-door.json
+              - term [ref=e98] [box=977,1103,94,69]: Source digest
+              - definition [ref=e99] [box=1071,1103,160,69]: b2e4c83af3438251bd0d1757220ce6b6149f67961a2739c716e9fc1d005b5686
+              - term [ref=e100] [box=977,1171,94,37]: Binding
+              - definition [ref=e101] [box=1071,1171,160,37]: key-and-door-pinned-fixture
+              - term [ref=e102] [box=977,1208,94,53]: Binding schema
+              - definition [ref=e103] [box=1071,1208,160,53]: iolm-source-binding/v1
+              - term [ref=e104] [box=977,1261,94,69]: Source set
+              - definition [ref=e105] [box=1071,1261,160,69]: 6316759c5fc26835c1dcdd951d4fdc9e9def708bdbf38941cfe62512b4987b95
+    - generic [ref=e48] [box=24,1361,1232,89]:
+      - paragraph [ref=e49] [box=26,1383,755,23]:
+        - generic [ref=e50] [box=26,1383,118,23]: Validated fixture
+        - text: Read-only projection. No edit, approve, promote, waive, close, publish, rebuild, or source-write action is available.
+      - status [ref=e51] [box=947,1383,307,23]: graph lens · default · selected key-and-door.UnlockDoor

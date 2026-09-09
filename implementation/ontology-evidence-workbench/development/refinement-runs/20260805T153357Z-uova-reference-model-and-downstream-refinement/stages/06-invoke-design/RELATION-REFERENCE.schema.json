@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/oew/relation-reference/v1.2",
+  "title": "OEW reusable relation reference contracts",
+  "description": "Reusable definitions. This is not a KnowledgeScene envelope; KNOWLEDGE-SCENE.v1.2.schema.json owns scene composition.",
+  "oneOf": [
+    {"$ref": "#/$defs/relationRef"},
+    {"$ref": "#/$defs/relationIndexReceipt"},
+    {"$ref": "#/$defs/relationSnapshot"}
+  ],
+  "$defs": {
+    "id": {"type": "string", "minLength": 1},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "nullableToken": {
+      "oneOf": [
+        {"$ref": "#/$defs/id"},
+        {"type": "null"}
+      ]
+    },
+    "relationRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_relation_id", "scene_digest"],
+      "properties": {
+        "source_relation_id": {"$ref": "#/$defs/id"},
+        "scene_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "relationIndexReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_digest",
+        "source_graph_digest",
+        "relation_ids",
+        "relation_count",
+        "facet_set_digest",
+        "digest_profile",
+        "canonicalization_version",
+        "hash_algorithm"
+      ],
+      "properties": {
+        "scene_digest": {"$ref": "#/$defs/digest"},
+        "source_graph_digest": {"$ref": "#/$defs/digest"},
+        "relation_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "relation_count": {"type": "integer", "minimum": 0},
+        "facet_set_digest": {"$ref": "#/$defs/digest"},
+        "digest_profile": {"const": "oew.relation-digest.v1"},
+        "canonicalization_version": {"const": "rfc8785"},
+        "hash_algorithm": {"const": "sha256"}
+      }
+    },
+    "relationSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_schema_version",
+        "ref",
+        "source_graph_digest",
+        "relation_digest",
+        "snapshot_digest",
+        "projection_context",
+        "source_node_id",
+        "source_node_label",
+        "target_node_id",
+        "target_node_label",
+        "exact_predicate",
+        "source_direction",
+        "source_direction_phrase",
+        "visible_label",
+        "direction_label",
+        "color_token",
+        "pattern_token",
+        "evidence_refs",
+        "mapping_loss",
+        "authority_effect",
+        "serializer_version"
+      ],
+      "properties": {
+        "snapshot_schema_version": {"const": "oew.relation-snapshot.v1"},
+        "ref": {"$ref": "#/$defs/relationRef"},
+        "source_graph_digest": {"$ref": "#/$defs/digest"},
+        "relation_digest": {"$ref": "#/$defs/digest"},
+        "snapshot_digest": {"$ref": "#/$defs/digest"},
+        "projection_context": {"enum": ["relation", "portal", "path"]},
+        "source_node_id": {"$ref": "#/$defs/id"},
+        "source_node_label": {"type": "string", "minLength": 1},
+        "target_node_id": {"$ref": "#/$defs/id"},
+        "target_node_label": {"type": "string", "minLength": 1},
+        "exact_predicate": {"$ref": "#/$defs/id"},
+        "source_direction": {"enum": ["forward", "reverse", "bidirectional"]},
+        "source_direction_phrase": {"type": "string", "minLength": 1},
+        "traversal_direction": {"enum": ["with-source", "against-source", "either"]},
+        "traversal_phrase": {"type": "string", "minLength": 1},
+        "visible_label": {"type": "string", "minLength": 1},
+        "direction_label": {"type": "string", "minLength": 1},
+        "color_token": {"$ref": "#/$defs/nullableToken"},
+        "pattern_token": {"$ref": "#/$defs/nullableToken"},
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "mapping_loss": {"enum": ["exact", "generalized", "lossy"]},
+        "authority_effect": {"const": "none"},
+        "serializer_version": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"projection_context": {"enum": ["portal", "path"]}},
+            "required": ["projection_context"]
+          },
+          "then": {"required": ["traversal_direction", "traversal_phrase"]}
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "schema_version": "cav2.essays.agent-runtime.implementation-binding/v1",
+  "binding_id": "cav2.essays.agent-runtime.implementation-binding.v1-candidate",
+  "ontology_id": "cav2.essays.agent-runtime.system-runtime.v1",
+  "dependency_digests": {
+    "domainspec_predecessors_sha256": "4d6c48657c63a23f98f825c6d74cf7934d6bfca3dda3705054b13ddc10cc8653",
+    "compile_receipt_sha256": "fc8f659721a3a999a6bb38645920672a6021959fc37fa31ab6ac17ff7677d1e1",
+    "compiled_graph_sha256": "2f07d9147cc52011c05f7c14eeb8d3dd8aa4d565d4c6a46573d5c89a04aac1bc",
+    "system_ontology_sha256": "a950c997954c1d3f9901f8458b9d546f728329849ab0283f1482b608a0ffa426",
+    "source_manifest_sha256": "62ce8f2da8d839264bc9421fe79aaec7bc2152b653483f3409ea55d90cb42205",
+    "obligation_registry_sha256": "aa7fee000742cfdf3ba9abaeda223a432178d3e28c55df536801f2d95188f1b2",
+    "conformance_bridge_profile_sha256": "d9525a78ddc045a3129b178332ee9239a93e66124477fbc88908d0ece4886f32",
+    "conformance_bridge_coverage_sha256": "0d43050eaa5072ca6470884795204c95da25a0dba1a23ab9e62b36ee16375cbb",
+    "conformance_bridge_residue_sha256": "09f4464d3a15cce8faeed59616dd4d4af6e80ee9f3420685a95b5a1513ad75f4"
+  },
+  "implementation_surfaces": [
+    {
+      "surface_id": "semantic-kernel-and-sqlite",
+      "posture": "implemented-local-candidate",
+      "files": ["src/lib.rs", "src/model.rs", "src/runtime.rs", "src/store.rs", "migrations/001_initial.sql"],
+      "system_nodes": [
+        "system:essays-agent-runtime:workspace",
+        "system:essays-agent-runtime:record-proposal",
+        "system:essays-agent-runtime:proposal-recorded",
+        "system:essays-agent-runtime:accept-proposal",
+        "system:essays-agent-runtime:revision-accepted",
+        "system:essays-agent-runtime:expected-revision-current",
+        "system:essays-agent-runtime:request-idempotent",
+        "system:essays-agent-runtime:work-owner-authorized"
+      ],
+      "obligations": [
+        "CAP-OBL-ESSAYS-AR-001-WORKSPACE-IDENTITY",
+        "CAP-OBL-ESSAYS-AR-002-SINGLE-AUTHORITY",
+        "CAP-OBL-ESSAYS-AR-003-EXPECTED-REVISION",
+        "CAP-OBL-ESSAYS-AR-004-DURABLE-BEFORE-ACK",
+        "CAP-OBL-ESSAYS-AR-005-IDEMPOTENT-REPLAY",
+        "CAP-OBL-ESSAYS-AR-008-SNAPSHOT-QUALIFICATION",
+        "CAP-OBL-ESSAYS-AR-009-PROPOSAL-PROVENANCE",
+        "CAP-OBL-ESSAYS-AR-010-PROPOSAL-NON-MUTATION",
+        "CAP-OBL-ESSAYS-AR-011-OWNER-DISPOSITION"
+      ]
+    },
+    {
+      "surface_id": "cli-client",
+      "posture": "implemented-local-candidate",
+      "files": ["src/bin/essays.rs"],
+      "system_nodes": ["system:essays-agent-runtime:workspace", "system:essays-agent-runtime:record-proposal", "system:essays-agent-runtime:accept-proposal"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-006-CLIENT-PARITY", "CAP-OBL-ESSAYS-AR-007-TRANSPORT-NON-AUTHORITY", "CAP-OBL-ESSAYS-AR-019-BOUNDED-RESOURCES"]
+    },
+    {
+      "surface_id": "local-framed-json",
+      "posture": "codec-only-no-local-listener",
+      "files": ["src/ipc.rs"],
+      "system_nodes": ["system:essays-agent-runtime:record-proposal", "system:essays-agent-runtime:accept-proposal"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-006-CLIENT-PARITY", "CAP-OBL-ESSAYS-AR-007-TRANSPORT-NON-AUTHORITY", "CAP-OBL-ESSAYS-AR-019-BOUNDED-RESOURCES"]
+    },
+    {
+      "surface_id": "loopback-http-sse-daemon",
+      "posture": "http-loopback-only-no-https-dpop",
+      "files": ["src/server.rs", "src/bin/essaysd.rs"],
+      "system_nodes": ["system:essays-agent-runtime:workspace", "system:essays-agent-runtime:record-proposal", "system:essays-agent-runtime:accept-proposal"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-006-CLIENT-PARITY", "CAP-OBL-ESSAYS-AR-007-TRANSPORT-NON-AUTHORITY", "CAP-OBL-ESSAYS-AR-019-BOUNDED-RESOURCES"]
+    },
+    {
+      "surface_id": "playwright-supervisor",
+      "posture": "deny-default-command-construction-only",
+      "files": ["src/browser.rs", "browser/playwright-runner.mjs"],
+      "system_nodes": ["system:essays-agent-runtime:dispatch-browser-effect", "system:essays-agent-runtime:browser-effect-recorded", "system:essays-agent-runtime:work-owner-authorized", "system:essays-agent-runtime:request-idempotent"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-014-CAPABILITY-DENY-DEFAULT", "CAP-OBL-ESSAYS-AR-015-EFFECT-ENVELOPE", "CAP-OBL-ESSAYS-AR-016-UNCERTAIN-EFFECT", "CAP-OBL-ESSAYS-AR-017-BROWSER-EVIDENCE-CUSTODY", "CAP-OBL-ESSAYS-AR-018-SECRET-HANDLES", "CAP-OBL-ESSAYS-AR-019-BOUNDED-RESOURCES"]
+    },
+    {
+      "surface_id": "wasmtime-supervisor",
+      "posture": "proposal-only-command-construction-no-live-host",
+      "files": ["src/wasm.rs"],
+      "system_nodes": ["system:essays-agent-runtime:record-proposal", "system:essays-agent-runtime:work-owner-authorized"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-009-PROPOSAL-PROVENANCE", "CAP-OBL-ESSAYS-AR-010-PROPOSAL-NON-MUTATION", "CAP-OBL-ESSAYS-AR-014-CAPABILITY-DENY-DEFAULT", "CAP-OBL-ESSAYS-AR-019-BOUNDED-RESOURCES"]
+    },
+    {
+      "surface_id": "uncertain-effect-reconciliation",
+      "posture": "not-implemented",
+      "files": [],
+      "system_nodes": ["system:essays-agent-runtime:reconcile-uncertain-effect", "system:essays-agent-runtime:effect-reconciled"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-016-UNCERTAIN-EFFECT"]
+    },
+    {
+      "surface_id": "context-sufficiency-and-correction",
+      "posture": "not-implemented",
+      "files": [],
+      "system_nodes": [],
+      "obligations": ["CAP-OBL-ESSAYS-AR-012-CONTEXT-SUFFICIENCY", "CAP-OBL-ESSAYS-AR-013-CONTEXT-CORRECTION"]
+    },
+    {
+      "surface_id": "tauri-desktop-shell",
+      "posture": "authored-unbuilt-thin-client",
+      "files": ["desktop/src-tauri/Cargo.toml", "desktop/src-tauri/build.rs", "desktop/src-tauri/capabilities/default.json", "desktop/src-tauri/src/main.rs", "desktop/src-tauri/tauri.conf.json", "desktop/dist/index.html"],
+      "system_nodes": ["system:essays-agent-runtime:workspace"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-006-CLIENT-PARITY", "CAP-OBL-ESSAYS-AR-007-TRANSPORT-NON-AUTHORITY"]
+    },
+    {
+      "surface_id": "local-runtime-tests",
+      "posture": "self-test-only",
+      "files": ["tests/runtime.rs"],
+      "system_nodes": ["system:essays-agent-runtime:workspace", "system:essays-agent-runtime:record-proposal", "system:essays-agent-runtime:accept-proposal", "system:essays-agent-runtime:expected-revision-current", "system:essays-agent-runtime:request-idempotent", "system:essays-agent-runtime:work-owner-authorized"],
+      "obligations": ["CAP-OBL-ESSAYS-AR-003-EXPECTED-REVISION", "CAP-OBL-ESSAYS-AR-005-IDEMPOTENT-REPLAY", "CAP-OBL-ESSAYS-AR-010-PROPOSAL-NON-MUTATION", "CAP-OBL-ESSAYS-AR-011-OWNER-DISPOSITION", "CAP-OBL-ESSAYS-AR-014-CAPABILITY-DENY-DEFAULT", "CAP-OBL-ESSAYS-AR-019-BOUNDED-RESOURCES"]
+    },
+    {
+      "surface_id": "build-and-documentation",
+      "posture": "candidate-metadata",
+      "files": [".gitignore", "Cargo.toml", "Cargo.lock", "README.md", "IMPLEMENTATION-LAYERING.md"],
+      "system_nodes": [],
+      "obligations": ["CAP-OBL-ESSAYS-AR-020-D65-TRACEABILITY"]
+    }
+  ],
+  "authority_effect": "none",
+  "claim_ceiling": "Exact candidate binding of current bytes only; no acceptance, admission, independent conformance, merge, release, deployment, or external-effect authority."
+}

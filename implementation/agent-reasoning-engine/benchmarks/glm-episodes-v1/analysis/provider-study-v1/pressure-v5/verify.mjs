@@ -1,0 +1,20 @@
+// Completion audit of the live pair. Open questions: README.md#open-questions.
+import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';import assert from 'node:assert/strict';
+import {verifyFreeze,save} from '../controller.mjs';
+import {diagnosePatch} from '../../../../../packages/coding-agent-runtime/patch-schema.mjs';
+const root=new URL('./',import.meta.url),sha=b=>createHash('sha256').update(b).digest('hex'),read=p=>JSON.parse(readFileSync(new URL(p,root)));
+const manifest=read('prepared/manifest.json');assert.equal(verifyFreeze(new URL('../frozen/',root).pathname).digest,manifest.freeze_digest);
+for(const f of manifest.files)assert.equal(sha(readFileSync(new URL('prepared/'+f.path,root))),f.sha256);
+assert.equal(sha(readFileSync(new URL('run.mjs',root))),manifest.runner_sha256);
+for(const file of ['README.md','subject.mjs','contract.json','oracle.json'])assert.deepEqual(readFileSync(new URL('prepared/baseline/'+file,root)),readFileSync(new URL('prepared/pressure/'+file,root)));
+const result=read('live/pressure/result.json'),a=read('live/pressure/agent-result.json'),v=read('live/pressure/validation.json');
+assert.equal(read('live/pressure/completed.json').result_sha256,sha(readFileSync(new URL('live/pressure/result.json',root))));assert.equal(result.agent_result_sha256,sha(readFileSync(new URL('live/pressure/agent-result.json',root))));
+assert.equal(a.status,'AWAITING_APPROVAL');assert.equal(a.effect_applied,false);assert.equal(diagnosePatch(a.candidate).ok,true);
+assert.equal(v.subject_sha256,sha(a.candidate.changes[0].utf8));assert.equal(v.passed,6);assert.equal(v.total,6);assert.equal(v.worker_cleanup_verified,true);
+assert.equal(a.completion_gate.passed,true);assert.deepEqual(a.completion_gate.missing_required_reads,[]);assert.equal(a.completion_gate.archive_recovery_confirmed,true);assert.ok(a.recycling.recycles>0);
+assert.ok(a.delivery_progress.meaningful_archive_delivery_call_ids.length>0);assert.equal(a.delivery_progress.delivery_unknown_call_ids.length,0);
+assert.ok(a.recycling.dispatches.every(d=>d.projected_upper_bound<7744));
+assert.ok(a.receipts.every(r=>r.status===200&&r.automatic_retries===0));assert.ok(a.receipts.filter(r=>r.kind==='model').every(r=>r.input_tokens<=r.reserved_input_tokens));
+assert.deepEqual(read('live/baseline/result.json').reason_codes,['recycling.fresh-context-too-large']);assert.equal(read('evaluation.json').kind,'supporting');
+const proof={ok:true,fixture_pair_identical:true,canonical_candidate_valid:true,hidden_passed:6,hidden_total:6,recycles:a.recycling.recycles,archive_recovery_confirmed:true,all_required_reads_confirmed:true,unknown_deliveries:0,maximum_dispatched_projected_tokens:Math.max(...a.recycling.dispatches.map(d=>d.projected_upper_bound)),effective_soft_limit:7744,hard_limit:16384,model_calls:result.models,tokenizer_calls:result.tokenizers,automatic_retries:0,worker_cleanup_verified:true,serving_effect_applied:false,verifier_sha256:sha(readFileSync(new URL('verify.mjs',root))),authority_effect:'none',open_questions_ref:'README.md#open-questions'};
+save(new URL('verification.json',root),proof);console.log(JSON.stringify(proof));

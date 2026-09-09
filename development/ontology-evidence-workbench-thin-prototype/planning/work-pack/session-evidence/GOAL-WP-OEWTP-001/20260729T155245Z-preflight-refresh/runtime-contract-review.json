@@ -1,0 +1,116 @@
+{
+  "schema_version": "oewtp.runtime-contract-review.v1",
+  "review_id": "review.oewtp.runtime-contract.20260729",
+  "dispatch_id": "dispatch.oewtp.goal-preflight-refresh.20260729T155245Z",
+  "reviewer": "oewtp_plan_balancer",
+  "capability_ref": "task-session",
+  "mode": "read-only-runtime-contract-audit",
+  "status": "block",
+  "reviewed_artifacts": [
+    "REFRESH-PATCH-PROPOSAL.md",
+    "prepare-planning-repair.mjs",
+    "repair-check.json",
+    "approval-record.schema.json",
+    "arcanum/arcana/task-session/schemas/mutation-admission-request.schema.json",
+    "arcanum/arcana/task-session/schemas/mutation-admission-receipt.schema.json",
+    "arcanum/arcana/task-session/scripts/verify-mutation-readiness.py",
+    "arcanum/spells/invoke/scripts/material_package_validator.py",
+    "arcanum/spells/invoke/refresh.md"
+  ],
+  "verdict": {
+    "proposal_reproducible": true,
+    "proposal_directionally_sound": true,
+    "safe_to_stage": false,
+    "safe_to_apply": false,
+    "planning_apply_route_retired": true
+  },
+  "findings": [
+    {
+      "id": "OEWTP-RUNTIME-001",
+      "owner": "task-session",
+      "severity": "block",
+      "claim": "One allowedWrites set is forced to equal the material package targets and cannot also admit validation-produced outputs.",
+      "evidence": "arcanum/arcana/task-session/scripts/verify-mutation-readiness.py:316-331",
+      "minimum_repair": "Add materialWrites and executionOutputs, require disjoint sets, require their union to equal allowedWrites, and require material package changes, target inventory, and receipt validatedPaths to equal materialWrites."
+    },
+    {
+      "id": "OEWTP-RUNTIME-002",
+      "owner": "task-session",
+      "severity": "block",
+      "claim": "The proposed lifecycle says execution outputs appear after validation even though SWU-002 and SWU-004 produce declared outputs during their validation commands.",
+      "evidence": "OEWTP task contracts for build output, runtime handle, browser ledgers, and screenshot",
+      "minimum_repair": "Use admitted material apply, validation-owned output production, output verification, then terminal Task Session receipt as the last write."
+    },
+    {
+      "id": "OEWTP-RUNTIME-003",
+      "owner": "invoke-refresh",
+      "severity": "block",
+      "claim": "Invoke validates sources and dependencies below the material root while Task Session re-reads the same relative paths below the repository root.",
+      "evidence": "The current proposal stages target bytes only.",
+      "minimum_repair": "Mirror exact controls and dependencies below the staging root at identical repository-relative paths; do not change producer root semantics."
+    },
+    {
+      "id": "OEWTP-RUNTIME-004",
+      "owner": "invoke",
+      "severity": "block",
+      "claim": "The material validator rejects missing approval scope but accepts extra approved paths.",
+      "evidence": "arcanum/spells/invoke/scripts/material_package_validator.py:245-294",
+      "minimum_repair": "Require normalized approval scope to equal both the change target set and target inventory set."
+    },
+    {
+      "id": "OEWTP-RUNTIME-005",
+      "owner": "invoke-refresh",
+      "severity": "block",
+      "claim": "The planning approval is not yet bound by a live validator to the repair-check digest, staged target digests, and material package digest.",
+      "evidence": "approval-record.schema.json and prepare-planning-repair.mjs",
+      "minimum_repair": "Validate the external approval record against its schema and exact live digests before staging or apply; do not hardcode a schema-shaped approximation."
+    },
+    {
+      "id": "OEWTP-RUNTIME-006",
+      "owner": "invoke-refresh",
+      "severity": "block",
+      "claim": "Lexical staging containment does not reject symlinked ancestors and the helper does not re-hash every staged output after write.",
+      "evidence": "prepare-planning-repair.mjs --stage",
+      "minimum_repair": "lstat every existing ancestor, reject symlinks, and verify every post-write byte count and SHA-256 before producing a stage receipt."
+    },
+    {
+      "id": "OEWTP-RUNTIME-007",
+      "owner": "invoke-refresh",
+      "severity": "block",
+      "claim": "The proposed owner receipt contract does not match the installed Refresh report fields and the exact post-apply Plan/Distill receipt paths are unnamed.",
+      "evidence": "arcanum/spells/invoke/refresh.md Evidence Capability Contract",
+      "minimum_repair": "Contract mode, phaseStatus, mutationMode, targetArtifacts, appliedChanges, materialPackage, mutationReady, result, and nextRoute; inventory material targets separately from post-apply receipt outputs."
+    },
+    {
+      "id": "OEWTP-RUNTIME-008",
+      "owner": "invoke-plan-and-distill",
+      "severity": "block",
+      "claim": "The prior Distill pass is bound to planning digests that the repair changes.",
+      "evidence": "Existing WORK-PACK, EXECUTION-PACK, SWU-MANIFEST, and CLOSEOUT digest bindings",
+      "minimum_repair": "Mark prior Plan/Distill evidence stale or superseded, then issue new receipts after the repaired bytes are applied."
+    }
+  ],
+  "decision": {
+    "retired_route": "invoke:refresh:apply-approved on the nine-target planning-only proposal",
+    "next_route": "dispatch-spec:RUNTIME-REPAIR.dispatch.json",
+    "authorization_required": true,
+    "authorization_scope": "Canonical public Arcanum Task Session and Invoke runtime repair plus regeneration of the listed repository-local mirrors; stop before OEW planning or implementation mutation."
+  },
+  "validation": [
+    "Fresh prepare-planning-repair.mjs --check output was byte-identical to repair-check.json.",
+    "The proposed material/output partitions are disjoint and recompose the existing SWU write scopes.",
+    "Installed Task Session and Invoke consumers cannot enforce the proposed lifecycle safely."
+  ],
+  "blockers": [
+    "Task Session split-write admission is absent.",
+    "Invoke exact approval-scope equality is absent.",
+    "The replacement OEW staging, approval, receipt, and revalidation contracts are not yet authored."
+  ],
+  "handoff_note": "Validate and authorize RUNTIME-REPAIR.dispatch.json; do not stage or apply the former planning-only proposal.",
+  "residue": [
+    "WP-OEWTP-001 remains at 0/4 SWUs.",
+    "No planning target is safe to stage or apply yet.",
+    "No implementation or browser acceptance evidence exists yet."
+  ],
+  "claim_ceiling": "Read-only audit evidence. It does not authorize or prove a runtime repair, planning apply, SWU execution, browser acceptance, release, deployment, or production readiness."
+}

@@ -1,0 +1,13 @@
+# Window and turn budget coordination v12
+
+Product frontier: fit long-workload paged delivery at 8K without weakening token reservations. Candidate budgeted-paging-v12 chooses 4000 UTF-16 units and an explicitly scoped 16-model/32-tokenizer cap at 8K; at larger windows it chooses 5500 and the prior 12/24 cap. This is window-based sizing, not adaptive token search. Existing tokenizer admission still verifies every dispatched prompt. The larger 8K call cap is a deliberate cost tradeoff, not an equal-cost comparison with v11.
+
+Runnable product work / DAG: v11 diagnosis -> explicit budget identity + page sizing + known remaining-turn check -> 16-turn resume/recovery and negative tests -> full suite -> source freeze -> fixed four-trial evaluation -> checked report. Six required reads include four large files, requiring 14 native file calls with 4000-unit pages, one archive recovery and one final. The pre-dispatch turn check uses known file lengths and at least one call for each unseen required file; future unknown file lengths can still make a run infeasible. It does not claim a complete advance cost bound. The 24-tool-call ceiling stays unchanged.
+
+Live schedule: long workload, 8K, repetition 1 clear then recent; repetition 2 recent then clear. Four trials, 64 model/128 tokenizer aggregate; per arm 16/32 and 580 seconds, 2640-second batch start deadline. Success target: at least 3/4 verified repairs, all four completion gates and continuity, zero reservation overruns, positive admitted headroom, source integrity and report checks. No retries, replacements or mid-batch changes. Preserve all failures. No fixture, request or oracle changes.
+
+Operational tasks and owners: agent executes owner-authorized bounded calls; product owner retains pilot/default activation. Affected stages: opt-in GLM transport/client identity, source-bound extended history adapter, completion accounting and benchmark evidence. Causal blockers: local checks, source/fixture drift, provider availability. Deferred residue: true measured adaptive page sizing, unknown-workload budget estimation, broader quality repeatability, unseen tasks and pilot activation. Native owner-directed CAV2-D65, no new ontology selector dependencies. Defaults and pinned original retention/archive source files stay unchanged.
+
+## Open Questions
+
+Does the extra bounded call capacity produce correct repairs at 8K? Does repair quality remain unstable despite confirmed complete delivery? What is the cost compared with v11 at larger windows? Neither observable admission nor archive recovery proves absence of provider-internal compaction.

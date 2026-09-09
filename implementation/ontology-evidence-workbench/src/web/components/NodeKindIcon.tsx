@@ -1,0 +1,2 @@
+const ICONS: Readonly<Record<string, string>> = { actor: "◉", context: "⌬", entity: "◇", policy: "⚖", operation: "↻", outcome: "✦", metric: "▥", value: "◆", capability: "⬡", definition: "◈", system: "▣", module: "▧", endpoint: "⇄", table: "▤", state: "◌" };
+export function NodeKindIcon({ kind }: { readonly kind: string }) { const icon = ICONS[kind.toLowerCase()] ?? "○"; return <span className="node-kind-icon" aria-hidden="true">{icon}</span>; }

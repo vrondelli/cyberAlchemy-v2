@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evf.crabs-partial-knowledge-case-record.v1",
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "tool_kind", "case_id", "delivery_order",
+    "move_version", "role_permutation", "association",
+    "expected_visible_order", "process", "observation",
+    "convergence_status", "implementation_invariant_status", "safety_status"
+  ],
+  "properties": {
+    "schema_version": {"const": "evf.crabs-partial-knowledge-case-record/v1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "tool_kind": {"enum": ["native", "sanitizer"]},
+    "case_id": {"type": "string", "pattern": "^delivery-(bc|cb)__version-(b-newer|c-newer)__perm-(rab|rac|rfull)-(rab|rac|rfull)-(rab|rac|rfull)__assoc-(left|right)$"},
+    "delivery_order": {"enum": ["bc", "cb"]},
+    "move_version": {"enum": ["b-newer", "c-newer"]},
+    "role_permutation": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {"enum": ["rab", "rac", "rfull"]}
+    },
+    "association": {"enum": ["left", "right"]},
+    "expected_visible_order": {"enum": ["BAC", "CAB"]},
+    "process": {"$ref": "#/$defs/process"},
+    "observation": {"$ref": "#/$defs/observation"},
+    "convergence_status": {"enum": ["counterexample", "no-counterexample", "not-evaluable"]},
+    "implementation_invariant_status": {"enum": ["violation", "no-detected-violation", "not-evaluable"]},
+    "safety_status": {"enum": ["violation", "no-detected-violation", "not-evaluable", "not-applicable"]}
+  },
+  "$defs": {
+    "raw": {
+      "type": "object",
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+$"},
+        "size": {"type": "integer", "minimum": 0, "maximum": 4194304},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "process": {
+      "type": "object",
+      "required": ["argv", "status", "exit_code", "stdout", "stderr"],
+      "properties": {
+        "argv": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "status": {"enum": ["completed", "timeout", "output-limit", "launch-failed", "not-run"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "stdout": {"$ref": "#/$defs/raw"},
+        "stderr": {"$ref": "#/$defs/raw"}
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": [
+        "construction_ok", "inputs_disjoint", "merge_success",
+        "source_unchanged", "rejection_destination_unchanged",
+        "invariants_ok", "oracle_ok", "merge_calls", "merge_rejections",
+        "visible_order", "normal_form", "sanitizer_diagnostic"
+      ],
+      "properties": {
+        "construction_ok": {"type": "boolean"},
+        "inputs_disjoint": {"type": "boolean"},
+        "merge_success": {"type": "boolean"},
+        "source_unchanged": {"type": "boolean"},
+        "rejection_destination_unchanged": {"type": "boolean"},
+        "invariants_ok": {"type": "boolean"},
+        "oracle_ok": {"type": "boolean"},
+        "merge_calls": {"type": "integer", "minimum": 0, "maximum": 2},
+        "merge_rejections": {"type": "integer", "minimum": 0, "maximum": 2},
+        "visible_order": {"type": "string", "maxLength": 7},
+        "normal_form": {"type": "string", "maxLength": 8191},
+        "sanitizer_diagnostic": {"enum": ["none", "asan", "lsan", "ubsan"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/oew/knowledge-scene/v1.1",
+  "title": "OEW Knowledge Scene",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scene_id", "graph_digest", "view_pack_id", "view_pack_digest", "scope", "nodes", "internal_relations", "cut_relations", "clusters", "portals", "legend", "navigation_frame", "denominators"],
+  "properties": {
+    "schema_version": {"const": "oew.knowledge-scene.v1.1"},
+    "scene_id": {"$ref": "#/$defs/id"},
+    "graph_digest": {"$ref": "#/$defs/digest"},
+    "view_pack_id": {"$ref": "#/$defs/id"},
+    "view_pack_digest": {"$ref": "#/$defs/digest"},
+    "scope": {"enum": ["home", "focus", "path", "full-index"]},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "internal_relations": {"type": "array", "items": {"$ref": "#/$defs/relation"}},
+    "cut_relations": {"type": "array", "items": {"$ref": "#/$defs/relation"}},
+    "clusters": {"type": "array", "items": {"$ref": "#/$defs/compiledCluster"}},
+    "portals": {"type": "array", "items": {"$ref": "#/$defs/portal"}},
+    "legend": {"type": "array", "items": {"$ref": "#/$defs/cue"}},
+    "path_result": {"$ref": "#/$defs/pathResult"},
+    "navigation_frame": {"$ref": "#/$defs/navigationFrame"},
+    "denominators": {"$ref": "#/$defs/denominators"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "stringList": {"type": "array", "items": {"type": "string"}},
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_node_id", "label", "node_kind", "role", "icon_token", "evidence_refs", "authority_effect"],
+      "properties": {
+        "source_node_id": {"$ref": "#/$defs/id"},
+        "label": {"type": "string", "minLength": 1},
+        "summary": {"type": "string"},
+        "node_kind": {"$ref": "#/$defs/id"},
+        "role": {"$ref": "#/$defs/id"},
+        "icon_token": {"$ref": "#/$defs/id"},
+        "evidence_refs": {"$ref": "#/$defs/stringList"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_relation_id", "source_node_id", "target_node_id", "exact_predicate", "source_direction", "presentation_family", "color_token", "pattern_token", "visible_label", "direction_label", "evidence_refs", "mapping_loss", "authority_effect"],
+      "properties": {
+        "source_relation_id": {"$ref": "#/$defs/id"},
+        "source_node_id": {"$ref": "#/$defs/id"},
+        "target_node_id": {"$ref": "#/$defs/id"},
+        "exact_predicate": {"$ref": "#/$defs/id"},
+        "source_direction": {"enum": ["forward", "reverse", "bidirectional"]},
+        "presentation_family": {"$ref": "#/$defs/id"},
+        "color_token": {"$ref": "#/$defs/id"},
+        "pattern_token": {"$ref": "#/$defs/id"},
+        "visible_label": {"type": "string", "minLength": 1},
+        "direction_label": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/stringList"},
+        "mapping_loss": {"enum": ["exact", "generalized", "lossy"]},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "compiledCluster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cluster_id", "visible_member_node_ids"],
+      "properties": {
+        "cluster_id": {"$ref": "#/$defs/id"},
+        "visible_member_node_ids": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "portalConstituent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_relation_id", "inside_endpoint_node_id", "outside_endpoint_node_id", "source_direction", "traversal_direction", "destination_cluster_id"],
+      "properties": {
+        "source_relation_id": {"$ref": "#/$defs/id"},
+        "inside_endpoint_node_id": {"$ref": "#/$defs/id"},
+        "outside_endpoint_node_id": {"$ref": "#/$defs/id"},
+        "source_direction": {"enum": ["forward", "reverse", "bidirectional"]},
+        "traversal_direction": {"enum": ["with-source", "against-source", "either"]},
+        "destination_cluster_id": {"$ref": "#/$defs/id"}
+      }
+    },
+    "portal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["portal_id", "destination_cluster_id", "constituents", "predicate_summary"],
+      "properties": {
+        "portal_id": {"$ref": "#/$defs/id"},
+        "destination_cluster_id": {"$ref": "#/$defs/id"},
+        "constituents": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/portalConstituent"}},
+        "predicate_summary": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate", "color_token", "pattern_token", "text"],
+      "properties": {
+        "predicate": {"$ref": "#/$defs/id"},
+        "color_token": {"$ref": "#/$defs/id"},
+        "pattern_token": {"$ref": "#/$defs/id"},
+        "text": {"type": "string", "minLength": 1}
+      }
+    },
+    "pathHop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_node_id", "source_relation_id", "to_node_id", "traversal_direction"],
+      "properties": {
+        "from_node_id": {"$ref": "#/$defs/id"},
+        "source_relation_id": {"$ref": "#/$defs/id"},
+        "to_node_id": {"$ref": "#/$defs/id"},
+        "traversal_direction": {"enum": ["with-source", "against-source"]}
+      }
+    },
+    "pathResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_result_id", "from_node_id", "to_node_id", "policy_id", "policy_version", "selected_path_index", "paths"],
+      "properties": {
+        "path_result_id": {"$ref": "#/$defs/id"},
+        "from_node_id": {"$ref": "#/$defs/id"},
+        "to_node_id": {"$ref": "#/$defs/id"},
+        "policy_id": {"enum": ["directed-shortest", "undirected-shortest"]},
+        "policy_version": {"const": "1.0.0"},
+        "selected_path_index": {"type": "integer", "minimum": 0, "maximum": 7},
+        "paths": {"type": "array", "maxItems": 8, "items": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/pathHop"}}}
+      }
+    },
+    "navigationFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frame_id", "graph_digest", "view_pack_id", "view_pack_digest", "scope", "selected", "filters", "index_state", "viewport", "panel", "expanded_portal_ids", "focus_fallback_order"],
+      "properties": {
+        "frame_id": {"$ref": "#/$defs/id"},
+        "graph_digest": {"$ref": "#/$defs/digest"},
+        "view_pack_id": {"$ref": "#/$defs/id"},
+        "view_pack_digest": {"$ref": "#/$defs/digest"},
+        "scope": {"enum": ["home", "focus", "path", "full-index"]},
+        "focus_node_id": {"$ref": "#/$defs/id"},
+        "path_request": {"type": "object", "required": ["from_node_id", "to_node_id", "policy_id"], "properties": {"from_node_id": {"$ref": "#/$defs/id"}, "to_node_id": {"$ref": "#/$defs/id"}, "policy_id": {"enum": ["directed-shortest", "undirected-shortest"]}}},
+        "selected": {"type": "object", "required": ["kind"], "properties": {"kind": {"enum": ["none", "node", "relation", "portal", "path-hop"]}, "id": {"type": "string"}}},
+        "filters": {"type": "object"},
+        "index_state": {"type": "object", "required": ["query", "sort_key", "sort_direction"], "properties": {"query": {"type": "string"}, "sort_key": {"enum": ["kind", "label", "predicate", "source-id"]}, "sort_direction": {"enum": ["ascending", "descending"]}}},
+        "viewport": {"type": "object", "required": ["x", "y", "zoom"], "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "zoom": {"type": "number", "minimum": 0.1, "maximum": 4}}},
+        "panel": {"type": "object", "required": ["id", "modal"], "properties": {"id": {"enum": ["none", "inspector", "filters", "legend", "path"]}, "modal": {"type": "boolean"}}},
+        "expanded_portal_ids": {"$ref": "#/$defs/stringList"},
+        "initiating_control_id": {"type": "string"},
+        "focus_target_id": {"type": "string"},
+        "focus_fallback_order": {"type": "array", "minItems": 1, "items": {"enum": ["initiating-control", "selected-entity", "scene-heading", "workbench-heading"]}},
+        "restoration_status": {"enum": ["committed", "pending", "cancelled", "failed-stale-revision", "failed-missing-target"]}
+      }
+    },
+    "denominators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_nodes", "source_relations", "scene_nodes", "internal_relations", "cut_relations", "complete_index_rows", "filtered_index_rows"],
+      "properties": {
+        "source_nodes": {"type": "integer", "minimum": 0},
+        "source_relations": {"type": "integer", "minimum": 0},
+        "scene_nodes": {"type": "integer", "minimum": 0},
+        "internal_relations": {"type": "integer", "minimum": 0},
+        "cut_relations": {"type": "integer", "minimum": 0},
+        "complete_index_rows": {"type": "integer", "minimum": 0},
+        "filtered_index_rows": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

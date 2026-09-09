@@ -1,0 +1,11 @@
+// Fixed study helpers. Open questions: README.md.
+import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';import {verifyFreeze} from '../controller.mjs';
+export const root=new URL('./',import.meta.url),sha=b=>createHash('sha256').update(b).digest('hex'),read=p=>JSON.parse(readFileSync(p)),need=(x,m)=>{if(!x)throw Error(m);};
+export function verify(){const m=read(new URL('prepared/manifest.json',root));need(verifyFreeze(new URL('../frozen/',root).pathname).digest===m.parent_freeze_digest,'parent drift');for(const f of m.sources)need(sha(readFileSync(new URL(f.path,root)))===f.sha256,'source drift '+f.path);for(const f of m.files)need(sha(readFileSync(new URL('prepared/'+f.path,root)))===f.sha256,'fixture drift '+f.path);return {...m,digest:sha(readFileSync(new URL('prepared/manifest.json',root)))};}
+export function planFor(path){const cases=read(path);return {schema_version:'are.public-case-plan/v1',sources:[{path,sha256:sha(readFileSync(path))}],checks:cases.map((c,i)=>({...c,evidence:[{path,selector:'/'+i,value_sha256:sha(JSON.stringify(c))}]}))};}
+export function exposure(a,selected,task,rendered=[],soft=0){
+ const prompts=selected.map(s=>({...s,body:JSON.parse(s.prompt)})),first=prompts.find(p=>p.generation>0),last=prompts.at(-1);
+ const present=(body,f,original=false)=>!!body&&body.messages.some(m=>{try{const o=JSON.parse(m.content);return m.role==='tool'&&o.ok===true&&(!original||o.tool_name==='read-file')&&o.output?.path===f.path&&o.output.sha256===f.sha256&&o.output.utf8===f.utf8;}catch{return false;}});
+ const rejected=rendered.filter(r=>a.receipts.some(x=>x.kind==='tokenizer'&&x.status===200&&x.request_sha256===r.tokenizer_request_sha256&&x.input_tokens+2560>=soft-256));
+ return {facts:task.facts.map(f=>({key:f.key,ever_original:prompts.some(p=>present(p.body,f,true)),before_first_recycle:first?prompts.some(p=>p.sequence<first.sequence&&present(p.body,f,true)):null,at_first_recycle:first?present(first.body,f):null,at_final:present(last?.body,f),answer_at_final:last?JSON.stringify(last.body.messages).includes(f.value):false})),first_recycle_sequence:first?.sequence??null,recycles:a.recycling?.recycles??null,rejected_with_both_originals:rejected.some(r=>task.facts.every(f=>present(JSON.parse(r.prompt),f,true)))};
+}
