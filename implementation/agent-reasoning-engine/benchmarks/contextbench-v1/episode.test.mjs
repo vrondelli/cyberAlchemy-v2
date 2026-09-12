@@ -32,7 +32,7 @@ async function run({arm='baseline',budget=10000,pressure=false,extraTool=false,b
         message={role:'assistant',content:badFinal&&requests===2?'Explanation\n```json\n'+content+'\n```':content};finish_reason='stop';
       }
       const receipt={kind:'model',model:'glm-5.3-flash',output_cap:1024,reasoning_effort:'low',dispatched:true,status:200,input_tokens:200,output_tokens:10,finish_reason};
-      if(incomplete&&requests===incompleteAt){receipt.output_tokens=1024;receipt.finish_reason='length';receipt.request_sha256=hash(stable(bodyForReceipt(prompt,receipt)));receipts.push(receipt);const error=Error('glm.incomplete-output');error.code='incomplete-output';throw error;}
+      if(incomplete&&(Array.isArray(incompleteAt)?incompleteAt.includes(requests):requests===incompleteAt)){receipt.output_tokens=1024;receipt.finish_reason='length';receipt.request_sha256=hash(stable(bodyForReceipt(prompt,receipt)));receipts.push(receipt);const error=Error('glm.incomplete-output');error.code='incomplete-output';throw error;}
       receipt.request_sha256=hash(stable(bodyForReceipt(prompt,receipt)));receipts.push(receipt);
       return {receipt,final_bytes:stable({message,finish_reason})};
     }});
@@ -130,6 +130,8 @@ test('malformed tool call yields feedback and permits correction in same loop',a
 });
 test('length-limited model output fails without an admitted correction',async()=>{const r=await run({incomplete:true});assert.equal(r.status,'run_error');assert.equal(r.error,'glm.incomplete-output');assert.equal(r.requests,2);assert.equal(r.output_cap_corrections,0);assert.equal(r.receipts.at(-1).finish_reason,'length');});
 test('one admitted concise-action correction retains failed usage and completes',async()=>{const r=await run({incomplete:true,incompleteCorrections:1});assert.equal(r.status,'final_context_selected',r.error);assert.equal(r.requests,3);assert.equal(r.output_cap_corrections,1);assert.equal(r.receipts.length,3);assert.equal(r.receipts[1].finish_reason,'length');assert.ok(r.captures.at(-1).prompt.includes('previous response reached the fixed output-token cap'));});
+test('two admitted corrections retain both failed receipts and then complete once',async()=>{const r=await run({incomplete:true,incompleteAt:[2,3],incompleteCorrections:2});assert.equal(r.status,'final_context_selected',r.error);assert.equal(r.requests,4);assert.equal(r.output_cap_corrections,2);assert.equal(r.receipts.length,4);assert.deepEqual(r.receipts.slice(1,3).map(x=>x.finish_reason),['length','length']);assert.ok(r.captures.at(-1).prompt.includes('minimum valid response'));});
+test('a third length response stops after exactly two admitted corrections',async()=>{const r=await run({incomplete:true,incompleteAt:[2,3,4],incompleteCorrections:2});assert.equal(r.status,'run_error');assert.equal(r.error,'glm.incomplete-output');assert.equal(r.requests,4);assert.equal(r.output_cap_corrections,2);assert.equal(r.receipts.length,4);assert.deepEqual(r.receipts.slice(1).map(x=>x.finish_reason),['length','length','length']);});
 test('recycle-boundary state is presented once when its first dispatch reaches the output cap',async()=>{
   const r=await run({pressure:true,taskState:true,incomplete:true,incompleteAt:3,incompleteCorrections:1});
   assert.equal(r.status,'final_context_selected',r.error);assert.equal(r.recycling.recycles,1);

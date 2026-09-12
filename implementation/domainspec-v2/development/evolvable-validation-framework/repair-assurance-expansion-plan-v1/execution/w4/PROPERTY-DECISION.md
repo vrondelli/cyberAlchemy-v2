@@ -25,11 +25,15 @@ chosen.
 ## Preflight finding
 
 The prior adoption report is useful candidate evidence, but it cannot be reused
-as a current execution binding. Formal owner approval is false. Its recorded
-runner and source-proposal digests no longer match current bytes, and its
-consumer implementation paths are absent from this checkout. The schema and
-validator handles still match. After owner selection, the transfer must locate
-or restore the real consumer and freeze a new binding before executing.
+as a current execution binding. Formal owner approval is false. The copied
+`current-candidate-v9` report points at snapshot runner and proposal paths whose
+bytes do not match its hashes; the exact recorded bytes still exist under the
+active `implementation/domainspec-v2/impl` tree. The [consumer lookup](CONSUMER-LOOKUP.md)
+found no real Poker Team consumer or adapter source in this repository or its
+local Git history. After owner selection, the transfer must restore that
+consumer from an authorized source, reconcile the selected meaning with the
+current operations document whose recorded digest has also drifted, and freeze
+a new binding before executing.
 
 ## Claim boundary
 

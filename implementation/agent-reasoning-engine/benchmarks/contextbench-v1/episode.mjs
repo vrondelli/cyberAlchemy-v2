@@ -40,7 +40,7 @@ export async function runEpisode({task, arm, client, recycler, tools, execute_to
   const taskStateIncludeOutcomes=limits.task_state_include_outcomes??true;
   if(typeof taskStateProjection!=='boolean'||typeof taskStateIncludeOutcomes!=='boolean'||(taskStateProjection&&(!uint(limits.task_state_bytes)||limits.task_state_bytes<256||!uint(limits.task_state_tokens)||!uint(limits.task_state_evidence)||!uint(limits.task_state_outcomes))))throw Error('episode.invalid-task-state-policy');
   const incompleteOutputCorrections=limits.incomplete_output_corrections??0;
-  if(!uint(incompleteOutputCorrections)||incompleteOutputCorrections>1)throw Error('episode.invalid-incomplete-output-policy');
+  if(!uint(incompleteOutputCorrections)||incompleteOutputCorrections>2)throw Error('episode.invalid-incomplete-output-policy');
   if(continuation!==null){
     if(!continuation||continuation.schema_version!==CONTINUATION_SCHEMA)throw Error('episode.continuation-schema');
     const {continuation_digest,...body}=continuation;
@@ -151,22 +151,25 @@ export async function runEpisode({task, arm, client, recycler, tools, execute_to
           return [full,deferred];
         }}:{})});
       let generated;
-      try{generated=await generateStep();}
-      catch(e){
-        if(e.message==='glm.incomplete-output'&&output_cap_corrections<incompleteOutputCorrections){
+      while(generated===undefined){
+        try{generated=await generateStep();}
+        catch(e){
+          if(e.message==='glm.incomplete-output'&&output_cap_corrections<incompleteOutputCorrections){
           const failedReceipt=client.receipts.at(-1);
           if(failedReceipt?.kind!=='model'||failedReceipt.finish_reason!=='length')throw Error('episode.incomplete-output-receipt-missing');
           recordStatePresentation(failedReceipt,'incomplete-output');
           output_cap_corrections++;
           recycler.acknowledgeIncompleteOutput();
-          pendingOutputCapFeedback='The previous response reached the fixed output-token cap and was discarded. Retry with one concise action. If using a repository tool, make one small tool call and split larger work across later requests. Do not repeat a large patch. All failed and corrective tokens count toward the original budgets.';
+          pendingOutputCapFeedback=output_cap_corrections===1?
+            'The previous response reached the fixed output-token cap and was discarded. Retry with one concise action. If using a repository tool, make one small tool call and split larger work across later requests. Do not repeat a large patch. All failed and corrective tokens count toward the original budgets.':
+            'A second response reached the fixed output-token cap and was discarded. Use the minimum valid response now: exactly one small repository tool call, or the required terminal submission if the task is complete. Do not explain, batch calls, or emit a patch. All tokens still count toward the original budget.';
           await on_event({kind:'incomplete-output-correction',step,correction:output_cap_corrections,maximum:incompleteOutputCorrections});
-          generated=await generateStep();
-        }else{
+          continue;
+          }
           if(!switchToFinalization||e.message!=='recycling.dispatch-admission-denied')throw e;
           finalizing=true;switchToFinalization=false;
           await on_event({kind:'finalization-start',step,reason:'reserved-total-token-capacity'});
-          generated=await generateStep();
+          continue;
         }
       }
       const receipt_index=client.receipts.lastIndexOf(generated.receipt);
