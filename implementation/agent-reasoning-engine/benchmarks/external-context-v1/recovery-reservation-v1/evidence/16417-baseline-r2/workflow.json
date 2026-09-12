@@ -1,0 +1,48 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The shadow-check in Attribute.js (`local_binding.node !== binding.node`) bails out even when the shadowing binding is declared entirely inside the handler function, so such handlers are not hoisted although they need no outer params.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:210-214",
+        "baseline compiled_client: button_1.__click inline arrow, button_2.__click = [on_click]",
+        "assertion ARE_EXPECTED_HOISTED_CALLBACK fails only for button_1 (shadowed local `index`)"
+      ],
+      "prediction": "Skipping the shadow bail when the resolved binding's declaration node lies within the target function's start/end range will hoist B's handler to a shared on_click while keeping A's (closes over each `index`) inline and C unchanged.",
+      "falsifier": "If hoisting B yields a handler referencing the outer each `index` (wrong closure), or A/C hoisting changes, the positional check is wrong and another mechanism is needed."
+    },
+    {
+      "claim": "Alternative: bail based on scope depth — a binding declared inside the handler has binding.scope.function_depth greater than target_function.metadata.scope.function_depth, so it needs no hoisted param.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/shared/function.js:8-11 sets node.metadata.scope = context.state.scope",
+        "shared/function.js uses function_depth comparisons elsewhere"
+      ],
+      "prediction": "A function_depth-based skip also hoists B; identical result to the positional check unless metadata.scope is the enclosing scope rather than the function's own scope.",
+      "falsifier": "If metadata.scope points at the enclosing scope (depths equal), the depth check never triggers and B stays inline."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "4c91d391dc4b7024cb7033f3df9f3fa4a942b99dd35c03da2d99ddabb4e74bf6",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js",
+          "before_sha256": "147d868ef5848345c35482e58efda1d1e95ea9c7ced80afe351a1b7eafc1c212",
+          "after_sha256": "d8832cd4289e9250571b4206a77b32ce9625967e8250940a99c41fe4d91594fa"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "e1bb75e469e8e5c6b6e626c3e9ce9f5ad236ebddf135064fad4542deb4150201",
+        "excerpt": "ARE_PUBLIC_COMPILER_PASS\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "fa1a98e56d24440629d1066cc4b0c6ed97f0698e8f1d2ed4c1ad735b4f384947",
+    "excerpt": "file:///tmp/are-public-compiler.mjs:13\nif(!hoisted(B.right))throw Error('ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback');\n                           ^\n\nError: ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback\n    at file:///tmp/are-public-compiler.mjs:13:28\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v20.19.5\n"
+  }
+}

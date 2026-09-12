@@ -49,6 +49,15 @@ RWO issues W0 and M0 together with `max_parallelism = 2`. The Python host launch
 
 ## Construction frontier
 
+An additive [interaction-v1 successor](interaction-dynamics/REPORT.md) now implements
+and tests the bounded dynamics portion of W0 and supplies controlled evidence for
+future W5 work. Its 19 focused tests and 70 repeated comparison cases are complete.
+D5 full regression remains blocked by missing legacy RWO source/binaries; the
+dependency/environment owner owns that prerequisite. The original candidate and
+UI checkpoints remain intact. W2/W3/W4/W5/M2 are not completed by this local work.
+The [reviewed interaction plan](interaction-dynamics/PLAN.md) is historical planning;
+the implementation report owns its current stage state and open questions.
+
 The first candidate covers D0–D2, C0, W0–W1, M0, J0–J1. Its exact test state and digest are in `evidence/epoch-001/verification.json` and `evidence/epoch-001/candidate.json`; owner review and approval remain distinct R0/R1 nodes. A local candidate decision never authorizes later live exchange or hosting scope.
 
 Runnable next construction work:
@@ -80,4 +89,3 @@ No operational-support node is on the current prototype's dependency path. The f
 The first candidate must demonstrate independent branch execution, resource conservation, deterministic replay, intent ownership and revision checks, idempotency, immutable artifact validation, bounded version-specific dataset consumption, quarantine without catalog publication, native RWO cycle rejection and joins, plus a Godot replay of the generated events. Evidence only supports this local scope.
 
 Open questions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
-

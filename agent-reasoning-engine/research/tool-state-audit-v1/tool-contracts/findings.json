@@ -1,0 +1,214 @@
+{
+  "schema_version": "are.tool-contract-audit-findings/v1",
+  "audit_id": "tool-state-audit-v1-tool-contracts",
+  "authority_effect": "none",
+  "cost_metric": "total model input plus output tokens",
+  "findings": [
+    {
+      "id": "TC-001",
+      "title": "A malformed GLM inspection call ends the run before the model can repair it",
+      "severity": "high",
+      "status": "current-reusable-defect",
+      "evidence_posture": "source-reproduced",
+      "responsibility": ["harness-implementation", "model-trigger"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/tools.mjs", "lines": "33-47", "claim": "validateCalls throws a typed GlmError for an invalid batch."},
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/agent.mjs", "lines": "286-310,333-334", "claim": "Validation occurs before any tool result is appended; the outer catch returns BLOCK. The typed host reason is retained, but no correction reaches the model."}
+      ],
+      "reproduction": "Call validateCalls with a read-file call that omits path. It throws glm.tool-arguments-invalid; runGlmAgent catches it and terminates rather than appending a rejected-call observation.",
+      "likely_token_impact": "All tokens already spent on the episode become unable to contribute to a completed repair; a fresh episode would repeat context and investigation tokens.",
+      "repair_candidate": "Represent safe schema/protocol rejection as a bounded tool result, consume one turn, and continue when the remaining completion budget is sufficient. Keep batch validation before effects.",
+      "meaningful_validation": "An integration test emits one malformed read, receives field-level corrective feedback, then performs the valid read and submits a verified candidate; mixed batches still execute no calls until the whole batch is admitted."
+    },
+    {
+      "id": "TC-002",
+      "title": "Recovery reservation can remove the read tool required by its own staging correction",
+      "severity": "high",
+      "status": "current-reusable-defect",
+      "evidence_posture": "live-observed-and-source-confirmed",
+      "responsibility": ["harness-design", "harness-implementation"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/phases.mjs", "lines": "7-16", "claim": "The reserved checkpoint exposes only record/report at step 10 and stage/report at step 14 while no candidate exists."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/revision-phases.mjs", "lines": "13-15", "claim": "A failed exact match explicitly instructs the model to reread original source."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-reserved-r2/events.json", "event_index": 25, "claim": "At step 14 the model used report_unable with reason placeholder; no read tool was available at the checkpoint."}
+      ],
+      "reproduction": "At reserved step 14 with hypotheses present and candidates empty, phaseFor returns stage_patch_candidate and report_unable only. Make staging return old_text must match exactly once; the next phase still cannot expose read_file.",
+      "likely_token_impact": "Reserved turns cannot be spent on the evidence needed to correct a rejected edit, so prior investigation tokens do not lead to a candidate and the remaining calls collapse into repeated invalid staging or inability.",
+      "repair_candidate": "Make reservation outcome-driven: after a staging rejection, expose one source-bound recovery read or a typed exact-match helper while preserving the test/finalize reserve.",
+      "meaningful_validation": "A deterministic phase test drives an old_text mismatch at the checkpoint and proves the next turn can recover the exact source, restage once, test, and terminate within the fixed budget."
+    },
+    {
+      "id": "TC-003",
+      "title": "GLM paging is applied after the read runtime's 65,536-byte result limit",
+      "severity": "high",
+      "status": "current-reusable-defect",
+      "evidence_posture": "source-reproduced",
+      "responsibility": ["runtime-implementation"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/read-only-tools.mjs", "lines": "44-56,73-78", "claim": "read-file serializes the whole file and rejects results above maximum_result_bytes."},
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/agent.mjs", "lines": "301-303", "claim": "The agent invokes full read-file first and only then calls pageObservation."},
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/paging.mjs", "lines": "9-20", "claim": "Paging expects an already successful full-file observation."}
+      ],
+      "reproduction": "A local call to createReadOnlyToolRuntime with the 149,356-byte feedback-timing closeout.json allowlisted returned {ok:false, reason_codes:[\"tool.result-limit-exceeded\"]}; the page adapter receives no source body to slice.",
+      "likely_token_impact": "The model may spend read turns retrying a file that the advertised paging contract cannot deliver, and a required-read completion gate can become unsatisfiable.",
+      "repair_candidate": "Implement range-aware reading below the result-size check and compute the full-file digest without placing the full source in the tool result.",
+      "meaningful_validation": "Read a source larger than the result ceiling in gap-free UTF-16 pages, verify every result remains bounded, assemble to the pinned hash, and pass required-file delivery without any full result."
+    },
+    {
+      "id": "TC-004",
+      "title": "The advertised patch schema does not bind each path to its own file digest",
+      "severity": "medium",
+      "status": "current-reusable-defect",
+      "evidence_posture": "source-reproduced",
+      "responsibility": ["schema-implementation"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/patch-schema.mjs", "lines": "78-81", "claim": "path and expected_file_sha256 are populated as independent enums."},
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/submission.mjs", "lines": "13-22", "claim": "parseSubmission later performs the missing path-to-digest binding check."}
+      ],
+      "reproduction": "With allowlisted a.mjs/hash-A and b.mjs/hash-B, validatePatchShape accepts path a.mjs with hash-B against patchToolSchema, while parseSubmission rejects the same candidate as submission.scope-drift.",
+      "likely_token_impact": "The model can spend its terminal output tokens producing a candidate accepted by the shown tool schema but rejected by the local envelope parser.",
+      "repair_candidate": "Generate a oneOf/conditional branch per allowlisted path, or make one file-scoped submission tool per target, so the provider-visible schema expresses the actual binding.",
+      "meaningful_validation": "Validate every cross-product of two paths and two hashes: only the two correct pairs pass both the provider projection and parseSubmission."
+    },
+    {
+      "id": "TC-005",
+      "title": "The native final turn offers submission even when required evidence is incomplete",
+      "severity": "high",
+      "status": "current-reusable-defect",
+      "evidence_posture": "source-inferred",
+      "responsibility": ["harness-design", "harness-implementation"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/agent.mjs", "lines": "216-242", "claim": "nativeReady is true on finalTurn regardless of gate status and replaces all tools with submit_patch_candidate."},
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/agent.mjs", "lines": "318-321", "claim": "The candidate is parsed, then the incomplete gate returns BLOCK."}
+      ],
+      "reproduction": "Reach the final model request with completion_requirements missing one delivered read. The prompt exposes only submit_patch_candidate; a valid submission is rejected by glm.completion-requirements-unmet and prose is rejected as a candidate.",
+      "likely_token_impact": "The reserved final request cannot produce a successful or honest structured outcome, so its input and output tokens are predictably spent on a rejected terminal action.",
+      "repair_candidate": "Expose submit only when the gate passes. When it cannot pass, expose a sole structured report_incomplete terminal carrying the exact missing evidence, or terminate locally without another model call when the result is deterministic.",
+      "meaningful_validation": "Final-turn tests cover gate-passed submission and gate-failed incomplete termination; neither permits an unsupported patch and both yield a parseable terminal result."
+    },
+    {
+      "id": "TC-006",
+      "title": "External staging repeats path in every edit and provides no source-bound correction",
+      "severity": "high",
+      "status": "current-reusable-defect",
+      "evidence_posture": "live-observed-and-source-confirmed",
+      "responsibility": ["tool-contract-design", "model-trigger"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/contract.mjs", "lines": "4-9", "claim": "Every edit independently requires path, old_text, and new_text."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-reserved-r1/events.json", "event_indices": [27, 28, 29, 30, 31, 32], "claim": "Six consecutive stage calls omitted edits[0].path and received the same schema error."}
+      ],
+      "reproduction": "Submit {edits:[{old_text:...,new_text:...}]} repeatedly; allErrors correctly reports the missing field, but the phase and contract do not bind the intended previously read file or change the correction strategy.",
+      "likely_token_impact": "The same schema mistake can consume several full model turns, including repeated prompt context, without gaining task evidence.",
+      "repair_candidate": "Offer a file-scoped staging contract after selection, with path supplied once and enum-bound to inspected mutable paths; add a repeated-error circuit breaker that changes the model-visible correction.",
+      "meaningful_validation": "A trace replay with the first path omitted must recover on the next call, and an identical second omission must terminate or switch to a stronger structured correction rather than repeating indefinitely."
+    },
+    {
+      "id": "TC-007",
+      "title": "Repository read failures are collapsed into an unrepairable generic result",
+      "severity": "medium",
+      "status": "current-reusable-defect",
+      "evidence_posture": "live-observed-and-source-confirmed",
+      "responsibility": ["harness-implementation"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/holdout-v1/run.mjs", "lines": "78-82", "claim": "All list/search/read execution failures become bounded repository tool failed."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/holdout-v1/evidence/16417-32k/events.json", "event_index": 3, "claim": "A schema-valid read_file request failed with only that generic message."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/repo-tool.cjs", "lines": "4-21", "claim": "The backend has distinguishable path, range, size, UTF-8, and operation failures before the runner erases them."}
+      ],
+      "reproduction": "Request a schema-valid but untracked read path through the current runner. The backend distinguishes path not permitted; the tool result exposes only bounded repository tool failed.",
+      "likely_token_impact": "The model must guess whether to correct a path, range, encoding, size, or infrastructure condition and may repeat searches or reads.",
+      "repair_candidate": "Map backend failures to a small safe reason-code vocabulary with corrective fields such as requested_path and permitted recovery action; retain raw diagnostics only in local evidence.",
+      "meaningful_validation": "Tests independently provoke untracked path, out-of-range start, oversized file, invalid UTF-8, and infrastructure failure and assert distinct safe model-visible codes."
+    },
+    {
+      "id": "TC-008",
+      "title": "Checkpointed task state is static while useful dynamic state is maintained by a separate runner",
+      "severity": "medium",
+      "status": "current-design-gap",
+      "evidence_posture": "source-inferred",
+      "responsibility": ["architecture-design", "presentation-workflow"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/packages/coding-agent-runtime/context-recycling.mjs", "lines": "63-71,89-93,137,158-159", "claim": "boundState is cloned once and only re-presented; facts, lessons, completed, and pending are never updated by this runtime."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/holdout-v1/run.mjs", "lines": "35-47", "claim": "The runner initializes empty dynamic arrays and separately injects workflow.snapshot on every turn."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/workflow.mjs", "lines": "3-13", "claim": "The separate workflow preserves hypotheses, candidates, tests, and probe counts, but not evolving source conclusions or decision rationale."}
+      ],
+      "reproduction": "Record source findings without calling record_hypotheses, force recycling, and inspect meta.task_state: its facts/lessons remain the initial empty arrays. Raw history is archived, while the only deterministic dynamic presentation is workflow.snapshot.",
+      "likely_token_impact": "Recovering an archived byte sequence or replaying workflow metadata does not by itself restore the model's useful conclusion; the model may reread source and reconstruct reasoning with additional input and output tokens.",
+      "repair_candidate": "Keep deterministic memory maintenance separate from prompts, but add an append-only, source-referenced decision/fact state updated only by explicit typed tools. Render a compact projection of that state without claiming semantic understanding.",
+      "meaningful_validation": "A recycle test proves typed findings and unresolved discriminators survive, remain source-bound, and are rendered once; unrecorded hidden reasoning is neither claimed preserved nor synthesized by the runtime."
+    },
+    {
+      "id": "TC-009",
+      "title": "Stable evidence is duplicated in every external-runner prompt",
+      "severity": "medium",
+      "status": "current-reusable-opportunity",
+      "evidence_posture": "source-confirmed-with-frozen-prompt-examples",
+      "responsibility": ["presentation-workflow"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/run-revision.mjs", "lines": "40,44-50", "claim": "The complete public context is inserted on every turn, then workflow.snapshot is appended."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/workflow.mjs", "lines": "10-12", "claim": "workflow.snapshot repeats a sliced baseline excerpt already represented in public context."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-baseline-r1/captures.json", "claim": "Frozen prompts show public baseline/compiled evidence plus the repeated workflow baseline on later turns."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/analysis/capture-probe-v1/evidence/10000-recycled.json", "claim": "Captured current GLM prompts can contain an inspected-source projection and the retained original read result for the same source."}
+      ],
+      "reproduction": "Inspect two consecutive capture.original values after baseline registration; unchanged public evidence is reserialized, and the baseline excerpt also appears in workflow state. In GLM capture, count the same source sentinel in source projection and retained tool output.",
+      "likely_token_impact": "Unchanged evidence consumes input tokens on every subsequent request and reduces room for source, tool feedback, synthesis, and completion within the same total-token objective.",
+      "repair_candidate": "Create one deterministic presentation planner that deduplicates content-addressed evidence across public context, workflow state, source projections, and retained tool bodies while preserving necessary stateless-request content.",
+      "meaningful_validation": "Snapshot prompt tests assert each content digest is rendered at most once per request, required evidence remains present after recycling, and repair outcomes remain independently verified."
+    },
+    {
+      "id": "TC-010",
+      "title": "report_unable validates shape but not evidence quality",
+      "severity": "medium",
+      "status": "current-reusable-defect",
+      "evidence_posture": "live-observed-and-source-confirmed",
+      "responsibility": ["terminal-contract-design", "model-trigger"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/revision-contract.mjs", "lines": "4-14", "claim": "Any non-empty reason and non-empty evidence-ref strings satisfy report_unable."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/run.mjs", "lines": "69-70", "claim": "A valid-shaped report_unable is accepted as terminal without semantic or source-reference checks."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-reserved-r2/events.json", "event_index": 25, "claim": "{reason:placeholder,evidence_refs:[a source path]} was accepted as unable_to_repair."}
+      ],
+      "reproduction": "Call validateArgs(report_unable, {reason:'placeholder',evidence_refs:['x']}); then execute the current runner branch. It returns a successful terminal inability record.",
+      "likely_token_impact": "The terminal call can stop further useful work despite remaining evidence and turns; tokens spent on the run produce no actionable diagnosis for the next iteration.",
+      "repair_candidate": "Bind inability to typed obstacles and known evidence IDs, require remaining-budget/phase facts supplied by the harness, and keep free text supplemental rather than decisive.",
+      "meaningful_validation": "Reject placeholder/unknown refs, accept a source-bound obstacle with a current phase and exact failed tool/test receipt, and preserve honest inability when repair truly cannot proceed."
+    },
+    {
+      "id": "TC-011",
+      "title": "Earlier staging exposed raw container stack traces, but the reusable path is now sanitized",
+      "severity": "low",
+      "status": "historical-fixed-in-current-revision-path",
+      "evidence_posture": "live-observed-historical",
+      "responsibility": ["old-harness-implementation"],
+      "evidence": [
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/evidence/attempt-3/events.json", "event_indices": [28, 29], "claim": "Old attempts returned the full command and container stack for an exact-match error."},
+        {"path": "implementation/agent-reasoning-engine/benchmarks/external-context-v1/success-v1/revision-phases.mjs", "lines": "13-15", "claim": "The current revision path maps the error to a bounded message and recovery guidance."}
+      ],
+      "reproduction": "Historical only: replay the frozen attempt-3 events. Current stagingFeedback no longer emits the stack for this known error.",
+      "likely_token_impact": "The historical response spent input tokens on irrelevant stack frames; this should not be counted as a current defect without a path that bypasses stagingFeedback.",
+      "repair_candidate": "Retain the current bounded mapping and extend it to the generic repository-tool path in TC-007.",
+      "meaningful_validation": "Regression tests assert raw command lines, temporary container names, and stack frames never enter model-visible tool results for every mapped staging error."
+    }
+  ],
+  "coverage": {
+    "benchmark_families": {
+      "glm-fitting-v1": "Reviewed benchmark/live adapter and tests. This family deliberately exposes tools:[] and is relevant mainly to terminal response and token accounting, not coding-tool quality.",
+      "glm-episodes-v1": "Reviewed episode construction/runner, native submission probe, current GLM agent, tool schemas, delivery, paging, archive recovery, completion, submission, patch schema/runtime, read-only runtime, and selected captured evidence.",
+      "external-context-v1": "Reviewed shared contract/backend, current success/holdout/recovery-reservation contracts, phases, runners, workflow/recovery state, and programmatically inspected model-visible failures in every discovered evidence/*/events.json.",
+      "real-reasoning-v1": "Reviewed compaction/live surfaces and schemas. Tool-pair events are deterministic benchmark data or no-tools live prompts; this family does not provide the live repository editing contracts implicated here."
+    },
+    "dimensions": ["all-fields validation", "arguments", "patch staging and exact matching", "reads and search", "result shape and error repairability", "terminal calls", "phase/action availability", "evidence/archive recovery", "token presentation", "state capture versus presentation"],
+    "validator_assessment": "The current external adapters call parseBoundedJSON plus closed Ajv schemas for every tool call, and the GLM native validator recursively checks required and additional fields. No missing whole-object validator bypass was found. The concrete gaps are semantic cross-field bindings, overly brittle shapes, post-schema backend errors, and controller behavior after rejection."
+  },
+  "limitations": [
+    "No provider calls, Docker runs, credentials, fixes, or new live experiments were used.",
+    "The companion trace audit owns exhaustive experiment-level aggregation; this audit sampled current captures and enumerated model-visible failures from discovered external-context events files.",
+    "Source-inferred defects are not labeled live-observed unless a frozen event or bounded local reproduction supports that label.",
+    "Token impacts are qualitative because the evidence does not isolate causal token counts for each contract defect."
+  ],
+  "open_questions": [
+    "Should malformed read calls be recoverable inside an episode, and what minimum remaining-turn budget makes one correction safe?",
+    "Should the patch protocol remain complete-file replacement, add source-bound hunks, or support both under one transactional verifier?",
+    "Which dynamic facts deserve explicit deterministic capture, and which must remain model reasoning with no preservation claim?",
+    "Can prompt deduplication preserve stateless provider correctness while materially reducing total input tokens on the same fixed cohort?",
+    "Are all production consumers able to use conditional JSON Schema reliably, or is a file-scoped tool surface more portable?"
+  ]
+}

@@ -1,22 +1,12 @@
 # CRABS partial-knowledge move evidence candidate
 
-Status: construction units C0-C2 implemented; C3 runtime admission not evaluable
+Status: version 2 mechanism construction active under owner-directed native
+execution. Authority effect: none.
 
 This package implements the bounded EVF run described by
 `../crabs-convergence-repair-candidate-v1/partial-knowledge-move-run-plan.md`.
 It tests a three-replica ordered-set scenario in which two replicas move
 different elements using incomplete knowledge.
-
-The package has two separate modes:
-
-- `validate-construction` checks the package, generator, receipt adversaries,
-  source/tool bindings, and CBMC discovery bindings. It does not execute the
-  48-case live run. Its package-contract checks pass, but its aggregate result
-  remains blocked because the required Task Session request contract is not
-  installed or bound.
-- `execute` creates a new immutable attempt and runs the bounded native,
-  sanitizer, and CBMC evidence sequence. That mode requires a separate explicit
-  authorization and has not been run as part of package construction.
 
 The matrix contains 48 cases: two full-replica delivery histories, two move
 version orders, six permutations of the fixed roles, and two merge
@@ -24,25 +14,41 @@ parenthesizations. The generator is the sole owner of this enumeration. The C
 harness rebuilds every state from insert/move operations and never uses merge
 as a clone operation.
 
-The missing Task Session contract is not recreated here. `execute` fails closed
-until a separately governed runtime-admission surface exists and is explicitly
-selected.
+## Version 2 execution
 
-Construction validation:
+The reviewed version 1 inputs and legacy readiness outputs are preserved under
+`construction/baseline-v1-reviewed/`. They remain historical evidence. Version
+2 derives readiness only from current technical checks and has no Task Session
+dependency.
+
+Version 2 binds the repository GCC 15 toolchain epoch, current source and CBMC
+bytes, supervises process lifetime and stream limits while children run,
+retains per-merge before/after events, finalizes attempts durably, and
+independently re-derives results from raw bytes.
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 run.py validate-construction
+tools/toolchain/run python3 run.py v2-freeze
+tools/toolchain/run python3 run.py v2-execute --candidate-digest <digest>
+tools/toolchain/run python3 run.py v2-recover
 ```
 
-Potential live entry point, not authorized by this package:
+`v2-freeze` is single-use for the current immutable construction epoch. A
+failed or drifted freeze is preserved and repaired through a numbered successor,
+never overwritten. Each execution creates a fresh `evidence/attempts-v2/<run-id>` and
+appends one terminal row to `evidence/runs-v2.jsonl`. The old
+`validate-construction` and `execute` commands remain available only as v1
+diagnostics against the preserved contract.
 
-```bash
-PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 run.py execute \
-  --profile profile.json --commands commands.json
-```
-
-A PASS from this package means only that no counterexample was found in the
-declared matrix and recorded CBMC bounds, with no detected sanitizer or
-implementation-invariant violation. It is not a general proof, product
-approval, implementation acceptance, publication, release, or deployment
+A PASS means only that no counterexample was found in the frozen 48 native
+cases, matching sanitizer executions, and two actual-C CBMC representatives at
+their declared bounds. It is not a general proof, product approval,
+implementation acceptance, certification, publication, release, or deployment
 authority.
+
+## Open Questions
+
+- The current CBMC 6.11.0 byte is bound from a temporary local installation;
+  independent-host portability remains unresolved.
+- General CRDT convergence, arbitrary identifiers and replica counts,
+  allocation failure, serialization migration, and whole-library safety remain
+  outside this candidate.

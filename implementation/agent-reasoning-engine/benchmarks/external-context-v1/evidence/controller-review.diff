@@ -1,0 +1,41 @@
+--- frozen-v2-run.mjs
++++ reviewed-payload-run.mjs
+@@ -9,16 +9,16 @@
+ import {projectPrompt} from '../glm-episodes-v1/analysis/provider-study-v1/payload-js-v1/projection.mjs';
+ import {tools,validateArgs,validateTask} from './contract.mjs';
+ const root=fileURLToPath(new URL('./',import.meta.url)),read=p=>JSON.parse(readFileSync(root+p)),save=(p,v)=>writeFileSync(p,JSON.stringify(v,null,2)+'\n',{flag:'wx'});
+-const arm=process.argv[2],credential=process.argv[3];if(!['baseline','payload'].includes(arm)||!credential)throw Error('arm and credential reference file required');
+-const freeze=read('prepared/freeze-v2.json');for(const f of freeze.sources)if(hash(readFileSync(root+f.path))!==f.sha256)throw Error('source drift: '+f.path);
+-if(arm==='payload'){const previous=read('evidence/live-v2-baseline/result.json');if(!previous.cleanup_verified||previous.status==='run_error')throw Error('baseline requires review before further calls');}
+-const task=read('prepared/task.json'),image=read('prepared/image.json'),out=root+'evidence/live-v2-'+arm;
++const arm=process.argv[2],credential=process.argv[3];if(arm!=='payload')throw Error('reviewed continuation permits only remaining payload arm');if(!['baseline','payload'].includes(arm)||!credential)throw Error('arm and credential reference file required');
++const freeze=read('prepared/freeze-v3.json');for(const f of freeze.sources)if(hash(readFileSync(root+f.path))!==f.sha256)throw Error('source drift: '+f.path);
++if(arm==='payload'){const previous=read('evidence/live-v2-baseline/result.json');if(!previous.cleanup_verified||previous.receipts.some(r=>r.status!==200)||(previous.status==='run_error'&&previous.error!=='uninspected mutation'))throw Error('baseline requires review before further calls');}
++const task=read('prepared/task.json'),image=read('prepared/image.json'),out=root+'evidence/live-v3-'+arm;
+ if(!validateTask(task).ok)throw Error('task schema invalid');
+ if(existsSync(out))throw Error('existing run cannot be replayed');mkdirSync(out);mkdirSync(out+'/fixture');
+ const started=Date.now(),name='are92-rollout-'+arm+'-'+started,abort=new AbortController(),timer=setTimeout(()=>abort.abort(),720000);
+-const result={instance_id:task.instance_id,arm,status:'started',patch_produced:false,authority_effect:'none',open_questions_ref:'../../README.md'};save(out+'/started.json',{...result,freeze_sha256:hash(readFileSync(root+'prepared/freeze-v2.json'))});
++const result={instance_id:task.instance_id,arm,status:'started',patch_produced:false,authority_effect:'none',open_questions_ref:'../../README.md'};save(out+'/started.json',{...result,freeze_sha256:hash(readFileSync(root+'prepared/freeze-v3.json'))});
+ const docker=(args,input)=>execFileSync('docker',args,{input,encoding:'utf8',timeout:30000,maxBuffer:2000000});
+-let recycler,client;const captures=[],events=[],projections=[],seen=new Set();let history=[];
++let recycler,client;const responses=[],captures=[],events=[],projections=[],seen=new Set();let history=[];
+ try{
+  docker(['run','-d','--name',name,'--network','none','--cpus','2','--memory','4g','--pids-limit','128','--cap-drop','ALL','--security-opt','no-new-privileges','--workdir','/testbed','--entrypoint','sleep',image.id,'infinity']);
+  const commit=docker(['exec',name,'git','rev-parse','HEAD']).trim();if(commit!==task.base_commit)throw Error('image base commit mismatch');
+@@ -39,7 +39,7 @@
+    const projected=arm==='payload'?projectPrompt(original):{prompt:original,receipts:[]};
+    const capture={step,generation:meta.generation,original,prompt:projected.prompt,prompt_sha256:hash(projected.prompt)};captures.push(capture);projections.push(...projected.receipts.map(r=>({step,...r})));return projected.prompt;
+   }});
+-  const message=JSON.parse(generated.final_bytes).message;history.push(message);const calls=message.tool_calls??[];
++  responses.push(JSON.parse(generated.final_bytes));const message=JSON.parse(generated.final_bytes).message;history.push(message);const calls=message.tool_calls??[];
+   if(!calls.length){result.status='no_patch_submission';recycler.completeStep(history,true);break;}
+   recycler.beforeTool();let terminal=false;
+   for(const call of calls){
+@@ -72,5 +72,5 @@
+  const check=spawnSync('docker',['container','ls','-a','--filter','name=^/'+name+'$','--format','{{.Names}}'],{encoding:'utf8',timeout:30000});result.cleanup_verified=check.status===0&&check.stdout.trim()==='';
+  result.elapsed_ms=Date.now()-started;result.receipts=client?.receipts??[];result.model_attempts=result.receipts.filter(r=>r.kind==='model').length;result.tokenizer_attempts=result.receipts.filter(r=>r.kind==='tokenizer').length;
+  result.list_price_estimate_usd=result.receipts.filter(r=>r.kind==='model').reduce((s,r)=>s+((r.input_tokens??0)*.15+(r.output_tokens??0)*.5)/1e6,0);
+- save(out+'/captures.json',captures);save(out+'/events.json',events);save(out+'/projection-receipts.json',projections);save(out+'/result.json',result);save(out+'/completed.json',{result_sha256:hash(readFileSync(out+'/result.json')),status:result.status});console.log(JSON.stringify(result));
++ save(out+'/responses.json',responses);save(out+'/history.json',history);save(out+'/captures.json',captures);save(out+'/events.json',events);save(out+'/projection-receipts.json',projections);save(out+'/result.json',result);save(out+'/completed.json',{result_sha256:hash(readFileSync(out+'/result.json')),status:result.status});console.log(JSON.stringify(result));
+ }

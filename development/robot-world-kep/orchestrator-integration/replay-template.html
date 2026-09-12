@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Verified Robot World replay</title>
+<style>
+body{font:16px system-ui,sans-serif;background:#111827;color:#edf2f7;margin:0;padding:24px;max-width:960px;margin:auto}
+h1{font-size:24px} canvas{width:100%;background:#192639;border-radius:8px;display:block}
+label{display:block;margin:20px 0 8px}input{width:100%;min-height:32px}table{border-collapse:collapse;width:100%;margin-top:20px}
+td,th{text-align:left;padding:10px;border-bottom:1px solid #526173}p{color:#cfdae8}.scroll{overflow:auto}
+</style>
+<h1>Robot World replay</h1><p id="summary"></p>
+<canvas id="world" width="900" height="480" role="img" aria-label="Recorded robot positions between resource and workshop"></canvas>
+<label for="tick">Recorded tick <output id="selected">0</output></label>
+<input id="tick" type="range" min="0" value="0" step="1">
+<p id="state" aria-live="polite"></p>
+<div class="scroll"><table><thead><tr><th>Robot</th><th>Energy</th><th>Cargo</th><th>Memory: exploration / construction / cooperation / caution</th></tr></thead><tbody id="actors"></tbody></table></div>
+<p>Recorded simulation. Moving the slider reads frames; it does not execute actions.</p>
+<script>
+const data=/*REPLAY_DATA*/null;
+const slider=document.getElementById('tick'),canvas=document.getElementById('world'),ctx=canvas.getContext('2d');
+slider.max=data.frames.length-1;
+document.getElementById('summary').textContent=`Verification: ${data.verified}. ${data.frames.length-1} recorded ticks; ${data.constructed} buildings constructed.`;
+function draw(){
+ const s=data.frames[Number(slider.value)];document.getElementById('selected').textContent=s.tick;
+ const width=canvas.clientWidth,height=360,dpr=window.devicePixelRatio||1;
+ canvas.width=width*dpr;canvas.height=height*dpr;canvas.style.height=height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);
+ ctx.clearRect(0,0,width,height);const x=v=>width/2+v*(width-48)/10,y=v=>height/2-v*28;
+ ctx.strokeStyle='#596b85';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x(-5),y(0));ctx.lineTo(x(5),y(0));ctx.stroke();
+ ctx.font='14px system-ui';ctx.textAlign='center';ctx.fillStyle='#d8e3f4';
+ for(const [label,pos] of [['Resource',-3],['Workshop',3]]){ctx.strokeRect(x(pos)-28,y(0)-28,56,56);ctx.fillText(label,x(pos),y(0)+65);}
+ const table=document.getElementById('actors');table.replaceChildren();
+ Object.entries(s.robots).forEach(([id,a],i)=>{
+  ctx.fillStyle=i?'#e5b86d':'#76c8ed';ctx.beginPath();ctx.arc(x(a.position[0]),y(a.position[1]),12,0,2*Math.PI);ctx.fill();
+  ctx.fillStyle='#edf2f7';ctx.fillText(id,x(a.position[0]),y(a.position[1])-(i?30:52));
+  const row=document.createElement('tr');for(const val of [id,a.energy,a.cargo,a.memory.map(n=>n.toFixed(3)).join(' / ')]){const cell=document.createElement('td');cell.textContent=val;row.append(cell);}table.append(row);
+ });
+ document.getElementById('state').textContent=`Revision ${s.revision} · Resource ${s.resource} · Workshop stock ${s.stock} · Buildings ${s.built}`;
+}
+slider.addEventListener('input',draw);new ResizeObserver(draw).observe(canvas);draw();
+</script></html>

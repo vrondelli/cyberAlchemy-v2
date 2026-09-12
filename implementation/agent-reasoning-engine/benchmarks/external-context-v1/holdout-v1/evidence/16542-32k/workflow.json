@@ -1,0 +1,49 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The bug is that ConstTag client transform always emits a sync $.derived thunk; when the const initializer contains await inside a boundary this yields `await` inside a non-async arrow, causing a SyntaxError at module parse time.",
+      "evidence_refs": [
+        "compiled_client: const number = $.derived(() => await Promise.resolve(5)); inside sync boundary callback",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js:20 create_derived(b.thunk(init))",
+        "baseline_excerpt: rollup parse error 'await isn't allowed in non-async function'"
+      ],
+      "prediction": "Compiling the const tag's initializer with an async thunk + $.async_derived/$.async-style handling (or hoisting the await out) will make the repro compile and render '5' after ticks.",
+      "falsifier": "If the error persists because the surrounding boundary callback or pending snippet remains non-async and still contains a raw await token, this transform alone is insufficient."
+    },
+    {
+      "claim": "The boundary/SvelteBoundary visitor duplicates const tags verbatim into the pending/failed snippets and the boundary body; the correct fix is to wrap await-containing const initialization in the existing $.async(node, [async thunk], callback) mechanism used by HtmlTag/IfBlock so no raw await remains in sync functions.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/SvelteBoundary.js:44-56 const tags copied into snippets and block.body.unshift",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/HtmlTag.js:35-43 $.async(node,[thunk(true)],arrow) pattern",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/EachBlock.js:348 $.async"
+      ],
+      "prediction": "Emitting `$.async(node, [b.thunk(init, true)], arrow assigning the const)` style output (or awaiting inside an async boundary body) removes the SyntaxError and the test renders '5'.",
+      "falsifier": "If `$.async` requires the containing block's remaining statements to run inside its callback (they currently don't), later statements reading `number` would run before resolution and the test would fail at the value assertion rather than compile."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "2bcfd168619867dc6f43b1cd007a6e1d52ddb0b5c31dca81871a156da710f425",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js",
+          "before_sha256": "d587649e6bf4ac28dd7a7355041ef36f5eb8090b936b2f356f4c4ff9541bb23f",
+          "after_sha256": "acecfdab0b7862cf9fa9bb6da502c6a1ecd8e187555ce107bffbe6600443cc61"
+        }
+      ],
+      "test": {
+        "status": "failed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "209f986fc275a2bde8911072702b9d6a72cdc4f34946b397d43107e760b1d79e",
+        "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n   → ARE_EXPECTED_AWAIT_CONST: expected '' to equal '5'\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\n   → ARE_EXPECTED_AWAIT_CONST: expected '' to equal '5'\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1717 skipped (1719)\n   Start at  19:10:10\n   Duration  7.96s (transform 3.36s, setup 0ms, collect 6.82s, tests 107ms, environment 703ms, prepare 86ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\nAssertionError: ARE_EXPECTED_AWAIT_CONST: expected '' to equal '5'\n\n- Expected\n+ Received\n\n- 5\n\n ❯ Object.test packages/svelte/tests/runtime-runes/samples/async-are-public-holdout/_config.js:7:10\n      5|  async test({ assert, target }) {\n      6|   await tick(); await tick();\n      7|   assert.equal(target.textContent.trim(), '5', 'ARE_EXPECTED_AWAIT_CON…\n       |          ^\n      8|  }\n      9| });\n ❯ run_test_variant packages/svelte/tests/runtime-legacy/shared.ts:436:6\n ❯ packages/svelte/tests/runtime-legacy/shared.ts:171:4\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "4369c37459599f2980a6fac1acac818b7c3c646944cdeb91f3b0c7489b329d66",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n   → await isn't allowed in non-async function\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\n   → await isn't allowed in non-async function\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1717 skipped (1719)\n   Start at  18:34:02\n   Duration  10.60s (transform 4.34s, setup 0ms, collect 8.72s, tests 90ms, environment 1.23s, prepare 178ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\nError: await isn't allowed in non-async function\n ❯ getRollupError node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:392:41\n ❯ convertProgram node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1070:26\n ❯ parseAstAsync node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1924:93\n ❯ ssrTransformScript node_modules/.pnpm/vite@5.4.14_@types+node@20.12.7_lightningcss@1.23.0_sass@1.70.0_terser@5.27.0/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:52383:11\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

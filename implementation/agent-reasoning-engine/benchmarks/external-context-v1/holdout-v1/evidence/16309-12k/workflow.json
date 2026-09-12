@@ -1,0 +1,47 @@
+{
+  "hypotheses": [
+    {
+      "claim": "In attribute_effect, the is_select effect unconditionally calls select_option(select, prev.value); with no value in the spread, prev.value is undefined, so select_option sets selectedIndex=-1, clearing the DOM-selected option.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:515-521",
+        "packages/svelte/src/internal/client/dom/elements/bindings/select.js:44-44"
+      ],
+      "prediction": "Guarding the effect to run only when 'value' in prev makes the spread select keep its selected option; test passes.",
+      "falsifier": "If the failure persists, the clearing happens elsewhere (e.g., set_attributes) and the guard won't help."
+    },
+    {
+      "claim": "The bug comes from set_attributes normalizing/removing attributes on the select (e.g. value setter) rather than the trailing is_select effect.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:295-330",
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:485-495"
+      ],
+      "prediction": "The spread's set_attributes path touches 'value' or select internals even without a value key.",
+      "falsifier": "Compiled output shows the spread only contains onclick; set_attributes never touches select value, so this is unlikely."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "dd1ac8b9ef18083e6696331d1a65707698ec582a3230adc2af156b5207586fd7",
+      "files": [
+        {
+          "path": "packages/svelte/src/internal/client/dom/elements/attributes.js",
+          "before_sha256": "70cf68e6d2ec2557c8fb4bb9004dd2a2f5b85230f1f61db930a1652f1f3a3a52",
+          "after_sha256": "e3c9f6abdee20cbdc32b88dcd7a23244b5e7430f74f7dd735f26547018761725"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "81ef12a66bb9fff944b323024f1b4547d4026e1630741a2a5ad101cfc80b707c",
+        "excerpt": "\n RUN  v2.1.9 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1542 skipped (1544)\n   Start at  19:03:18\n   Duration  8.37s (transform 3.39s, setup 0ms, collect 6.96s, tests 134ms, environment 872ms, prepare 85ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "da7b19c3236970c2e9c324328dbd676ef4d5a6b1ca7473cbe4abf69c98bfb4f0",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1542 skipped (1544)\n   Start at  18:33:32\n   Duration  8.37s (transform 3.11s, setup 0ms, collect 6.56s, tests 115ms, environment 1.22s, prepare 184ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\nAssertionError: ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n- Expected\n+ Received\n\n- o2\n\n ❯ Object.test packages/svelte/tests/runtime-runes/samples/are-public-holdout/_config.js:7:10\n      5|   const selects = target.querySelectorAll('select');\n      6|   assert.equal(selects[0].value, 'o2', 'ARE_CONTROL_SELECTED_OPTION');\n      7|   assert.equal(selects[1].value, 'o2', 'ARE_EXPECTED_SELECTED_OPTION');\n       |          ^\n      8|  }\n      9| });\n ❯ run_test_variant packages/svelte/tests/runtime-legacy/shared.ts:400:19\n ❯ packages/svelte/tests/runtime-legacy/shared.ts:144:4\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

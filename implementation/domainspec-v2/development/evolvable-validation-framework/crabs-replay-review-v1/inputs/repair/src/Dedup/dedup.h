@@ -1,0 +1,80 @@
+//
+// CRABS v1.4: DedupSpec & Desugaring (§3-4)
+//
+
+#ifndef CRABS_DEDUP_H
+#define CRABS_DEDUP_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "../CRABS/crabs.h"
+#include "../CRABS/data_model.h"
+#include "../StateMachine/state_machine.h"
+#include "../CRDT/one_shot.h"
+
+// ============================================================
+// Dedup Guard Check (§5.2)
+// ============================================================
+
+// Check the dedup guard before operation execution.
+// Returns CRABS_SUCCESS if the guard passes, or an appropriate error code.
+crabs_error_e dedup_check_guard(const state_t* state, const operation_t* op);
+
+// Audit F-2: check/apply an explicit dedup spec. The executor uses ONLY the
+// server-registered spec (state_find_op_type_def), so a signer cannot bypass
+// "vote once" by setting dedup.type = DEDUP_NONE on the wire. An op-carried
+// spec is never used to guard or mutate state: state_machine_execute rejects
+// an op carrying a non-NONE spec for an op type with no registered spec
+// (CRABS_ERR_UNAUTHORIZED), because an op-carried spec's MUTATION section is
+// signer-authored and unauthorized on its target. The op-carried spec remains
+// readable via dedup_check_guard for guard-only queries (e.g. __check_dedup__).
+crabs_error_e dedup_check_guard_spec(const state_t* state,
+                                        const dedup_spec_t* spec,
+                                        const operation_t* op);
+
+// ============================================================
+// Dedup State Mutation (§5.3)
+// ============================================================
+
+// Apply the dedup state mutation after successful operation execution.
+// Returns CRABS_SUCCESS on success.
+crabs_error_e dedup_apply_mutation(state_t* state, const operation_t* op);
+
+crabs_error_e dedup_apply_mutation_spec(state_t* state,
+                                          const dedup_spec_t* spec,
+                                          const operation_t* op);
+
+// R8-S-3: validate that the dedup mutation can be applied WITHOUT mutating
+// state. state_machine_execute calls this before the handler runs so a failing
+// mutation is rejected before the handler's effects are applied.
+crabs_error_e dedup_validate_mutation_spec(const state_t* state,
+                                            const dedup_spec_t* spec,
+                                            const operation_t* op);
+
+// ============================================================
+// Atomic check-and-apply (§5.4)
+// ============================================================
+
+// Combined guard check + mutation in a single call. Eliminates the TOCTOU
+// window between the separate check and apply steps. The guard is evaluated
+// and, if it passes, the mutation is applied immediately.
+// Returns CRABS_SUCCESS if the guard passed and mutation was applied,
+// or an error code if the guard rejected the operation.
+crabs_error_e dedup_check_and_apply_spec(state_t* state,
+                                          const dedup_spec_t* spec,
+                                          const operation_t* op);
+
+// ============================================================
+// Desugaring helpers
+// ============================================================
+
+// Build a policy guard string from a DedupSpec.
+// Caller must free the returned string.
+// Returns NULL on error or if dedup.type == DEDUP_NONE.
+char* dedup_build_policy_guard(const dedup_spec_t* dedup, const char* signer_id);
+
+// Resolve a path like "proposal_42.voters" to a data_item_t in the state.
+// The path is dot-separated: "item_name" or "item_name.field".
+data_item_t* dedup_resolve_path(state_t* state, const char* path);
+
+#endif // CRABS_DEDUP_H

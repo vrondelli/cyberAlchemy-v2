@@ -37,9 +37,25 @@ The compiled-system sketch is: deterministic World reducer + bounded Catalog ada
 
 ## Interaction dynamics
 
-Physical positions use two world coordinates. Semantic interaction states use four normalized dimensions: exploration, construction, cooperation and caution. These spaces are distinct. The generic N-dimensional steering function supports separation, alignment and cohesion with explicit dimension scales. The small fixture uses all-to-all semantic neighbors; scaling to a large world needs a separately measured neighborhood index.
+Physical positions use two world coordinates. Semantic preferences have four axes:
+exploration, construction, cooperation and caution. These spaces are distinct.
+The original `World` policy uses unnormalized prior-plus-memory and zero semantic
+velocities; only exploration/construction directly choose tasks. Its action memory
+additions precede tick decay. Retained first-epoch/UI recordings use that legacy policy.
 
-For interaction component k, `m[k,t+dt] = m[k,t] * exp(-lambda[k] * dt) + interaction[k]`. Components decay at different rates. Policy scores combine a role prior, bounded semantic steering, recent interactions and task eligibility. These are behavior heuristics, not an embedding-based permission or truth model. Scripted policies act through the same checked intent boundary intended for later neural inference.
+The versioned [interaction-v1 successor](interaction-dynamics/CONTRACT.md) computes
+`s = clamp(prior + gain * memory, 0, 1)`, retaining raw memory separately. Its
+N-dimensional helper evaluates separation, alignment and cohesion in explicit scaled
+coordinates. The small world uses all-to-all semantic neighbors and previous-tick
+semantic velocities; scaling requires a separately measured neighborhood index.
+
+For component k, the successor uses
+`m[k,t+dt] = m[k,t] * exp(-lambda[k] * dt) + interaction[k]`, with impulses from
+newly committed actions exactly once. Four bounded utility weights affect eligible
+tasks; cooperation favors useful stock delivery and caution means energy conservation.
+These are behavior heuristics, not an embedding-based permission or truth model.
+Scripted policies use the checked intent boundary intended for later neural inference.
+The [implementation report](interaction-dynamics/REPORT.md) owns measured limits,
+regression status and remaining questions.
 
 Open questions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
-

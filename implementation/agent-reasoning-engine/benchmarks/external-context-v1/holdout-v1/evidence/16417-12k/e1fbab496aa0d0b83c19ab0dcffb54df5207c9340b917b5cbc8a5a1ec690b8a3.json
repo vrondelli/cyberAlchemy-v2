@@ -1,0 +1,11 @@
+{
+  "patch": "diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js\nindex 773aa59..6ca1e31 100644\n--- a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js\n+++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js\n@@ -193,7 +193,14 @@ function get_delegated_event(event_name, handler, context) {\n \t\t}\n \n \t\t// If we are referencing a binding that is shadowed in another scope then bail out.\n-\t\tif (local_binding !== null && binding !== null && local_binding.node !== binding.node) {\n+\t\t// But if the binding is declared within the target function itself it's a local variable\n+\t\t// and doesn't prevent hoisting.\n+\t\tif (\n+\t\t\tlocal_binding !== null &&\n+\t\t\tbinding !== null &&\n+\t\t\tlocal_binding.node !== binding.node &&\n+\t\t\t!is_local_scope(binding.scope, target_function.metadata.scope)\n+\t\t) {\n \t\t\treturn unhoisted;\n \t\t}\n \n@@ -227,6 +234,18 @@ function get_delegated_event(event_name, handler, context) {\n \treturn { hoisted: true, function: target_function };\n }\n \n+/**\n+ * Checks if `scope` is the `function_scope` or one of its descendants\n+ * @param {Scope} scope\n+ * @param {Scope} function_scope\n+ */\n+function is_local_scope(scope, function_scope) {\n+\tfor (let current = scope; current; current = current.parent) {\n+\t\tif (current === function_scope) return true;\n+\t}\n+\treturn false;\n+}\n+\n /**\n  * @param {string} event_name\n  */\n",
+  "files": [
+    {
+      "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js",
+      "before_sha256": "147d868ef5848345c35482e58efda1d1e95ea9c7ced80afe351a1b7eafc1c212",
+      "after_sha256": "5e9a376b86879ae2f4c6c1b0432d3b77f3f0639fd38cc5681d97c7948cec3e1a"
+    }
+  ],
+  "candidate_id": "e1fbab496aa0d0b83c19ab0dcffb54df5207c9340b917b5cbc8a5a1ec690b8a3"
+}

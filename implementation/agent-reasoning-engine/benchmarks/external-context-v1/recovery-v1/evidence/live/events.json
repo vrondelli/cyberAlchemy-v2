@@ -1,0 +1,349 @@
+[
+  {
+    "step": 0,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler",
+      "query": "is not defined"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [
+          "packages/svelte/src/compiler/errors.js:193: * `%name%` is not defined",
+          "packages/svelte/src/compiler/errors.js:199:\te(node, 'export_undefined', `\\`${name}\\` is not defined\\nhttps://svelte.dev/e/export_undefined`);"
+        ],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 0,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler",
+      "query": "boundary_out"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 1,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler/phases/3-transform/client",
+      "query": "Await"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:14:import { AwaitBlock } from './visitors/AwaitBlock.js';",
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:15:import { AwaitExpression } from './visitors/AwaitExpression.js';",
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:92:\tAwaitBlock,",
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:93:\tAwaitExpression,",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitBlock.js:11: * @param {AST.AwaitBlock} node",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitBlock.js:14:export function AwaitBlock(node, context) {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js:1:/** @import { AwaitExpression, Expression, Property, SpreadElement } from 'estree' */",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js:7: * @param {AwaitExpression} node",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js:10:export function AwaitExpression(node, context) {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/BindDirective.js:35:\t\t\t\t\t\ttype === 'AwaitBlock' ||"
+        ],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 2,
+    "tool": "read_file",
+    "arguments": {
+      "line_count": 160,
+      "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js",
+      "start_line": 1
+    },
+    "result": {
+      "schema_version": "are.coding-agent-tool-result/v1",
+      "ok": true,
+      "tool_name": "read-file",
+      "arguments": {
+        "line_count": 160,
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js",
+        "start_line": 1
+      },
+      "output": {
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js",
+        "start_line": 1,
+        "end_line": 127,
+        "total_lines": 127,
+        "source_sha256": "6dba2dda642c4131a63cb207407d8fbd65d9ee4ce891ae992c2a6feb5e6a6348",
+        "utf8": "/** @import { AwaitExpression, Expression, Property, SpreadElement } from 'estree' */\n/** @import { Context } from '../types' */\nimport { dev, is_ignored } from '../../../../state.js';\nimport * as b from '../../../../utils/builders.js';\n\n/**\n * @param {AwaitExpression} node\n * @param {Context} context\n */\nexport function AwaitExpression(node, context) {\n\tconst argument = /** @type {Expression} */ (context.visit(node.argument));\n\n\tconst tla = context.state.is_instance && context.state.scope.function_depth === 1;\n\n\t// preserve context for\n\t//   a) top-level await and\n\t//   b) awaits that precede other expressions in template or `$derived(...)`\n\tif (tla || (is_reactive_expression(context) && !is_last_evaluated_expression(context, node))) {\n\t\treturn b.call(b.await(b.call('$.save', argument)));\n\t}\n\n\t// in dev, note which values are read inside a reactive expression,\n\t// but don't track them\n\telse if (dev && !is_ignored(node, 'await_reactivity_loss')) {\n\t\treturn b.call(b.await(b.call('$.track_reactivity_loss', argument)));\n\t}\n\n\treturn argument === node.argument ? node : { ...node, argument };\n}\n\n/**\n * @param {Context} context\n */\nfunction is_reactive_expression(context) {\n\tif (context.state.in_derived) {\n\t\treturn true;\n\t}\n\n\tlet i = context.path.length;\n\n\twhile (i--) {\n\t\tconst parent = context.path[i];\n\n\t\tif (\n\t\t\tparent.type === 'ArrowFunctionExpression' ||\n\t\t\tparent.type === 'FunctionExpression' ||\n\t\t\tparent.type === 'FunctionDeclaration'\n\t\t) {\n\t\t\treturn false;\n\t\t}\n\n\t\t// @ts-expect-error we could probably use a neater/more robust mechanism\n\t\tif (parent.metadata) {\n\t\t\treturn true;\n\t\t}\n\t}\n\n\treturn false;\n}\n\n/**\n * @param {Context} context\n * @param {Expression | SpreadElement | Property} node\n */\nfunction is_last_evaluated_expression(context, node) {\n\tlet i = context.path.length;\n\n\twhile (i--) {\n\t\tconst parent = /** @type {Expression | Property | SpreadElement} */ (context.path[i]);\n\n\t\t// @ts-expect-error we could probably use a neater/more robust mechanism\n\t\tif (parent.metadata) {\n\t\t\treturn true;\n\t\t}\n\n\t\tswitch (parent.type) {\n\t\t\tcase 'ArrayExpression':\n\t\t\t\tif (node !== parent.elements.at(-1)) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'AssignmentExpression':\n\t\t\tcase 'BinaryExpression':\n\t\t\tcase 'LogicalExpression':\n\t\t\t\tif (node === parent.left) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'CallExpression':\n\t\t\tcase 'NewExpression':\n\t\t\t\tif (node !== parent.arguments.at(-1)) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'ConditionalExpression':\n\t\t\t\tif (node === parent.test) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'MemberExpression':\n\t\t\t\tif (parent.computed && node === parent.object) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'ObjectExpression':\n\t\t\t\tif (node !== parent.properties.at(-1)) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'Property':\n\t\t\t\tif (node === parent.key) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'SequenceExpression':\n\t\t\t\tif (node !== parent.expressions.at(-1)) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'TaggedTemplateExpression':\n\t\t\t\tif (node !== parent.quasi.expressions.at(-1)) return false;\n\t\t\t\tbreak;\n\n\t\t\tcase 'TemplateLiteral':\n\t\t\t\tif (node !== parent.expressions.at(-1)) return false;\n\t\t\t\tbreak;\n\n\t\t\tdefault:\n\t\t\t\treturn false;\n\t\t}\n\n\t\tnode = parent;\n\t}\n}\n",
+        "byte_count": 3146
+      },
+      "output_sha256": "0c1e1e4b57c88f5a1e0edfd7e1ca63108faa47b037a302f9884bd0ad30af3261",
+      "output_bytes": 3723,
+      "effect_calls": 0,
+      "authority_effect": "none"
+    }
+  },
+  {
+    "step": 3,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src",
+      "query": "function save"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [
+          "packages/svelte/src/internal/client/reactivity/async.js:96:export async function save(promise) {"
+        ],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 3,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler/phases/3-transform/client",
+      "query": "is_instance"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:155:\t\tis_instance: false,",
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:191:\t\tis_instance: true",
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:702:\t\tis_instance: false",
+          "packages/svelte/src/compiler/phases/3-transform/client/types.d.ts:31:\treadonly is_instance: boolean;",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitExpression.js:13:\tconst tla = context.state.is_instance && context.state.scope.function_depth === 1;",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/ExportNamedDeclaration.js:10:\tif (context.state.is_instance) {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/Program.js:23:\t\t\t\tconst is_instance_import =",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/Program.js:27:\t\t\t\tif (is_instance_import) {"
+        ],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 4,
+    "tool": "read_file",
+    "arguments": {
+      "line_count": 120,
+      "path": "packages/svelte/src/internal/client/reactivity/async.js",
+      "start_line": 60
+    },
+    "result": {
+      "schema_version": "are.coding-agent-tool-result/v1",
+      "ok": true,
+      "tool_name": "read-file",
+      "arguments": {
+        "line_count": 120,
+        "path": "packages/svelte/src/internal/client/reactivity/async.js",
+        "start_line": 60
+      },
+      "output": {
+        "path": "packages/svelte/src/internal/client/reactivity/async.js",
+        "start_line": 60,
+        "end_line": 179,
+        "total_lines": 192,
+        "source_sha256": "2721f2c8d07694dec634a49e24f0e20f8fa9d14dcabf1e60f1a68291d7a725fd",
+        "utf8": "\t\t\tunset_context();\n\t\t})\n\t\t.catch((error) => {\n\t\t\tboundary.error(error);\n\t\t});\n}\n\n/**\n * Captures the current effect context so that we can restore it after\n * some asynchronous work has happened (so that e.g. `await a + b`\n * causes `b` to be registered as a dependency).\n */\nfunction capture() {\n\tvar previous_effect = active_effect;\n\tvar previous_reaction = active_reaction;\n\tvar previous_component_context = component_context;\n\n\treturn function restore() {\n\t\tset_active_effect(previous_effect);\n\t\tset_active_reaction(previous_reaction);\n\t\tset_component_context(previous_component_context);\n\n\t\tif (DEV) {\n\t\t\tset_from_async_derived(null);\n\t\t}\n\t};\n}\n\n/**\n * Wraps an `await` expression in such a way that the effect context that was\n * active before the expression evaluated can be reapplied afterwards —\n * `await a + b` becomes `(await $.save(a))() + b`\n * @template T\n * @param {Promise<T>} promise\n * @returns {Promise<() => T>}\n */\nexport async function save(promise) {\n\tvar restore = capture();\n\tvar value = await promise;\n\n\treturn () => {\n\t\trestore();\n\t\treturn value;\n\t};\n}\n\n/**\n * Reset `current_async_effect` after the `promise` resolves, so\n * that we can emit `await_reactivity_loss` warnings\n * @template T\n * @param {Promise<T>} promise\n * @returns {Promise<() => T>}\n */\nexport async function track_reactivity_loss(promise) {\n\tvar previous_async_effect = current_async_effect;\n\tvar value = await promise;\n\n\treturn () => {\n\t\tset_from_async_derived(previous_async_effect);\n\t\treturn value;\n\t};\n}\n\n/**\n * Used in `for await` loops in DEV, so\n * that we can emit `await_reactivity_loss` warnings\n * after each `async_iterator` result resolves and\n * after the `async_iterator` return resolves (if it runs)\n * @template T\n * @template TReturn\n * @param {Iterable<T> | AsyncIterable<T>} iterable\n * @returns {AsyncGenerator<T, TReturn | undefined>}\n */\nexport async function* for_await_track_reactivity_loss(iterable) {\n\t// This is based on the algorithms described in ECMA-262:\n\t// ForIn/OfBodyEvaluation\n\t// https://tc39.es/ecma262/multipage/ecmascript-language-statements-and-declarations.html#sec-runtime-semantics-forin-div-ofbodyevaluation-lhs-stmt-iterator-lhskind-labelset\n\t// AsyncIteratorClose\n\t// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-asynciteratorclose\n\n\t/** @type {AsyncIterator<T, TReturn>} */\n\t// @ts-ignore\n\tconst iterator = iterable[Symbol.asyncIterator]?.() ?? iterable[Symbol.iterator]?.();\n\n\tif (iterator === undefined) {\n\t\tthrow new TypeError('value is not async iterable');\n\t}\n\n\t/** Whether the completion of the iterator was \"normal\", meaning it wasn't ended via `break` or a similar method */\n\tlet normal_completion = false;\n\ttry {\n\t\twhile (true) {\n\t\t\tconst { done, value } = (await track_reactivity_loss(iterator.next()))();\n\t\t\tif (done) {\n\t\t\t\tnormal_completion = true;\n\t\t\t\tbreak;\n\t\t\t}\n\t\t\tyield value;\n\t\t}\n\t} finally {\n\t\t// If the iterator had a normal completion and `return` is defined on the iterator, call it and return the value\n\t\tif (normal_completion && iterator.return !== undefined) {\n\t\t\t// eslint-disable-next-line no-unsafe-finally\n\t\t\treturn /** @type {TReturn} */ ((await track_reactivity_loss(iterator.return()))().value);\n\t\t}\n\t}\n}\n\nexport function unset_context() {\n\tset_active_effect(null);\n\tset_active_reaction(null);\n\tset_component_context(null);\n\tif (DEV) set_from_async_derived(null);\n}\n\n/**\n * @param {() => Promise<void>} fn\n */\nexport async function async_body(fn) {\n\tconst unsuspend = suspend();",
+        "byte_count": 3478
+      },
+      "output_sha256": "8574675ad6d668669b05922f189160fc41fb7b8ceaa322dda5f7e7347c199d68",
+      "output_bytes": 3929,
+      "effect_calls": 0,
+      "authority_effect": "none"
+    }
+  },
+  {
+    "step": 5,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler/phases/3-transform/client",
+      "query": "async_body"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [
+          "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js:376:\t\tcomponent_block.body.push(b.stmt(b.call(`$.async_body`, b.arrow([], body, true))));",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js:180:\t\treturn b.block([b.stmt(b.call('$.async_body', b.arrow([], b.block(body), true)))]);"
+        ],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 5,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler/phases/3-transform/client/visitors/snippet",
+      "query": "await"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 6,
+    "tool": "read_file",
+    "arguments": {
+      "line_count": 80,
+      "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+      "start_line": 120
+    },
+    "result": {
+      "schema_version": "are.coding-agent-tool-result/v1",
+      "ok": true,
+      "tool_name": "read-file",
+      "arguments": {
+        "line_count": 80,
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+        "start_line": 120
+      },
+      "output": {
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+        "start_line": 120,
+        "end_line": 185,
+        "total_lines": 185,
+        "source_sha256": "f0a8dfc07bee64b3c66f77261cba3f6c8dbe8b78b6438c429a1c1d24284b8a1d",
+        "utf8": "\t\t\tstate.init.unshift(b.var(id, b.call('$.text')));\n\t\t\tclose = b.stmt(b.call('$.append', b.id('$$anchor'), id));\n\t\t} else {\n\t\t\tif (is_standalone) {\n\t\t\t\t// no need to create a template, we can just use the existing block's anchor\n\t\t\t\tprocess_children(trimmed, () => b.id('$$anchor'), false, { ...context, state });\n\t\t\t} else {\n\t\t\t\t/** @type {(is_text: boolean) => Expression} */\n\t\t\t\tconst expression = (is_text) => b.call('$.first_child', id, is_text && b.true);\n\n\t\t\t\tprocess_children(trimmed, expression, false, { ...context, state });\n\n\t\t\t\tlet flags = TEMPLATE_FRAGMENT;\n\n\t\t\t\tif (state.template.needs_import_node) {\n\t\t\t\t\tflags |= TEMPLATE_USE_IMPORT_NODE;\n\t\t\t\t}\n\n\t\t\t\tif (state.template.nodes.length === 1 && state.template.nodes[0].type === 'comment') {\n\t\t\t\t\t// special case — we can use `$.comment` instead of creating a unique template\n\t\t\t\t\tstate.init.unshift(b.var(id, b.call('$.comment')));\n\t\t\t\t} else {\n\t\t\t\t\tconst template = transform_template(state, namespace, flags);\n\t\t\t\t\tstate.hoisted.push(b.var(template_name, template));\n\n\t\t\t\t\tstate.init.unshift(b.var(id, b.call(template_name)));\n\t\t\t\t}\n\n\t\t\t\tclose = b.stmt(b.call('$.append', b.id('$$anchor'), id));\n\t\t\t}\n\t\t}\n\t}\n\n\tbody.push(...state.consts);\n\n\tif (has_await) {\n\t\tbody.push(b.if(b.call('$.aborted'), b.return()));\n\t}\n\n\tif (is_text_first) {\n\t\t// skip over inserted comment\n\t\tbody.push(b.stmt(b.call('$.next')));\n\t}\n\n\tbody.push(...state.init);\n\n\tif (state.update.length > 0) {\n\t\tbody.push(build_render_statement(state));\n\t}\n\n\tbody.push(...state.after_update);\n\n\tif (close !== undefined) {\n\t\t// It's important that close is the last statement in the block, as any previous statements\n\t\t// could contain element insertions into the template, which the close statement needs to\n\t\t// know of when constructing the list of current inner elements.\n\t\tbody.push(close);\n\t}\n\n\tif (has_await) {\n\t\treturn b.block([b.stmt(b.call('$.async_body', b.arrow([], b.block(body), true)))]);\n\t} else {\n\t\treturn b.block(body);\n\t}\n}\n",
+        "byte_count": 1970
+      },
+      "output_sha256": "0d52c82ba62217eb90381974e6c187d8d86062327a2b1c526206536254e69e4f",
+      "output_bytes": 2414,
+      "effect_calls": 0,
+      "authority_effect": "none"
+    }
+  },
+  {
+    "step": 7,
+    "tool": "read_file",
+    "arguments": {
+      "line_count": 120,
+      "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+      "start_line": 1
+    },
+    "result": {
+      "schema_version": "are.coding-agent-tool-result/v1",
+      "ok": true,
+      "tool_name": "read-file",
+      "arguments": {
+        "line_count": 120,
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+        "start_line": 1
+      },
+      "output": {
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/Fragment.js",
+        "start_line": 1,
+        "end_line": 120,
+        "total_lines": 185,
+        "source_sha256": "f0a8dfc07bee64b3c66f77261cba3f6c8dbe8b78b6438c429a1c1d24284b8a1d",
+        "utf8": "/** @import { Expression, Statement } from 'estree' */\n/** @import { AST } from '#compiler' */\n/** @import { ComponentClientTransformState, ComponentContext } from '../types' */\nimport { TEMPLATE_FRAGMENT, TEMPLATE_USE_IMPORT_NODE } from '../../../../../constants.js';\nimport * as b from '#compiler/builders';\nimport { clean_nodes, infer_namespace } from '../../utils.js';\nimport { transform_template } from '../transform-template/index.js';\nimport { process_children } from './shared/fragment.js';\nimport { build_render_statement, Memoizer } from './shared/utils.js';\nimport { Template } from '../transform-template/template.js';\n\n/**\n * @param {AST.Fragment} node\n * @param {ComponentContext} context\n */\nexport function Fragment(node, context) {\n\t// Creates a new block which looks roughly like this:\n\t// ```js\n\t// // hoisted:\n\t// const block_name = $.from_html(`...`);\n\t//\n\t// // for the main block:\n\t// const id = block_name();\n\t// // init stuff and possibly render effect\n\t// $.append($$anchor, id);\n\t// ```\n\t// Adds the hoisted parts to `context.state.hoisted` and returns the statements of the main block.\n\n\tconst parent = context.path.at(-1) ?? node;\n\n\tconst namespace = infer_namespace(context.state.metadata.namespace, parent, node.nodes);\n\n\tconst { hoisted, trimmed, is_standalone, is_text_first } = clean_nodes(\n\t\tparent,\n\t\tnode.nodes,\n\t\tcontext.path,\n\t\tnamespace,\n\t\tcontext.state,\n\t\tcontext.state.preserve_whitespace,\n\t\tcontext.state.options.preserveComments\n\t);\n\n\tif (hoisted.length === 0 && trimmed.length === 0) {\n\t\treturn b.block([]);\n\t}\n\n\tconst is_single_element = trimmed.length === 1 && trimmed[0].type === 'RegularElement';\n\tconst is_single_child_not_needing_template =\n\t\ttrimmed.length === 1 &&\n\t\t(trimmed[0].type === 'SvelteFragment' || trimmed[0].type === 'TitleElement');\n\tconst has_await = context.state.init !== null && (node.metadata.has_await || false);\n\n\tconst template_name = context.state.scope.root.unique('root'); // TODO infer name from parent\n\n\t/** @type {Statement[]} */\n\tconst body = [];\n\n\t/** @type {Statement | undefined} */\n\tlet close = undefined;\n\n\t/** @type {ComponentClientTransformState} */\n\tconst state = {\n\t\t...context.state,\n\t\tinit: [],\n\t\tconsts: [],\n\t\tupdate: [],\n\t\tafter_update: [],\n\t\tmemoizer: new Memoizer(),\n\t\ttemplate: new Template(),\n\t\ttransform: { ...context.state.transform },\n\t\tmetadata: {\n\t\t\tnamespace,\n\t\t\tbound_contenteditable: context.state.metadata.bound_contenteditable\n\t\t}\n\t};\n\n\tfor (const node of hoisted) {\n\t\tcontext.visit(node, state);\n\t}\n\n\tif (is_single_element) {\n\t\tconst element = /** @type {AST.RegularElement} */ (trimmed[0]);\n\n\t\tconst id = b.id(context.state.scope.generate(element.name));\n\n\t\tcontext.visit(element, {\n\t\t\t...state,\n\t\t\tnode: id\n\t\t});\n\n\t\tlet flags = state.template.needs_import_node ? TEMPLATE_USE_IMPORT_NODE : undefined;\n\n\t\tconst template = transform_template(state, namespace, flags);\n\t\tstate.hoisted.push(b.var(template_name, template));\n\n\t\tstate.init.unshift(b.var(id, b.call(template_name)));\n\t\tclose = b.stmt(b.call('$.append', b.id('$$anchor'), id));\n\t} else if (is_single_child_not_needing_template) {\n\t\tcontext.visit(trimmed[0], state);\n\t} else if (trimmed.length === 1 && trimmed[0].type === 'Text') {\n\t\tconst id = b.id(context.state.scope.generate('text'));\n\t\tstate.init.unshift(b.var(id, b.call('$.text', b.literal(trimmed[0].data))));\n\t\tclose = b.stmt(b.call('$.append', b.id('$$anchor'), id));\n\t} else if (trimmed.length > 0) {\n\t\tconst id = b.id(context.state.scope.generate('fragment'));\n\n\t\tconst use_space_template =\n\t\t\ttrimmed.some((node) => node.type === 'ExpressionTag') &&\n\t\t\ttrimmed.every((node) => node.type === 'Text' || node.type === 'ExpressionTag');\n\n\t\tif (use_space_template) {\n\t\t\t// special case — we can use `$.text` instead of creating a unique template\n\t\t\tconst id = b.id(context.state.scope.generate('text'));\n\n\t\t\tprocess_children(trimmed, () => id, false, {\n\t\t\t\t...context,\n\t\t\t\tstate\n\t\t\t});\n\n\t\t\tstate.init.unshift(b.var(id, b.call('$.text')));",
+        "byte_count": 3967
+      },
+      "output_sha256": "37c280818d996a752214c2789884d8c37d2d4b998ec7c835860980505317b998",
+      "output_bytes": 4480,
+      "effect_calls": 0,
+      "authority_effect": "none"
+    }
+  },
+  {
+    "step": 8,
+    "tool": "search",
+    "arguments": {
+      "path_prefix": "packages/svelte/src/compiler/phases/3-transform/client/visitors",
+      "query": "Snippet"
+    },
+    "result": {
+      "ok": true,
+      "output": {
+        "matches": [
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/RegularElement.js:367:\tif (node.fragment.nodes.some((node) => node.type === 'SnippetBlock')) {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/SnippetBlock.js:10: * @param {AST.SnippetBlock} node",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/SnippetBlock.js:13:export function SnippetBlock(node, context) {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/SvelteBoundary.js:64:\t\tif (child.type === 'SnippetBlock') {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/shared/component.js:321:\t\tif (child.type === 'SnippetBlock') {",
+          "packages/svelte/src/compiler/phases/3-transform/client/visitors/shared/component.js:322:\t\t\t// the SnippetBlock visitor adds a declaration to `init`, but if it's directly"
+        ],
+        "truncated": false
+      }
+    }
+  },
+  {
+    "step": 9,
+    "tool": "read_file",
+    "arguments": {
+      "line_count": 160,
+      "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/SnippetBlock.js",
+      "start_line": 1
+    },
+    "result": {
+      "schema_version": "are.coding-agent-tool-result/v1",
+      "ok": true,
+      "tool_name": "read-file",
+      "arguments": {
+        "line_count": 160,
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/SnippetBlock.js",
+        "start_line": 1
+      },
+      "output": {
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/SnippetBlock.js",
+        "start_line": 1,
+        "end_line": 101,
+        "total_lines": 101,
+        "source_sha256": "1c4f789b1ae8303938c53a4f8f080d7ec70baac2badf2e3ddb53dc45b997a37b",
+        "utf8": "/** @import { AssignmentPattern, BlockStatement, Expression, Identifier, Statement } from 'estree' */\n/** @import { AST } from '#compiler' */\n/** @import { ComponentContext } from '../types' */\nimport { dev } from '../../../../state.js';\nimport { extract_paths } from '../../../../utils/ast.js';\nimport * as b from '#compiler/builders';\nimport { get_value } from './shared/declarations.js';\n\n/**\n * @param {AST.SnippetBlock} node\n * @param {ComponentContext} context\n */\nexport function SnippetBlock(node, context) {\n\t// TODO hoist where possible\n\t/** @type {(Identifier | AssignmentPattern)[]} */\n\tconst args = [b.id('$$anchor')];\n\tconst has_await = node.body.metadata.has_await || false;\n\n\t/** @type {BlockStatement} */\n\tlet body;\n\n\t/** @type {Statement[]} */\n\tconst declarations = [];\n\n\tconst transform = { ...context.state.transform };\n\tconst child_state = { ...context.state, transform };\n\n\tfor (let i = 0; i < node.parameters.length; i++) {\n\t\tconst argument = node.parameters[i];\n\n\t\tif (!argument) continue;\n\n\t\tif (argument.type === 'Identifier') {\n\t\t\targs.push(b.assignment_pattern(argument, b.id('$.noop')));\n\t\t\ttransform[argument.name] = { read: b.call };\n\n\t\t\tcontinue;\n\t\t}\n\n\t\tlet arg_alias = `$$arg${i}`;\n\t\targs.push(b.id(arg_alias));\n\n\t\tconst { inserts, paths } = extract_paths(argument, b.maybe_call(b.id(arg_alias)));\n\n\t\tfor (const { id, value } of inserts) {\n\t\t\tid.name = context.state.scope.generate('$$array');\n\t\t\ttransform[id.name] = { read: get_value };\n\n\t\t\tdeclarations.push(\n\t\t\t\tb.var(id, b.call('$.derived', /** @type {Expression} */ (context.visit(b.thunk(value)))))\n\t\t\t);\n\t\t}\n\n\t\tfor (const path of paths) {\n\t\t\tconst name = /** @type {Identifier} */ (path.node).name;\n\t\t\tconst needs_derived = path.has_default_value; // to ensure that default value is only called once\n\t\t\tconst fn = b.thunk(/** @type {Expression} */ (context.visit(path.expression, child_state)));\n\n\t\t\tdeclarations.push(b.let(path.node, needs_derived ? b.call('$.derived_safe_equal', fn) : fn));\n\n\t\t\ttransform[name] = {\n\t\t\t\tread: needs_derived ? get_value : b.call\n\t\t\t};\n\n\t\t\t// we need to eagerly evaluate the expression in order to hit any\n\t\t\t// 'Cannot access x before initialization' errors\n\t\t\tif (dev) {\n\t\t\t\tdeclarations.push(b.stmt(transform[name].read(b.id(name))));\n\t\t\t}\n\t\t}\n\t}\n\tconst block = /** @type {BlockStatement} */ (context.visit(node.body, child_state)).body;\n\tbody = b.block([\n\t\tdev ? b.stmt(b.call('$.validate_snippet_args', b.spread(b.id('arguments')))) : b.empty,\n\t\t...declarations,\n\t\t...block\n\t]);\n\n\t// in dev we use a FunctionExpression (not arrow function) so we can use `arguments`\n\tlet snippet = dev\n\t\t? b.call(\n\t\t\t\t'$.wrap_snippet',\n\t\t\t\tb.id(context.state.analysis.name),\n\t\t\t\tb.function(null, args, body, has_await)\n\t\t\t)\n\t\t: b.arrow(args, body, has_await);\n\n\tconst declaration = b.const(node.expression, snippet);\n\n\t// Top-level snippets are hoisted so they can be referenced in the `<script>`\n\tif (context.path.length === 1 && context.path[0].type === 'Fragment') {\n\t\tif (node.metadata.can_hoist) {\n\t\t\tcontext.state.module_level_snippets.push(declaration);\n\t\t} else {\n\t\t\tcontext.state.instance_level_snippets.push(declaration);\n\t\t}\n\t} else {\n\t\tcontext.state.init.push(declaration);\n\t}\n}\n",
+        "byte_count": 3203
+      },
+      "output_sha256": "51ee08589734c2b267da40e43c02e0cfcc00b1e8932db0638ef6bf95ba88a978",
+      "output_bytes": 3698,
+      "effect_calls": 0,
+      "authority_effect": "none"
+    }
+  },
+  {
+    "step": 10,
+    "tool": "read_file",
+    "arguments": {
+      "line_count": 160,
+      "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitBlock.js",
+      "start_line": 1
+    },
+    "result": {
+      "schema_version": "are.coding-agent-tool-result/v1",
+      "ok": true,
+      "tool_name": "read-file",
+      "arguments": {
+        "line_count": 160,
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitBlock.js",
+        "start_line": 1
+      },
+      "output": {
+        "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/AwaitBlock.js",
+        "start_line": 1,
+        "end_line": 111,
+        "total_lines": 111,
+        "source_sha256": "32fcb379a0472652a9a945b099cbf175bd99a78a0edfea02df62169a33ebfc60",
+        "utf8": "/** @import { BlockStatement, Pattern, Statement } from 'estree' */\n/** @import { AST } from '#compiler' */\n/** @import { ComponentClientTransformState, ComponentContext } from '../types' */\nimport { extract_identifiers, is_expression_async } from '../../../../utils/ast.js';\nimport * as b from '#compiler/builders';\nimport { create_derived } from '../utils.js';\nimport { get_value } from './shared/declarations.js';\nimport { build_expression, add_svelte_meta } from './shared/utils.js';\n\n/**\n * @param {AST.AwaitBlock} node\n * @param {ComponentContext} context\n */\nexport function AwaitBlock(node, context) {\n\tcontext.state.template.push_comment();\n\n\t// Visit {#await <expression>} first to ensure that scopes are in the correct order\n\tconst expression = b.thunk(\n\t\tbuild_expression(context, node.expression, node.metadata.expression),\n\t\tnode.metadata.expression.has_await\n\t);\n\n\tlet then_block;\n\tlet catch_block;\n\n\tif (node.then) {\n\t\tconst then_context = {\n\t\t\t...context,\n\t\t\tstate: { ...context.state, transform: { ...context.state.transform } }\n\t\t};\n\t\tconst argument = node.value && create_derived_block_argument(node.value, then_context);\n\n\t\t/** @type {Pattern[]} */\n\t\tconst args = [b.id('$$anchor')];\n\t\tif (argument) args.push(argument.id);\n\n\t\tconst declarations = argument?.declarations ?? [];\n\t\tconst block = /** @type {BlockStatement} */ (then_context.visit(node.then, then_context.state));\n\n\t\tthen_block = b.arrow(args, b.block([...declarations, ...block.body]));\n\t}\n\n\tif (node.catch) {\n\t\tconst catch_context = { ...context, state: { ...context.state } };\n\t\tconst argument = node.error && create_derived_block_argument(node.error, catch_context);\n\n\t\t/** @type {Pattern[]} */\n\t\tconst args = [b.id('$$anchor')];\n\t\tif (argument) args.push(argument.id);\n\n\t\tconst declarations = argument?.declarations ?? [];\n\t\tconst block = /** @type {BlockStatement} */ (\n\t\t\tcatch_context.visit(node.catch, catch_context.state)\n\t\t);\n\n\t\tcatch_block = b.arrow(args, b.block([...declarations, ...block.body]));\n\t}\n\n\tcontext.state.init.push(\n\t\tadd_svelte_meta(\n\t\t\tb.call(\n\t\t\t\t'$.await',\n\t\t\t\tcontext.state.node,\n\t\t\t\texpression,\n\t\t\t\tnode.pending\n\t\t\t\t\t? b.arrow([b.id('$$anchor')], /** @type {BlockStatement} */ (context.visit(node.pending)))\n\t\t\t\t\t: b.null,\n\t\t\t\tthen_block,\n\t\t\t\tcatch_block\n\t\t\t),\n\t\t\tnode,\n\t\t\t'await'\n\t\t)\n\t);\n}\n\n/**\n * @param {Pattern} node\n * @param {import('zimmerframe').Context<AST.SvelteNode, ComponentClientTransformState>} context\n * @returns {{ id: Pattern, declarations: null | Statement[] }}\n */\nfunction create_derived_block_argument(node, context) {\n\tif (node.type === 'Identifier') {\n\t\tcontext.state.transform[node.name] = { read: get_value };\n\t\treturn { id: node, declarations: null };\n\t}\n\n\tconst pattern = /** @type {Pattern} */ (context.visit(node));\n\tconst identifiers = extract_identifiers(node);\n\n\tconst id = b.id('$$source');\n\tconst value = b.id('$$value');\n\n\tconst block = b.block([\n\t\tb.var(pattern, b.call('$.get', id)),\n\t\tb.return(b.object(identifiers.map((identifier) => b.prop('init', identifier, identifier))))\n\t]);\n\n\tconst declarations = [b.var(value, create_derived(context.state, block))];\n\n\tfor (const id of identifiers) {\n\t\tcontext.state.transform[id.name] = { read: get_value };\n\n\t\tdeclarations.push(\n\t\t\tb.var(id, create_derived(context.state, b.member(b.call('$.get', value), id)))\n\t\t);\n\t}\n\n\treturn { id, declarations };\n}\n",
+        "byte_count": 3352
+      },
+      "output_sha256": "c759264db6edd2728d214df73f3ac2393a4eac8ef9a6fea067ddb6e5cc1b8b85",
+      "output_bytes": 3849,
+      "effect_calls": 0,
+      "authority_effect": "none"
+    }
+  }
+]

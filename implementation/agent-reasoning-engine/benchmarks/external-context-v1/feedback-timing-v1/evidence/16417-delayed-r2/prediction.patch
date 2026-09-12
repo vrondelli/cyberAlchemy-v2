@@ -1,0 +1,41 @@
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
+index 773aa59..80f4650 100644
+--- a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
++++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
+@@ -193,7 +193,14 @@ function get_delegated_event(event_name, handler, context) {
+ 		}
+ 
+ 		// If we are referencing a binding that is shadowed in another scope then bail out.
+-		if (local_binding !== null && binding !== null && local_binding.node !== binding.node) {
++		// But if the shadowing declaration is inside the function itself, the function is
++		// self-contained and can safely be hoisted.
++		if (
++			local_binding !== null &&
++			binding !== null &&
++			local_binding.node !== binding.node &&
++			!is_within_scope(binding.scope, scope)
++		) {
+ 			return unhoisted;
+ 		}
+ 
+@@ -227,6 +234,20 @@ function get_delegated_event(event_name, handler, context) {
+ 	return { hoisted: true, function: target_function };
+ }
+ 
++/**
++ * Returns `true` if `scope` is equal to or nested within `ancestor` (or its scope subtree)
++ * @param {import('svelte').Scope} scope
++ * @param {import('svelte').Scope} ancestor
++ */
++function is_within_scope(scope, ancestor) {
++	let current = scope;
++	while (current) {
++		if (current === ancestor) return true;
++		current = current.parent;
++	}
++	return false;
++}
++
+ /**
+  * @param {string} event_name
+  */

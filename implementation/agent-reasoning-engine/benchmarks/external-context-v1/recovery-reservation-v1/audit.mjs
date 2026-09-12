@@ -1,0 +1,21 @@
+// Post-run independent accounting and projection replay. Open questions: README.md.
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';import {hash} from '../common.mjs';import {retainedReasoning} from '../accounting-v1/accounting.mjs';import {projectPrompt} from '../../glm-episodes-v1/analysis/provider-study-v1/payload-js-v1/projection.mjs';
+const root=new URL('./',import.meta.url),read=p=>JSON.parse(readFileSync(new URL(p,root))),attempt=process.argv[2],dir='evidence/'+attempt+'/';
+const freeze=read('freeze.json');for(const f of freeze.sources)if(hash(readFileSync(new URL(f.path,root)))!==f.sha256)throw Error('source drift');
+const result=read(dir+'result.json'),captures=read(dir+'captures.json'),workflow=read(dir+'workflow.json'),events=read(dir+'events.json');
+for(const c of captures)if(projectPrompt(c.original).prompt!==c.prompt)throw Error('projection drift');
+const models=result.receipts.filter(r=>r.kind==='model'),tokenizers=[];
+for(let i=0;i<result.receipts.length;i++){
+ const r=result.receipts[i];
+ const found=captures.filter(c=>{const p=JSON.parse(c.prompt);return hash(r.kind==='model'?{...p,model:'glm-5.3-flash',stream:false,max_tokens:2048,thinking:{type:'enabled',clear_thinking:false},reasoning_effort:'low'}:{model:'glm-5.3-flash',messages:p.messages,tools:p.tools})===r.request_sha256;});
+ if(found.length!==1)throw Error('dispatch capture mismatch');
+ if(r.kind==='tokenizer'&&r.status===200){const a=retainedReasoning(JSON.parse(found[0].prompt).messages,result.receipts.slice(0,i));if(a.tokens!==r.retained_reasoning_reservation)throw Error('reasoning reservation mismatch');tokenizers.push({step:found[0].step,generation:found[0].generation,reserved_reasoning:a.tokens});}
+}
+if(result.model_attempts>24||result.tokenizer_attempts>48||result.receipts.some(r=>r.automatic_retries!==0)||!result.cleanup_verified||workflow.candidates.length>2||workflow.probe_requests>4)throw Error('budget/cleanup violation');
+if(models.some(r=>Number.isInteger(r.input_tokens)&&r.input_tokens>r.reserved_input_tokens))throw Error('observed token bound violation');
+if(result.recycling.dispatches.some(d=>d.projected_upper_bound>=result.context_profile.recycle_at))throw Error('admission violation');
+const evalPath=dir+'evaluation/report.json',repeatPath=dir+'reproduction/report.json';const evaluation=existsSync(new URL(evalPath,root))?read(evalPath):null,reproduction=existsSync(new URL(repeatPath,root))?read(repeatPath):null;
+for(const r of [evaluation,reproduction])if(r&&!r.cleanup_verified)throw Error('evaluator cleanup');
+if(result.patch_produced){const c=read(dir+result.candidate_id+'.json');if(hash(c.patch)!==result.patch_sha256||hash(readFileSync(new URL(dir+'prediction.patch',root)))!==result.patch_sha256)throw Error('patch mismatch');}
+const report={attempt,elapsed_ms:result.elapsed_ms,schema_rejections:events.filter(e=>e.arguments===null).length,archive_reads:events.filter(e=>e.tool==='read_archive').length,peak_admitted_bound:Math.max(0,...result.recycling.dispatches.map(d=>d.projected_upper_bound)),first_prompt_sha256:captures[0]?.prompt_sha256,status:result.status,terminal_reason:result.error??null,model_calls:result.model_attempts,tokenizer_calls:result.tokenizer_attempts,observed_input_bounds_hold:models.filter(r=>Number.isInteger(r.input_tokens)).every(r=>r.input_tokens<=r.reserved_input_tokens),projection_replay_pass:true,accounting_replay_pass:true,reasoning_measurements:tokenizers,recycles:result.recycling.recycles,context_profile:result.context_profile,candidates:workflow.candidates,public_probe_requests:workflow.probe_requests,patch_produced:result.patch_produced,patch_sha256:result.patch_sha256??null,evaluation,reproduction,verified_success:!!(evaluation?.resolved&&evaluation.strict_all_expected_pass&&reproduction?.resolved&&reproduction.strict_all_expected_pass),cleanup_verified:true,input_tokens:models.reduce((s,r)=>s+(r.input_tokens??0),0),output_tokens:models.reduce((s,r)=>s+(r.output_tokens??0),0),list_price_estimate_usd:result.list_price_estimate_usd,authority_effect:'none',open_questions_ref:'PLAN.md'};
+writeFileSync(new URL('assessment-'+attempt+'.json',root),JSON.stringify(report,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(report,null,2));

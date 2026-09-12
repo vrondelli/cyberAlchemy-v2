@@ -1,0 +1,11 @@
+{
+  "patch": "diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js\nindex 773aa59..80f4650 100644\n--- a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js\n+++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js\n@@ -193,7 +193,14 @@ function get_delegated_event(event_name, handler, context) {\n \t\t}\n \n \t\t// If we are referencing a binding that is shadowed in another scope then bail out.\n-\t\tif (local_binding !== null && binding !== null && local_binding.node !== binding.node) {\n+\t\t// But if the shadowing declaration is inside the function itself, the function is\n+\t\t// self-contained and can safely be hoisted.\n+\t\tif (\n+\t\t\tlocal_binding !== null &&\n+\t\t\tbinding !== null &&\n+\t\t\tlocal_binding.node !== binding.node &&\n+\t\t\t!is_within_scope(binding.scope, scope)\n+\t\t) {\n \t\t\treturn unhoisted;\n \t\t}\n \n@@ -227,6 +234,20 @@ function get_delegated_event(event_name, handler, context) {\n \treturn { hoisted: true, function: target_function };\n }\n \n+/**\n+ * Returns `true` if `scope` is equal to or nested within `ancestor` (or its scope subtree)\n+ * @param {import('svelte').Scope} scope\n+ * @param {import('svelte').Scope} ancestor\n+ */\n+function is_within_scope(scope, ancestor) {\n+\tlet current = scope;\n+\twhile (current) {\n+\t\tif (current === ancestor) return true;\n+\t\tcurrent = current.parent;\n+\t}\n+\treturn false;\n+}\n+\n /**\n  * @param {string} event_name\n  */\n",
+  "files": [
+    {
+      "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js",
+      "before_sha256": "147d868ef5848345c35482e58efda1d1e95ea9c7ced80afe351a1b7eafc1c212",
+      "after_sha256": "0fb1a3a81b1387291c699bd1327e1e65b2d85f0541c2e225a21712945d8e0291"
+    }
+  ],
+  "candidate_id": "637c02e5c517ff56ce9de9ffd21860a1ff0d96da021b46909fab611d1dd31887"
+}

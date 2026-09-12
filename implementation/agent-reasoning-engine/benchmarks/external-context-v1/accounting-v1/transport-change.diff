@@ -1,0 +1,42 @@
+--- ../pressure-v1/transport.mjs
++++ transport.mjs
+@@ -1,3 +1,4 @@
++import {reasoningEvidence,retainedReasoning} from './accounting.mjs';
+ // Isolated pressure guard; upstream transport otherwise unchanged. Open questions: PLAN.md.
+ import {secretResolutionFailure} from '../../../packages/coding-agent-runtime/secret-provider.mjs';
+ import {createHash, randomUUID} from 'node:crypto';
+@@ -92,7 +93,7 @@
+   need(chat.protocol === 'http:' || authenticated, 'credentials-required');
+   need(!authenticated || (api_key_ref && typeof secret_registry?.consume === 'function'), 'credentials-incomplete');
+   const reference = authenticated ? projectSecretReference(api_key_ref) : null;
+-  const identity = hash({version: 1, model: MODEL, chat: chat.href, tokenizer: tokenizer.href, maximum_output_tokens,
++  const identity = hash({version: 1, accounting_policy: 'retained-reasoning-v1', model: MODEL, chat: chat.href, tokenizer: tokenizer.href, maximum_output_tokens,
+     maximum_requests, timeout_ms, maximum_request_bytes, maximum_response_bytes, token_margin, reasoning_effort, reference,...(maximum_model_retries?{maximum_model_retries}:{}),...(model_timeout_ms!==timeout_ms?{model_timeout_ms}:{}),...(final_reasoning_effort!==reasoning_effort?{final_reasoning_effort}:{}),...(native_submission?{native_submission}:{}),...(final_timeout_ms!==timeout_ms?{final_timeout_ms}:{}),...(request_budget==='paging-v1'?{request_budget}:{})});
+   const measurements = new Map();
+   const receipts = [];
+@@ -228,6 +229,7 @@
+   const transport = createTransport({adapter_id: `glm-flash:${identity}`, source_ref: `glm-flash-v1:${identity}`, maximum_output_tokens,
+     async measure_request({prompt}) {
+       const body = bodyFor(prompt), key = hash(body);
++      const retained=retainedReasoning(body.messages,receipts);
+       need(Buffer.byteLength(stable(body)) <= maximum_request_bytes, 'request-too-large');
+       if (!measurements.has(key)) {
+         need(tokenizerCalls < maximum_requests * 2, 'tokenizer-limit');
+@@ -236,7 +238,8 @@
+           const count = payload?.usage?.prompt_tokens;
+           need(integer(count), 'tokenizer-count-invalid');
+           receipt.input_tokens = count;
+-          measurements.set(key, count + token_margin);
++          receipt.retained_reasoning_reservation=retained.tokens;receipt.retained_reasoning_occurrences=retained.message_occurrences;
++          measurements.set(key, count + token_margin + retained.tokens);
+         });
+       }
+       return measurements.get(key);
+@@ -286,6 +289,7 @@
+       need(['stop','tool_calls'].includes(finish_reason), 'finish-reason-unsupported');
+       if (finish_reason === 'tool_calls') need(Array.isArray(message.tool_calls) && message.tool_calls.length > 0 && message.tool_calls.length <= 8, 'tool-calls-invalid');
+       else need(!message.tool_calls && typeof message.content === 'string' && message.content.length > 0, 'final-text-invalid');
++      const evidence=reasoningEvidence(message,receipt);if(evidence)receipt.retained_reasoning=evidence;
+       return {final_bytes: stable({message, finish_reason}), receipt,...(maximum_model_retries?{attempt_receipts:receipts.slice(firstReceiptIndex)}:{})};
+       });
+     }});

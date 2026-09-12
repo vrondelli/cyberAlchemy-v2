@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The snippet `display` is wrongly marked can_hoist because its `value` binding from `let value = await ...` (kind 'normal'/'let' in an async body scope) passes can_hoist_snippet, so the snippet is emitted at module scope outside the $.async_body closure where `value` lives.",
+      "evidence_refs": [
+        "compiled_client: display arrow references `value` outside $.async_body",
+        "SnippetBlock.js can_hoist_snippet only checks function_depth, not async await declarations"
+      ],
+      "prediction": "Preventing hoisting when a referenced binding is an awaited (async) declaration makes the snippet stay inside async_body and the probe renders 'ready'.",
+      "falsifier": "If the compiled output still places display outside async_body or `value` binding kind is not tied to await, this fix is wrong."
+    },
+    {
+      "claim": "The bug is in the client transform's snippet hoisting/async_body handling (transform-client.js) that moves snippet functions out regardless of scope of awaited vars, rather than analysis marking can_hoist.",
+      "evidence_refs": [
+        "transform-client.js:376 pushes $.async_body with body block"
+      ],
+      "prediction": "Patching only transform-client would fix it without touching can_hoist_snippet.",
+      "falsifier": "If transform already respects node.metadata.can_hoist, then analysis flag is the sole cause."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "0910497faf70061377771fb2e78140039b40346ea265f5b481e93b77f1d3bae2",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/SnippetBlock.js",
+          "before_sha256": "083952e7a33a3aef671deaf0bcd5028182aa3f35256bb575518cf0a791c83116",
+          "after_sha256": "0618d422724884ac1afe0e2c4ce9b1cde862660581e211555cc51d94ecb6c487"
+        }
+      ],
+      "test": {
+        "status": "intended_failure",
+        "probe_id": "public-async-snippet-v1",
+        "log_sha256": "da35db6bc22dcd9658ee0aea14e4262a2255335bb791d6fc610ce6455224aa31",
+        "excerpt": "\n RUN  v3.0.5 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n   → value is not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:53:23\n   Duration  7.35s (transform 3.24s, setup 0ms, collect 6.46s, tests 135ms, environment 411ms, prepare 83ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-async-snippet-v1",
+    "log_sha256": "2ae24fe82d5b7363479d71e3c9f7ea3fb21e04dcc7d583ca513c21531de9aa92",
+    "excerpt": "\n RUN  v3.0.5 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom) 367ms\n   → value is not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:29:36\n   Duration  28.20s (transform 11.18s, setup 0ms, collect 22.81s, tests 454ms, environment 3.33s, prepare 416ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

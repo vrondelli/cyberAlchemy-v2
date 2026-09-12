@@ -1,0 +1,30 @@
+{
+  "hypotheses": [
+    {
+      "claim": "Attribute.js analyze-time hoistability check rejects hoisting because a body-level local declaration named like a loop variable (index) is counted as a reference to the loop binding, even though shadowed.",
+      "evidence_refs": [
+        "baseline compiled output: B handler inline, C hoisted",
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:85-240"
+      ],
+      "prediction": "Fixing the shadowing check in Attribute.js analysis marks B's arrow hoistable, producing [on_click] for B like C.",
+      "falsifier": "If Attribute.js already handles shadowing, the failure is in the transform-side hoisting decision in 3-transform visitors."
+    },
+    {
+      "claim": "The transform-time shared-callback decision (e.g. in 3-transform/client/visitors/shared/Attribute.js or events) inlines the arrow because scope references include the shadowing declaration, preventing scope-only dependencies.",
+      "evidence_refs": [
+        "baseline compiled output: B handler inline with local const index",
+        "packages/svelte/src/compiler/phases/3-transform/client/utils.js:40-199"
+      ],
+      "prediction": "Adjusting the transform-side decision to skip locally declared names hoists B's callback.",
+      "falsifier": "If the transform already skips declared names, fix must be in analyze phase."
+    }
+  ],
+  "candidates": [],
+  "probe_requests": 0,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "fa1a98e56d24440629d1066cc4b0c6ed97f0698e8f1d2ed4c1ad735b4f384947",
+    "excerpt": "file:///tmp/are-public-compiler.mjs:13\nif(!hoisted(B.right))throw Error('ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback');\n                           ^\n\nError: ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback\n    at file:///tmp/are-public-compiler.mjs:13:28\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v20.19.5\n"
+  }
+}

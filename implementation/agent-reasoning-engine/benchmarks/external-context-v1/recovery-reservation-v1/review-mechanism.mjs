@@ -1,0 +1,16 @@
+// Post-run interpretation, isolated from frozen treatment and scoring. Open questions: RESULT.md.
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {hash} from '../common.mjs';
+import {createHypothesisObservation,createLearningDecision,verifyEvolutionRecord} from '../../../packages/evolution-runtime/index.mjs';
+const read=p=>JSON.parse(readFileSync(new URL(p,import.meta.url))),bytes=p=>readFileSync(new URL(p,import.meta.url));
+const research=read('research-result.json'),result=read('closeout.json'),mechanism=read('mechanism-observations.json');
+const h=research.records.find(r=>r.record_id===read('research.json').labels.H1),exp=research.records.find(r=>r.schema_version==='are.research-experiment/v1');
+const blocked=mechanism.rows.filter(r=>r.blocked_reread_advice.length),exposed=mechanism.rows.filter(r=>r.checkpoint_calls.length);
+assert.equal(blocked.length,2);assert.equal(exposed.length,3);assert(exposed.every(r=>r.accepted_stage_calls.length===0));
+const claim='Three checkpoint-exposed episodes produced no accepted candidate. Two received exact-text recovery advice requiring a source reread while the checkpoint withheld read tools. This is counterevidence for this strict scheduling policy; it does not establish that all recovery reservation is ineffective. The reserved arm\'s submitted patch was staged before exposure.';
+const observation=createHypothesisObservation({hypothesis_ref:h.record_id,source_result_ref:'closeout.json',source_result_digest:hash(bytes('closeout.json')),evaluator_id:'recovery110-mechanism-review',evidence_refs:['closeout.json','mechanism-observations.json','completion-audit.json'],phase:'experiment',limitations:['Post-run descriptive interpretation, not a separately randomized mediator comparison.','Two observed tasks and two repetitions; no broad model qualification.','Output truncation and weak inability reports remain separate failure mechanisms.'],observation_kind:'counterevidence',claim});
+const decision=createLearningDecision({hypothesis_ref:h.record_id,observation_refs:[observation.record_id],experiment_ref:exp.record_id,disposition:'revise-hypothesis',reason_codes:['recovery.checkpoint-no-accepted-candidate','recovery.required-action-withheld'],supporting_count:0,counterevidence_count:1,experiment_support_count:0,next_action:'Do not adopt strict checkpoints. Any next experiment must preserve error-specific recovery actions, distinguish schema repair from task repair, and use a separately frozen comparison.'});
+const records=[...research.records,observation,decision];for(const r of records)assert(verifyEvolutionRecord(r,r.schema_version).ok);
+writeFileSync(new URL('reviewed-research-result.json',import.meta.url),JSON.stringify({records,projection:{edges:[...research.projection.edges,{from:exp.record_id,to:observation.record_id},{from:observation.record_id,to:decision.record_id}]},claim,decision:'revise-hypothesis',source_result_sha256:hash(bytes('closeout.json')),review_source_sha256:hash(readFileSync(new URL(import.meta.url))),authority_effect:'none',open_questions_ref:'RESULT.md'},null,2)+'\n',{flag:'wx'});
+console.log('Mechanism counterevidence recorded; policy revision required.');

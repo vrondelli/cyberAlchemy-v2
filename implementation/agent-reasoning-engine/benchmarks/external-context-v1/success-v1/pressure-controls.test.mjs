@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {pressureMessage,shouldInject,verifyPressureDispatch} from './pressure-controls.mjs';
+test('labelled fixture and injection boundary',()=>{const m=pressureMessage();assert.equal((m.content.match(/pressure ballast /g)||[]).length,4000);assert(Buffer.byteLength(m.content)<70000);assert(shouldInject(0,[{tool:'read_file',result:{ok:true}}]));assert(!shouldInject(0,[]));assert(shouldInject(3,[]));});
+test('transition requires post-injection generation and admitted bound',()=>{assert(!verifyPressureDispatch([],null).exercised);assert.throws(()=>verifyPressureDispatch([{}, {generation:0,projected_upper_bound:9000}],0));assert.throws(()=>verifyPressureDispatch([{}, {generation:1,projected_upper_bound:12000}],0));assert(verifyPressureDispatch([{}, {generation:1,sequence:2,projected_upper_bound:9000}],0).exercised);});

@@ -1,0 +1,42 @@
+// Reproducible round-five source closure and D08 freeze transition.
+// Open questions: PLAN-round5.md. This performs no model requests.
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {sha,verifyFreeze} from '../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/verify-freeze.mjs';
+import {stable} from '../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/delivery.mjs';
+import {replayResearchWork} from '../../../implementation/agent-reasoning-engine/packages/evolution-runtime/src/research-work.mjs';
+import {build,verifyPredecessor,verifyFreezeEvidence} from './bind-round5.mjs';
+const repository=resolve('.'),research=resolve('agent-reasoning-engine/research/contextbench-v1'),path=n=>resolve(research,n),read=n=>JSON.parse(readFileSync(path(n))),fileSha=p=>sha(readFileSync(p));
+const write=(name,value)=>writeFileSync(path(name),JSON.stringify(value,null,2)+'\n',{flag:'wx'});
+function preflight(){
+  const report=read('initial-envelope-round5.json');if(report.status!=='passed-initial-envelope'||report.model_calls!==0||report.rows.length!==3)throw Error('round5.preflight-report');
+  const rows=report.rows.map(row=>{const resultRef=resolve(row.output_path,'result.json'),result=JSON.parse(readFileSync(resultRef));if(result.status!=='token_budget_stopped'||result.error!=='recycling.dispatch-admission-denied'||result.receipts.some(r=>r.kind==='model'&&r.dispatched)||result.captures.length!==1||result.admissions.length!==1||result.admissions[0].reason!=='token-budget.preflight-disabled'||result.admissions[0].total_token_limit!==96000)throw Error('round5.preflight-row:'+row.instance_id);return{instance_id:row.instance_id,result_ref:resultRef,result_sha256:fileSha(resultRef),capture_sha256:result.captures[0].prompt_sha256};});
+  return{status:'verified',rows,model_calls:0,authority_effect:'none',open_questions_ref:'PLAN-round5.md#open-questions'};
+}
+function validation(){
+  const source='/tmp/are-r5-freeze-tests.log',target=path('freeze-tests-round5.log'),text=readFileSync(source,'utf8');if(!text.includes('ℹ tests 125')||!text.includes('ℹ pass 125')||!text.includes('ℹ fail 0'))throw Error('round5.tests');writeFileSync(target,readFileSync(source),{flag:'wx'});
+  return{status:'passed',tests:125,failed:0,log_ref:target,log_sha256:fileSha(target),provider_model_calls:0,component_review_ref:'terminal-submission-component-review-v1.json',authority_effect:'none',open_questions_ref:'PLAN-round5.md#open-questions'};
+}
+function continuity(){
+  const names=['PLAN-round5.md','hypotheses-round5.json','development-matrix-v5.json','experiment-round5.json','work-plan-v5.json','terminal-submission-component-review-v1.json','round5-continuity.json','initial-envelope-round5.json','preflight-binding-round5.json','freeze-validation-v5.json'];
+  return{passed:true,reviewer:'executing parent agent',objective:'Improve reusable ARE reasoning, recovery, correctness and completion within cumulative model input plus output tokens; finish GLM-5.3-flash qualification, small windows first.',method:'Round-four reviewed H1 counterevidence and H7 limited support open H9/H10/H0 through exact D01-D08 records. H9 is selected because two of three failures were malformed JSON.',scope:'Three exact exposed round-four terminal failures, matched free-form and structured submissions, 8K/96K; fixed full acceptance and reserved confirmation unchanged; SWE-bench excluded.',measurement:'Valid completion, source/effect integrity, native score availability and total model tokens are separate. Structured syntax cannot prove semantic retention, repair correctness or transfer.',counterevidence:'Round four had five complete pairs, +0.000819 span-F1 gain, file-F1 degradation and three terminal failures despite zero context stops.',resolved_bindings:names.map(name=>({path:path(name),sha256:fileSha(path(name))})),criterion_verdicts:{objectives:'preserved',method_and_predecessor:'bound and semantically reviewed',instrument:'125 tests including seven H9 integrations',initial_admission:'three tokenizer-only requests, zero model calls',experiment:'six matched cells with terminal shape as the only within-pair change',scope:'development only; acceptance unchanged',freeze_readiness:'exact closure and D08 criterion verified by this generator'},limitations:['Outcome-selected exposed failure cohort.','Only three tasks at 8K.','H9 cannot repair absent or semantically wrong evidence.'],authority_effect:'none',open_questions_ref:'PLAN-round5.md#open-questions'};
+}
+function sources(){
+  const prior=read('freeze-round4.json').sources.map(s=>resolve(s.path));
+  const additions=[
+    ...['round4-analysis.json','round4-traces.json','round4-outcome-review.json','round4-selected-hypothesis-review.json','round4-instrument-learning.json','round4-closeout.json','work-state-closed-v4.json','review-round4.mjs','PLAN-round5.md','hypotheses-round5.json','bind-round5-continuity.mjs','round5-continuity.json','prepare-round5.mjs','terminal-submission-component-review-v1.json','terminal-submission-tests-v1.log','development-matrix-v5.json','bind-round5.mjs','work-plan-v5.json','experiment-round5.json','initial-envelope-round5.json','preflight-binding-round5.json','freeze-validation-v5.json','round5-freeze-continuity.json','freeze-tests-round5.log','freeze-round5.mjs'].map(n=>'agent-reasoning-engine/research/contextbench-v1/'+n),
+    ...['episode-terminal-submission.test.mjs','round4-preserved/runtime-manifest.json','round4-preserved/episode.mjs','round4-preserved/final-selection.mjs','round4-preserved/preflight_live.mjs','round4-preserved/verify-freeze.mjs'].map(n=>'implementation/agent-reasoning-engine/benchmarks/contextbench-v1/'+n)
+  ].map(p=>resolve(repository,p));
+  const unique=[...new Set([...prior,...additions])].sort();for(const p of unique)if(!existsSync(p))throw Error('round5.missing-source:'+p);return unique.map(path=>({path,sha256:fileSha(path)}));
+}
+export function createFreeze(){
+  write('preflight-binding-round5.json',preflight());write('freeze-validation-v5.json',validation());write('round5-freeze-continuity.json',continuity());
+  const material={schema_version:'are.contextbench-freeze/v1',status:'frozen',authority_effect:'none',node_version:process.version,expected_tasks:3,expected_cells:6,matrix_ref:path('development-matrix-v5.json'),preflight_ref:path('initial-envelope-round5.json'),task_manifest_ref:resolve('implementation/agent-reasoning-engine/benchmarks/contextbench-v1/development-tasks/manifest.json'),task_directory:resolve('implementation/agent-reasoning-engine/benchmarks/contextbench-v1/development-tasks'),repository_inventory_ref:'/tmp/are-contextbench-repositories-v1/inventory.json',upstream:'/tmp/are-contextbench-upstream-117',python:'/tmp/are-contextbench-venv-117/bin/python',scorer:resolve('implementation/agent-reasoning-engine/benchmarks/contextbench-v1/score_native.py'),scoring_cache:'/tmp/are-contextbench-native-score-cache-v1',sources:sources(),continuity_review:read('round5-freeze-continuity.json'),claim_ceiling:'development diagnostic only; not benchmark clearance',predecessor_freeze_ref:path('freeze-round4.json'),successor_reason:'Test schema-bound terminal submission against the exact three exposed round-four terminal failures before revisiting H1.'};
+  write('freeze-round5.json',{...material,freeze_sha256:sha(material)});verifyFreeze(path('freeze-round5.json'));
+  const built=build(),artifactRef='agent-reasoning-engine/research/contextbench-v1/freeze-round5.json',artifactDigest=fileSha(path('freeze-round5.json'));
+  const events=[{event_id:'r5-freeze-start',task_id:'contextbench.round5.freeze',action:'start'},{event_id:'r5-freeze-complete',task_id:'contextbench.round5.freeze',action:'complete',evidence:[{criterion_id:'exact-frozen-run-envelope',artifact_ref:artifactRef,artifact_digest:artifactDigest}]}];
+  const state=replayResearchWork({plan:built.plan,registrations:built.registrations,events,verify_evidence:verifyFreezeEvidence,verify_registration:verifyPredecessor});if(!state.tasks.some(t=>t.task_id==='contextbench.round5.run'&&t.state==='ready'))throw Error('round5.run-not-ready');write('work-state-frozen-v5.json',state);
+  return{sources:material.sources.length,freeze_sha256:sha(material),artifact_sha256:artifactDigest,frontier:state.frontier};
+}
+if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)console.log(stable(createFreeze()));

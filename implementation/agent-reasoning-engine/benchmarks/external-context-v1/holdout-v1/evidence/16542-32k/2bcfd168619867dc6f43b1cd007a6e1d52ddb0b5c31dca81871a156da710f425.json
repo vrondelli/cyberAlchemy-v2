@@ -1,0 +1,11 @@
+{
+  "patch": "diff --git a/packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js b/packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js\nindex 34acdd6..81e1b0d 100644\n--- a/packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js\n+++ b/packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js\n@@ -17,7 +17,13 @@ export function ConstTag(node, context) {\n \t// TODO we can almost certainly share some code with $derived(...)\n \tif (declaration.id.type === 'Identifier') {\n \t\tconst init = build_expression(context, declaration.init, node.metadata.expression);\n-\t\tlet expression = create_derived(context.state, b.thunk(init));\n+\n+\t\t// if the expression contains `await`, we need to create an async derived\n+\t\t// so that the value is eventually resolved, without leaking `await`\n+\t\t// into a non-async function\n+\t\tlet expression = node.metadata.expression.has_await\n+\t\t\t? b.call('$.async_derived', b.thunk(init, true))\n+\t\t\t: create_derived(context.state, b.thunk(init));\n \n \t\tif (dev) {\n \t\t\texpression = b.call('$.tag', expression, b.literal(declaration.id.name));\n@@ -61,7 +67,9 @@ export function ConstTag(node, context) {\n \t\t\t])\n \t\t);\n \n-\t\tlet expression = create_derived(context.state, fn);\n+\t\tlet expression = node.metadata.expression.has_await\n+\t\t\t? b.call('$.async_derived', b.thunk(fn, true))\n+\t\t\t: create_derived(context.state, fn);\n \n \t\tif (dev) {\n \t\t\texpression = b.call('$.tag', expression, b.literal('[@const]'));\n",
+  "files": [
+    {
+      "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js",
+      "before_sha256": "d587649e6bf4ac28dd7a7355041ef36f5eb8090b936b2f356f4c4ff9541bb23f",
+      "after_sha256": "acecfdab0b7862cf9fa9bb6da502c6a1ecd8e187555ce107bffbe6600443cc61"
+    }
+  ],
+  "candidate_id": "2bcfd168619867dc6f43b1cd007a6e1d52ddb0b5c31dca81871a156da710f425"
+}

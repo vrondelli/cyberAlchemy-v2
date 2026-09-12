@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The hoisting bail-out fires for button B because its callback declares `const index`, so the reference `index` inside the function resolves to a different binding than the each-context `index` in the outer scope, tripping the 'shadowed in another scope' check; if the binding is declared inside the function itself the shadowing is harmless and hoisting is safe.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js lines 181-185: local_binding.node !== binding.node bail-out",
+        "compiled output: on_click hoisted for C but inline for B"
+      ],
+      "prediction": "Skipping the shadowing bail-out when binding is declared within target_function's own scope makes button B's callback hoist while C stays hoisted, and controls pass.",
+      "falsifier": "If B still compiles inline after the change, or a snapshot expecting unhoisted B fails, the shadowing check is not the cause."
+    },
+    {
+      "claim": "The bail-out is instead caused by the EachBlock rule 'binding.initial?.type === EachBlock' which fires for any each-block binding referenced by name.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js lines 188-190"
+      ],
+      "prediction": "Relaxing only the EachBlock rule (without the shadowing fix) would hoist B; if not, this hypothesis is wrong.",
+      "falsifier": "If B's callback has no reference resolving to the EachBlock binding (it only declares a local `index`), this rule never fires for B."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "e7171fd2756ea9b8e5935d51db870aa23c6a01eda6138bd8d02fee44aa08d6d1",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js",
+          "before_sha256": "147d868ef5848345c35482e58efda1d1e95ea9c7ced80afe351a1b7eafc1c212",
+          "after_sha256": "c057be46ebd70d01c90353b9322e3ea3d825282cf6908c31a745590aa025566a"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "e1bb75e469e8e5c6b6e626c3e9ce9f5ad236ebddf135064fad4542deb4150201",
+        "excerpt": "ARE_PUBLIC_COMPILER_PASS\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "fa1a98e56d24440629d1066cc4b0c6ed97f0698e8f1d2ed4c1ad735b4f384947",
+    "excerpt": "file:///tmp/are-public-compiler.mjs:13\nif(!hoisted(B.right))throw Error('ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback');\n                           ^\n\nError: ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback\n    at file:///tmp/are-public-compiler.mjs:13:28\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v20.19.5\n"
+  }
+}

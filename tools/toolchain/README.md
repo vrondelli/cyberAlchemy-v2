@@ -61,6 +61,15 @@ Cargo project whose build script compiles a C static archive and links it into
 Rust. Run it through the launcher. [verification.json](verification.json) records
 the local result and the recovered DomainSpec composition test.
 
+## RWO Unicode admission
+
+`tools/toolchain/run-rwo COMMAND ...` uses the shared compiler launcher and the
+ICU 74 libraries from the existing pinned WebKit compatibility installation. It
+creates only a user-cache linker-name overlay, validates the installation marker,
+and scopes library paths to its child process. Use it for Robot World and the
+new orchestrator; their vendored admission kernel binds ICU 74 symbols. If absent,
+follow the WebKit compatibility installation below. No system library is replaced.
+
 ## Optional Solana compiler
 
 The [Solana toolchain](solana/README.md) supplies pinned SBF build tools through

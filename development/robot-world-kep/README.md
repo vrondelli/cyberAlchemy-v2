@@ -4,6 +4,25 @@ Two robots collect resources and construct workshop items while an independent m
 
 Start with [the DAG](PLAN.md), [the prototype definition](DEFINITION.md), and [open questions](OPEN-QUESTIONS.md). The full plan contains 26 nodes. The first executable DAG contains three allowlisted local tasks.
 
+## Interaction dynamics successor
+
+The separately versioned [interaction-v1 implementation](interaction-dynamics/REPORT.md)
+adds normalized four-axis preferences, active semantic alignment, decay-before-impulse
+memory, checked action selection and decision traces. Its 19 focused tests pass and
+70 controlled cases repeat deterministically. Full legacy integration regression
+is blocked by missing RWO source/binaries in this checkout; see the report.
+The default runner and bundled UI recordings retain the original policy.
+
+From the repository root, run a fresh comparison into a new directory:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 development/robot-world-kep/runtime/run_interaction_experiments.py --output /tmp/robot-interaction-new-run
+```
+
+Exact numerical behavior and reproduction checks are in the
+[contract](interaction-dynamics/CONTRACT.md). This successor remains local fixture
+construction, with no live inference, real KEP or product approval.
+
 ## Run
 
 From this package directory, with Python 3, `jsonschema` and Rust installed:
@@ -57,3 +76,12 @@ This is a recorded observation client. Live world transport is future W2/W4 work
 - Neither a passing prototype nor a vote deploys a function. Hosting, public access and money remain separate construction and operational tasks.
 
 The retained first-epoch run is `runs/epoch-001/`. Its original test log, Godot screenshot and verification are in `evidence/epoch-001/`. Those receipts describe the original presentation. All 35 original candidate source files are preserved byte-for-byte under `evidence/ui-002/baseline/`, including the original project configuration. The revised UI has a separate candidate and verification under `evidence/ui-002/`. No commit, publication, deployment or product approval is implied.
+
+## Bounded orchestrator contracts
+
+The [run/verify integration](orchestrator-integration/README.md) executes the
+interaction world through the new sibling OrchestratorService and independently
+verifies action/clock transitions. It includes a recorded replay page and restores
+the legacy kernel build bindings. See its [report](orchestrator-integration/REPORT.md)
+for current evidence; earlier frozen test records retain their historical results.
+Open questions remain in its [plan](orchestrator-integration/PLAN.md).

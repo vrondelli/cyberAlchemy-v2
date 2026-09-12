@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Use the existing compiler with pinned ICU 74. Questions: README.md."""
+import hashlib
+import json
+import os
+import sys
+from pathlib import Path
+
+here = Path(__file__).resolve().parent
+lock = (here / 'webkit-lock.json').read_bytes()
+digest = hashlib.sha256(lock).hexdigest()
+data = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+root = data / 'cyberalchemy/toolchains' / ('webkit-' + digest[:16])
+marker = root / 'installation.json'
+if not marker.is_file() or json.loads(marker.read_text()).get('lock_sha256') != digest:
+    raise SystemExit('Pinned ICU 74 is absent; see tools/toolchain/README.md WebKit compatibility installation')
+lib = root / 'usr/lib/x86_64-linux-gnu'
+cache = Path(os.environ.get('XDG_CACHE_HOME', str(Path.home() / '.cache')))
+overlay = cache / 'cyberalchemy' / ('rwo-icu74-' + digest[:16])
+overlay.mkdir(parents=True, exist_ok=True)
+for name, target in [('libicuuc.so', 'libicuuc.so.74.2'),
+                     ('libicuuc.so.74', 'libicuuc.so.74.2'),
+                     ('libicudata.so.74', 'libicudata.so.74.2')]:
+    source = lib / target
+    if not source.is_file():
+        raise SystemExit('ICU74_LIBRARY_MISSING:' + str(source))
+    link = overlay / name
+    try:
+        link.symlink_to(source)
+    except FileExistsError:
+        if not link.is_symlink() or link.resolve() != source.resolve():
+            raise SystemExit('ICU74_OVERLAY_CONFLICT:' + str(link))
+env = dict(os.environ)
+for key in ('LIBRARY_PATH', 'LD_LIBRARY_PATH'):
+    env[key] = str(overlay) + (os.pathsep + env[key] if env.get(key) else '')
+if len(sys.argv) < 2:
+    raise SystemExit('Usage: tools/toolchain/run-rwo COMMAND [ARG ...]')
+os.execve(str(here / 'run'), [str(here / 'run'), *sys.argv[1:]], env)

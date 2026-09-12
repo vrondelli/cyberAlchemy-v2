@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "In attribute_effect, the trailing select effect calls select_option(select, prev.value) without mounting=true; when the spread has no 'value', undefined matches no option and selectedIndex is set to -1, wiping the selected-attribute default.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:515-520",
+        "packages/svelte/src/internal/client/dom/elements/bindings/select.js:42-44 (!mounting || value !== undefined -> selectedIndex = -1)"
+      ],
+      "prediction": "Passing mounting=true (as upstream does) preserves the HTML selected default when no value prop exists, and only spread selects are affected (control select has no attribute_effect).",
+      "falsifier": "If the value is applied before options exist or timing is the issue, mounting=true will still leave selects[1].value empty."
+    },
+    {
+      "claim": "The bug is in set_attributes resetting select state, not the follow-up effect.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:485-520"
+      ],
+      "prediction": "The failure would occur even if the trailing effect were removed entirely.",
+      "falsifier": "Removing the trailing select effect would fix the repro; if it doesn't, set_attributes is at fault."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "ad709a382ba0bfad276319f8ea21455c9fb4ace4e2a538dd39aaef33b376c2e6",
+      "files": [
+        {
+          "path": "packages/svelte/src/internal/client/dom/elements/attributes.js",
+          "before_sha256": "70cf68e6d2ec2557c8fb4bb9004dd2a2f5b85230f1f61db930a1652f1f3a3a52",
+          "after_sha256": "f26e7b86522ebab87dd9894613133a7205e72963dc6770339116921a52787c5c"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "a7b3d2c4c8bf99b1ee0013c7077ceb155142ce2be31e06e312a72d2fa4296ae1",
+        "excerpt": "\n RUN  v2.1.9 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1542 skipped (1544)\n   Start at  23:11:55\n   Duration  12.53s (transform 5.07s, setup 0ms, collect 10.43s, tests 225ms, environment 1.36s, prepare 143ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "da7b19c3236970c2e9c324328dbd676ef4d5a6b1ca7473cbe4abf69c98bfb4f0",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1542 skipped (1544)\n   Start at  18:33:32\n   Duration  8.37s (transform 3.11s, setup 0ms, collect 6.56s, tests 115ms, environment 1.22s, prepare 184ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\nAssertionError: ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n- Expected\n+ Received\n\n- o2\n\n ❯ Object.test packages/svelte/tests/runtime-runes/samples/are-public-holdout/_config.js:7:10\n      5|   const selects = target.querySelectorAll('select');\n      6|   assert.equal(selects[0].value, 'o2', 'ARE_CONTROL_SELECTED_OPTION');\n      7|   assert.equal(selects[1].value, 'o2', 'ARE_EXPECTED_SELECTED_OPTION');\n       |          ^\n      8|  }\n      9| });\n ❯ run_test_variant packages/svelte/tests/runtime-legacy/shared.ts:400:19\n ❯ packages/svelte/tests/runtime-legacy/shared.ts:144:4\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

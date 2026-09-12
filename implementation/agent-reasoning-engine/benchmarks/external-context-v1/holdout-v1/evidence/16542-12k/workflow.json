@@ -1,0 +1,32 @@
+{
+  "hypotheses": [
+    {
+      "claim": "ConstTag/VariableDeclaration client transform wraps @const initializers in $.derived(() => ...) but never marks the callback async when the initializer contains await, so `{@const number = await Promise.resolve(5)}` emits `const number = $.derived(() => await ...)` which is a syntax error inside a non-async function.",
+      "evidence_refs": [
+        "baseline compiled_client: `const number = $.derived(() => await Promise.resolve(5));` inside boundary pending/main blocks",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/VariableDeclaration.js (inspected ranges 1-379)",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js (inspected 1-85)"
+      ],
+      "prediction": "Marking the derived callback async (and routing the const through the async-derived path so downstream reads await it) makes the holdout render '5' in client and hydrate modes.",
+      "falsifier": "If the fix instead requires rewriting the await into a promise-chain/thunk (e.g. `$.async` body transforms) because async derived callbacks are not supported by the runtime, an async-callback-only patch will still fail or misrender."
+    },
+    {
+      "claim": "The bug is in analysis rather than transform: ConstTag analysis does not register the await containment, so the transform lacks the async flag/context and emits a sync derived, whereas template-level awaits (e.g. {#if} expressions) correctly detect `options.async` and use async derived callbacks.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/ConstTag.js (inspected 1-40)",
+        "baseline compiled output showing sync derived callback despite await",
+        "IfBlock.js inspected 50-89 showing awaited expressions handled in block transforms"
+      ],
+      "prediction": "Adding await-containment tracking to ConstTag analysis (or passing `is_async` into the VariableDeclaration/ConstTag transform state) will produce `$.derived(async () => ...)` and the reproducer will pass.",
+      "falsifier": "If VariableDeclaration already handles async callbacks when a flag is set but the flag is never set for const tags, an analysis-only fix changes nothing in output; conversely if the transform hardcodes sync derived regardless of flags, analysis changes also fail."
+    }
+  ],
+  "candidates": [],
+  "probe_requests": 0,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "4369c37459599f2980a6fac1acac818b7c3c646944cdeb91f3b0c7489b329d66",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n   → await isn't allowed in non-async function\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\n   → await isn't allowed in non-async function\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1717 skipped (1719)\n   Start at  18:34:02\n   Duration  10.60s (transform 4.34s, setup 0ms, collect 8.72s, tests 90ms, environment 1.23s, prepare 178ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\nError: await isn't allowed in non-async function\n ❯ getRollupError node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:392:41\n ❯ convertProgram node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1070:26\n ❯ parseAstAsync node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1924:93\n ❯ ssrTransformScript node_modules/.pnpm/vite@5.4.14_@types+node@20.12.7_lightningcss@1.23.0_sass@1.70.0_terser@5.27.0/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:52383:11\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

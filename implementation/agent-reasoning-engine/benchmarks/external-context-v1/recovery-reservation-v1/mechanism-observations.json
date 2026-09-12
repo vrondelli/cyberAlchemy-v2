@@ -1,0 +1,113 @@
+{
+  "rows": [
+    {
+      "cell_id": "16417-baseline-r1",
+      "status": "unable_to_repair",
+      "checkpoint_calls": [],
+      "accepted_stage_calls": [],
+      "schema_rejections": 0,
+      "blocked_reread_advice": [],
+      "inability_reason": "No public-green candidate could be staged within the call budget. The two competing hypotheses were recorded, but source inspection could not be completed to a verified exact patch: the analyze-phase hoistability check in phases/2-analyze/visitors/Attribute.js that marks delegated handler metadata (node.metadata.delegated.hoisted) rejects the B callback because its local `const index` declaration shadows the each-block loop variable, and no staged snapshot was created before the budget closed. Without running the public compiler assertion (/tmp/are-public-compiler.mjs) against a revised check that resolves references through the function's own scope (so a shadowed local does not count as a loop-variable dependence), any patch would be an unverified guess; the falsifying discriminating evidence (whether metadata.delegated.hoisted is false at analyze time vs. the transform-phase get_hoisted_params path) was not obtained. Per the rules a staged snapshot is not a claim of validity, so I am not submitting an untested candidate.",
+      "calls": 24
+    },
+    {
+      "cell_id": "16417-reserved-r1",
+      "status": "patch_submitted",
+      "checkpoint_calls": [],
+      "accepted_stage_calls": [
+        9
+      ],
+      "schema_rejections": 0,
+      "blocked_reread_advice": [],
+      "inability_reason": null,
+      "calls": 11
+    },
+    {
+      "cell_id": "16542-baseline-r1",
+      "status": "unable_to_repair",
+      "checkpoint_calls": [],
+      "accepted_stage_calls": [],
+      "schema_rejections": 1,
+      "blocked_reread_advice": [],
+      "inability_reason": "Diagnosis is confident but no patch could be staged/submitted: no staging tool is exposed in this environment, so I cannot produce a validated public-green candidate. Root cause: ConstTag.js builds `create_derived(context.state, b.thunk(init))` for `{@const x = await ...}`. When the init contains an AwaitExpression, the emitted thunk arrow is not async, so the client output becomes `$.derived(() => await Promise.resolve(5))` \u2014 a non-async function containing await \u2014 which fails at parse time ('await isn't allowed in non-async function'). The fix (hyp 1/2, unverified) is to make ConstTag detect an await in the init (node.metadata.expression.contains_await) and emit an async derived thunk consistent with how $derived-with-await is compiled, plus matching SSR handling; this was never staged or evaluated, so correctness (including hydrate mode) is unconfirmed.",
+      "calls": 24
+    },
+    {
+      "cell_id": "16542-reserved-r1",
+      "status": "run_error",
+      "checkpoint_calls": [
+        11,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "accepted_stage_calls": [],
+      "schema_rejections": 6,
+      "blocked_reread_advice": [
+        21
+      ],
+      "inability_reason": null,
+      "calls": 22
+    },
+    {
+      "cell_id": "16542-reserved-r2",
+      "status": "unable_to_repair",
+      "checkpoint_calls": [
+        11,
+        15
+      ],
+      "accepted_stage_calls": [],
+      "schema_rejections": 0,
+      "blocked_reread_advice": [],
+      "inability_reason": "placeholder",
+      "calls": 15
+    },
+    {
+      "cell_id": "16542-baseline-r2",
+      "status": "unable_to_repair",
+      "checkpoint_calls": [],
+      "accepted_stage_calls": [],
+      "schema_rejections": 0,
+      "blocked_reread_advice": [],
+      "inability_reason": "The diagnosis is complete and a concrete fix is identified, but this session exposes no staging/patch tool, so I cannot stage a candidate within the remaining budget. Root cause: ConstTag.js (packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js, lines ~22-26 and ~55-70) always wraps the @const initializer in create_derived(context.state, b.thunk(init)), which compiles to $.derived(() => await ...) \u2014 a bare await inside a non-async arrow, producing the rollup parse error 'await isn't allowed in non-async function'. The required fix (matching VariableDeclaration.js's $derived handling, lines 200-222): (1) in analysis, register @const initial CallExpressions containing await in analysis.async_deriveds (e.g. in CallExpression.js ~line 248, or when analyzing ConstTag), and (2) in ConstTag.js, when the init is an async derived, emit b.call('$.async_derived', b.thunk(init, true)) wrapped as b.call(b.await(b.call('$.save', call))) instead of the plain derived thunk (for both the Identifier and destructuring branches, using the async arrow thunk so await is legal). This mirrors the proven working pattern for $derived and should make the public holdout test (text '5' in client and hydrate modes) pass while preserving non-async @const behavior.",
+      "calls": 23
+    },
+    {
+      "cell_id": "16417-reserved-r2",
+      "status": "run_error",
+      "checkpoint_calls": [
+        11,
+        12,
+        15,
+        16
+      ],
+      "accepted_stage_calls": [],
+      "schema_rejections": 1,
+      "blocked_reread_advice": [
+        15
+      ],
+      "inability_reason": null,
+      "calls": 16
+    },
+    {
+      "cell_id": "16417-baseline-r2",
+      "status": "patch_submitted",
+      "checkpoint_calls": [],
+      "accepted_stage_calls": [
+        8
+      ],
+      "schema_rejections": 1,
+      "blocked_reread_advice": [],
+      "inability_reason": null,
+      "calls": 10
+    }
+  ],
+  "posture": "Post-run descriptive analysis; no treatment/source changes. Private scoring pending.",
+  "authority_effect": "none",
+  "open_questions_ref": "PLAN.md"
+}

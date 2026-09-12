@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The 'shadowed binding' bail-out in get_delegated_event (Attribute.js ~line 209) incorrectly fires when the callback declares its own local variable with the same name as an outer binding: scope.get on the function's metadata scope resolves to the local const, while context.state.scope resolves to the outer each binding, so local_binding.node !== binding.node and hoisting is refused even though the callback never reads the outer binding.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:208-212",
+        "baseline failure ARE_EXPECTED_HOISTED_CALLBACK for button_1 (shadowed const index) while unshadowed C is hoisted"
+      ],
+      "falsifier": "Patching the bail-out to skip when the resolved binding is declared inside the target function makes B compile as a shared/hoisted identifier while C stays hoisted and other cases (true shadowing of outer reads) remain unhoisted.",
+      "prediction": "Adding a check that binding.scope is within target_function.metadata.scope before bailing will let B's handler be hoisted, matching C."
+    },
+    {
+      "claim": "The bail-out is correct and instead the EachBlock index check (binding.initial?.type === 'EachBlock') or reference bookkeeping is what blocks B, e.g. references are collected per-name and the local const index is confused with the each index binding during the each-index bail.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:214-216"
+      ],
+      "falsifier": "If the each-index check were the blocker, C (which references no each binding) would pass but any handler referencing the each index would also be blocked — but B does not reference the each binding at all (its 'index' resolves to the local const), so the each-index check cannot fire for B; instrumenting would show the shadow bail fires first.",
+      "prediction": "Removing/altering the each-index check would not change B's output; only the shadow check matters."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "e1fbab496aa0d0b83c19ab0dcffb54df5207c9340b917b5cbc8a5a1ec690b8a3",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js",
+          "before_sha256": "147d868ef5848345c35482e58efda1d1e95ea9c7ced80afe351a1b7eafc1c212",
+          "after_sha256": "5e9a376b86879ae2f4c6c1b0432d3b77f3f0639fd38cc5681d97c7948cec3e1a"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "e1bb75e469e8e5c6b6e626c3e9ce9f5ad236ebddf135064fad4542deb4150201",
+        "excerpt": "ARE_PUBLIC_COMPILER_PASS\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "fa1a98e56d24440629d1066cc4b0c6ed97f0698e8f1d2ed4c1ad735b4f384947",
+    "excerpt": "file:///tmp/are-public-compiler.mjs:13\nif(!hoisted(B.right))throw Error('ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback');\n                           ^\n\nError: ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback\n    at file:///tmp/are-public-compiler.mjs:13:28\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v20.19.5\n"
+  }
+}

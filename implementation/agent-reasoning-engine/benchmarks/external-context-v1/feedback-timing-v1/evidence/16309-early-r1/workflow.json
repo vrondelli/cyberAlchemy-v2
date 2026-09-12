@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "attribute_effect's select-only effect unconditionally calls select_option(select, prev.value); when the spread has no 'value' key, prev.value is undefined, no option matches, and select.selectedIndex = -1 wipes the static `selected` attribute.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:518-524 (effect(() => select_option(select, prev.value)))",
+        "packages/svelte/src/internal/client/dom/elements/bindings/select.js:46-48 (selectedIndex = -1 when value unmatched and not mounting)"
+      ],
+      "prediction": "Guarding the effect with ('value' in prev) makes the spread select keep 'o2' selected while value-driven selects still work.",
+      "falsifier": "If the regression persists after guarding, the wipe comes from elsewhere (e.g. set_attributes or hydration ordering)."
+    },
+    {
+      "claim": "set_attributes itself resets the select during the spread (e.g. via init_select or a value/selected branch), not the trailing effect.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:330-489 (set_attributes body)"
+      ],
+      "prediction": "Guarding only the trailing effect would NOT fix the bug if this hypothesis were true.",
+      "falsifier": "Public holdout test passes with only the effect guard → this hypothesis is falsified."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "4d2d6e031d99023a1898962ae4dd8fa2e5805d81a455e2925e55189b85413b87",
+      "files": [
+        {
+          "path": "packages/svelte/src/internal/client/dom/elements/attributes.js",
+          "before_sha256": "70cf68e6d2ec2557c8fb4bb9004dd2a2f5b85230f1f61db930a1652f1f3a3a52",
+          "after_sha256": "ef665638f941595d3f16cb04a487f7d54c6b65ce88027a2c628c9b996bc53e59"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "df43c7323cbfcf4a2bc105c2bdbfbdbe003cdd1e8d76e59d33674e2737199294",
+        "excerpt": "\n RUN  v2.1.9 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1542 skipped (1544)\n   Start at  22:35:37\n   Duration  9.56s (transform 3.75s, setup 0ms, collect 7.73s, tests 293ms, environment 1.10s, prepare 135ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "da7b19c3236970c2e9c324328dbd676ef4d5a6b1ca7473cbe4abf69c98bfb4f0",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1542 skipped (1544)\n   Start at  18:33:32\n   Duration  8.37s (transform 3.11s, setup 0ms, collect 6.56s, tests 115ms, environment 1.22s, prepare 184ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\nAssertionError: ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n- Expected\n+ Received\n\n- o2\n\n ❯ Object.test packages/svelte/tests/runtime-runes/samples/are-public-holdout/_config.js:7:10\n      5|   const selects = target.querySelectorAll('select');\n      6|   assert.equal(selects[0].value, 'o2', 'ARE_CONTROL_SELECTED_OPTION');\n      7|   assert.equal(selects[1].value, 'o2', 'ARE_EXPECTED_SELECTED_OPTION');\n       |          ^\n      8|  }\n      9| });\n ❯ run_test_variant packages/svelte/tests/runtime-legacy/shared.ts:400:19\n ❯ packages/svelte/tests/runtime-legacy/shared.ts:144:4\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

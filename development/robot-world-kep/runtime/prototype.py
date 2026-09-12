@@ -138,22 +138,28 @@ class World:
             if not at([-3.0, 0.0]) or actor["cargo"] >= 3 or state["resource"] < 1:
                 raise ValueError("GATHER_PRECONDITION")
             actor["cargo"] += 1; state["resource"] -= 1
-            actor["memory"][0] += 0.1
+            self._action_memory(actor, op)
         elif op == "deposit":
             if not at([3.0, 0.0]) or actor["cargo"] < 1:
                 raise ValueError("DEPOSIT_PRECONDITION")
             state["stock"] += actor["cargo"]; actor["cargo"] = 0
-            actor["memory"][2] += 0.3
+            self._action_memory(actor, op)
         elif op == "build":
             if not at([3.0, 0.0]) or state["stock"] < 6:
                 raise ValueError("BUILD_PRECONDITION")
             state["stock"] -= 6; state["built"] += 1
-            actor["memory"][1] += 0.5
+            self._action_memory(actor, op)
         elif op != "wait":
             raise ValueError("UNKNOWN_ACTION")
         receipt = self._commit(intent, state)
         self.requests[key] = (encoded, copy.deepcopy(receipt))
         return receipt
+
+    def _action_memory(self, actor, action):
+        """Legacy default; successor clocks own their separate impulse accounting."""
+        component, amount = {"gather": (0, 0.1), "deposit": (2, 0.3),
+                             "build": (1, 0.5)}[action]
+        actor["memory"][component] += amount
 
     def context(self, agent_id):
         agent = self.state["robots"][agent_id]

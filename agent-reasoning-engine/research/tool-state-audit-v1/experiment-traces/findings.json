@@ -1,0 +1,96 @@
+{
+  "schema_version": "are.experiment-trace-findings/v1",
+  "findings": [
+    {
+      "id": "TRACE-01",
+      "priority": "high",
+      "class": "tool-schema-feedback",
+      "claim": "External-context traces contain 21 model tool calls rejected at argument validation, including one six-turn identical missing-path loop.",
+      "denominator": {"failed_tool_results": 31, "external_events": 969, "event_files": 39},
+      "counts": {"argument_validation_failures": 21, "evidence_refs_wrong_type": 9, "stage_missing_path": 6, "read_bound_violations": 5, "hypothesis_cardinality": 1},
+      "causal_evidence": "Each cited event records ok:false and the exact validator issue. In the six-turn loop, all six calls made no staging progress and their corresponding model receipts consumed 50,552 input plus 2,836 output tokens.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-reserved-r1/events.json#events-27-32",
+        "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-reserved-r1/result.json#receipts-model-14-19",
+        "implementation/agent-reasoning-engine/benchmarks/external-context-v1/feedback-timing-v1/evidence/16309-delayed-r1/events.json#event-3"
+      ],
+      "opportunity": "Return compact, example-bearing corrective arguments after validation failure and enforce a same-error circuit breaker before another full model turn. Test missing required fields, array/object confusions, and numeric bounds separately."
+    },
+    {
+      "id": "TRACE-02",
+      "priority": "high",
+      "class": "terminal-output",
+      "claim": "Three model receipts finish at the output cap and all three enclosing external attempts end run_error with incomplete-output.",
+      "denominator": {"length_finished_model_receipts": 3, "model_receipts": 6176},
+      "causal_evidence": "The enclosing result explicitly reports error=incomplete-output; this supports causation within each attempt, while the rarity does not support a broad population claim.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/benchmarks/external-context-v1/feedback-timing-v1/evidence/16417-early-r1/result.json",
+        "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16417-reserved-r2/result.json",
+        "implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/evidence/16542-reserved-r1/result.json"
+      ],
+      "opportunity": "Reserve a compact terminal-only schema path, detect near-cap tool output, and prevent unsuccessful staging feedback from expanding the final response context."
+    },
+    {
+      "id": "TRACE-03",
+      "priority": "high",
+      "class": "token-accounting",
+      "claim": "Selected attempt representations expose complete input/output usage for 6,122 of 6,176 model receipts; 54 receipts are missing usage, including 30 in live/provider evidence and 24 offline-synthetic fitting rows. The observed 23,861,101-token subtotal is not a definitive global total because cross-wrapper lineage is not proven.",
+      "counts": {"observed_input_tokens": 23161513, "observed_output_tokens": 699588, "observed_selected_representation_subtotal": 23861101, "cached_input_tokens_subset": 2452032, "reasoning_tokens_subset_of_output": 190802},
+      "causal_evidence": "This is accounting coverage, not a quality claim. Cached input remains part of input tokens; reasoning is a subset of output and is not added twice.",
+      "evidence": ["agent-reasoning-engine/research/tool-state-audit-v1/experiment-traces/aggregates.json#token_accounting"],
+      "opportunity": "Make terminal receipts carry an explicit usage_known flag and zero-versus-unknown semantics. Do not publish a definitive grand total while 30 live receipts lack usage."
+    },
+    {
+      "id": "TRACE-04",
+      "priority": "high",
+      "class": "context-presentation",
+      "claim": "H23 removed redundant envelope fields while preserving payloads; exact tokenizer pairs saved 316/320/319 input tokens and changed all three observed near-boundary requests from rejected to admitted.",
+      "denominator": {"tokenizer_pairs": 6, "live_trials": 18, "live_model_calls": 94},
+      "causal_evidence": "The matched tokenizer intervention directly changes admission for 3/3 observed requests; payload-heavy negative controls reject in both arms. In the frozen live comparison, near-boundary tasks pass 3/3 with H23 versus 0/3 with H21, with all six unpressured controls passing. Generalization remains limited to the fixed task family.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/analysis/provider-study-v1/payload-token-v1/report.json#pairs",
+        "implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/analysis/provider-study-v1/payload-live-v1/RESULT.md",
+        "implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/analysis/provider-study-v1/research/RESEARCH-RESULT.md"
+      ],
+      "opportunity": "Prioritize schema-preserving payload projection at measured admission boundaries; retain full envelopes in sidecars and preserve pass-through for unsupported schemas."
+    },
+    {
+      "id": "TRACE-05",
+      "priority": "high",
+      "class": "phase-retention",
+      "claim": "H21 admission-first retention yields delayed correct first proposals 6/6 versus baseline 0/6 with 66 model calls in each arm; one baseline timeout keeps the frozen evaluator formally inconclusive.",
+      "causal_evidence": "Five delayed pairs are fully observed wins and one pairs candidate success with baseline transport failure. The result proves a narrow retention benefit without proving the sixth code comparison or general reliability.",
+      "evidence": ["implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/analysis/provider-study-v1/live-admission-v1/RESULT.md"],
+      "opportunity": "Attempt complete inspected history before destructive masking when actual admission permits it, while preserving timeout attribution as unknown."
+    },
+    {
+      "id": "TRACE-06",
+      "priority": "medium",
+      "class": "read-progress",
+      "claim": "External traces contain 121 exact repeated read_file calls: 19 in 9 patch-submitted attempts, 76 in 9 unable attempts, and 26 in 6 run-error attempts.",
+      "denominator": {"repeated_read_calls": 121, "all_repeated_exact_calls": 144, "external_events": 969},
+      "causal_evidence": "This is co-occurrence only. Repeated reads also appear in successful attempts, so rereading is not automatically waste; longer failing trajectories are a confounder.",
+      "evidence": ["agent-reasoning-engine/research/tool-state-audit-v1/experiment-traces/aggregates.json#external_events.details"],
+      "opportunity": "Expose exact path/range progress and freshness in the model view, then measure whether avoidable exact rereads fall without reducing recovery or correctness."
+    },
+    {
+      "id": "TRACE-07",
+      "priority": "medium",
+      "class": "delivery-control",
+      "claim": "GLM visible traces record 76 delivery.read-deferred and 12 completion.repeat-read-deferred observations; these are deliberate controller outcomes rather than malformed tool events.",
+      "denominator": {"deferred_observations": 88, "glm_tool_calls": 3427, "visible_trace_files": 467},
+      "causal_evidence": "The observations carry explicit reason codes. Their later correctness/token effect requires episode-level matched analysis and is not inferred from the count.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/evidence/completion-calibration-2026-09-07/fixed-evaluation/trial-07/arm-0/visible-trace.json#history-0",
+        "implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/evidence/execution-live-2026-09-07/arm-0/visible-trace.json#history-4"
+      ],
+      "opportunity": "Keep deferred-read reason codes machine-visible and test whether more actionable next-call guidance reduces later calls without weakening one-read-per-turn and repeat-read protections."
+    }
+  ],
+  "open_questions": [
+    "What usage, if any, was billed for the 30 live/provider receipts that lack input/output fields?",
+    "Which repeated reads were required by freshness, recovery, or source-pin rules versus avoidable loss of progress state?",
+    "Do schema examples or a repeated-error circuit breaker reduce invalid calls on held-out tasks without increasing prompt tokens more than they save?",
+    "Do H21 and H23 replicate outside the fixed task families and near-boundary conditions?"
+  ]
+}

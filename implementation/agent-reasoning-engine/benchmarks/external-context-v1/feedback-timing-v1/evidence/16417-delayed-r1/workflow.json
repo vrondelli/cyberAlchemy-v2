@@ -1,0 +1,31 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The hoisting/blocking decision for event handlers inside each blocks is driven by name-based reference collection: in 2-analyze/visitors/shared/function.js, `context.state.scope.references` is iterated by NAME and `scope.get(name)` is used to pull bindings into `expression.references` (which downstream code uses to decide whether the handler references each-context vars and therefore cannot be hoisted). A locally shadowed `const index` inside the arrow function is not excluded because the reference map/name lookup doesn't respect that the inner declaration rebinds `index` within the function scope, so the outer each binding is (wrongly) treated as referenced, forcing an inline (non-hoisted) handler for button B while C (renamed to `i`) correctly hoists to `var on_click`.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/shared/function.js:14-21 (for (const [name] of context.state.scope.references) ... scope.get(name) -> expression.references.add(binding))",
+        "baseline excerpt: ARE_EXPECTED_HOISTED_CALLBACK failure for button_1 (B) while button_2 (C) is hoisted as ArrayExpression of Identifier",
+        "baseline compiled_client: B gets `button_1.__click = (e) => {...}` inline; C gets `button_2.__click = [on_click]`"
+      ],
+      "prediction": "Changing the analysis so bindings declared (shadowed) inside the function's own scope are not added to `expression.references` (i.e., only add bindings whose declaration scope is outside this function, e.g. check `binding.scope.function_depth < context.state.scope.function_depth` AND that the reference in this scope actually resolves to that outer binding rather than an inner shadowing declaration) will make button B emit a hoisted shared `on_click` while A and C output stays identical.",
+      "falsifier": "After the patch, compiling the public reproducer still emits `button_1.__click = (e) => {...}` (non-hoisted) for B, or A/C change behavior/output unexpectedly — indicating the decision point is elsewhere (e.g. in the each-block or events transform rather than analysis reference collection)."
+    },
+    {
+      "claim": "The hoist decision is made in the client transform (3-transform/client/visitors/shared/events.js via build_hoisted_params / utils.js), which inspects `node.metadata.scope.references` / each-context bindings at transform time; the same name-vs-binding shadowing confusion exists there, and fixing it in analysis alone would not change output.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/shared/function.js:14-19 (metadata?.hoisted drives build_hoisted_params path)",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/shared/events.js:1-120 (event handler construction)"
+      ],
+      "prediction": "If hypothesis 2 is correct, patching only 2-analyze function.js leaves B unhoisted and the assertion still fails with ARE_EXPECTED_HOISTED_CALLBACK; the fix must instead be applied in the transform-side check (events.js / utils.js build_hoisted_params) where each-context identifiers are matched against handler references.",
+      "falsifier": "A transform-only fix that also fails, or an analysis-only fix that succeeds, would discriminate: if analysis-only patch turns B's handler into a hoisted identifier, hypothesis 2 is falsified."
+    }
+  ],
+  "candidates": [],
+  "probe_requests": 0,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "fa1a98e56d24440629d1066cc4b0c6ed97f0698e8f1d2ed4c1ad735b4f384947",
+    "excerpt": "file:///tmp/are-public-compiler.mjs:13\nif(!hoisted(B.right))throw Error('ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback');\n                           ^\n\nError: ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback\n    at file:///tmp/are-public-compiler.mjs:13:28\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v20.19.5\n"
+  }
+}

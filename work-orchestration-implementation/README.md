@@ -1,5 +1,9 @@
 # Work Orchestration RWO realization candidate
 
+Start with [RWO: how it works and why we use it](RWO-EXPLAINED.md) for a
+standalone explanation of recursive work, commands, events, ownership, and the
+distinction between the RWO kernel and the current durable DAG implementation.
+
 The [Alch Host provisioning extension](extensions/alch-host-provisioning-v1/README.md)
 adds a bounded real-Ansible local fixture, Rust DAG integration, and single-host
 SQLite accepted history with restart reconciliation. Its evidence is scoped to

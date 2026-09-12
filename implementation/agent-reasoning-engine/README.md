@@ -1,5 +1,8 @@
 # CyberAlchemy Agent Reasoning Engine
 
+For the enduring objective and criteria for selecting future experiments, read
+the [project lighthouse](../../agent-reasoning-engine/LIGHTHOUSE.md).
+
 The first-class Product identity, Product Capability, business ontology, and
 DomainSpec construction package live at
 [`../../agent-reasoning-engine/`](../../agent-reasoning-engine/README.md). This

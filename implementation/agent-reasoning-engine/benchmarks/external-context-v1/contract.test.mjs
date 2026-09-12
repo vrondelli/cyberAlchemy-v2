@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {validateArgs,validateTask} from './contract.mjs';
+import {projectMessage} from '../glm-episodes-v1/analysis/provider-study-v1/payload-js-v1/projection.mjs';
+import {hash,stable} from '../../packages/coding-agent-runtime/glm-flash-v1/transport.mjs';
+test('reports simultaneous errors and rejects traversal and unknown fields',()=>{const r=validateArgs('read_file',JSON.stringify({path:'../../secret',start_line:0,line_count:999,extra:true}));assert.equal(r.ok,false);assert(r.issues.length>=4);});
+test('reject duplicate JSON keys and unknown tool',()=>{assert.equal(validateArgs('read_file','{"path":"a","path":"b"}').ok,false);assert.equal(validateArgs('exec','{}').ok,false);});
+test('H23 retains exact ranged source and provenance',()=>{const output={path:'src/a.js',utf8:'const answer = 1;',start_line:2,end_line:2,source_sha256:'a'.repeat(64)};const value={schema_version:'are.coding-agent-tool-result/v1',ok:true,tool_name:'read-file',arguments:{path:'src/a.js'},output,output_sha256:hash(stable(output)),output_bytes:Buffer.byteLength(stable(output)),effect_calls:0,authority_effect:'none'};const message={role:'tool',tool_call_id:'r1',content:stable(value)};const result=projectMessage(message);assert.equal(result.receipt.projected,true);assert.deepEqual(JSON.parse(result.message.content).output,output);assert.equal(result.message.tool_call_id,'r1');});
+
+test("public task boundary rejects hidden fields and malformed identities together",()=>{const r=validateTask({instance_id:"x",repo:"bad",base_commit:"not-a-hash",problem_statement:"issue",docker_image:"image",patch:"secret"});assert.equal(r.ok,false);assert(r.issues.length>=3);});

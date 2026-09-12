@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The 'shadowed in another scope' bail-out in get_delegated_event (Attribute.js, local_binding.node !== binding.node) fires for B because the reference `index` inside the handler resolves to the outer each-block binding in metadata.scope, while the handler body declares a shadowing `const index`. Since such local declarations resolve within the hoisted function, skipping the bail when the inner binding is declared inside the target function (binding.scope.function_depth > scope.function_depth) should fix it.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:186-202",
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/shared/function.js:9-14"
+      ],
+      "prediction": "Relaxing the shadow bail-out to only apply when binding is declared outside the target function makes B emit `button_1.__click = [on_click]` and the probe prints ARE_PUBLIC_COMPILER_PASS.",
+      "falsifier": "If the actual bail is the EachBlock-index check (binding.initial?.type === 'EachBlock') or the reference resolves to the inner const binding, the output stays unchanged and the probe still fails."
+    },
+    {
+      "claim": "The EachBlock-index bail-out (`binding.initial?.type === 'EachBlock'`) fires for B because scope.get('index') from the handler's metadata.scope resolves to the each-block index binding even though the handler body declares a shadowing `const index`.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:204-205"
+      ],
+      "prediction": "If true, the fix must instead detect whether the reference resolves to a binding declared inside the handler before bailing on EachBlock; relaxing the shadow check alone will not change output.",
+      "falsifier": "Evidence that scope.get('index') on the function scope returns the inner const binding (not the each binding) would falsify this."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "c0bdd9233aca1f0c77e1053a9bf778e5a9b2333a1976abb51eed0fb832b7f400",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js",
+          "before_sha256": "147d868ef5848345c35482e58efda1d1e95ea9c7ced80afe351a1b7eafc1c212",
+          "after_sha256": "9dbc3770eb8cb033dfb10c4e707806fc6b2c877c90c94ec429eb91043a20e030"
+        }
+      ],
+      "test": {
+        "status": "failed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "b388d3e7d69b9a1fd26075a93f5d8f3d7e4a25985e052eba93b7f26aa59a9064",
+        "excerpt": "file:///testbed/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js:191\n\t\t\t\t.references.get(reference)!\n\t\t\t\t                          ^\n\nSyntaxError: Unexpected token '!'\n    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)\n    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:146:18)\n    at #translate (node:internal/modules/esm/loader:497:12)\n    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:544:27)\n\nNode.js v20.19.5\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "fa1a98e56d24440629d1066cc4b0c6ed97f0698e8f1d2ed4c1ad735b4f384947",
+    "excerpt": "file:///tmp/are-public-compiler.mjs:13\nif(!hoisted(B.right))throw Error('ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback');\n                           ^\n\nError: ARE_EXPECTED_HOISTED_CALLBACK: shadowed local variable should permit shared callback\n    at file:///tmp/are-public-compiler.mjs:13:28\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)\n\nNode.js v20.19.5\n"
+  }
+}

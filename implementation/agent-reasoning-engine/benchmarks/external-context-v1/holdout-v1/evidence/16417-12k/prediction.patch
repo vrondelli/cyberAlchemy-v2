@@ -1,0 +1,39 @@
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
+index 773aa59..6ca1e31 100644
+--- a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
++++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
+@@ -193,7 +193,14 @@ function get_delegated_event(event_name, handler, context) {
+ 		}
+ 
+ 		// If we are referencing a binding that is shadowed in another scope then bail out.
+-		if (local_binding !== null && binding !== null && local_binding.node !== binding.node) {
++		// But if the binding is declared within the target function itself it's a local variable
++		// and doesn't prevent hoisting.
++		if (
++			local_binding !== null &&
++			binding !== null &&
++			local_binding.node !== binding.node &&
++			!is_local_scope(binding.scope, target_function.metadata.scope)
++		) {
+ 			return unhoisted;
+ 		}
+ 
+@@ -227,6 +234,18 @@ function get_delegated_event(event_name, handler, context) {
+ 	return { hoisted: true, function: target_function };
+ }
+ 
++/**
++ * Checks if `scope` is the `function_scope` or one of its descendants
++ * @param {Scope} scope
++ * @param {Scope} function_scope
++ */
++function is_local_scope(scope, function_scope) {
++	for (let current = scope; current; current = current.parent) {
++		if (current === function_scope) return true;
++	}
++	return false;
++}
++
+ /**
+  * @param {string} event_name
+  */

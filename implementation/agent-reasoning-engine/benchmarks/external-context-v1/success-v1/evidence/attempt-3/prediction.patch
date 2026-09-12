@@ -1,0 +1,17 @@
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/SnippetBlock.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/SnippetBlock.js
+index 7930c2b..1541b97 100644
+--- a/packages/svelte/src/compiler/phases/2-analyze/visitors/SnippetBlock.js
++++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/SnippetBlock.js
+@@ -28,7 +28,11 @@ export function SnippetBlock(node, context) {
+ 	const can_hoist =
+ 		context.path.length === 1 &&
+ 		context.path[0].type === 'Fragment' &&
+-		can_hoist_snippet(context.state.scope, context.state.scopes);
++		can_hoist_snippet(context.state.scope, context.state.scopes) &&
++		// `let value = await ...` declarations are only initialized inside `$.async_body`,
++		// so snippets referencing them cannot be hoisted outside of it
++		!context.state.analysis.typescript &&
++		can_hoist_await(context.state.scope, context.state.scopes);
+ 
+ 	const name = node.expression.name;
+ 

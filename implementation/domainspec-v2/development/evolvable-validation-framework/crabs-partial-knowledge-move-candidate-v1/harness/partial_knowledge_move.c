@@ -219,23 +219,37 @@ static void visible_order(const crabs_ot_ordered_set_t *set, char output[8]) {
   output[index] = '\0';
 }
 
+static const char *json_bool(bool value);
+
 static bool measured_merge(crabs_ot_ordered_set_t *destination,
                            const crabs_ot_ordered_set_t *source,
-                           evf_result_t *result) {
+                           evf_result_t *result, unsigned merge_index) {
   evf_snapshot_t destination_before = snapshot_set(destination);
   evf_snapshot_t source_before = snapshot_set(source);
   result->merge_calls++;
   crabs_ot_ordered_set_t *returned = crabs_ot_ordered_set_merge(destination, source);
   evf_snapshot_t destination_after = snapshot_set(destination);
   evf_snapshot_t source_after = snapshot_set(source);
+  bool source_stable = snapshot_equal(&source_before, &source_after);
+  bool destination_stable = snapshot_equal(&destination_before, &destination_after);
   result->source_unchanged = result->source_unchanged &&
-                             snapshot_equal(&source_before, &source_after);
+                             source_stable;
+  printf("{\"type\":\"merge\",\"merge_index\":%u,\"returned\":\"%s\","
+         "\"destination_before\":\"%s\",\"destination_after\":\"%s\","
+         "\"source_before\":\"%s\",\"source_after\":\"%s\","
+         "\"source_unchanged\":%s,\"destination_unchanged\":%s,"
+         "\"destination_valid\":%s}\n",
+         merge_index, returned == destination ? "destination" :
+                      (returned == NULL ? "null" : "other"),
+         destination_before.bytes, destination_after.bytes,
+         source_before.bytes, source_after.bytes, json_bool(source_stable),
+         json_bool(destination_stable), json_bool(destination_after.valid));
   if (returned == NULL) {
     result->merge_rejections++;
     result->merge_success = false;
     result->rejection_destination_unchanged =
         result->rejection_destination_unchanged &&
-        snapshot_equal(&destination_before, &destination_after);
+        destination_stable;
     return false;
   }
   if (returned != destination) {
@@ -276,12 +290,12 @@ static evf_result_t run_case(const evf_case_definition_t *definition) {
   crabs_ot_ordered_set_t *final = sets[0];
   if (result.construction_ok && result.inputs_disjoint) {
     if (definition->association == EVF_ASSOC_LEFT) {
-      if (measured_merge(sets[0], sets[1], &result)) {
-        (void)measured_merge(sets[0], sets[2], &result);
+      if (measured_merge(sets[0], sets[1], &result, 1)) {
+        (void)measured_merge(sets[0], sets[2], &result, 2);
       }
     } else {
-      if (measured_merge(sets[1], sets[2], &result)) {
-        (void)measured_merge(sets[0], sets[1], &result);
+      if (measured_merge(sets[1], sets[2], &result, 1)) {
+        (void)measured_merge(sets[0], sets[1], &result, 2);
       }
     }
   } else {
@@ -322,7 +336,7 @@ int main(int argc, char **argv) {
     return 2;
   }
   evf_result_t result = run_case(definition);
-  printf("{\"case_id\":\"%s\",\"construction_ok\":%s,"
+  printf("{\"type\":\"summary\",\"case_id\":\"%s\",\"construction_ok\":%s,"
          "\"inputs_disjoint\":%s,\"merge_success\":%s,"
          "\"source_unchanged\":%s,"
          "\"rejection_destination_unchanged\":%s,"

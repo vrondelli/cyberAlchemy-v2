@@ -1,0 +1,48 @@
+{
+  "hypotheses": [
+    {
+      "claim": "Top-level snippets are hoisted into component_block (before the async_body IIFE), but the awaited `value` binding is declared inside the async body, so the hoisted snippet closes over an undefined variable. Fix: when instance has await and the snippet references await-scoped bindings, don't hoist (emit in async body init) — or check hoistability against async scopes in analysis.",
+      "evidence_refs": [
+        "transform-client.js:360-390 puts state.instance_level_snippets in component_block while instance body goes into $.async_body",
+        "SnippetBlock.js (transform client):88-97 pushes top-level snippets to instance_level_snippets",
+        "compiled_client: `const display = ...` references `value` declared later inside $.async_body callback"
+      ],
+      "prediction": "Moving the snippet declaration into the async body (or preventing its hoist) makes the async reproducer render '<p>ready</p>' in both dom and hydrate modes; sync control (no await, snippet referenced via `const selected = display`) still compiles with snippet hoisted and renders '<p>steady</p>'.",
+      "falsifier": "If the snippet must remain hoisted (e.g. referenced before the await in script), moving it into the async body would cause a different ReferenceError/TDZ in other tests, or the async test still fails."
+    },
+    {
+      "claim": "The can_hoist analysis is broken by top-level await: can_hoist_snippet returns true for snippets referencing bindings declared after an await because scopes are visited before await analysis, and the real upstream fix changed the analysis to mark such bindings as non-hoistable.",
+      "evidence_refs": [
+        "2-analyze/visitors/SnippetBlock.js:28-40 can_hoist computed via can_hoist_snippet(scope, scopes)",
+        "Attribute.js:190 references can_hoist when deciding derived handling"
+      ],
+      "prediction": "Adjusting can_hoist_snippet (or binding metadata) to return false when the snippet references a binding whose declaration is inside the async body fixes the reproducer while leaving sync output identical.",
+      "falsifier": "If hoisting is still required for other code paths (e.g. legacy mode), the fix would regress sync tests; if can_hoist is already false and something else pushes the snippet, hypothesis is wrong."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "1ac8dae16f905ec0cc56c79e55486581c922139fda2de485bdf7ec3c13624292",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js",
+          "before_sha256": "339c44c3de73ef52999f11b957bddce83e2aae9e5edd3a4ee4840ef6b810626d",
+          "after_sha256": "501db77e230ac7df89d5d73de5960cc8fc278680c2ae9c5b78434a01c29fec5f"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-snippet-controls-v1",
+        "log_sha256": "a50a6ae73d8106b93cf852748646d35ef248fa2c88e94fc823913b0851123ae9",
+        "excerpt": "ASYNC REPRODUCER\n\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  16:51:39\n   Duration  17.44s (transform 6.51s, setup 0ms, collect 13.24s, tests 245ms, environment 2.85s, prepare 291ms)\n\n\nSYNC PRESERVATION CONTROL\n\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  16:52:04\n   Duration  10.82s (transform 4.64s, setup 0ms, collect 9.39s, tests 227ms, environment 699ms, prepare 125ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-snippet-controls-v1",
+    "log_sha256": "458a0291e8cfc70095c4193ae70180f512838bcbabe4021e60c9c6e794356e89",
+    "excerpt": "s not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:29:36\n   Duration  28.20s (transform 11.18s, setup 0ms, collect 22.81s, tests 454ms, environment 3.33s, prepare 416ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n\nSYNC PRESERVATION CONTROL\n\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  16:45:53\n   Duration  7.36s (transform 3.22s, setup 0ms, collect 6.46s, tests 114ms, environment 438ms, prepare 81ms)\n\n"
+  }
+}

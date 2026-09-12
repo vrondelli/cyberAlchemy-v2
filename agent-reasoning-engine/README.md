@@ -14,6 +14,11 @@ runtime code remains in
 
 ## Product thesis
 
+The [project lighthouse](LIGHTHOUSE.md) carries the enduring objective and
+planning compass: improve agent outcomes through mechanisms whose usefulness
+and limits are tested across domains, models, and context budgets. Read it when
+selecting the next hypothesis or preparing a new plan.
+
 > **ARE helps people and agents solve problems with continuity. It reuses the
 > reasoning state that produced context, makes the current objective explicit,
 > checks its interpretation against results, learns scoped lessons from feedback,

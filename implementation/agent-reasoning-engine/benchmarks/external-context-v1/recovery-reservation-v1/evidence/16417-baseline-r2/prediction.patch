@@ -1,0 +1,25 @@
+diff --git a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
+index 773aa59..5c1e565 100644
+--- a/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
++++ b/packages/svelte/src/compiler/phases/2-analyze/visitors/Attribute.js
+@@ -192,8 +192,18 @@ function get_delegated_event(event_name, handler, context) {
+ 			return unhoisted;
+ 		}
+ 
+-		// If we are referencing a binding that is shadowed in another scope then bail out.
+-		if (local_binding !== null && binding !== null && local_binding.node !== binding.node) {
++		// If we are referencing a binding that is shadowed in another scope then bail out,
++		// unless the shadowing binding is declared inside the function itself — in that
++		// case the function doesn't actually depend on the shadowed outer binding.
++		if (
++			local_binding !== null &&
++			binding !== null &&
++			local_binding.node !== binding.node &&
++			!(
++				binding.node.start >= target_function.start &&
++				binding.node.end <= target_function.end
++			)
++		) {
+ 			return unhoisted;
+ 		}
+ 

@@ -1,0 +1,22 @@
+diff --git a/packages/svelte/src/compiler/phases/3-transform/client/transform-client.js b/packages/svelte/src/compiler/phases/3-transform/client/transform-client.js
+index 940d6a9..aa14be0 100644
+--- a/packages/svelte/src/compiler/phases/3-transform/client/transform-client.js
++++ b/packages/svelte/src/compiler/phases/3-transform/client/transform-client.js
+@@ -363,13 +363,16 @@ export function client_component(analysis, options) {
+ 		...store_setup,
+ 		...legacy_reactive_declarations,
+ 		...group_binding_declarations,
+-		...state.instance_level_snippets
++		// if the component has top-level await, snippets are rendered inside the async body,
++		// so they must be declared there in order to close over awaited bindings
++		...(analysis.instance.has_await ? [] : state.instance_level_snippets)
+ 	]);
+ 
+ 	if (analysis.instance.has_await) {
+ 		const body = b.block([
+ 			.../** @type {ESTree.Statement[]} */ (instance.body),
+ 			b.if(b.call('$.aborted'), b.return()),
++			...state.instance_level_snippets,
+ 			.../** @type {ESTree.Statement[]} */ (template.body)
+ 		]);
+ 

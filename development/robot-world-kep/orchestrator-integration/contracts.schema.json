@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "world_id",
+        "initial_sha256",
+        "profile_sha256",
+        "engine_sha256",
+        "max_ticks",
+        "policy_mode",
+        "stop_policy"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "robot-world.run-input/v1"
+        },
+        "world_id": {
+          "const": "workshop-001"
+        },
+        "initial_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "profile_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "max_ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "policy_mode": {
+          "const": "scripted-interaction-v1"
+        },
+        "stop_policy": {
+          "const": "horizon-or-profile-quiescence"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract",
+        "command_id",
+        "fencing_token",
+        "input",
+        "predecessor"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "robot-world.worker-request/v1"
+        },
+        "contract": {
+          "enum": [
+            "robot-world.run/v1",
+            "robot-world.verify/v1"
+          ]
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "fencing_token": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input": {
+          "$ref": "#/$defs/binding"
+        },
+        "predecessor": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "contract",
+        "command_id",
+        "fencing_token",
+        "request_sha256",
+        "status",
+        "result"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "robot-world.worker-result/v1"
+        },
+        "contract": {
+          "enum": [
+            "robot-world.run/v1",
+            "robot-world.verify/v1"
+          ]
+        },
+        "command_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fencing_token": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "request_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "succeeded",
+            "cancelled"
+          ]
+        },
+        "result": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "contract": {
+                "const": "robot-world.run/v1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "$ref": "#/$defs/bundle"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "contract": {
+                "const": "robot-world.verify/v1"
+              },
+              "status": {
+                "const": "succeeded"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "$ref": "#/$defs/verification"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding",
+        "initial",
+        "profile",
+        "events",
+        "frames",
+        "traces",
+        "final_state",
+        "completed_ticks",
+        "stop_reason",
+        "constructed"
+      ],
+      "properties": {
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "initial": {
+          "type": "object"
+        },
+        "profile": {
+          "type": "object"
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "type": "object"
+          }
+        },
+        "frames": {
+          "type": "array",
+          "maxItems": 101,
+          "items": {
+            "type": "object"
+          }
+        },
+        "traces": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object"
+          }
+        },
+        "final_state": {
+          "type": "object"
+        },
+        "completed_ticks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "stop_reason": {
+          "enum": [
+            "horizon",
+            "policy-quiescent-window-censored",
+            "cancelled"
+          ]
+        },
+        "constructed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "status",
+        "binding",
+        "bundle_sha256",
+        "state_sha256",
+        "source_output_sha256",
+        "ticks",
+        "checks",
+        "authority_effect"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "robot-world.verification/v1"
+        },
+        "status": {
+          "const": "PASS"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "bundle_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "state_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_output_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ticks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "checks": {
+          "const": [
+            "source-binding",
+            "hash-chain",
+            "independent-action-clock-replay",
+            "conservation",
+            "frames",
+            "scripted-policy-trace"
+          ]
+        },
+        "authority_effect": {
+          "const": "none"
+        }
+      }
+    }
+  }
+}

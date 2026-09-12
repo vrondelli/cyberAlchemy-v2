@@ -1,0 +1,57 @@
+{
+  "hypotheses": [
+    {
+      "claim": "Top-level snippet declarations are emitted in component_block (outside the async_body arrow) while top-level awaited variables are declared inside it, so the snippet's closure can't see `value`.",
+      "evidence_refs": [
+        "transform-client.js:362-381 (component_block includes state.instance_level_snippets, but instance.body + template.body go inside $.async_body)",
+        "SnippetBlock.js:94-97 (top-level snippets pushed to instance_level_snippets)",
+        "baseline compiled client output: `const display` at top-level, `let value` inside $.async_body, ReferenceError at template_effect"
+      ],
+      "prediction": "Moving ...state.instance_level_snippets into the async body block (after instance.body) makes the reproduction render `<p>ready</p>` with no ReferenceError.",
+      "falsifier": "If snippets are referenced from code that is NOT inside the async body (e.g. module-level or another hoisted context), moving them would cause a different ReferenceError in the test suite."
+    },
+    {
+      "claim": "The snippet was incorrectly flagged as hoistable (can_hoist) when the component has top-level await, so it should be routed to module scope or left non-hoisted.",
+      "evidence_refs": [
+        "SnippetBlock.js:92-98 (can_hoist routes to module_level_snippets)",
+        "baseline output: display references `value`, an instance binding, so module hoisting is impossible"
+      ],
+      "prediction": "Changing can_hoist logic alone cannot fix this case since the snippet depends on instance-scope awaited variables and cannot live at module level.",
+      "falsifier": "Making the snippet module-level would produce a compile-time or runtime 'value is not defined' at module scope — worse, not fixed."
+    },
+    {
+      "claim": "The bug is in the runtime (async_body/aborted handling) not the compiler scoping.",
+      "evidence_refs": [
+        "reactivity/async.js:178 async_body",
+        "baseline: error is a plain ReferenceError in generated code, indicating lexical scoping problem, not runtime control flow"
+      ],
+      "prediction": "No runtime change can fix a lexical scope mismatch between the snippet declaration and the awaited variable declaration.",
+      "falsifier": "Inspection of async.js shows it only manages async context/abort flags; it cannot inject bindings into the generated closure."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "e9cebd47f9b3e79df6e52e926a133e07d10e3b6889a01bec84ec84b5d00a079e",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js",
+          "before_sha256": "339c44c3de73ef52999f11b957bddce83e2aae9e5edd3a4ee4840ef6b810626d",
+          "after_sha256": "b27439eaaf28f4c4ffa5c159c02594b1acaaa3bf0202dfcb65af18b67dc3843a"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-async-snippet-v1",
+        "log_sha256": "f2b8b1bcf00404432fc44daf7842fdb6b902509b39d19dd10dea340cac8a69c0",
+        "excerpt": "\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  16:31:43\n   Duration  8.06s (transform 3.24s, setup 0ms, collect 6.57s, tests 119ms, environment 994ms, prepare 103ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-async-snippet-v1",
+    "log_sha256": "2ae24fe82d5b7363479d71e3c9f7ea3fb21e04dcc7d583ca513c21531de9aa92",
+    "excerpt": "\n RUN  v3.0.5 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom) 367ms\n   → value is not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:29:36\n   Duration  28.20s (transform 11.18s, setup 0ms, collect 22.81s, tests 454ms, environment 3.33s, prepare 416ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

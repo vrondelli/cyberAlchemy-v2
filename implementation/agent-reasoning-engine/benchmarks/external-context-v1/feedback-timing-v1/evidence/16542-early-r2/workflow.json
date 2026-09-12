@@ -1,0 +1,31 @@
+{
+  "hypotheses": [
+    {
+      "claim": "ConstTag client transform doesn't handle async deriveds: it wraps init in $.derived(thunk) even when the init contains await, producing a non-async arrow with `await` (invalid). It should mirror VariableDeclaration's is_async path using analysis.async_deriveds.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js:20-29 (create_derived(b.thunk(init)) unconditionally)",
+        "packages/svelte/src/compiler/phases/3-transform/client/visitors/VariableDeclaration.js:201-233 ($.async_derived + b.call(b.await(b.call('$.save', call))) when is_async)",
+        "baseline compiled_client: `const number = $.derived(() => await Promise.resolve(5))` — invalid await in non-async arrow"
+      ],
+      "falsifier": "If analysis.async_deriveds never contains the const tag's init call, the is_async branch would be dead and await in @const would still compile to invalid code; also SSR would fail differently.",
+      "prediction": "Adding an is_async branch (async_deriveds.has(declaration.init) → $.async_derived(b.thunk(init, true)) wrapped in await/$.save) for the Identifier case produces valid output and the holdout test renders '5' in client and hydrate modes."
+    },
+    {
+      "claim": "The bug is in the analyze phase: await inside @const is never registered in analysis.async_deriveds (only $derived call expressions are, via CallExpression.js:248), so even a correct transform can't know it's async.",
+      "evidence_refs": [
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/CallExpression.js:248 (async_deriveds.add only for $derived)",
+        "packages/svelte/src/compiler/phases/2-analyze/visitors/ConstTag.js:38-39 (visits init with expression metadata, no async bookkeeping)"
+      ],
+      "falsifier": "If async_deriveds already includes const-tag inits (e.g. CallExpression marks any call whose function depth is template scope), hypothesis 1's transform alone suffices.",
+      "prediction": "Fixing only the transform with an async_deriveds check will fail because the Set never contains the const init; both analyze registration (or a direct await-detection) and transform are needed."
+    }
+  ],
+  "candidates": [],
+  "probe_requests": 0,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "4369c37459599f2980a6fac1acac818b7c3c646944cdeb91f3b0c7489b329d66",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n   → await isn't allowed in non-async function\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\n   → await isn't allowed in non-async function\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1717 skipped (1719)\n   Start at  18:34:02\n   Duration  10.60s (transform 4.34s, setup 0ms, collect 8.72s, tests 90ms, environment 1.23s, prepare 178ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\nError: await isn't allowed in non-async function\n ❯ getRollupError node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:392:41\n ❯ convertProgram node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1070:26\n ❯ parseAstAsync node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1924:93\n ❯ ssrTransformScript node_modules/.pnpm/vite@5.4.14_@types+node@20.12.7_lightningcss@1.23.0_sass@1.70.0_terser@5.27.0/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:52383:11\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

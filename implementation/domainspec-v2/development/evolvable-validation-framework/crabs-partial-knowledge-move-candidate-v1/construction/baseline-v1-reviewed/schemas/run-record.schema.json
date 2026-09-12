@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evf.crabs-partial-knowledge-run-record.v1",
+  "type": "object",
+  "required": [
+    "schema_version", "run_id", "subject_commit", "plan_sha256",
+    "obligation_sha256", "case_set_sha256", "denominator", "cases", "cbmc",
+    "convergence_status", "implementation_invariant_status", "safety_status",
+    "receipt_status", "promotion_verdict", "summary", "authority_effect",
+    "claim_ceiling"
+  ],
+  "properties": {
+    "schema_version": {"const": "evf.crabs-partial-knowledge-run-record/v1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "subject_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "obligation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "case_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "denominator": {"const": 48},
+    "cases": {"type": "array", "items": {"type": "object"}},
+    "cbmc": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {"$ref": "#/$defs/cbmc"}
+    },
+    "convergence_status": {"enum": ["counterexample", "no-counterexample-in-matrix", "not-evaluable"]},
+    "implementation_invariant_status": {"enum": ["violation", "no-detected-violation", "not-evaluable"]},
+    "safety_status": {"enum": ["violation", "no-detected-violation", "not-evaluable"]},
+    "receipt_status": {"enum": ["pass", "block"]},
+    "promotion_verdict": {"enum": ["PASS", "BLOCK", "PARTIAL_NOT_EVALUABLE"]},
+    "summary": {"$ref": "#/$defs/summary"},
+    "authority_effect": {"const": "none"},
+    "claim_ceiling": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "raw": {
+      "type": "object",
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.).+$"},
+        "size": {"type": "integer", "minimum": 0, "maximum": 4194304},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "process": {
+      "type": "object",
+      "required": ["argv", "status", "exit_code", "stdout", "stderr"],
+      "properties": {
+        "argv": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "status": {"enum": ["completed", "timeout", "output-limit", "launch-failed", "not-run"]},
+        "exit_code": {"type": ["integer", "null"]},
+        "stdout": {"$ref": "#/$defs/raw"},
+        "stderr": {"$ref": "#/$defs/raw"}
+      },
+      "additionalProperties": false
+    },
+    "cbmc": {
+      "type": "object",
+      "required": [
+        "representative_id", "property_id", "assertion_text",
+        "bound_manifest_sha256", "bound_sufficiency_status",
+        "process", "cbmc_status"
+      ],
+      "properties": {
+        "representative_id": {"enum": ["b-newer", "c-newer"]},
+        "property_id": {"type": "string", "minLength": 1},
+        "assertion_text": {"enum": ["EVF_CBMC_B_NEWER_CONVERGENCE", "EVF_CBMC_C_NEWER_CONVERGENCE"]},
+        "bound_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bound_sufficiency_status": {"enum": ["pass", "block", "not-evaluable"]},
+        "process": {"$ref": "#/$defs/process"},
+        "cbmc_status": {"enum": ["counterexample", "no-counterexample-at-bound", "not-evaluable"]}
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["native_total", "sanitizer_total", "cbmc_total", "native_counterexamples", "invariant_violations", "safety_violations", "cbmc_counterexamples", "not_evaluable"],
+      "properties": {
+        "native_total": {"const": 48},
+        "sanitizer_total": {"const": 48},
+        "cbmc_total": {"const": 2},
+        "native_counterexamples": {"type": "integer", "minimum": 0, "maximum": 48},
+        "invariant_violations": {"type": "integer", "minimum": 0, "maximum": 48},
+        "safety_violations": {"type": "integer", "minimum": 0, "maximum": 48},
+        "cbmc_counterexamples": {"type": "integer", "minimum": 0, "maximum": 2},
+        "not_evaluable": {"type": "integer", "minimum": 0, "maximum": 98}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

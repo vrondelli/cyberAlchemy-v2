@@ -90,13 +90,15 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
     const binding = digest({scope, state: boundState, context_limit, recycle_at, safety_margin,
       adapter: {adapter_id: adapter.adapter_id, source_ref: adapter.source_ref, maximum_output_tokens: adapter.maximum_output_tokens}});
     const path = resolve(root, "checkpoint.json");
-    let checkpoint = {version: 1, binding, phase: "idle", generation: 0, start_index: 0, history: [], archives: [], dispatches: [], recycles: 0};
+    let checkpoint = {version: 1, binding, phase: "idle", generation: 0, start_index: 0, history: [], archives: [], dispatches: [], recoverable_failures: [], recycles: 0, post_recycle_render_pending: null};
     if (existsSync(path)) {
       const {checkpoint_digest, ...loaded} = JSON.parse(readFileSync(path, "utf8"));
       requireCondition(digest(loaded) === checkpoint_digest && loaded.version === 1, "checkpoint-integrity");
       requireCondition(loaded.binding === binding, "scope-or-policy-drift");
       requireCondition(loaded.phase === "idle", "uncertain-or-terminal-checkpoint");
       checkpoint = loaded;
+      if (!Array.isArray(checkpoint.recoverable_failures)) checkpoint.recoverable_failures = [];
+      if (checkpoint.post_recycle_render_pending === undefined) checkpoint.post_recycle_render_pending = null;
     }
     const persist = () => writeDurable(path, {...checkpoint, checkpoint_digest: digest(checkpoint)});
     const archive = (history) => {
@@ -128,13 +130,14 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
         requireCondition(digest(JSON.parse(bytes)) === ref, "archive-integrity");
         return {ok: true, output: {digest: ref, offset, next_offset: Math.min(bytes.length, offset + max_chars), total_chars: bytes.length, text: bytes.slice(offset, offset + max_chars)}};
       },
-      async generate({history, render, render_candidates, run_id}) {
+      async generate({history, render, render_candidates, admit_dispatch, pause_after_recycle, run_id}) {
         requireCondition(!closed && !busy && checkpoint.phase === "idle", "request-already-pending");
+        requireCondition(pause_after_recycle === undefined || typeof pause_after_recycle === "function", "pause-after-recycle-invalid");
         busy = true;
         try {
           requireCondition(digest(history) === digest(checkpoint.history), "history-drift");
           const history_ref = archive(history);
-          const renderAt = (start) => render(history.slice(start), {task_state: boundState, history_ref, history_count: history.length, generation: checkpoint.generation});
+          const renderAt = async (start) => await render(history.slice(start), {task_state: boundState, history_ref, history_count: history.length, generation: checkpoint.generation});
           const measure = async (prompt) => {
             const upper = await adapter.measure_request(Object.freeze({prompt, maximum_output_tokens: adapter.maximum_output_tokens}));
             requireCondition(integer(upper), "unknown-input-bound");
@@ -142,37 +145,82 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
             requireCondition(integer(projected), "budget-overflow");
             return {input_upper_bound: upper, output_reservation: adapter.maximum_output_tokens, projected_upper_bound: projected};
           };
-          let prompt = renderAt(checkpoint.start_index);
-          let budget = await measure(prompt);
-          if (budget.projected_upper_bound >= recycle_at) {
+          const renderPostRecycle = async () => {
+            if (render_candidates === undefined) {
+              const candidate = await renderAt(checkpoint.start_index);
+              return {prompt: candidate, budget: await measure(candidate)};
+            }
+            // Trusted projection seam, not a budget exemption. The caller's
+            // scope must bind its policy/source. Never retry a model request.
+            const candidates = await render_candidates(clone(history), {task_state: clone(boundState), history_ref,
+              history_count: history.length, generation: checkpoint.generation});
+            requireCondition(Array.isArray(candidates) && candidates.length > 0 && candidates.length <= 3
+              && candidates.every(candidate => typeof candidate === 'string' && candidate.length > 0), "retention-candidates-invalid");
+            let candidate, candidateBudget;
+            for (const item of candidates) {
+              candidate = item;
+              candidateBudget = await measure(candidate);
+              if (candidateBudget.projected_upper_bound < recycle_at) break;
+            }
+            return {prompt: candidate, budget: candidateBudget};
+          };
+          let prompt, budget;
+          if (checkpoint.post_recycle_render_pending !== null) {
+            const pending = checkpoint.post_recycle_render_pending;
+            requireCondition(pending.generation === checkpoint.generation && pending.start_index === checkpoint.start_index &&
+              pending.history_ref === history_ref && pending.history_count === history.length && pending.history_digest === digest(history), "post-recycle-render-binding");
+            ({prompt, budget} = await renderPostRecycle());
+          } else {
+            prompt = await renderAt(checkpoint.start_index);
+            budget = await measure(prompt);
+          }
+          if (checkpoint.post_recycle_render_pending === null && budget.projected_upper_bound >= recycle_at) {
             requireCondition(history.length > checkpoint.start_index, "fresh-context-too-large");
             checkpoint.generation += 1;
             checkpoint.start_index = history.length;
             checkpoint.recycles += 1;
-            if (render_candidates === undefined) {
-              prompt = renderAt(checkpoint.start_index);
-              budget = await measure(prompt);
-            } else {
-              // Trusted projection seam, not a budget exemption. The caller's
-              // scope must bind its policy/source. Never retry a model request.
-              const candidates = render_candidates(clone(history), {task_state: clone(boundState), history_ref,
-                history_count: history.length, generation: checkpoint.generation});
-              requireCondition(Array.isArray(candidates) && candidates.length > 0 && candidates.length <= 3
-                && candidates.every(candidate => typeof candidate === 'string' && candidate.length > 0), "retention-candidates-invalid");
-              for (const candidate of candidates) {
-                prompt = candidate;
-                budget = await measure(prompt);
-                if (budget.projected_upper_bound < recycle_at) break;
+            // This idle checkpoint is the causal fork boundary: all prior model,
+            // tool and history effects are complete, while no post-recycle prompt
+            // has been rendered, reserved or dispatched.
+            checkpoint.post_recycle_render_pending = {generation: checkpoint.generation, start_index: checkpoint.start_index,
+              history_ref, history_count: history.length, history_digest: digest(history)};
+            persist();
+            if (pause_after_recycle !== undefined) {
+              const boundary = clone({binding, generation: checkpoint.generation, start_index: checkpoint.start_index,
+                recycles: checkpoint.recycles, history_ref, history_count: history.length, history_digest: digest(history)});
+              if (await pause_after_recycle(boundary) === true) {
+                const error = new Error("recycling.boundary-paused");
+                error.code = "boundary-paused";
+                error.boundary = boundary;
+                throw error;
               }
             }
+            ({prompt, budget} = await renderPostRecycle());
           }
           requireCondition(budget.projected_upper_bound < recycle_at, "fresh-context-too-large");
           const dispatch = {binding, generation: checkpoint.generation, sequence: checkpoint.dispatches.length + 1, prompt_digest: digest(prompt), history_ref, ...budget};
+          // Optional caller budget restriction, evaluated after exact measurement
+          // and before a dispatch is recorded or a provider request is possible.
+          // It may deny an otherwise context-admissible request, never relax it.
+          if (admit_dispatch !== undefined) {
+            requireCondition(typeof admit_dispatch === 'function', "dispatch-admission-invalid");
+            requireCondition(await admit_dispatch(Object.freeze({...dispatch})) === true, "dispatch-admission-denied");
+          }
           checkpoint.dispatches.push(dispatch);
+          checkpoint.post_recycle_render_pending = null;
           checkpoint.phase = "model-pending";
           persist(); // Failure or crash from here must never trigger a blind replay.
           adapter.reserve(dispatch);
-          const generated = await transport.generate({prompt, run_id, dispatch});
+          let generated;
+          try { generated = await transport.generate({prompt, run_id, dispatch}); }
+          catch (error) {
+            if (error?.code === "incomplete-output") {
+              checkpoint.recoverable_failures.push({sequence: dispatch.sequence, generation: dispatch.generation, prompt_digest: dispatch.prompt_digest, code: error.code});
+              checkpoint.phase = "model-failed-recoverable";
+              persist();
+            }
+            throw error;
+          }
           requireCondition(typeof generated?.final_bytes === "string" && generated.final_bytes.length > 0, "invalid-model-output");
           checkpoint.phase = "model-returned";
           checkpoint.output_digest = digest(generated.final_bytes);
@@ -185,6 +233,11 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
         checkpoint.phase = "tool-pending";
         persist();
       },
+      acknowledgeIncompleteOutput() {
+        requireCondition(checkpoint.phase === "model-failed-recoverable" && checkpoint.recoverable_failures.at(-1)?.code === "incomplete-output", "incomplete-output-not-recorded");
+        checkpoint.phase = "idle";
+        persist();
+      },
       completeStep(history, terminal = false) {
         requireCondition(["tool-pending", "model-returned"].includes(checkpoint.phase), "completion-phase-invalid");
         checkpoint.history = clone(history);
@@ -192,7 +245,7 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
         checkpoint.phase = terminal ? "terminal" : "idle";
         persist();
       },
-      snapshot() { return clone({generation: checkpoint.generation, recycles: checkpoint.recycles, phase: checkpoint.phase, dispatches: checkpoint.dispatches, history_digest: digest(checkpoint.history)}); }
+      snapshot() { return clone({generation: checkpoint.generation, recycles: checkpoint.recycles, phase: checkpoint.phase, dispatches: checkpoint.dispatches, recoverable_failures: checkpoint.recoverable_failures, post_recycle_render_pending: checkpoint.post_recycle_render_pending, history_digest: digest(checkpoint.history)}); }
     };
   } catch (error) { close(); throw error; }
 }

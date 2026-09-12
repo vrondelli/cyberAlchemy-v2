@@ -9,6 +9,7 @@ import os
 import platform
 import re
 import subprocess
+import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -708,6 +709,12 @@ def execute_live(rerun_of: str | None) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] in {"v2-freeze", "v2-execute", "v2-recover"}:
+        mapped = {"v2-freeze": "freeze", "v2-execute": "execute", "v2-recover": "recover"}[sys.argv[1]]
+        return subprocess.run(
+            [sys.executable, str(ROOT / "scripts/runner_v2.py"), mapped, *sys.argv[2:]],
+            cwd=ROOT, check=False,
+        ).returncode
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("validate-construction")

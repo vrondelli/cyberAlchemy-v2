@@ -1,0 +1,46 @@
+{
+  "hypotheses": [
+    {
+      "claim": "The post-render effect in attribute_effect for selects calls select_option(select, prev.value) with prev.value undefined (no value in spread). In the non-multiple branch, no option matches undefined, and since mounting is falsy, `select.selectedIndex = -1` runs, wiping the HTML `selected` attribute on options.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:519-522 (select_option(select, prev.value); init_select(select))",
+        "packages/svelte/src/internal/client/dom/elements/bindings/select.js:32-39 (no match + !mounting → selectedIndex=-1)"
+      ],
+      "prediction": "Passing mounting=true (or guarding on 'value' in prev) in that effect will preserve the option's selected attribute, making selects[1].value === 'o2' in both client and hydrate modes.",
+      "falsifier": "If the failure instead comes from set_attributes mutating option state (e.g. removing 'selected' via attributes map), the fix in attribute_effect would not change the test result."
+    },
+    {
+      "claim": "set_attributes itself clears the selection during the block run (e.g. via attribute normalization or value handling on the select), independent of the follow-up effect.",
+      "evidence_refs": [
+        "packages/svelte/src/internal/client/dom/elements/attributes.js:262-479 (set_attributes loop; no selectedIndex mutation for select without 'value')"
+      ],
+      "prediction": "Fixing only the follow-up effect leaves the test failing if set_attributes is the culprit; the control select without spread works, so this path is likely benign.",
+      "falsifier": "grep/inspection shows no selectedIndex/selected writes in set_attributes for a select without a 'value' key — already confirmed, so this hypothesis is unlikely."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "0cc85698b81f3c7a85963a4b6ce673051351b03fcb194e2866eaf37e4cb76f7a",
+      "files": [
+        {
+          "path": "packages/svelte/src/internal/client/dom/elements/attributes.js",
+          "before_sha256": "70cf68e6d2ec2557c8fb4bb9004dd2a2f5b85230f1f61db930a1652f1f3a3a52",
+          "after_sha256": "fdd9ac750b9e7add4016e0955af05c640f9f3e6d5733603175a6db6bb9c9b766"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "6d11e07403eec6d2de4a597b15102edc6f406c5e239070ac253b34fef98cc741",
+        "excerpt": "\n RUN  v2.1.9 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1542 skipped (1544)\n   Start at  23:15:41\n   Duration  12.94s (transform 4.61s, setup 0ms, collect 10.82s, tests 106ms, environment 1.64s, prepare 110ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "da7b19c3236970c2e9c324328dbd676ef4d5a6b1ca7473cbe4abf69c98bfb4f0",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n × packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\n   → ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1542 skipped (1544)\n   Start at  18:33:32\n   Duration  8.37s (transform 3.11s, setup 0ms, collect 6.56s, tests 115ms, environment 1.22s, prepare 184ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > are-public-holdout (hydrate)\nAssertionError: ARE_EXPECTED_SELECTED_OPTION: expected '' to equal 'o2'\n\n- Expected\n+ Received\n\n- o2\n\n ❯ Object.test packages/svelte/tests/runtime-runes/samples/are-public-holdout/_config.js:7:10\n      5|   const selects = target.querySelectorAll('select');\n      6|   assert.equal(selects[0].value, 'o2', 'ARE_CONTROL_SELECTED_OPTION');\n      7|   assert.equal(selects[1].value, 'o2', 'ARE_EXPECTED_SELECTED_OPTION');\n       |          ^\n      8|  }\n      9| });\n ❯ run_test_variant packages/svelte/tests/runtime-legacy/shared.ts:400:19\n ❯ packages/svelte/tests/runtime-legacy/shared.ts:144:4\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

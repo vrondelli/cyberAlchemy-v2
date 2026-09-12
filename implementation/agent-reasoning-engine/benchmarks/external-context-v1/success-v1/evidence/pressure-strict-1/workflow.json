@@ -1,0 +1,47 @@
+{
+  "hypotheses": [
+    {
+      "claim": "Top-level snippets are emitted as const in component_block, before $.async_body(...). When the instance has await, referenced instance vars like `let value = await ...` live inside the async_body closure, so the hoisted snippet closes over a nonexistent binding -> ReferenceError.",
+      "evidence_refs": [
+        "compiled_client probe: `const display` at line 9 precedes `$.async_body(async () => { let value = ... })`",
+        "transform-client.js:356-374: state.instance_level_snippets pushed into component_block; only instance.body + template.body go inside async_body"
+      ],
+      "falsifier": "If snippet declarations are emitted inside the async_body closure, the compiled snippet closes over `value` and renders 'ready'.",
+      "prediction": "Emitting instance_level_snippets inside the async_body when analysis.instance.has_await fixes the async reproducer and leaves the sync control output unchanged (it has no await)."
+    },
+    {
+      "claim": "The bug is in expression transformation: reads of awaited variables inside snippet bodies should be wrapped in a signal/saved-value read rather than emitted as bare identifiers.",
+      "evidence_refs": [
+        "SnippetBlock.js:20-44: transform reads are set only for snippet parameters, not outer awaited bindings",
+        "failing stack: bare `value` identifier at Child.svelte.js:13"
+      ],
+      "falsifier": "A read wrapper cannot fix a lexical scoping error: `value` is not visible in the hoisted snippet's scope at all, so any wrapping still throws ReferenceError.",
+      "prediction": "A read-transform-only fix still fails with ReferenceError; only relocating the snippet declaration into scope fixes it."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "85a7e74d2da276481ea26a915743b93cb66cf1375219cc381b7119dfc9c5dd62",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/3-transform/client/transform-client.js",
+          "before_sha256": "339c44c3de73ef52999f11b957bddce83e2aae9e5edd3a4ee4840ef6b810626d",
+          "after_sha256": "14714485ad2acb6bf51a1438c1add4cd414bc30c176ae615c0232384ded97358"
+        }
+      ],
+      "test": {
+        "status": "passed",
+        "probe_id": "public-snippet-controls-v1",
+        "log_sha256": "a04358ee89b14f77d34a36e82e79efe9c1a09b3d4f1456bb03105b999abec2f9",
+        "excerpt": "ASYNC REPRODUCER\n\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  18:00:38\n   Duration  8.03s (transform 3.36s, setup 0ms, collect 6.88s, tests 221ms, environment 506ms, prepare 84ms)\n\n\nSYNC PRESERVATION CONTROL\n\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  18:00:52\n   Duration  8.45s (transform 3.71s, setup 0ms, collect 7.45s, tests 144ms, environment 465ms, prepare 99ms)\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-snippet-controls-v1",
+    "log_sha256": "458a0291e8cfc70095c4193ae70180f512838bcbabe4021e60c9c6e794356e89",
+    "excerpt": "s not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:29:36\n   Duration  28.20s (transform 11.18s, setup 0ms, collect 22.81s, tests 454ms, environment 3.33s, prepare 416ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n\nSYNC PRESERVATION CONTROL\n\n RUN  v3.0.5 /testbed\n\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n ✓ packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n\n Test Files  1 passed (1)\n      Tests  2 passed | 1739 skipped (1741)\n   Start at  16:45:53\n   Duration  7.36s (transform 3.22s, setup 0ms, collect 6.46s, tests 114ms, environment 438ms, prepare 81ms)\n\n"
+  }
+}

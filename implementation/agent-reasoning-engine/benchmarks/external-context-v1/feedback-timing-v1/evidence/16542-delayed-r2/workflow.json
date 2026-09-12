@@ -1,0 +1,48 @@
+{
+  "hypotheses": [
+    {
+      "claim": "ConstTag client transform unconditionally wraps the @const initializer in $.derived with a plain thunk; with await this yields `$.derived(() => await ...)` — await in a non-async arrow — which fails JS parsing. Fix: when the initializer expression has await, emit `await $.save($.async_derived(async () => ...))` like VariableDeclaration does for async $derived.",
+      "evidence_refs": [
+        "ConstTag.js:17-25 (create_derived with b.thunk, no await handling)",
+        "compiled_client in baseline shows `const number = $.derived(() => await Promise.resolve(5))`",
+        "VariableDeclaration.js:205-218 async $derived path uses b.thunk(expression, true) + '$.async_derived' + b.call(b.await(b.call('$.save', call)))"
+      ],
+      "prediction": "Emitting the async_derived/await form in ConstTag when node.metadata.expression.has_await will make the holdout test compile and print '5'.",
+      "falsifier": "If the boundary callback still ends up non-async or `$.get(number)` doesn't unwrap the promise, the test will still fail — pointing to missing async body wrapping or get_value handling."
+    },
+    {
+      "claim": "Alternative: the bug is only in the destructuring (non-Identifier) branch of ConstTag and the Identifier branch is fine.",
+      "evidence_refs": [
+        "ConstTag.js:17-25 shows Identifier branch also uses create_derived(b.thunk) with no await handling",
+        "baseline compiled output shows failure in the Identifier branch"
+      ],
+      "prediction": "Fixing only the destructuring branch would leave the holdout failing; fixing the Identifier branch fixes it.",
+      "falsifier": "Baseline compiled output already falsifies this: the failing generated code comes from the Identifier branch."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "3c74c2ef4d01aefd6ff114fe58c3a5b828b2edbe7172ae688c90b67501bf2560",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/ConstTag.js",
+          "before_sha256": "d587649e6bf4ac28dd7a7355041ef36f5eb8090b936b2f356f4c4ff9541bb23f",
+          "after_sha256": "f0d83cf267aba896a9a1aa8fc3002a7806cf3b50b7944e5591f1a6c9c7290ea9"
+        }
+      ],
+      "test": {
+        "status": "intended_failure",
+        "probe_id": "public-holdout-v1",
+        "log_sha256": "c4f8fd70f036ff8e023af9686bbbaf242439c8cb6965c8ccda833b77bec87ab6",
+        "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n   → await isn't allowed in non-async function\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\n   → await isn't allowed in non-async function\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1717 skipped (1719)\n   Start at  22:58:42\n   Duration  8.83s (transform 3.42s, setup 0ms, collect 7.12s, tests 69ms, environment 1.25s, prepare 118ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\nError: await isn't allowed in non-async function\n ❯ getRollupError node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:392:41\n ❯ convertProgram node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1070:26\n ❯ parseAstAsync node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1924:93\n ❯ ssrTransformScript node_modules/.pnpm/vite@5.4.14_@types+node@20.12.7_lightningcss@1.23.0_sass@1.70.0_terser@5.27.0/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:52383:11\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-holdout-v1",
+    "log_sha256": "4369c37459599f2980a6fac1acac818b7c3c646944cdeb91f3b0c7489b329d66",
+    "excerpt": "\n RUN  v2.1.9 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n   → await isn't allowed in non-async function\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\n   → await isn't allowed in non-async function\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1717 skipped (1719)\n   Start at  18:34:02\n   Duration  10.60s (transform 4.34s, setup 0ms, collect 8.72s, tests 90ms, environment 1.23s, prepare 178ms)\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-holdout (hydrate)\nError: await isn't allowed in non-async function\n ❯ getRollupError node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:392:41\n ❯ convertProgram node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1070:26\n ❯ parseAstAsync node_modules/.pnpm/rollup@4.22.4/node_modules/rollup/dist/es/shared/parseAst.js:1924:93\n ❯ ssrTransformScript node_modules/.pnpm/vite@5.4.14_@types+node@20.12.7_lightningcss@1.23.0_sass@1.70.0_terser@5.27.0/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:52383:11\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

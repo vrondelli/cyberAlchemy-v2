@@ -6,7 +6,7 @@ import {resolve} from "node:path";
 import {execFileSync} from "node:child_process";
 import test from "node:test";
 import {runIterativeCodingAgent} from "../iterative-agent.mjs";
-import {createStatelessRecyclingTransport,createBoundedRecoveryRecyclingTransport} from "../context-recycling.mjs";
+import {createStatelessRecyclingTransport,createBoundedRecoveryRecyclingTransport,openContextRecycling} from "../context-recycling.mjs";
 import {snapshotTree} from "../verifier.mjs";
 
 const hash = (s) => createHash("sha256").update(s).digest("hex");
@@ -252,6 +252,57 @@ test("the exact recycle boundary is refused, not treated as spare capacity", asy
   const output = await runIterativeCodingAgent(f.input);
   assert.equal(output.status, "BLOCK");
   assert.equal(calls, 0);
+});
+
+test("a recycle boundary can pause durably before post-recycle rendering or dispatch", async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), "are-runtime-fork-boundary-")), fixtureRoot = resolve(root, "fixture"), stateRoot = resolve(root, "state");
+  mkdirSync(fixtureRoot); writeFileSync(resolve(fixtureRoot, "a.txt"), "source\n");
+  t.after(() => rmSync(root, {recursive: true, force: true}));
+  let calls = 0, postRecycleRenders = 0;
+  const model = createStatelessRecyclingTransport({adapter_id:"fork-fixture",source_ref:"context-recycling.test.mjs:fork",maximum_output_tokens:100,
+    measure_request:({prompt})=>prompt.includes("old-visible-history")?7500:100,
+    request_once:async()=>{calls++;return {final_bytes:'{"message":{"role":"assistant","content":"ok"}}'};}});
+  const scope={request:"fork task"}, options={directory:stateRoot,context_limit:8000,recycle_at:7000,safety_margin:500,
+    state:{objective:"fork task",constraints:[],completed:[],pending:[],facts:[],lessons:[],evidence_refs:["fixture"]}};
+  let recycler=openContextRecycling({options,transport:model,scope,fixture_root:fixtureRoot});
+  const first=await recycler.generate({history:[],run_id:"prefix",render:async()=>"fresh"});
+  assert.equal(calls,1); recycler.completeStep(["old-visible-history"]);
+  await assert.rejects(recycler.generate({history:["old-visible-history"],run_id:"prefix",
+    render:async visible=>{if(visible.length===0)postRecycleRenders++;return visible.length?"old-visible-history":"fresh";},
+    pause_after_recycle:async boundary=>{assert.equal(boundary.generation,1);assert.equal(boundary.history_count,1);return true;}}),error=>error.code==="boundary-paused");
+  assert.equal(calls,1); assert.equal(postRecycleRenders,0);
+  let checkpoint=JSON.parse(readFileSync(resolve(stateRoot,"checkpoint.json")));
+  assert.equal(checkpoint.phase,"idle"); assert.equal(checkpoint.generation,1); assert.equal(checkpoint.start_index,1); assert.equal(checkpoint.dispatches.length,1);
+  recycler.close();
+  recycler=openContextRecycling({options,transport:model,scope,fixture_root:fixtureRoot});
+  const restored=recycler.initialHistory(["old-visible-history"]);
+  await recycler.generate({history:restored,run_id:"control",render:async visible=>{postRecycleRenders++;assert.deepEqual(visible,[]);return "fresh";}});
+  assert.equal(calls,2); assert.equal(postRecycleRenders,1); recycler.completeStep(restored,true); recycler.close();
+});
+
+test("a resumed recycle boundary selects bounded render candidates before fresh-context rejection", async (t) => {
+  const root=mkdtempSync(resolve(tmpdir(),"are-runtime-resumed-projection-")),fixtureRoot=resolve(root,"fixture"),stateRoot=resolve(root,"state");mkdirSync(fixtureRoot);writeFileSync(resolve(fixtureRoot,"a.txt"),"source\n");t.after(()=>rmSync(root,{recursive:true,force:true}));
+  let calls=0,lastPrompt=null;
+  const model=createStatelessRecyclingTransport({adapter_id:"resumed-projection",source_ref:"context-recycling.test.mjs:resumed-projection",maximum_output_tokens:100,
+    measure_request:({prompt})=>prompt==="projected"?100:7500,request_once:async({prompt})=>{calls++;lastPrompt=prompt;return{final_bytes:'{"message":{"role":"assistant","content":"ok"}}'};}});
+  const scope={request:"resume projection"},options={directory:stateRoot,context_limit:8000,recycle_at:7000,safety_margin:500,state:{objective:"resume projection",constraints:[],completed:[],pending:[],facts:[],lessons:[],evidence_refs:["fixture"]}};
+  let recycler=openContextRecycling({options,transport:model,scope,fixture_root:fixtureRoot});
+  // Seed one completed dispatch whose history will force recycling next.
+  // The first prompt must fit, so use the projected candidate as the seed.
+  await recycler.generate({history:[],run_id:"prefix",render:async()=>"projected"});recycler.completeStep(["oversized pending exchange"]);
+  await assert.rejects(recycler.generate({history:["oversized pending exchange"],run_id:"prefix",render:async()=>"full",
+    render_candidates:async()=>["full","projected"],pause_after_recycle:async()=>true}),error=>error.code==="boundary-paused");
+  assert.equal(calls,1);let checkpoint=JSON.parse(readFileSync(resolve(stateRoot,"checkpoint.json")));assert.equal(checkpoint.post_recycle_render_pending.generation,1);recycler.close();
+  recycler=openContextRecycling({options,transport:model,scope,fixture_root:fixtureRoot});
+  await recycler.generate({history:["oversized pending exchange"],run_id:"branch",render:async()=>{throw Error("ordinary render must not run");},render_candidates:async()=>["full","projected"]});
+  assert.equal(calls,2);assert.equal(lastPrompt,"projected");checkpoint=JSON.parse(readFileSync(resolve(stateRoot,"checkpoint.json")));assert.equal(checkpoint.post_recycle_render_pending,null);assert.equal(checkpoint.phase,"model-returned");const resumedDigest=checkpoint.dispatches.at(-1).prompt_digest;recycler.completeStep(["oversized pending exchange"],true);recycler.close();
+  const uninterruptedState=resolve(root,"uninterrupted"),uninterruptedPrompts=[];
+  const uninterruptedModel=createStatelessRecyclingTransport({adapter_id:"resumed-projection",source_ref:"context-recycling.test.mjs:resumed-projection",maximum_output_tokens:100,
+    measure_request:({prompt})=>prompt==="projected"?100:7500,request_once:async({prompt})=>{uninterruptedPrompts.push(prompt);return{final_bytes:'{"message":{"role":"assistant","content":"ok"}}'};}});
+  const uninterrupted=openContextRecycling({options:{...options,directory:uninterruptedState},transport:uninterruptedModel,scope,fixture_root:fixtureRoot});
+  await uninterrupted.generate({history:[],run_id:"uninterrupted",render:async()=>"projected"});uninterrupted.completeStep(["oversized pending exchange"]);
+  await uninterrupted.generate({history:["oversized pending exchange"],run_id:"uninterrupted",render:async()=>"full",render_candidates:async()=>["full","projected"]});
+  const uninterruptedCheckpoint=JSON.parse(readFileSync(resolve(uninterruptedState,"checkpoint.json")));assert.equal(uninterruptedPrompts.at(-1),lastPrompt);assert.equal(uninterruptedCheckpoint.dispatches.at(-1).prompt_digest,resumedDigest);uninterrupted.completeStep(["oversized pending exchange"],true);uninterrupted.close();
 });
 
 test("a hard process exit leaves a reservation and writer lock that prevent replay", async (t) => {

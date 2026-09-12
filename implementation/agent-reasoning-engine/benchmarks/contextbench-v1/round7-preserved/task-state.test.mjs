@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {createHash} from 'node:crypto';
+import {buildTaskStateProjection,verifyTaskStateProjection} from './task-state.mjs';
+import {bodyForReceipt,stable} from './delivery.mjs';
+const hash=x=>createHash('sha256').update(typeof x==='string'?x:stable(x)).digest('hex');
+const task={problem_statement:'Fix the specified behavior and preserve evidence.'};
+function delivery(){
+  const source={path:'src/a.js',start_line:1,end_line:2,source_sha256:'b'.repeat(64),utf8:'one\ntwo',byte_count:7};
+  const call={id:'c1',type:'function',function:{name:'read_file',arguments:stable({path:'src/a.js',start_line:1,line_count:2})}};
+  const messages=[{role:'assistant',tool_calls:[call]},{role:'tool',tool_call_id:'c1',content:stable({ok:true,output:source})}],prompt=stable({messages,tools:[]});
+  const receipt={kind:'model',model:'glm-5.3-flash',output_cap:2048,reasoning_effort:'low',dispatched:true,status:200,finish_reason:'stop',input_tokens:2,output_tokens:1};receipt.request_sha256=hash(stable(bodyForReceipt(prompt,receipt)));
+  return{captures:[{step:1,generation:0,prompt,prompt_sha256:hash(prompt)}],receipts:[receipt]};
+}
+const events=[{step:1,tool:'read_file',output:{ok:true,output:{observations:[{id:'a'.repeat(64)}]}}},{step:2,tool:'apply_edits',output:{ok:true,output:{changed_paths:['src/a.js','src/a.js'],base_commit:'base'}}},{step:3,tool:'get_patch',output:{ok:true,output:{patch:'diff --git a/src/a.js'}}},{step:4,tool:'search',output:{ok:false,error:'invalid pattern'}}];
+
+test('is absent before an actual recycle generation',async()=>assert.equal(await buildTaskStateProjection({task,...delivery(),events,generation:0}),null));
+test('projects only bounded objective identity, delivered handles, and tool outcomes',async()=>{const x=await buildTaskStateProjection({task,...delivery(),events,generation:1,max_bytes:4096});assert.equal(x.objective.sha256,hash(task.problem_statement));assert.match(x.evidence[0].read_id,/^[a-f0-9]{64}$/);assert.equal(x.outcomes.find(y=>y.tool==='apply_edits').changed_paths.length,1);assert.ok(!x.text.includes('one\ntwo'));assert.ok(!x.text.includes(task.problem_statement));});
+test('is deterministic and independently rebuildable',async()=>{const input={task,...delivery(),events,generation:2};const a=await buildTaskStateProjection(input),b=await buildTaskStateProjection(input);assert.deepEqual(a,b);assert.equal((await verifyTaskStateProjection(a,input)).ok,true);a.outcomes[0].outcome='invented';assert.equal((await verifyTaskStateProjection(a,input)).ok,false);});
+test('retains failures and superseding later facts without claiming correctness',async()=>{const x=await buildTaskStateProjection({task,...delivery(),events,generation:1});assert.equal(x.outcomes.at(-1).outcome,'rejected');assert.match(x.limitations.join(' '),/no inferred intent.*correctness/i);});
+test('enforces byte and measured token caps',async()=>{const input={task,...delivery(),events:[...events,...events,...events],generation:3,max_bytes:700,max_tokens:200,measure_tokens:async text=>Math.ceil(text.length/4)};const x=await buildTaskStateProjection(input);assert.ok(Buffer.byteLength(stable({...x,text:undefined,measured_tokens:undefined}))>0);await assert.rejects(()=>buildTaskStateProjection({...input,max_tokens:1}),/token-cap-exceeded/);});
+test('rejects malformed events instead of projecting caller prose',async()=>{const x=await buildTaskStateProjection({task,...delivery(),events:[{step:'later',tool:'note',output:{ok:true,output:{claim:'solved'}}}],generation:1});assert.deepEqual(x.outcomes,[]);});

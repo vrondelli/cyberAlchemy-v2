@@ -15,6 +15,7 @@ import {isAbsolute, relative, resolve} from "node:path";
 export {createVariantWorkspaceFactory} from "./src/variant-workspace.mjs";
 export {applyUpgradeDecision, createServingVersionStore} from "./src/upgrade-controller.mjs";
 export {createEvolutionScheduler} from "./src/scheduler.mjs";
+export {RESEARCH_CONTINUITY_POLICY_SCHEMA, RESEARCH_CONTINUITY_BINDING_SCHEMA, verifyResearchContinuity} from "./src/research-continuity.mjs";
 export {REPLICATION_SOURCE_PATHS, materializeReplicationManifest, verifyReplicationManifest, scoreReplicationRun, materializeReplicationResult} from "./src/requirement-replication.mjs";
 export {LATENCY_SOURCE_PATHS, materializeLatencyManifest, verifyLatencyManifest, scoreLatencyRun, materializeLatencyResult} from "./src/requirement-latency-control.mjs";
 
@@ -288,6 +289,12 @@ export function createResearchHypothesis(input) {
   if (text(input.strategy_ref)) lineage.strategy_ref = input.strategy_ref.trim();
   if (text(input.implementation_pattern)) lineage.implementation_pattern = input.implementation_pattern.trim();
   if (text(input.implementation_ref)) lineage.implementation_ref = input.implementation_ref.trim();
+  const continuity = object(input.continuity_contract) ? {
+    enduring_objective: text(input.continuity_contract.enduring_objective) ? input.continuity_contract.enduring_objective.trim() : "",
+    initial_objective: text(input.continuity_contract.initial_objective) ? input.continuity_contract.initial_objective.trim() : "",
+    current_milestone: text(input.continuity_contract.current_milestone) ? input.continuity_contract.current_milestone.trim() : "",
+    research_method: text(input.continuity_contract.research_method) ? input.continuity_contract.research_method.trim() : "",
+  } : null;
   return seal(RESEARCH_HYPOTHESIS_SCHEMA, {
     hypothesis_key: input.hypothesis_key.trim(),
     statement: input.statement.trim(),
@@ -305,6 +312,7 @@ export function createResearchHypothesis(input) {
       success_criteria: object(input.experiment_template.success_criteria) ? input.experiment_template.success_criteria : {},
       stop_conditions: uniqueText(input.experiment_template.stop_conditions),
     }),
+    ...(continuity === null ? {} : {continuity_contract: continuity}),
     ...lineage,
   });
 }

@@ -1,0 +1,29 @@
+import json,os,pathlib,re,shutil,sys,tempfile
+sys.path.insert(0,str(pathlib.Path.cwd()))
+import replay
+out=pathlib.Path('/tmp/crabs-replay-reviewer-attempt-002')
+results=[]
+for assertion in [1,2,3]:
+ for keep_order_failure in [True,False]:
+  with tempfile.TemporaryDirectory(prefix='crabs-independent-vector-') as tmp:
+   folder=pathlib.Path(tmp)
+   for p in out.iterdir():
+    if p.is_file(): shutil.copy2(p,folder/p.name)
+   data=json.loads((folder/'result.json').read_text());rec=data['commands']['common-original-cbmc'];raw=folder/rec['stdout']['path'];s=raw.read_text()
+   lines=s.splitlines()
+   for i,line in enumerate(lines):
+    if line.startswith('[main.assertion.'+str(assertion)+']'): lines[i]=line.removesuffix('SUCCESS')+'FAILURE'
+    if not keep_order_failure and line.startswith('[main.assertion.4]'): lines[i]=line.removesuffix('FAILURE')+'SUCCESS'
+   raw.write_text('\n'.join(lines)+'\n');rec['stdout']['sha256']=replay.sha(raw.read_bytes());rec['stdout']['bytes']=len(raw.read_bytes())
+   data['receipt_digest']=replay.digest({k:v for k,v in data.items() if k!='receipt_digest'});(folder/'result.json').write_text(json.dumps(data))
+   try: replay.verify_result(folder)
+   except ValueError as e: results.append({'failed_precondition':assertion,'order_still_fails':keep_order_failure,'rejected':True,'reason':str(e)})
+   else: raise AssertionError('Wrong vector accepted')
+old=replay.TIMEOUT;replay.TIMEOUT=.2
+try:
+ rec=replay.execute([sys.executable,'-c','import os,time;os.close(1);os.close(2);time.sleep(2)'],replay.ROOT,out,'reviewer-closed-pipes-timeout-probe',dict(os.environ))
+finally: replay.TIMEOUT=old
+assert rec['termination']=='timeout' and rec['exit_code']==-9 and rec['elapsed_seconds']<1.5,rec
+report={'assertion_vectors':results,'watchdog':{'configured_timeout_seconds':.2,'record':rec}}
+(out/'reviewer-independent-probes.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps(report,indent=2))

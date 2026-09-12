@@ -1,0 +1,99 @@
+{
+  "schema_version": "are.contextbench-shared-prefix-boundary-audit/v1",
+  "round": 15,
+  "status": "complete",
+  "selected_hypothesis_ref": "research-hypothesis:28c0742145b28237ff7a69201bf7aee74bccd3c58b6847ebd7eee4b28b148b21",
+  "continuity_ref": "round15-continuity.json",
+  "boundary": {
+    "position": "after the last common tool exchange is durably completed and the recycler has selected the first new generation, before rendering or dispatching the first post-recycle request",
+    "why": "This is the last point at which model output, tools, repository effects, delivered evidence and token use can remain identical while the next request varies only by the declared ARE state projection.",
+    "model_calls_after_boundary": 0,
+    "model_state_presentations_after_boundary": 0
+  },
+  "required_state": {
+    "identity": [
+      "task bytes and SHA-256",
+      "instance, repository URL, base commit and source identity",
+      "common trajectory/cell identity",
+      "context, recycle, safety, call, output and cumulative-token limits",
+      "provider/model/tokenizer profile and source hashes"
+    ],
+    "episode": [
+      "next step and finalization phase",
+      "history including complete assistant/tool exchanges",
+      "captures and public response captures",
+      "tool-result events and token admissions",
+      "evidence indexes and task-state presentation identities",
+      "pending terminal, source, output-cap and tool-exchange feedback",
+      "terminal and incomplete-output correction counters",
+      "presented state generations"
+    ],
+    "recycler": [
+      "binding, generation, start index, history and history digest",
+      "archives and verified content-addressed evidence",
+      "dispatch records, recoverable failures and recycle count",
+      "idle phase with no reserved or pending transport request"
+    ],
+    "repository_and_delivery": [
+      "base and editable work trees including exact patch/tree identity",
+      "immutable source snapshot records",
+      "read IDs, retrieval handles, source revisions and delivery receipts"
+    ],
+    "transport_and_cost": [
+      "GLM client identity and idle durable ledger",
+      "all model and tokenizer receipts and cumulative known usage",
+      "index-tokenizer receipts and cache inputs needed for deterministic measurement",
+      "zero unknown or pending usage"
+    ]
+  },
+  "observed_gaps": [
+    {
+      "component": "episode.mjs",
+      "gap": "The loop stores continuation-critical state in local variables and only returns a terminal summary; it cannot import a continuation snapshot or pause at a recycle boundary."
+    },
+    {
+      "component": "context-recycling.mjs",
+      "gap": "The durable checkpoint resumes history but has no callback/pause boundary between selecting a new generation and rendering its first request."
+    },
+    {
+      "component": "orchestrate.mjs",
+      "gap": "A run root is single-use and source snapshots are held in an in-memory map; it cannot clone a verified prefix into isolated branches."
+    },
+    {
+      "component": "holdout transport ledger",
+      "gap": "Exact ledger resume exists, but branch ancestry and shared-prefix token attribution are not explicit."
+    },
+    {
+      "component": "index tokenizer",
+      "gap": "Receipts are exposed but its in-memory cache is not exportable; a branch could repeat measurement and must retain that receipt/cost without confusing it with model-token usage."
+    }
+  ],
+  "implementation_decision": {
+    "approach": "Add an explicit pause/export/import seam rather than reconstructing continuation state heuristically.",
+    "steps": [
+      "Persist an idle recycler checkpoint immediately after first-generation selection and invoke a typed pause before post-recycle rendering.",
+      "Export a versioned episode continuation containing every local field and its digest.",
+      "Close the prefix, hash its complete directory, and clone it into isolated branch roots without locks.",
+      "Resume both branches with one common trajectory binding and separate branch IDs; verify imported repository, snapshots, recycler and transport ledger before any request.",
+      "Render control without state and treatment with unchanged evidence-only state, then prove the request envelopes differ only by that projection before dispatch.",
+      "Attribute shared-prefix model tokens once to the product trajectory and disclose every repeated branch token as evaluation cost."
+    ],
+    "rejected_shortcuts": [
+      "Comparing independent fresh runs",
+      "Copying only conversation history",
+      "Replaying the prefix from prompts or seeds",
+      "Forking after a branch-specific prompt has been rendered",
+      "Resetting token counters in each branch"
+    ]
+  },
+  "completion_criteria": [
+    "Offline fixtures pause with no post-boundary model dispatch.",
+    "Every imported field and content-addressed file verifies against the boundary digest.",
+    "Control and treatment share identical pre-treatment receipts, history, repository tree and evidence.",
+    "The first branch request differs only by the declared treatment state text and provider token measurement.",
+    "Branch mutations and receipts cannot affect the sibling or prefix.",
+    "Unknown, failed or pending usage blocks branch admission."
+  ],
+  "authority_effect": "none",
+  "open_questions_ref": "PLAN-round15.md#open-questions"
+}

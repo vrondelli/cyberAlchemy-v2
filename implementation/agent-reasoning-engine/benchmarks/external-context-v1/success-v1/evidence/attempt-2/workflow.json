@@ -1,0 +1,47 @@
+{
+  "hypotheses": [
+    {
+      "claim": "When a top-level awaited variable is referenced inside a snippet, the snippet's fragment must itself be wrapped in $.async_body (treated as containing await), so the snippet function is defined inside the async_body scope where `value` is declared. A regression made the snippet's has_await false, so it was emitted at component scope where `value` is out of scope.",
+      "evidence_refs": [
+        "compiled_client: `const display = ...` is defined outside $.async_body but references `value` which is `let`-declared inside async_body",
+        "Fragment.js:180 has_await path wraps body in $.async_body"
+      ],
+      "falsifier": "If fixing has_await propagation produces a snippet calling `value` via getter/signal rather than closure over a let, the fix lies elsewhere.",
+      "prediction": "Wrapping the snippet body in async_body (or defining the snippet inside the component's async_body) makes `value` resolve via closure and the test renders 'ready'."
+    },
+    {
+      "claim": "Awaited top-level variables referenced from snippets should be compiled as signals (e.g. via a hoisted `const value = $.derived(...)` / property on component state) so the snippet can read them via $.get regardless of scoping; the regression removed that transformation for snippet-referenced awaits.",
+      "evidence_refs": [
+        "compiled_client shows `value` compiled as plain let, not a signal, while template_effect reads it directly",
+        "Fragment.js has_await path only wraps in async_body, no signalization"
+      ],
+      "falsifier": "If upstream Svelte's fix (5.38.3+ regression patch) is purely scoping/hoisting of the snippet definition, the signal hypothesis is wrong.",
+      "prediction": "Signalizing would fix it, but the minimal correct fix matches upstream: adjust scope/hoisting so the snippet sees the awaited binding."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "12f3aadb9d4c88304e712489822afad01ff56bfd82e1b406fd7cdfd96b9a3b02",
+      "files": [
+        {
+          "path": "packages/svelte/src/compiler/phases/3-transform/client/visitors/SnippetBlock.js",
+          "before_sha256": "1c4f789b1ae8303938c53a4f8f080d7ec70baac2badf2e3ddb53dc45b997a37b",
+          "after_sha256": "b3ecde824d3f295ea46bb29f0b858301d27dcfa3c0c8e915a813d64b1ccdded7"
+        }
+      ],
+      "test": {
+        "status": "intended_failure",
+        "probe_id": "public-async-snippet-v1",
+        "log_sha256": "7b9c84f9fbbc0c5d678be8473b1cc648dcbad7325865db9c2b6e9bc7a3025e31",
+        "excerpt": "\n RUN  v3.0.5 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n   → value is not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:45:15\n   Duration  7.26s (transform 3.13s, setup 0ms, collect 6.35s, tests 137ms, environment 438ms, prepare 85ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+      }
+    }
+  ],
+  "probe_requests": 1,
+  "baseline": {
+    "status": "intended_failure",
+    "probe_id": "public-async-snippet-v1",
+    "log_sha256": "2ae24fe82d5b7363479d71e3c9f7ea3fb21e04dcc7d583ca513c21531de9aa92",
+    "excerpt": "\n RUN  v3.0.5 /testbed\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom) 367ms\n   → value is not defined\n\n\tin <unknown>\n\n × packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\n   → value is not defined\n\n\tin <unknown>\n\n\n Test Files  1 failed (1)\n      Tests  2 failed | 1739 skipped (1741)\n   Start at  15:29:36\n   Duration  28.20s (transform 11.18s, setup 0ms, collect 22.81s, tests 454ms, environment 3.33s, prepare 416ms)\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (dom)\n FAIL  packages/svelte/tests/runtime-runes/test.ts > async-are-public-snippet (hydrate)\nReferenceError: value is not defined\n\n\tin <unknown>\n\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:44\n     11| \n     12|   $.reset(p);\n     13|   $.template_effect(() => $.set_text(text, value));\n       |                                            ^\n     14|   $.append($$anchor, p);\n     15|  };\n ❯ display packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:13:5\n ❯ packages/svelte/tests/runtime-runes/samples/async-are-public-snippet/_output/client/Child.svelte.js:22:3\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n"
+  }
+}

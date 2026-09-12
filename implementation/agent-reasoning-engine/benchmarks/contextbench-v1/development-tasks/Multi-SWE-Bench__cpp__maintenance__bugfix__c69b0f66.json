@@ -1,0 +1,10 @@
+{
+  "instance_id": "Multi-SWE-Bench__cpp__maintenance__bugfix__c69b0f66",
+  "original_inst_id": "simdjson__simdjson-543",
+  "repo": "simdjson/simdjson",
+  "repo_url": "https://github.com/simdjson/simdjson.git",
+  "language": "cpp",
+  "base_commit": "d140bc23f547e7cca43f85bf0ba1004e26e228e3",
+  "problem_statement": "Add parser.load()\n\nThis does several important things:\r\n* Adds `parser.load()` and `parser.load_many()`, which parse from disk (they don't really take advantage of this for performance, but we *can* make it do so now).\r\n* Adds `document::load()`, which mirrors document::parse() and shortens examples nicely\r\n* Adds `padded_string::load()` to read from disk, for those who want to keep the corpus around\r\n* Makes `padded_string::load()` return error codes instead of throwing (uses the result pattern becoming pervasive across our API)\r\n* Deprecates `get_corpus` and replaces all examples\r\n* Documents padded_string and moves its implementation into include/simdjson/inline/padded_string.h\r\n\r\nYou'll notice the line count getting smaller in a lot of the `get_corpus` uses, because they had to do a lot work and weird `swap()`s to handle things with exceptions, and with `padded_string::load()` it can use the `auto [p, error]` pattern.\r\n\r\nAlong with the auto-allocation patch this builds on, this makes the simple case look like this:\r\n\r\n```c++\r\ndocument doc = document::load(\"jsonexamples/twitter.json\");\r\n```\r\n\r\nOr this:\r\n\r\n```c++\r\ndocument::parser parser;\r\nconst document &doc = parser.load(\"jsonexamples/twitter.json\");\r\n```\r\n\r\nAs always, error chaining, and the choice of error codes vs. exceptions, are entirely within the user's choice.\r\n\r\nFixes #522.",
+  "source": "Multi"
+}
