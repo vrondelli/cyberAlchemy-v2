@@ -81,11 +81,38 @@ test("gateway restart authenticates and replays a durable completed request exac
   const secondChildren = []; const second = gateway(socketPath, storePath, secondChildren); await second.start();
   const resumed = await connect(socketPath, "codex:restart", token);
   assert.equal(resumed.receipt.ok, true);
+  assert.equal(resumed.receipt.continuity.resume_token, token);
+  assert.equal(resumed.receipt.continuity.resume_token_digest, connection.receipt.continuity.resume_token_digest);
   resumed.socket.write(`${JSON.stringify({...request, id: 99})}\n`);
   const replay = await resumed.output.next();
   assert.equal(replay.message.id, 99);
   assert.equal(replay.message.result.turn.id, "turn-1");
   assert.equal(secondChildren[0].stdin.readableLength, 0);
+  resumed.socket.destroy(); await second.close();
+});
+
+test("gateway restart reinitializes the new backend before forwarding later requests", async () => {
+  const directory = mkdtempSync("/tmp/are-gateway-reinitialize-"); const socketPath = resolve(directory, "gateway.sock"); const storePath = resolve(directory, "sessions.jsonl");
+  const firstChildren = []; const first = gateway(socketPath, storePath, firstChildren); await first.start();
+  const connection = await connect(socketPath, "codex:reinitialize-after-restart"); const token = connection.receipt.continuity.resume_token;
+  const initialize = {jsonrpc: "2.0", id: 1, method: "initialize", params: {clientInfo: {name: "test", version: "1"}}, [GATEWAY_REQUEST_META_KEY]: {request_key: "initialize:durable"}};
+  connection.socket.write(`${JSON.stringify(initialize)}\n`);
+  const firstInitialize = await lines(firstChildren[0].stdin).next();
+  firstChildren[0].stdout.write(`${JSON.stringify({jsonrpc: "2.0", id: firstInitialize.id, result: {ready: "first"}})}\n`);
+  assert.equal((await connection.output.next()).message.result.ready, "first");
+  await first.close(); connection.socket.destroy();
+
+  const secondChildren = []; const second = gateway(socketPath, storePath, secondChildren); await second.start();
+  const resumed = await connect(socketPath, "codex:reinitialize-after-restart", token);
+  resumed.socket.write(`${JSON.stringify({...initialize, id: 2})}\n`);
+  const secondInitialize = await lines(secondChildren[0].stdin).next();
+  assert.equal(secondInitialize.method, "initialize");
+  secondChildren[0].stdout.write(`${JSON.stringify({jsonrpc: "2.0", id: secondInitialize.id, result: {ready: "second"}})}\n`);
+  assert.equal((await resumed.output.next()).message.result.ready, "second");
+
+  const turn = {jsonrpc: "2.0", id: 3, method: "thread/start", params: {cwd: "/tmp"}, [GATEWAY_REQUEST_META_KEY]: {request_key: "thread:after-reinitialize"}};
+  resumed.socket.write(`${JSON.stringify(turn)}\n`);
+  assert.equal((await lines(secondChildren[0].stdin).next()).method, "thread/start");
   resumed.socket.destroy(); await second.close();
 });
 

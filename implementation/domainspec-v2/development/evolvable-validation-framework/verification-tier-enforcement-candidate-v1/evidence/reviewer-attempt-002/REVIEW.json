@@ -1,0 +1,116 @@
+{
+  "schema_version": "evf.verification-tier-independent-review/v1",
+  "review_id": "evf-v0-v2-reviewer-attempt-002",
+  "reviewed_at_utc": "2026-09-12T19:59:39Z",
+  "candidate_id": "evf.core.verification-tiers.v0-v2",
+  "author_attempt": 2,
+  "verdict": "DISAGREE",
+  "verdict_basis": "Both attempt-001 counterexamples are repaired when the shipped package root is fixed, and the broader authored invariants replay. A caller-selected policy root restores the weakened-profile V2 grant, so the profile identity boundary is not yet fail-closed at the exported evaluate(repo, root, invocation) interface.",
+  "routing": {
+    "route_id": "CA2-ROUTE-VALIDATE",
+    "receipt_digest": "42997826c1ee6a433b2a38e522787493daec30f8b8edee527dbe18d9b80da4c2",
+    "authority_effect": "none"
+  },
+  "seal_verification": {
+    "status": "PASS",
+    "manifest": "evidence/author-attempt-002/AUTHOR-MANIFEST.json",
+    "files_checked": 25,
+    "hash_and_size_mismatches": [],
+    "evidence": "REPLAY.log#manifest-verification"
+  },
+  "package_validation": {
+    "status": "PASS",
+    "construction_tests": 25,
+    "current_tde_product_evidence": "NOT_EVALUABLE",
+    "evidence": "REPLAY.log#package-validation"
+  },
+  "repair_replay": {
+    "EVF-REVIEW-001-F1": {
+      "status": "PASS",
+      "observed_contract_state": "not_evaluable",
+      "observed_verified_tier": null,
+      "scope": "Prior exploit replayed with the shipped package root fixed."
+    },
+    "EVF-REVIEW-001-F2": {
+      "status": "PASS",
+      "observed_contract_state": "not_evaluable",
+      "observed_verified_tier": null
+    }
+  },
+  "required_properties": {
+    "no_voting": "PASS",
+    "no_silent_downgrade": "PASS",
+    "contract_state_property_outcome_separation": "PASS",
+    "compatibility_truthfulness": "PASS",
+    "no_retroactive_tier_grant": "PASS",
+    "duplicate_control_id_fail_closed": "PASS",
+    "profile_root_identity_fail_closed": "FAIL"
+  },
+  "findings": [
+    {
+      "finding_id": "EVF-REVIEW-002-F1",
+      "severity": "HIGH",
+      "status": "FAIL",
+      "title": "Caller-selected policy root restores the weakened same-ID/version profile bypass",
+      "evidence": {
+        "source": [
+          "evf_tiers/kernel.py:41",
+          "evf_tiers/kernel.py:49",
+          "evf_tiers/kernel.py:57",
+          "evf_tiers/kernel.py:199",
+          "contracts/profile.v1.schema.json:49"
+        ],
+        "behavior": "evaluate accepts root from its caller. _profile_current treats root/profile.json as canonical at runtime, computes its digest dynamically, and validates it with root/contracts/profile.v1.schema.json. The shipped profile schema closes field shape but permits arbitrary minimum_provider_routes, independent_routes, and negative_control_classes values.",
+        "adversarial_case": "caller-selected-root-weakened-profile",
+        "construction": "A temporary caller-selected root contained the shipped invocation/profile schemas and a profile with the sealed profile_id/version but V2 changed to one provider, no independence, and no controls. The invocation exactly bound the same weak bytes in its repository.",
+        "observed": {
+          "contract_state": "satisfied",
+          "verified_tier": "V2"
+        }
+      },
+      "implication": "The F1 repair depends on every integration supplying the trusted shipped root, but the exported evaluator does not enforce or derive that boundary. A caller that can choose root can silently weaken V2 under the same profile identity.",
+      "required_resolution": "Remove the policy root from caller control or bind it to the sealed package identity. Derive the package root from the module location and pin the accepted profile digest, or encode the exact V0/V1/V2 requirement values as schema constants and verify the schema/profile identity independently of caller paths."
+    },
+    {
+      "finding_id": "EVF-REVIEW-002-F2",
+      "severity": "INFO",
+      "status": "PASS",
+      "title": "The literal attempt-001 repairs are effective under the shipped root",
+      "evidence": {
+        "weakened_profile": "not_evaluable, verified_tier null, profile-binding-drift",
+        "duplicate_class_survivor": "not_evaluable, verified_tier null, negative-control-class-missing-or-survived",
+        "duplicate_control_id": "not_evaluable, verified_tier null"
+      }
+    },
+    {
+      "finding_id": "EVF-REVIEW-002-F3",
+      "severity": "INFO",
+      "status": "PASS",
+      "title": "Voting, downgrade, and result-axis invariants replay",
+      "evidence": {
+        "three_provider_vote": "Two no-counterexample providers plus one counterexample produced conflicting_evidence and no verified tier.",
+        "requested_v2_without_controls": "requested_tier remained V2, verified_tier was null, and available_lower_tier was V1.",
+        "agreeing_counterexamples": "contract_state satisfied, property_outcome counterexample, verified_tier V2."
+      }
+    },
+    {
+      "finding_id": "EVF-REVIEW-002-F4",
+      "severity": "INFO",
+      "status": "PASS",
+      "title": "Historical compatibility remains exact, additive, and currently not evaluable",
+      "evidence": {
+        "historical_profiles": "L0, L1, and L2 hashes and sizes match the compatibility record.",
+        "runtime_binding": "Exact hash and size match.",
+        "missing_exact_runtimes": [
+          "../.formal-tools/souffle/2.5/usr/bin/souffle",
+          "../.formal-tools/jre/current/bin/java",
+          "../.formal-tools/alloy/org.alloytools.alloy.dist-6.2.0.jar"
+        ],
+        "retroactive_verification": false,
+        "all_tier_granted": false
+      }
+    }
+  ],
+  "claim_ceiling": "Independent local construction replay of the attempt-002 sealed snapshot and current exact-file compatibility assessment only; no product approval, governance admission, runtime admission, publication, release, deployment, or operational authority.",
+  "authority_effect": "none"
+}

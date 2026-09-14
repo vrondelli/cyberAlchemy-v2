@@ -1,0 +1,130 @@
+{
+  "compatibility_requirements": [
+    "robot-world-worker/v1"
+  ],
+  "parameters": [
+    {
+      "constraints": {
+        "allowed_values": [],
+        "max_length": null,
+        "maximum": null,
+        "min_length": null,
+        "minimum": null
+      },
+      "default": {
+        "engine_sha256": "cdc149687e8a712dd5f2a98d188f3493d992e4cc5af426954c45f5df1e2be5ce",
+        "initial_sha256": "926d71d59a2dd64917cf1e5f5f7f680cf898e5075820a7cf63c39571c75a49ce",
+        "max_ticks": 10,
+        "policy_mode": "scripted-interaction-v1",
+        "profile_sha256": "9502a9108463283b60913a223ae1878847d7e53ec4056ba8230698d2da139b94",
+        "schema_version": "robot-world.run-input/v1",
+        "stop_policy": "horizon-or-profile-quiescence",
+        "world_id": "workshop-001"
+      },
+      "name": "world_binding",
+      "required": true,
+      "value_type": "object"
+    }
+  ],
+  "schema_version": "orchestrator-strategy-template/v1",
+  "strategy": {
+    "adapter_requirements": [
+      "robot-world-worker/v1"
+    ],
+    "agent_requirements": [],
+    "authority_refs": [
+      "candidate:robot-world-kep",
+      "owner:local-operator"
+    ],
+    "evidence_expectations": {
+      "run": "hash-chained frames and traces",
+      "verify": "independent transition verification"
+    },
+    "inputs": {
+      "world_binding": "${world_binding}"
+    },
+    "intended_outcome": "Run and independently verify one bounded Robot World simulation",
+    "lanes": [
+      {
+        "lane_id": "simulation",
+        "purpose": "Produce a bounded world trace"
+      },
+      {
+        "lane_id": "verification",
+        "purpose": "Independently replay and verify the exact trace bytes"
+      }
+    ],
+    "limits": {
+      "deadline_seconds": 120,
+      "max_parallelism": 1
+    },
+    "policies": {
+      "domain_dynamics_refs": [
+        "development/robot-world-kep/runtime/interaction_dynamics.py",
+        "development/robot-world-kep/runtime/interaction_world.py"
+      ],
+      "effect_boundary": "local fixture only",
+      "verification": "exact predecessor bytes plus digest"
+    },
+    "result_reduction": {
+      "method": "accept verified result reference and retain run evidence"
+    },
+    "root_work_ref": "robot-world-journey",
+    "schema_version": "orchestrator-strategy/v1",
+    "strategy_id": "robot-world-contract-journey",
+    "version": "v1",
+    "work_definitions": [
+      {
+        "contract": "robot-world.run/v1",
+        "kind": "leaf",
+        "max_attempts": 1,
+        "role_id": "world-runner",
+        "static_input": "${world_binding}",
+        "version": "v1",
+        "work_id": "world-run"
+      },
+      {
+        "contract": "robot-world.verify/v1",
+        "kind": "leaf",
+        "max_attempts": 1,
+        "role_id": "world-verifier",
+        "static_input": "${world_binding}",
+        "version": "v1",
+        "work_id": "world-verify"
+      },
+      {
+        "kind": "composite",
+        "nodes": [
+          {
+            "depends_on": [],
+            "max_attempts": 1,
+            "node_id": "run",
+            "quorum": null,
+            "release": "root",
+            "role_id": null,
+            "static_input": {},
+            "when": null,
+            "work_ref": "world-run"
+          },
+          {
+            "depends_on": [
+              "run"
+            ],
+            "max_attempts": 1,
+            "node_id": "verify",
+            "quorum": null,
+            "release": "all",
+            "role_id": null,
+            "static_input": {},
+            "when": null,
+            "work_ref": "world-verify"
+          }
+        ],
+        "version": "v1",
+        "work_id": "robot-world-journey"
+      }
+    ]
+  },
+  "template_id": "robot-world-contract-journey",
+  "version": "v1"
+}

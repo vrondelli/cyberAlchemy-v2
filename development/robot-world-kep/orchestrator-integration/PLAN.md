@@ -6,7 +6,7 @@ Authorization: user “plan and implement”, 2026-09-11. Authority effect: none
 ## Outcome and construction boundary
 
 Implement `robot-world.run/v1` followed by `robot-world.verify/v1` through the
-new sibling OrchestratorService. Run the scripted interaction world in a fresh
+standalone CyberAlchemy Orchestrator product. Run the scripted interaction world in a fresh
 instance, preserve checked actions, and expose verified replay artifacts. No
 neural policy, shared-world resume, deployed service or publication is included.
 
@@ -25,8 +25,9 @@ registry admission or product approval is inferred.
 | C2 | Closed run/verify payloads, isolated Python worker and independent action/clock verification | Boundary, tampering, duplicate and cancellation tests |
 | C3 | Register two-node graph and execute via new orchestrator leases, fences, receipts and accepted events | Real process integration; durable replay; no redispatch of uncertainty |
 | C4 | Produce a bounded demonstration, replay view and exact evidence | Direct/orchestrated equality; regression tests; candidate manifest |
+| C5 | Rebind the same contracts to `orchestrator/` Strategy and Run Templates plus its durable runtime | Product-native driver; 16 domain tests; no live sibling dependency |
 
-Current frontier: C0–C4 implemented and validated; candidate details in REPORT.md.
+Current frontier: C0–C5 implemented and validated; original candidate details are in REPORT.md and M8 migration evidence is under `orchestrator/migration/m8/`.
 Each stage depends on the preceding stage. All stages are
 authorized for native local construction by the user. Goals admission remains
 separate from this runnable prototype work.
@@ -37,8 +38,8 @@ separate from this runnable prototype work.
   documented runtime integration entrypoints; additive parent README navigation.
 - The two existing local Cargo kernel dependency paths; `tools/toolchain/run-rwo`
   and its documentation. Do not rewrite historical source receipts or runs.
-- Sibling `cya-orquestrator/.../runtime`: new world contract module/driver/tests,
-  library export, and the reviewed ARE decision worker validation fix/tests.
+- `orchestrator/examples/robot-world/`: product-native templates, driver, and
+  consumer tests; historical sibling code remains migration provenance only.
 - New run-local output and candidate evidence only; no credentials, network model
   calls, service configuration, frozen renderer sessions or unrelated dirty files.
 
@@ -50,7 +51,7 @@ host-owned actor identities. One to 100 ticks; two actors; 32 MiB artifact ceili
 horizon or the pinned profile's quiescence window. These are bounded fixture
 limits, not performance or large-world claims.
 
-The new executor uses the existing OrchestratorService owner and capacity model
+The new executor uses the standalone Orchestrator runtime owner and capacity model
 through a local driver. The resulting replay view is run-local; registering
 arbitrary world tasks through deployed dashboard controls is deferred. The
 existing gateway, native text and research contracts retain their own executors.

@@ -1,0 +1,10 @@
+{
+  "instance_id": "Multi-SWE-Bench__c__maintenance__bugfix__da421a62",
+  "original_inst_id": "ponylang__ponyc-4006",
+  "repo": "ponylang/ponyc",
+  "repo_url": "https://github.com/ponylang/ponyc.git",
+  "language": "c",
+  "base_commit": "d330436df984eb3000c64ced4c2b5b308c296019",
+  "problem_statement": "Take exhaustive match into account when checking for field initialization\n\nPreviously, exhaustive matches were handled after we verified that an object's fields\r\nwere initialized. This lead to the code such as the following not passing compiler\r\nchecks:\r\n\r\n```pony\r\nprimitive Foo\r\n  fun apply() : (U32 | None) => 1\r\n\r\ntype Bar is (U32 | None)\r\n\r\nactor Main\r\n  let bar : Bar\r\n\r\n  new create(env : Env) =>\r\n      match Foo()\r\n      | let result : U32 =>\r\n          bar = result\r\n      | None =>\r\n          bar = 0\r\n      end\r\n```\r\n\r\nThis commit moves field initialization checking to the verify pass so that it\r\ncomes after the expression pass when exhaustiveness checking is done. This also\r\nmoves code to patchup matches from the refer pass to a new completeness pass\r\nthat comes after the expression pass. The new `completeness_match` code is\r\nidentical to `refer_match` code except that an else clause with a value of\r\n`TK_NONE` no longer means a clause exists. In the exhaustiveness checks in the\r\nexpression pass, any non-exhaustive else clause that was a `TK_NONE` has since\r\nbeen replaced with a `else None` so, by the time we get to completeness,\r\n`TK_NONE` literally means \"there's no else clause\".\r\n\r\nCloses #3615",
+  "source": "Multi"
+}

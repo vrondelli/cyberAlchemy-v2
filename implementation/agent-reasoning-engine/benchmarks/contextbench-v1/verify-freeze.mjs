@@ -15,6 +15,11 @@ export function verifyFreeze(path){
  if(!Number.isSafeInteger(expectedTasks)||expectedTasks<1||!Number.isSafeInteger(expectedCells)||expectedCells<1||matrix.cells.length!==expectedCells||matrix.tasks.length!==expectedTasks)throw Error('freeze.matrix-invalid');
  const preflight=JSON.parse(readFileSync(f.preflight_ref));
  if(preflight.status!=='passed-initial-envelope'||preflight.model_calls!==0||preflight.rows.length!==expectedTasks)throw Error('freeze.preflight-invalid');
- if(!f.continuity_review?.passed||f.claim_ceiling!=='development diagnostic only; not benchmark clearance')throw Error('freeze.claim-invalid');
+ const claimByStage={
+  development:'development diagnostic only; not benchmark clearance',
+  'reserved-confirmation':'untouched 8K confirmation only; not benchmark clearance'
+ };
+ const stage=f.evaluation_stage??'development';
+ if(!f.continuity_review?.passed||!Object.hasOwn(claimByStage,stage)||f.claim_ceiling!==claimByStage[stage])throw Error('freeze.claim-invalid');
  return {freeze:f,matrix};
 }

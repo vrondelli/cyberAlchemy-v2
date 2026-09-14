@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseConfig} from './cli.mjs';
+import {parseConfig,parseCredential} from './cli.mjs';
 const config={schema_version:'are.glm-flash-config/v1',model:'glm-5.3-flash',credential:{provider_kind:'local-sops-age',provider_id:'local-model-secrets',locator:'model/zai-key'},run_id:'test',request:'repair',fixture_root:'/tmp/fixture',state_directory:'/tmp/state',observation_allowlist:['src.mjs'],mutation_allowlist:['src.mjs'],context_limit:16384,recycle_at:8000,safety_margin:1024};
 test('delivery config preserves legacy omission and accepts only explicit supported candidates',()=>{
  assert.deepEqual(parseConfig(config),config);
@@ -19,4 +19,9 @@ test('source config is opt-in and requires bounded delivery',()=>{
  assert.equal(parseConfig({...config,delivery_policy:'bounded-reads-v1',source_policy:'inspected-mutation-v1'}).source_policy,'inspected-mutation-v1');
  for(const source_policy of [null,'unknown',42])assert.throws(()=>parseConfig({...config,source_policy}),/source-policy-invalid/);
  assert.throws(()=>parseConfig({...config,source_policy:'inspected-mutation-v1'}),/source-requires-bounded-delivery/);
+});
+test('local credential bridge accepts only a bounded explicit resolution deadline',()=>{
+ const credential={...config.credential,timeout_ms:30000};
+ assert.deepEqual(parseCredential(credential),credential);
+ for(const timeout_ms of [0,999,300001,1.5,'30000'])assert.throws(()=>parseCredential({...credential,timeout_ms}),/credential-timeout-invalid/);
 });

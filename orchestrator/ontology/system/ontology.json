@@ -1,0 +1,274 @@
+{
+  "schema_version": "cav2-orchestrator-system-ontology/v2-candidate",
+  "ontology_id": "ORCH-ONTOLOGY-SYSTEM",
+  "branch": "system",
+  "status": "candidate",
+  "definition_source": "../../authority/definitions/DEFINITIONS.md",
+  "definition_status": "candidate",
+  "nodes": [
+    {
+      "id": "ORCH-S-CONTROL-CENTER",
+      "label": "Control Center",
+      "role": "interface",
+      "meaning": "Human strategy, dispatch, run, recovery, and result surface.",
+      "definition_ref": "ORCH-D45"
+    },
+    {
+      "id": "ORCH-S-WORKER-API",
+      "label": "Worker API",
+      "role": "interface",
+      "meaning": "Checked boundary for worker polling, begins, receipts, and proposed events."
+    },
+    {
+      "id": "ORCH-S-RUN-API",
+      "label": "Run API",
+      "role": "interface",
+      "meaning": "Checked boundary for run registration, reads, and control proposals."
+    },
+    {
+      "id": "ORCH-S-CONTROLLER",
+      "label": "Durable Run Controller",
+      "role": "component",
+      "meaning": "Validates run operations and coordinates atomic structural acceptance."
+    },
+    {
+      "id": "ORCH-S-RWO",
+      "label": "RWO Core",
+      "role": "component",
+      "meaning": "Pure Work compiler and structural transition engine.",
+      "definition_ref": "ORCH-D33"
+    },
+    {
+      "id": "ORCH-S-HISTORY",
+      "label": "Accepted-History Port",
+      "role": "port",
+      "meaning": "Sole atomic writer for event, next cursor, and complete command batch.",
+      "definition_ref": "ORCH-D35"
+    },
+    {
+      "id": "ORCH-S-SCHEDULER",
+      "label": "Scheduler",
+      "role": "component",
+      "meaning": "Selects pending commands under capacity and capability constraints."
+    },
+    {
+      "id": "ORCH-S-CAPACITY",
+      "label": "Capacity Tracker",
+      "role": "component",
+      "meaning": "Accounts for bounded scheduler capacity.",
+      "definition_ref": "ORCH-D50"
+    },
+    {
+      "id": "ORCH-S-COORDINATION",
+      "label": "Coordination Store",
+      "role": "store",
+      "meaning": "Persists attempts, leases, fences, cancellation, and receipt state."
+    },
+    {
+      "id": "ORCH-S-LIFECYCLE",
+      "label": "Lifecycle Ledger Store",
+      "role": "store",
+      "meaning": "Persists separated lifecycle records.",
+      "definition_ref": "ORCH-D10"
+    },
+    {
+      "id": "ORCH-S-ARTIFACTS",
+      "label": "Artifact Store",
+      "role": "store",
+      "meaning": "Stores immutable output bytes addressed by references.",
+      "definition_ref": "ORCH-D48"
+    },
+    {
+      "id": "ORCH-S-RECOVERY",
+      "label": "Recovery Projector",
+      "role": "component",
+      "meaning": "Derives safe recovery assessments from durable records.",
+      "definition_ref": "ORCH-D43"
+    },
+    {
+      "id": "ORCH-S-ADAPTER",
+      "label": "Capability Adapter",
+      "role": "adapter",
+      "meaning": "Connects commands to local, Gateway, model, tool, or human executors.",
+      "definition_ref": "ORCH-D40"
+    },
+    {
+      "id": "ORCH-S-AGENT",
+      "label": "Agent Worker",
+      "role": "worker",
+      "meaning": "Executes reasoning turns and returns receipts and event proposals.",
+      "definition_ref": "ORCH-D37"
+    },
+    {
+      "id": "ORCH-S-PROJECTION",
+      "label": "Current-State Projector",
+      "role": "read_model",
+      "meaning": "Builds provenance-bearing views from authoritative stores.",
+      "definition_ref": "ORCH-D11"
+    },
+    {
+      "id": "ORCH-S-TEMPLATE-COMPILER",
+      "label": "Strategy Compiler",
+      "role": "component",
+      "meaning": "Validates and compiles authored strategies and templates into Work graphs and bundles."
+    },
+    {
+      "id": "ORCH-S-ARE",
+      "label": "ARE Adapter",
+      "role": "adapter",
+      "meaning": "Invokes ARE as a bounded reasoning or policy capability without scheduler ownership."
+    }
+  ],
+  "relations": [
+    {
+      "id": "ORCH-SR-UI-RUNAPI",
+      "type": "calls",
+      "source": "ORCH-S-CONTROL-CENTER",
+      "target": "ORCH-S-RUN-API",
+      "meaning": "The UI uses the supported runtime API."
+    },
+    {
+      "id": "ORCH-SR-RUNAPI-CONTROLLER",
+      "type": "delegates_to",
+      "source": "ORCH-S-RUN-API",
+      "target": "ORCH-S-CONTROLLER",
+      "meaning": "Run operations cross the controller boundary."
+    },
+    {
+      "id": "ORCH-SR-WORKERAPI-CONTROLLER",
+      "type": "delegates_to",
+      "source": "ORCH-S-WORKER-API",
+      "target": "ORCH-S-CONTROLLER",
+      "meaning": "Worker operations cross the same controller boundary."
+    },
+    {
+      "id": "ORCH-SR-CONTROLLER-RWO",
+      "type": "calls",
+      "source": "ORCH-S-CONTROLLER",
+      "target": "ORCH-S-RWO",
+      "meaning": "The controller supplies accepted facts and current cursor."
+    },
+    {
+      "id": "ORCH-SR-CONTROLLER-HISTORY",
+      "type": "writes_through",
+      "source": "ORCH-S-CONTROLLER",
+      "target": "ORCH-S-HISTORY",
+      "meaning": "Only this port advances structural history."
+    },
+    {
+      "id": "ORCH-SR-CONTROLLER-COORD",
+      "type": "writes",
+      "source": "ORCH-S-CONTROLLER",
+      "target": "ORCH-S-COORDINATION",
+      "meaning": "The controller owns attempt and lease state."
+    },
+    {
+      "id": "ORCH-SR-CONTROLLER-LIFECYCLE",
+      "type": "writes",
+      "source": "ORCH-S-CONTROLLER",
+      "target": "ORCH-S-LIFECYCLE",
+      "meaning": "Lifecycle records remain separate from structural history."
+    },
+    {
+      "id": "ORCH-SR-SCHED-CAPACITY",
+      "type": "reserves",
+      "source": "ORCH-S-SCHEDULER",
+      "target": "ORCH-S-CAPACITY",
+      "meaning": "Dispatch remains within configured bounds."
+    },
+    {
+      "id": "ORCH-SR-SCHED-COORD",
+      "type": "leases_through",
+      "source": "ORCH-S-SCHEDULER",
+      "target": "ORCH-S-COORDINATION",
+      "meaning": "Assignments receive attempts, leases, and fences."
+    },
+    {
+      "id": "ORCH-SR-SCHED-ADAPTER",
+      "type": "dispatches_through",
+      "source": "ORCH-S-SCHEDULER",
+      "target": "ORCH-S-ADAPTER",
+      "meaning": "Adapters execute without changing structural meaning."
+    },
+    {
+      "id": "ORCH-SR-ADAPTER-AGENT",
+      "type": "invokes",
+      "source": "ORCH-S-ADAPTER",
+      "target": "ORCH-S-AGENT",
+      "meaning": "An Agent is one supported executor kind."
+    },
+    {
+      "id": "ORCH-SR-AGENT-WORKERAPI",
+      "type": "returns_to",
+      "source": "ORCH-S-AGENT",
+      "target": "ORCH-S-WORKER-API",
+      "meaning": "Agents return typed receipts and Event Proposals."
+    },
+    {
+      "id": "ORCH-SR-CONTROLLER-ARTIFACT",
+      "type": "stores",
+      "source": "ORCH-S-CONTROLLER",
+      "target": "ORCH-S-ARTIFACTS",
+      "meaning": "Bulk outputs remain outside structural events."
+    },
+    {
+      "id": "ORCH-SR-RECOVERY-HISTORY",
+      "type": "reads",
+      "source": "ORCH-S-RECOVERY",
+      "target": "ORCH-S-HISTORY",
+      "meaning": "Recovery starts from accepted history."
+    },
+    {
+      "id": "ORCH-SR-RECOVERY-COORD",
+      "type": "reads",
+      "source": "ORCH-S-RECOVERY",
+      "target": "ORCH-S-COORDINATION",
+      "meaning": "Recovery correlates leases, begins, and receipts."
+    },
+    {
+      "id": "ORCH-SR-PROJECTION-HISTORY",
+      "type": "reads",
+      "source": "ORCH-S-PROJECTION",
+      "target": "ORCH-S-HISTORY",
+      "meaning": "The read model cites the accepted structural revision."
+    },
+    {
+      "id": "ORCH-SR-PROJECTION-LIFECYCLE",
+      "type": "reads",
+      "source": "ORCH-S-PROJECTION",
+      "target": "ORCH-S-LIFECYCLE",
+      "meaning": "The view keeps lifecycle stages distinct."
+    },
+    {
+      "id": "ORCH-SR-UI-PROJECTION",
+      "type": "renders",
+      "source": "ORCH-S-CONTROL-CENTER",
+      "target": "ORCH-S-PROJECTION",
+      "meaning": "The Control Center renders one read model."
+    },
+    {
+      "id": "ORCH-SR-COMPILER-RWO",
+      "type": "uses",
+      "source": "ORCH-S-TEMPLATE-COMPILER",
+      "target": "ORCH-S-RWO",
+      "meaning": "Compilation uses the public pure RWO API."
+    },
+    {
+      "id": "ORCH-SR-ADAPTER-ARE",
+      "type": "may_invoke",
+      "source": "ORCH-S-ADAPTER",
+      "target": "ORCH-S-ARE",
+      "meaning": "ARE is an adapter capability, not the orchestration loop."
+    }
+  ],
+  "invariants": [
+    "one structural transition engine: ORCH-S-RWO",
+    "one accepted structural writer: ORCH-S-HISTORY",
+    "agents return proposals and receipts; they do not mutate the graph",
+    "runtime state, lifecycle state, artifacts, and read projections remain distinct",
+    "adapters preserve command and event contracts"
+  ],
+  "claim_ceiling": "Candidate system-design projection only; implementation and tests must establish conformance.",
+  "authority_effect": "none",
+  "open_questions_ref": "../../authority/definitions/DEFINITIONS.md#open-questions"
+}

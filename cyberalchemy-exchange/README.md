@@ -4,6 +4,13 @@ CyberAlchemy Exchange is the general trading-network product. KEP is its
 internal protocol for knowledge/project versions, encrypted access and
 co-ownership. Inference is another offering type in the wider product scope.
 
+## Product foundation
+
+The [consolidated product foundation](product-foundation/v1/README.md) brings together
+the product thesis, business/system ontologies, capability inventory and roadmap.
+It includes the Exchange Host and inference work still located under Alch extensions,
+with exact source links and explicit integration gaps.
+
 ## Contents
 
 - [knowledge-exchange-protocol/](knowledge-exchange-protocol/README.md) — the

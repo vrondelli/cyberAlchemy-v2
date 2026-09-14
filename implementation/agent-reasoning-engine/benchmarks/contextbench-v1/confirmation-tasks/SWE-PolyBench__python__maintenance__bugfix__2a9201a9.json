@@ -1,0 +1,10 @@
+{
+  "instance_id": "SWE-PolyBench__python__maintenance__bugfix__2a9201a9",
+  "original_inst_id": "huggingface__transformers-30556",
+  "repo": "huggingface/transformers",
+  "repo_url": "https://github.com/huggingface/transformers.git",
+  "language": "python",
+  "base_commit": "a3aabc702e1c49243e7b48f22d88362d50e786c5",
+  "problem_statement": "[BUG] DataCollatorForSeq2Seq with PaddingStrategy.MAX_LENGTH may not pad labels\n\r\nIt seems that when padding, if the MAX_LENGTH policy is set, the same padding is not performed on the label.\r\n\r\ntest case below：\r\n```python\r\nfrom transformers import DataCollatorForSeq2Seq,\r\nfrom transformers.utils import PaddingStrategy\r\ninputs=[{'input_ids': [151644, 8948, 198],'attention_mask': [1, 1, 1],'labels': [-100, -100, -100]},\r\n {'input_ids': [151644, 8948, 198, 2610],'attention_mask': [1, 1, 1, 1],'labels': [-100, -100, -100, -100]},\r\n {'input_ids': [151644, 8948, 198, 2610, 525], 'attention_mask': [1, 1, 1, 1, 1],'labels': [-100, -100, -100, -100, -100]}]\r\ndata_collator = DataCollatorForSeq2Seq(\r\n        tokenizer=tokenizer,\r\n        padding=PaddingStrategy.MAX_LENGTH,\r\n        max_length=10,\r\n    )\r\nres=data_collator(inputs)\r\n\r\nprint(res['input_ids'].shape,res['labels'].shape)\r\n```\r\n\r\nresults:\r\ntorch.Size([3, 10]) torch.Size([3, 5])\r\n\r\nexpected results:\r\ntorch.Size([3, 10]) torch.Size([3, 10])\r\n\r\nShould the following code handle the pad length of the label according to different strategies?\r\nhttps://github.com/huggingface/transformers/blob/73014b561d5f88d728e46a57d346f516fefe3f2d/src/transformers/data/data_collator.py#L592\r\n\n",
+  "source": "Poly"
+}

@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import {solidIncidentRoom, buildSolidArchitecture, buildSolidStation, buildSolidExit} from "./solid-incident.mjs";
+import {segmentClear, findPath, fitStationVisual, inspectionPoint} from "./core/spatial-navigation.mjs";
 import { createPhaserRoom } from "./phaser-room.js";
 import incidentControlUrl from "./assets/incident-control-shell-v2.png";
 import policyArchiveUrl from "./assets/policy-archive-shell-v2.png";
@@ -57,12 +59,13 @@ export function createSpatialRoom(options) {
 }
 
 function createThreeRoom({parent, model, onStation, onExit}) {
-  const rooms = model.game.rooms;
+  const rooms = Object.fromEntries(Object.entries(model.game.rooms).map(([id, room]) => [id, solidIncidentRoom(room)]));
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const renderer = new THREE.WebGLRenderer({antialias:true, alpha:false, powerPreference:"high-performance"});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute("aria-label", "Navigable three-dimensional investigation room");
@@ -70,7 +73,7 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x030708);
   scene.fog = new THREE.FogExp2(0x060b0d, 0.026);
-  const camera = new THREE.PerspectiveCamera(68, 16 / 9, 0.08, 60);
+  const camera = new THREE.PerspectiveCamera(75, 16 / 9, 0.08, 60);
   camera.rotation.order = "YXZ";
   const clock = new THREE.Clock();
   const raycaster = new THREE.Raycaster();
@@ -81,13 +84,14 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   const stationRoots = new Map();
   const blockers = [];
   const textures = new Map();
+  const targetButtons = new Map();
+  let noticeUntil = 0;
   const floorMeshes = [];
   let world = null;
   let activeRoom = rooms[model.game.start_room];
   let pendingState = null;
   let target = null;
   let hoverTarget = null;
-  let keyboardTargetIndex = -1;
   let autoTravel = null;
   let pointerStart = null;
   let dragDistance = 0;
@@ -97,9 +101,10 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   let yaw = activeRoom.spatial?.spawn?.yaw ?? 0;
   let pitch = 0;
   let destroyed = false;
-  let walkPhase = 0;
 
-  const prompt = document.createElement("div");
+  const prompt = document.createElement("button");
+  prompt.type = "button";
+  prompt.addEventListener("click", () => { if (target) queueInteraction(target); });
   prompt.className = "spatial-prompt";
   prompt.setAttribute("aria-live", "polite");
   const reticle = document.createElement("div");
@@ -107,10 +112,10 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   reticle.setAttribute("aria-hidden", "true");
   const controls = document.createElement("div");
   controls.className = "spatial-controls";
-  controls.innerHTML = `<span data-guided-help><b>CLICK</b> walk / inspect</span><span data-guided-help><b>DRAG</b> look</span><span><b>WASD</b> optional</span><span><b>E / SPACE</b> inspect</span>`;
+  controls.innerHTML = `<span data-guided-help><b>CLICK</b> walk / inspect</span><span data-guided-help><b>DRAG</b> look</span><span><b>ARROWS / WASD</b> move</span>`;
   const modePanel = document.createElement("div");
   modePanel.className = "spatial-mode-panel";
-  modePanel.innerHTML = `<button type="button" data-control-mode="guided">Guided</button><button type="button" data-control-mode="immersive">Immersive</button><button type="button" data-sound-toggle aria-pressed="${soundEnabled}">${soundEnabled ? "Sound on" : "Sound off"}</button>`;
+  modePanel.innerHTML = `<button type="button" data-control-mode="guided">Guided</button><button type="button" data-control-mode="immersive">Immersive</button><button type="button" data-overview>Room view</button><button type="button" data-sound-toggle aria-pressed="${soundEnabled}">${soundEnabled ? "Sound on" : "Sound off"}</button>`;
   const destinationMarker = document.createElement("div");
   destinationMarker.className = "destination-marker";
   destinationMarker.setAttribute("aria-hidden", "true");
@@ -128,8 +133,11 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   document.addEventListener("keydown", onKeyDown);
   document.addEventListener("keyup", onKeyUp);
   document.addEventListener("pointerlockchange", onPointerLockChange);
+  window.addEventListener("blur", suspendInput);
+  renderer.domElement.addEventListener("blur", suspendInput);
   for (const button of modePanel.querySelectorAll("[data-control-mode]")) button.addEventListener("click", () => setControlMode(button.dataset.controlMode));
   modePanel.querySelector("[data-sound-toggle]").addEventListener("click", toggleSound);
+  modePanel.querySelector("[data-overview]").addEventListener("click", resetView);
 
   showRoom(activeRoom.id, false);
   resize();
@@ -138,13 +146,20 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   return {
     updateState(state) {
       pendingState = state;
+      if (state.active_puzzle || state.ending_id) suspendInput();
       if (state.current_room !== activeRoom.id) showRoom(state.current_room, true);
       applyState(state);
     },
     stationAt(clientX, clientY) {
       const hit = castFromClient(clientX, clientY).find((entry) => findTarget(entry.object)?.kind === "station");
       const found = hit && findTarget(hit.object);
-      return found && hit.distance <= INTERACTION_RANGE ? found.id : null;
+      return found?.id ?? null;
+    },
+    approachStation(stationId) {
+      const root = stationRoots.get(stationId);
+      if (!root) return false;
+      queueInteraction(findTarget(root));
+      return true;
     },
     destroy() {
       destroyed = true;
@@ -157,6 +172,8 @@ function createThreeRoom({parent, model, onStation, onExit}) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
       document.removeEventListener("pointerlockchange", onPointerLockChange);
+      window.removeEventListener("blur", suspendInput);
+      renderer.domElement.removeEventListener("blur", suspendInput);
       disposeWorld();
       for (const texture of textures.values()) texture.dispose();
       audioContext?.close?.();
@@ -180,21 +197,20 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     autoTravel = null;
     target = null;
     hoverTarget = null;
-    keyboardTargetIndex = -1;
     buildArchitecture(nextRoom);
     buildStations(nextRoom);
     buildExits(nextRoom);
-    const spawn = nextRoom.spatial?.spawn ?? {x:0, z:4.8, yaw:0};
-    camera.position.set(spawn.x, PLAYER_HEIGHT, spawn.z);
-    yaw = spawn.yaw ?? 0;
-    pitch = 0;
-    camera.rotation.set(pitch, yaw, 0);
+    resetView();
+    resize();
+    parent.dataset.visual = nextRoom.spatial.solid ? "solid-3d" : "illustrated";
+    scene.fog.density = nextRoom.spatial.solid ? 0.012 : 0.026;
     scene.background.set(nextRoom.id === "transfer-annex" ? 0x071012 : 0x070a0b);
-    if (transition && !reducedMotion) parent.animate([{filter:"brightness(0.25)"},{filter:"brightness(1)"}], {duration:520, easing:"ease-out"});
     if (pendingState) applyState(pendingState);
+    renderer.shadowMap.needsUpdate = true;
   }
 
   function buildArchitecture(room) {
+    if (room.spatial.solid) { floorMeshes.push(buildSolidArchitecture(world, room)); return; }
     const spatial = room.spatial;
     if (!spatial) throw new Error(`SPATIAL_LAYOUT_MISSING:${room.id}`);
     const width = spatial.bounds.width;
@@ -249,45 +265,113 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     for (const station of room.stations) {
       const layout = room.spatial.stations[station.id];
       if (!layout) throw new Error(`SPATIAL_STATION_MISSING:${station.id}`);
-      const root = createProp(layout.shape, new THREE.Color(room.spatial.accent));
+      const root = new THREE.Group();
       buildStationSkin(root, layout, station.id);
       const halo = new THREE.Mesh(new THREE.RingGeometry(0.72, 0.9, 40), new THREE.MeshBasicMaterial({color:COLORS.amber, transparent:true, opacity:0.18, side:THREE.DoubleSide, depthWrite:false}));
       halo.rotation.x = -Math.PI / 2;
       halo.position.y = 0.025;
       halo.name = `station-halo:${station.id}`;
-      root.add(halo);
-      root.userData.halo = halo;
+      if (!room.spatial.solid) root.add(halo);
+      else { halo.geometry.dispose(); halo.material.dispose(); }
+      root.userData.halo = room.spatial.solid ? null : halo;
       const beaconMaterial = new THREE.MeshStandardMaterial({color:COLORS.amber, emissive:COLORS.amber, emissiveIntensity:0.35, roughness:0.24});
       const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), beaconMaterial);
       beacon.position.set(0, 0.12, 0.66);
       beacon.name = `station-state:${station.id}`;
-      root.add(beacon);
-      root.userData.beacon = beacon;
+      if (!room.spatial.solid) root.add(beacon);
+      else { beacon.geometry.dispose(); beacon.material.dispose(); }
+      root.userData.beacon = room.spatial.solid ? null : beacon;
       root.position.set(layout.x, 0, layout.z);
       root.rotation.y = layout.facing ?? 0;
+      root.userData.layout = layout;
       root.userData.target = {kind:"station", id:station.id, label:station.label, clue:station.clue, anchor:layout.interaction_anchor, lookAtHeight:layout.look_at_height ?? 1.3, interactionRadius:layout.interaction_radius ?? 1.8};
       root.traverse((child) => { child.userData.targetRoot = root; });
       world.add(root);
       interactiveRoots.push(root);
       stationRoots.set(station.id, root);
+      addTargetButton(root);
       const footprint = layout.footprint ?? {width:layout.shape === "airlock" ? 2.8 : 2, depth:1.4};
       blockers.push({x:layout.x, z:layout.z, radius:Math.max(footprint.width, footprint.depth) / 2 + 0.22, id:station.id});
     }
   }
 
   function buildStationSkin(root, layout, stationId) {
+    if (activeRoom.spatial.solid) { buildSolidStation(root, stationId); return; }
     if (!layout.visual_asset || !layout.visual_size) throw new Error(`SPATIAL_STATION_VISUAL_MISSING:${stationId}`);
     const texture = textureForStation(layout.visual_asset);
-    const material = new THREE.MeshBasicMaterial({map:texture, transparent:true, alphaTest:0.025, depthWrite:false, side:THREE.DoubleSide, toneMapped:false});
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(layout.visual_size.width, layout.visual_size.height), material);
-    const offset = layout.visual_offset ?? {x:0, y:layout.visual_size.height / 2, z:0.5};
-    const skinDepth = Math.max(offset.z, (layout.footprint?.depth ?? 1) / 2 + 0.08);
-    plane.position.set(offset.x, offset.y, skinDepth);
-    plane.renderOrder = 5;
+    const material = new THREE.MeshBasicMaterial({map:texture, transparent:true, alphaTest:0.1, depthWrite:true, side:THREE.DoubleSide, toneMapped:false});
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
     plane.name = `station-art:${stationId}`;
     plane.userData.stationVisual = true;
+    plane.userData.pickable = true;
+    plane.userData.layout = layout;
     root.add(plane);
     root.userData.visual = plane;
+    fitSkin(plane);
+  }
+
+  function fitSkin(plane) {
+    const texture = plane.material.map;
+    const size = fitStationVisual(plane.userData.layout, texture.image?.width ?? 1, texture.image?.height ?? 1);
+    plane.scale.set(size.width, size.height, 1);
+    plane.position.set(0, size.height / 2, 0);
+    plane.userData.size = size;
+    plane.visible = Boolean(texture.image);
+  }
+
+  function addTargetButton(root) {
+    const button = document.createElement("button");
+    const info = root.userData.target;
+    button.type = "button";
+    button.className = "world-target";
+    button.dataset.worldTarget = info.id;
+    button.textContent = info.label;
+    button.addEventListener("click", () => queueInteraction(findTarget(root)));
+    button.addEventListener("mouseenter", () => { hoverTarget = findTarget(root); });
+    button.addEventListener("mouseleave", () => { hoverTarget = null; });
+    button.addEventListener("focus", () => { hoverTarget = findTarget(root); });
+    button.addEventListener("blur", () => { hoverTarget = null; });
+    parent.append(button);
+    targetButtons.set(root, button);
+  }
+
+  function updateTargetButtons() {
+    const viewDirection = new THREE.Vector3();
+    camera.getWorldDirection(viewDirection);
+    const placed = [];
+    const width = parent.clientWidth, height = parent.clientHeight;
+    for (const [root, button] of targetButtons) {
+      const visual = root.userData.visual;
+      if (visual) {
+        // These are illustrated cutouts. Keep their proportions visible as the
+        // player walks around them instead of exposing a paper-thin edge.
+        visual.rotation.y = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z) - root.rotation.y;
+      }
+      const worldPoint = root.userData.labelAnchor ? root.localToWorld(root.userData.labelAnchor.clone()) : root.position.clone().setY(root.userData.solidSize ? root.userData.solidSize.height + 0.18 : visual ? visual.userData.size.height + 0.18 : 3.95);
+      const projected = worldPoint.clone().project(camera);
+      const inFront = worldPoint.sub(camera.position).dot(viewDirection) > 0;
+      button.hidden = !inFront || projected.z > 1 || Math.abs(projected.x) > 1.05 || Math.abs(projected.y) > 1.05;
+      if (!button.hidden) {
+        const buttonWidth = button.offsetWidth, buttonHeight = button.offsetHeight;
+        const desiredX = (projected.x + 1) * width / 2;
+        const desiredY = (1 - projected.y) * height / 2;
+        let position = null;
+        for (const row of [0, -1, 1, -2, 2, -3, 3, -4, 4]) {
+          for (const column of [0, -1, 1]) {
+            const left = THREE.MathUtils.clamp(desiredX - buttonWidth / 2 + column * (buttonWidth + 8), 6, width - buttonWidth - 6);
+            const top = THREE.MathUtils.clamp(desiredY - buttonHeight + row * (buttonHeight + 8), 66, height - buttonHeight - 48);
+            const box = {left, top, right:left + buttonWidth, bottom:top + buttonHeight};
+            if (placed.every(other => box.right + 6 < other.left || box.left > other.right + 6 || box.bottom + 6 < other.top || box.top > other.bottom + 6)) { position = box; break; }
+          }
+          if (position) break;
+        }
+        if (position) {
+          placed.push(position);
+          button.style.left = `${position.left + buttonWidth / 2}px`;
+          button.style.top = `${position.top + buttonHeight}px`;
+        } else button.hidden = true;
+      }
+    }
   }
 
   function buildExits(room) {
@@ -295,6 +379,8 @@ function createThreeRoom({parent, model, onStation, onExit}) {
       const layout = room.spatial.exits[exit.id];
       if (!layout) throw new Error(`SPATIAL_EXIT_MISSING:${exit.id}`);
       const root = new THREE.Group();
+      if (room.spatial.solid) buildSolidExit(root);
+      else {
       const frameMaterial = new THREE.MeshStandardMaterial({color:0x28343a, metalness:0.84, roughness:0.3});
       const doorMaterial = new THREE.MeshStandardMaterial({color:0x10181b, metalness:0.64, roughness:0.42, emissive:new THREE.Color(room.spatial.accent), emissiveIntensity:0.05});
       addBox(root, [2.35, 3.8, 0.32], [0, 1.9, 0], frameMaterial);
@@ -304,78 +390,25 @@ function createThreeRoom({parent, model, onStation, onExit}) {
         lamp.position.set(socket * 0.25, 3.25, 0.22);
         root.add(lamp);
       }
+      }
       root.position.set(layout.x, 0, layout.z);
       root.rotation.y = layout.yaw ?? 0;
       root.userData.target = {kind:"exit", id:exit.id, to:exit.to, label:exit.label, anchor:layout.interaction_anchor, lookAtHeight:layout.look_at_height ?? 1.7, interactionRadius:layout.interaction_radius ?? 1.9};
-      root.traverse((child) => { child.userData.targetRoot = root; });
+      root.traverse((child) => { child.userData.targetRoot = root; child.userData.pickable = true; });
       world.add(root);
       interactiveRoots.push(root);
+      addTargetButton(root);
     }
-  }
-
-  function createProp(shape, accent) {
-    const root = new THREE.Group();
-    const shell = new THREE.MeshStandardMaterial({color:0x394a51, roughness:0.42, metalness:0.68, transparent:true, opacity:0.025, depthWrite:false});
-    const dark = new THREE.MeshStandardMaterial({color:0x152126, roughness:0.6, metalness:0.42, transparent:true, opacity:0.02, depthWrite:false});
-    const glow = new THREE.MeshStandardMaterial({color:0x101817, emissive:accent, emissiveIntensity:0.28, roughness:0.25, metalness:0.3, transparent:true, opacity:0.16, depthWrite:false});
-    root.userData.materials = {glow, shell};
-
-    if (["desk", "bench", "table"].includes(shape)) {
-      addBox(root, [2.5, 0.16, 1.3], [0, 1.05, 0], shell);
-      addBox(root, [0.15, 1.05, 0.15], [-0.95, 0.52, -0.42], dark);
-      addBox(root, [0.15, 1.05, 0.15], [0.95, 0.52, -0.42], dark);
-      addBox(root, [0.15, 1.05, 0.15], [-0.95, 0.52, 0.42], dark);
-      addBox(root, [0.15, 1.05, 0.15], [0.95, 0.52, 0.42], dark);
-      addBox(root, [0.82, 0.52, 0.1], [0, 1.48, -0.18], glow).rotation.x = -0.22;
-    } else if (["terminal", "scanner"].includes(shape)) {
-      addBox(root, [1.55, 2.05, 0.86], [0, 1.02, 0], shell);
-      addBox(root, [1.16, 0.76, 0.08], [0, 1.48, 0.47], glow);
-      addBox(root, [0.82, 0.08, 0.5], [0, 0.62, 0.56], dark).rotation.x = -0.22;
-    } else if (["rack", "cabinet"].includes(shape)) {
-      addBox(root, [1.42, 2.8, 0.9], [0, 1.4, 0], shell);
-      for (let row = 0; row < 5; row += 1) {
-        addBox(root, [1.12, 0.25, 0.08], [0, 0.52 + row * 0.44, 0.49], row === 3 ? glow : dark);
-      }
-    } else if (shape === "dial") {
-      addBox(root, [1.7, 2.1, 0.72], [0, 1.05, 0], shell);
-      for (let ring = 0; ring < 3; ring += 1) {
-        const dial = new THREE.Mesh(new THREE.TorusGeometry(0.53 - ring * 0.13, 0.035, 10, 32), ring === 1 ? glow : dark);
-        dial.position.set(0, 1.35, 0.4 + ring * 0.025);
-        root.add(dial);
-      }
-    } else if (shape === "crate") {
-      addBox(root, [2.15, 1.45, 1.55], [0, 0.72, 0], shell);
-      addBox(root, [2.22, 0.12, 1.62], [0, 1.46, 0], dark);
-      addBox(root, [0.55, 0.38, 0.05], [0, 0.82, 0.8], glow);
-    } else if (shape === "airlock") {
-      addBox(root, [2.45, 3.65, 0.72], [0, 1.82, 0], shell);
-      addBox(root, [1.72, 3.1, 0.08], [0, 1.55, 0.4], dark);
-      for (let index = 0; index < 7; index += 1) {
-        const angle = index / 7 * Math.PI * 2;
-        const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 12), index === 6 ? glow : dark);
-        socket.rotation.x = Math.PI / 2;
-        socket.position.set(Math.cos(angle) * 0.58, 1.6 + Math.sin(angle) * 0.58, 0.48);
-        root.add(socket);
-      }
-    } else {
-      addBox(root, [1.6, 1.7, 1], [0, 0.85, 0], shell);
-      addBox(root, [0.8, 0.5, 0.08], [0, 1.2, 0.54], glow);
-    }
-    root.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-      }
-    });
-    return root;
   }
 
   function frame() {
     if (destroyed) return;
     const delta = Math.min(clock.getDelta(), 0.05);
+    if (document.querySelector("dialog[open]")) return;
     updateAutoTravel(delta);
     movePlayer(delta);
     updateTarget();
+    updateTargetButtons();
     updateDestinationMarker();
     renderer.render(scene, camera);
   }
@@ -393,7 +426,7 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   }
 
   function movePlayer(delta) {
-    if (document.querySelector("dialog[open]")) return;
+    if (document.querySelector("dialog[open]") || document.activeElement !== renderer.domElement) return;
     if (controlMode === "immersive" && document.pointerLockElement !== renderer.domElement) return;
     const forwardAxis = Number(keys.has("KeyW") || keys.has("ArrowUp")) - Number(keys.has("KeyS") || keys.has("ArrowDown"));
     const sideAxis = Number(keys.has("KeyD") || keys.has("ArrowRight")) - Number(keys.has("KeyA") || keys.has("ArrowLeft"));
@@ -403,65 +436,88 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const direction = forward.multiplyScalar(forwardAxis).add(right.multiplyScalar(sideAxis)).normalize();
     const next = camera.position.clone().addScaledVector(direction, MOVE_SPEED * delta);
-    moveCameraTo(next, delta);
+    if (!moveCameraTo(next)) {
+      const xOnly = camera.position.clone(); xOnly.x = next.x;
+      const zOnly = camera.position.clone(); zOnly.z = next.z;
+      if (!moveCameraTo(xOnly)) moveCameraTo(zOnly);
+    }
   }
 
   function updateAutoTravel(delta) {
     if (!autoTravel || document.querySelector("dialog[open]")) return;
-    const destination = autoTravel.destination;
-    const deltaX = destination.x - camera.position.x;
-    const deltaZ = destination.z - camera.position.z;
-    const distance = Math.hypot(deltaX, deltaZ);
-    if (distance <= 0.1 || reducedMotion) {
-      camera.position.x = destination.x;
-      camera.position.z = destination.z;
+    const waypoint = autoTravel.path[0];
+    const distance = horizontalDistance(camera.position, waypoint);
+    if (reducedMotion) {
+      camera.position.x = autoTravel.destination.x;
+      camera.position.z = autoTravel.destination.z;
       finishAutoTravel();
       return;
     }
     const step = Math.min(distance, AUTO_MOVE_SPEED * delta);
     const next = camera.position.clone();
-    next.x += deltaX / distance * step;
-    next.z += deltaZ / distance * step;
-    if (!moveCameraTo(next, delta)) {
-      const xOnly = camera.position.clone();
-      xOnly.x += deltaX / distance * step;
-      const zOnly = camera.position.clone();
-      zOnly.z += deltaZ / distance * step;
-      if (!moveCameraTo(xOnly, delta) && !moveCameraTo(zOnly, delta)) {
-        prompt.textContent = "Path blocked — choose another floor point";
-        prompt.classList.add("visible");
-        cancelAutoTravel();
-      }
+    if (distance > 0.001) {
+      next.x += (waypoint.x - camera.position.x) / distance * step;
+      next.z += (waypoint.z - camera.position.z) / distance * step;
+    }
+    if (!moveCameraTo(next)) { cancelAutoTravel(); showNotice("Path blocked. Choose another floor point."); return; }
+    if (distance <= step + 0.001) {
+      autoTravel.path.shift();
+      if (!autoTravel.path.length) finishAutoTravel();
     }
   }
 
-  function moveCameraTo(next, delta) {
-    const bounds = activeRoom.spatial.bounds;
-    next.x = THREE.MathUtils.clamp(next.x, -bounds.width / 2 + 0.75, bounds.width / 2 - 0.75);
-    next.z = THREE.MathUtils.clamp(next.z, -bounds.depth / 2 + 0.75, bounds.depth / 2 - 0.75);
-    if (blockers.some((blocker) => Math.hypot(next.x - blocker.x, next.z - blocker.z) < blocker.radius)) return false;
+  function moveCameraTo(next) {
+    if (!segmentClear(camera.position, next, activeRoom.spatial.bounds, blockers)) return false;
     camera.position.x = next.x;
     camera.position.z = next.z;
-    if (!reducedMotion) {
-      walkPhase += delta * 11;
-      camera.position.y = PLAYER_HEIGHT + Math.sin(walkPhase) * 0.018;
-    } else camera.position.y = PLAYER_HEIGHT;
+    camera.position.y = PLAYER_HEIGHT;
     return true;
   }
 
   function finishAutoTravel() {
     const action = autoTravel?.action;
-    autoTravel = null;
-    destinationMarker.classList.remove("visible");
+    cancelAutoTravel();
     if (!action) return;
     faceTarget(action);
-    target = action;
+    hoverTarget = action;
     triggerTarget(action);
   }
 
   function cancelAutoTravel() {
     autoTravel = null;
     destinationMarker.classList.remove("visible");
+  }
+
+  function startTravel(destination, action = null) {
+    if (!destination) { showNotice("No safe approach. Choose another floor point."); return; }
+    const path = findPath(camera.position, destination, activeRoom.spatial.bounds, blockers);
+    if (!path) { showNotice("That point is inside a machine or outside the room."); return; }
+    renderer.domElement.focus({preventScroll:true});
+    keys.clear();
+    autoTravel = {destination:new THREE.Vector3(destination.x, PLAYER_HEIGHT, destination.z), path, action};
+    destinationMarker.classList.add("visible");
+  }
+
+  function suspendInput() {
+    keys.clear();
+    pointerStart = null;
+    cancelAutoTravel();
+  }
+
+  function resetView() {
+    suspendInput();
+    camera.position.set(0, PLAYER_HEIGHT, activeRoom.spatial.bounds.depth / 2 - 0.9);
+    yaw = 0; pitch = -0.06;
+    camera.rotation.set(pitch, yaw, 0);
+    hoverTarget = null;
+    target = null;
+    showNotice("Click a labelled machine to approach it. Drag the room to look.");
+  }
+
+  function showNotice(message) {
+    prompt.textContent = message;
+    prompt.classList.add("visible");
+    noticeUntil = performance.now() + 3500;
   }
 
   function faceTarget(nextTarget) {
@@ -476,10 +532,18 @@ function createThreeRoom({parent, model, onStation, onExit}) {
 
   function updateTarget() {
     let next = hoverTarget;
+    if (!next && controlMode === "guided") {
+      const forward = camera.getWorldDirection(new THREE.Vector3());
+      const nearby = interactiveRoots.filter(root => {
+        const direction = root.position.clone().setY(root.userData.target.lookAtHeight ?? 1.3).sub(camera.position);
+        return direction.length() < INTERACTION_RANGE && direction.normalize().dot(forward) > 0.65;
+      }).sort((a,b) => horizontalDistance(camera.position,a.position)-horizontalDistance(camera.position,b.position));
+      if (nearby[0]) next = findTarget(nearby[0]);
+    }
     let distance = next?.root ? horizontalDistance(camera.position, next.root.position) : Infinity;
     if (controlMode === "immersive") {
       raycaster.setFromCamera(center, camera);
-      const hit = raycaster.intersectObjects(interactiveRoots, true).find((entry) => findTarget(entry.object));
+      const hit = raycaster.intersectObjects(interactiveRoots, true).filter(isVisibleHit).find((entry) => findTarget(entry.object));
       next = hit && hit.distance <= (findTarget(hit.object).interactionRadius ?? INTERACTION_RANGE) ? findTarget(hit.object) : null;
       distance = hit?.distance ?? Infinity;
     }
@@ -488,8 +552,10 @@ function createThreeRoom({parent, model, onStation, onExit}) {
       setHighlighted(next?.root, true);
     }
     target = next;
+    prompt.disabled = !target || Boolean(autoTravel);
+    if (performance.now() < noticeUntil && !autoTravel && !target) return;
     if (autoTravel) prompt.textContent = autoTravel.action ? `Walking to ${autoTravel.action.label}` : "Walking";
-    else if (target) prompt.textContent = `${distance <= (target.interactionRadius ?? INTERACTION_RANGE) ? "Inspect" : "Walk to"} ${target.label}`;
+    else if (target) prompt.textContent = `${target.kind === "exit" ? "Go through" : pendingState?.selected_item ? "Use selected artifact at" : "Inspect"} ${target.label}`;
     else if (controlMode === "immersive" && document.pointerLockElement !== renderer.domElement) prompt.textContent = "Click the room to enter immersive controls";
     else prompt.textContent = "Click a machine or the floor";
     prompt.classList.toggle("visible", Boolean(target) || Boolean(autoTravel) || (controlMode === "immersive" && document.pointerLockElement !== renderer.domElement));
@@ -497,17 +563,16 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   }
 
   function queueInteraction(nextTarget) {
-    if (!nextTarget?.root) return;
-    const distance = horizontalDistance(camera.position, nextTarget.root.position);
-    if (distance <= (nextTarget.interactionRadius ?? INTERACTION_RANGE)) {
+    if (!nextTarget?.root || pendingState?.ending_id || document.querySelector("dialog[open]")) return;
+    const layout = nextTarget.root.userData.layout;
+    const size = nextTarget.root.userData.solidSize ?? nextTarget.root.userData.visual?.userData.size;
+    const anchor = layout && size
+      ? inspectionPoint(layout, size, camera.fov, camera.aspect, activeRoom.spatial.bounds, blockers)
+      : nextTarget.anchor;
+    if (anchor && horizontalDistance(camera.position, anchor) < 0.2) {
       faceTarget(nextTarget);
       triggerTarget(nextTarget);
-      return;
-    }
-    const anchor = nextTarget.anchor;
-    if (!anchor) return;
-    autoTravel = {destination:new THREE.Vector3(anchor.x, PLAYER_HEIGHT, anchor.z), action:nextTarget};
-    destinationMarker.classList.add("visible");
+    } else startTravel(anchor, nextTarget);
     playCue(330, 0.045);
   }
 
@@ -522,6 +587,12 @@ function createThreeRoom({parent, model, onStation, onExit}) {
       const station = activeRoom.stations.find((candidate) => candidate.id === stationId);
       const locked = (station.requires_items ?? []).some((item) => !state.inventory.includes(item)) || (station.requires_solved ?? []).some((id) => !state.solved.includes(id));
       const solved = state.solved.includes(station.puzzle_id) || state.solved.includes(`station:${station.id}`) || state.inspected.includes(station.id);
+      const button = targetButtons.get(root);
+      if (button) {
+        button.dataset.state = solved ? "solved" : locked ? "locked" : "ready";
+        button.setAttribute("aria-label", `${pendingState?.selected_item ? "Use selected artifact at" : "Inspect"} ${station.label}${locked ? ": locked" : ""}`);
+        button.title = locked ? station.locked_text ?? "More evidence is needed." : station.description;
+      }
       const glow = root.userData.materials?.glow;
       const halo = root.userData.halo;
       if (glow) {
@@ -541,8 +612,8 @@ function createThreeRoom({parent, model, onStation, onExit}) {
       }
       const visual = root.userData.visual;
       if (visual?.material) {
-        visual.material.color.setHex(solved ? 0xe9ffe0 : locked ? 0x778085 : 0xffffff);
-        visual.material.opacity = locked ? 0.68 : 1;
+        visual.material.color.setHex(solved ? 0xf0ffe8 : locked ? 0xc0c8c8 : 0xffffff);
+        visual.material.opacity = 1;
       }
     }
   }
@@ -551,7 +622,7 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     const bounds = renderer.domElement.getBoundingClientRect();
     const point = new THREE.Vector2((clientX - bounds.left) / bounds.width * 2 - 1, -((clientY - bounds.top) / bounds.height) * 2 + 1);
     raycaster.setFromCamera(point, camera);
-    return raycaster.intersectObjects(interactiveRoots, true);
+    return raycaster.intersectObjects(interactiveRoots, true).filter(isVisibleHit);
   }
 
   function castFloorFromClient(clientX, clientY) {
@@ -561,6 +632,17 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     return raycaster.intersectObjects(floorMeshes, false);
   }
 
+  function isVisibleHit(hit) {
+    if (!hit.object.userData.pickable || !hit.object.visible) return false;
+    if (!hit.object.userData.stationVisual) return true;
+    const texture = hit.object.material.map;
+    const pixels = texture.userData.pixels;
+    if (!pixels || !hit.uv) return false;
+    const x = Math.min(pixels.width - 1, Math.max(0, Math.floor(hit.uv.x * pixels.width)));
+    const y = Math.min(pixels.height - 1, Math.max(0, Math.floor((1 - hit.uv.y) * pixels.height)));
+    return pixels.data[(y * pixels.width + x) * 4 + 3] > 24;
+  }
+
   function findTarget(object) {
     const root = object?.userData?.targetRoot ?? object;
     return root?.userData?.target ? {...root.userData.target, root} : null;
@@ -568,11 +650,11 @@ function createThreeRoom({parent, model, onStation, onExit}) {
 
   function setHighlighted(root, highlighted) {
     if (!root) return;
-    root.scale.setScalar(highlighted ? 1.035 : 1);
+    targetButtons.get(root)?.classList.toggle("targeted", highlighted);
   }
 
   function onPointerDown(event) {
-    renderer.domElement.focus();
+    renderer.domElement.focus({preventScroll:true});
     pointerStart = {x:event.clientX, y:event.clientY, lastX:event.clientX, lastY:event.clientY, id:event.pointerId};
     dragDistance = 0;
     if (controlMode === "guided") renderer.domElement.setPointerCapture?.(event.pointerId);
@@ -587,7 +669,12 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     if (controlMode === "immersive") {
       if (document.pointerLockElement === renderer.domElement) {
         if (target) queueInteraction(target);
-      } else renderer.domElement.requestPointerLock?.();
+      } else {
+        try {
+          const lock = renderer.domElement.requestPointerLock?.();
+          lock?.catch(() => showNotice("Immersive controls are unavailable. Choose Guided to continue."));
+        } catch { showNotice("Immersive controls are unavailable. Choose Guided to continue."); }
+      }
       return;
     }
     const hit = castFromClient(event.clientX, event.clientY).find((entry) => findTarget(entry.object));
@@ -597,8 +684,7 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     }
     const floorHit = castFloorFromClient(event.clientX, event.clientY)[0];
     if (!floorHit) return;
-    autoTravel = {destination:new THREE.Vector3(floorHit.point.x, PLAYER_HEIGHT, floorHit.point.z), action:null};
-    destinationMarker.classList.add("visible");
+    startTravel(floorHit.point);
     playCue(280, 0.035);
   }
 
@@ -620,7 +706,6 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     }
     const hit = castFromClient(event.clientX, event.clientY).find((entry) => findTarget(entry.object));
     hoverTarget = hit ? findTarget(hit.object) : null;
-    keyboardTargetIndex = -1;
     renderer.domElement.style.cursor = hoverTarget ? "pointer" : "crosshair";
   }
 
@@ -633,16 +718,12 @@ function createThreeRoom({parent, model, onStation, onExit}) {
   }
 
   function onKeyDown(event) {
-    if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(document.activeElement?.tagName)) return;
-    if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) cancelAutoTravel();
-    keys.add(event.code);
-    if (event.code === "Tab" && !event.repeat) {
+    if (document.activeElement !== renderer.domElement || document.querySelector("dialog[open]")) return;
+    const movement = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    if (movement.includes(event.code)) {
       event.preventDefault();
-      const candidates = interactiveRoots.map((root) => findTarget(root)).filter(Boolean);
-      keyboardTargetIndex = (keyboardTargetIndex + (event.shiftKey ? -1 : 1) + candidates.length) % candidates.length;
-      hoverTarget = candidates[keyboardTargetIndex];
-      target = hoverTarget;
-      faceTarget(target);
+      cancelAutoTravel();
+      keys.add(event.code);
     }
     if (["KeyE", "Space"].includes(event.code) && !event.repeat && target) {
       event.preventDefault();
@@ -708,6 +789,8 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     const height = Math.max(parent.clientHeight, 240);
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
+    // Preserve a useful horizontal overview on narrow screens.
+    camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad((activeRoom.spatial.solid ? 60 : 75) / 2)) * Math.max(1, 1.65 / camera.aspect)));
     camera.updateProjectionMatrix();
   }
 
@@ -725,9 +808,33 @@ function createThreeRoom({parent, model, onStation, onExit}) {
     if (textures.has(key)) return textures.get(key);
     const url = STATION_ART[source];
     if (!url) throw new Error(`SPATIAL_STATION_ART_UNKNOWN:${source}`);
-    const texture = new THREE.TextureLoader().load(url);
+    const texture = new THREE.Texture();
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width; canvas.height = image.height;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      let left = image.width, top = image.height, right = -1, bottom = -1;
+      for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+        if (pixels.data[(y * image.width + x) * 4 + 3] <= 24) continue;
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+      if (right < left) return;
+      const cropped = document.createElement("canvas");
+      cropped.width = right - left + 1; cropped.height = bottom - top + 1;
+      const cropContext = cropped.getContext("2d");
+      cropContext.drawImage(image, left, top, cropped.width, cropped.height, 0, 0, cropped.width, cropped.height);
+      texture.image = cropped;
+      texture.userData.pixels = cropContext.getImageData(0, 0, cropped.width, cropped.height);
+      texture.needsUpdate = true;
+      for (const root of stationRoots.values()) if (root.userData.visual?.material.map === texture) fitSkin(root.userData.visual);
+    };
+    image.onerror = () => showNotice("A machine image could not load. Reload the page to retry.");
+    image.src = url;
     textures.set(key, texture);
     return texture;
   }
@@ -738,9 +845,13 @@ function createThreeRoom({parent, model, onStation, onExit}) {
 
   function disposeWorld() {
     if (!world) return;
+    for (const button of targetButtons.values()) button.remove();
+    targetButtons.clear();
     scene.remove(world);
     world.traverse((object) => {
       object.geometry?.dispose?.();
+      object.userData.ownedTexture?.dispose();
+      object.shadow?.map?.dispose();
       if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
       else if (object.material?.map && textures.has(activeRoom.id) && object.material.map === textures.get(activeRoom.id)) object.material.dispose();
       else object.material?.dispose?.();

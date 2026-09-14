@@ -3,8 +3,9 @@
 Local candidate implementing `robot-world.run/v1` and `robot-world.verify/v1`.
 The first runs the default two-robot interaction world for 1–100 ticks. The second
 independently checks each action/clock transition and compares frames and policy
-traces. Both execute through the new sibling OrchestratorService, using its
-capability-filtered leasing, fencing, receipts and accepted history.
+traces. Both execute through the standalone `orchestrator/` product, using its
+Strategy Template, Run Template, capability-filtered leasing, fencing, receipts,
+accepted history, and public RWO transition API.
 
 ## Run
 
@@ -22,10 +23,11 @@ energy, cargo and four-axis memory. `result.json` contains the owner result and
 verification report; `owner/` retains the real orchestration history and worker
 artifacts. The demo at `runs/demo-v2/replay.html` records 100 ticks and four buildings.
 
-`build.py` verifies all three pinned RWO source hashes, builds the new driver and
-restores both legacy Robot World binaries. `tools/toolchain/run-rwo` supplies the
-existing compiler and ICU 74 library installation. No package or compiler is
-installed implicitly, and no historical dependency receipt is rewritten.
+`build.py` verifies the three pinned current RWO source hashes and builds the
+product-native Robot World driver plus the KEP's local JSON-lines RWO host.
+`tools/toolchain/run-rwo` supplies the existing compiler and ICU 74 library
+installation. No package or compiler is installed implicitly. Historical
+kernel material remains under `orchestrator/rwo/legacy-fixtures/`.
 
 For an existing completed owner, run the built `world_contracts` driver with the
 same worker/binding/owner arguments and `replay` in place of `run`; this verifies

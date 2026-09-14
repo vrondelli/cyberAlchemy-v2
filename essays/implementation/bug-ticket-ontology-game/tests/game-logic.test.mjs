@@ -304,3 +304,26 @@ test("the persistence adapter is versioned, namespaced, and storage-port based",
   adapter.clear();
   assert.equal(values.has("test-game"), false);
 });
+
+test('replay address accepts witness formatting but rejects another subject or machine', () => {
+  let state = createGameState(runtimeModel);
+  state = inspectStation(runtimeModel,state,'support-desk');
+  state = inspectStation(runtimeModel,state,'storefront-terminal');
+  state = moveToRoom(runtimeModel,state,'policy-archive');
+  state = inspectStation(runtimeModel,state,'quality-index');
+  state = moveToRoom(runtimeModel,state,'transfer-annex');
+  state = inspectStation(runtimeModel,state,'warehouse-scanner');
+  state = moveToRoom(runtimeModel,state,'policy-archive');
+  state = moveToRoom(runtimeModel,state,'incident-control-room');
+  state = inspectStation(runtimeModel,state,'event-ledger');
+  for (const address of ['2041-0917-R4','LP-2041 / 09:17 / R4','lp 2041 0917 r4']) {
+    const result=unlockWordRain(runtimeModel,state,'ledger-replay',address);
+    assert.equal(result.puzzle_drafts['ledger-replay'].unlocked,true,address);
+    assert.equal(result.attempts,0);
+  }
+  for (const address of ['LP-2042 / 09:17 / R4','LP-2041 / 09:17 / R5','BUG-4821','ORD-99114']) {
+    const result=unlockWordRain(runtimeModel,state,'ledger-replay',address);
+    assert.equal(result.puzzle_drafts['ledger-replay'].unlocked,false,address);
+    assert.equal(result.attempts,1);
+  }
+});

@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {buildPrompt,parseSelection,placeboIds} from './round27-calibration.mjs';
+const tool={type:'function',function:{name:'submit_context_selection',parameters:{type:'object'}}};
+test('placebo is deterministic and bounded',()=>{const xs=[{id:'a'.repeat(64)},{id:'b'.repeat(64)},{id:'c'.repeat(64)}];assert.deepEqual(placeboIds('cell',xs,2),placeboIds('cell',xs,2));assert.equal(placeboIds('cell',xs,2).length,2);});
+test('paired prompt retains history and narrows tools',()=>{const base=JSON.stringify({messages:[{role:'system',content:'s'},{role:'user',content:'last'}],tools:[{type:'function',function:{name:'read_file'}},tool]});const p=JSON.parse(buildPrompt(base,['a'.repeat(64)],3));assert.equal(p.messages[0].content,'s');assert.equal(p.messages.at(-1).content,'last');assert.deepEqual(p.tools,[tool]);assert.match(p.messages[1].content,/ranked_read_ids/);});
+test('terminal selection accepts delivered ids and rejects invented ids',()=>{const id='a'.repeat(64),payload={choices:[{finish_reason:'stop',message:{content:JSON.stringify({summary:'ok',context_read_ids:[id]})}}]};assert.deepEqual(parseSelection(payload,[id]).context_read_ids,[id]);assert.throws(()=>parseSelection(payload,[]),/undelivered/);});

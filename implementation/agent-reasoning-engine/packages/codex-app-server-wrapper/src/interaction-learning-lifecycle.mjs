@@ -116,7 +116,12 @@ export function createInteractionLearningLifecycle({ledger, configuration = {ena
     const items = message.params?.turn?.items?.filter(i => i.type === 'agentMessage');
     const chunks = output.get(key); const observed = items?.length ? items.map(i => i.text).join('\n')
       : chunks?.size && !chunks.has('overflow') ? [...chunks.values()].join('\n') : null;
-    const boundedOutput = typeof observed === 'string' && Buffer.byteLength(observed) <= 32768 ? observed : null;
+    // A failed/interrupted turn may contain partial text. It cannot establish a
+    // supported application even if that text happens to pass a literal check.
+    // Undefined status preserves the historical v1 host completion contract.
+    const status = message.params?.turn?.status;
+    const completed = status === undefined || status === 'completed';
+    const boundedOutput = completed && typeof observed === 'string' && Buffer.byteLength(observed) <= 32768 ? observed : null;
     const result = apply({event_id: `outcome:${turn.request_ref}`, kind: 'outcome', request_ref: turn.request_ref, lessons: turn.lessons, completion_digest: digestValue(message),
       observation: {request_ref: turn.request_ref, turn_ref: key, output: boundedOutput, evidence_ref: `codex:${key}:completed`}});
     if (result.ok) output.delete(key);

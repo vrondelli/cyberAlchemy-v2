@@ -1,7 +1,7 @@
 # Repair Assurance Expansion DAG
 
-Status: L2 complete; Auth Foundation selected for L3 and ready for a fresh
-freeze and replay. Task Session excluded.
+Status: service candidate complete; product pilot/revise/defer decision pending.
+Task Session excluded.
 Authority effect: none.
 
 ```mermaid
@@ -20,9 +20,9 @@ flowchart TD
   R --> I
   I --> J{"J · L2 promotion decision"}
   J --> K{"K · Select Auth property"}
-  K --> L["L · Freeze and evaluate Auth transfer"]
-  L --> M["M · Independent Auth replay"]
-  M --> N["N · Assemble service candidate"]
+  K --> L["L · Auth transfer author PASS"]
+  L --> M["M · Independent Auth replay complete"]
+  M --> N["N · Assemble service candidate complete"]
   N --> O{"O · Pilot-readiness decision"}
 ```
 
@@ -37,8 +37,10 @@ overlap and authorization covers any execution.
 The product owner selected Auth Foundation as the replacement L3 target on
 2026-09-12. The financial-settlement assessment remains deferred evidence until
 its real consumer implementation and owner are available; no surrogate consumer
-may be substituted. Node L requires a new candidate epoch because two recorded
-host-tool identities have drifted since the existing Auth completion evidence.
+may be substituted. Nodes L and M used a new candidate epoch, found and repaired
+an evidence-pipeline copy defect, and completed separate technical replay. The
+author's false missing-toolchain limitation remains preserved with the
+reviewer's additive correction.
 
 See [DAG.json](DAG.json) for node exit criteria and blockers, and
 [WORK-PACK.md](WORK-PACK.md) for task/SWU mappings.

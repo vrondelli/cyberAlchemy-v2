@@ -14,11 +14,12 @@ import {validateSourcePolicy} from './source-preservation.mjs';
 const bridgePaths = ['python_command', 'project_root', 'key_file', 'vault_file'];
 
 export function parseCredential(credential) {
-  need(credential && typeof credential === 'object' && !Array.isArray(credential) && Object.keys(credential).every(k => ['provider_kind','provider_id','locator',...bridgePaths].includes(k)), 'credential-config-invalid');
+  need(credential && typeof credential === 'object' && !Array.isArray(credential) && Object.keys(credential).every(k => ['provider_kind','provider_id','locator','timeout_ms',...bridgePaths].includes(k)), 'credential-config-invalid');
   need(credential.provider_kind === 'local-sops-age' && credential.provider_id === 'local-model-secrets' && credential.locator === 'model/zai-key', 'credential-config-invalid');
   for (const key of bridgePaths) {
     if (Object.hasOwn(credential, key)) need(typeof credential[key] === 'string' && credential[key].length > 0 && !credential[key].includes('\0'), 'credential-path-invalid');
   }
+  if(Object.hasOwn(credential,'timeout_ms'))need(Number.isSafeInteger(credential.timeout_ms)&&credential.timeout_ms>=1000&&credential.timeout_ms<=300000,'credential-timeout-invalid');
   return structuredClone(credential);
 }
 
@@ -51,7 +52,8 @@ export async function runConfiguredGlm(config, {create_client = createGlmClient}
   const timer = setTimeout(() => controller.abort(), 600000);
   try {
     const provider = createSopsAgeProcessSecretProvider({provider_id: c.credential.provider_id,
-      ...Object.fromEntries(bridgePaths.filter(key => Object.hasOwn(c.credential, key)).map(key => [key, c.credential[key]]))});
+      ...Object.fromEntries(bridgePaths.filter(key => Object.hasOwn(c.credential, key)).map(key => [key, c.credential[key]])),
+      ...(Object.hasOwn(c.credential,'timeout_ms')?{timeout_ms:c.credential.timeout_ms}:{})});
     const registry = createSecretProviderRegistry({providers: [provider]});
     const reference = createSecretReference({provider_id: c.credential.provider_id, locator: c.credential.locator});
     const client = create_client({...completionBudget(c.completion_policy,c.recycle_at),...(c.maximum_model_retries===undefined?{}:{maximum_model_retries:c.maximum_model_retries}),...(c.model_timeout_ms===undefined?{}:{model_timeout_ms:c.model_timeout_ms}),token_margin:completionTokenMargin(c.completion_policy),api_key_ref: reference, secret_registry: registry, signal: controller.signal});

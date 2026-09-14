@@ -1,0 +1,10 @@
+{
+  "instance_id": "Multi-SWE-Bench__c__maintenance__bugfix__629ac0cf",
+  "original_inst_id": "ponylang__ponyc-3293",
+  "repo": "ponylang/ponyc",
+  "repo_url": "https://github.com/ponylang/ponyc.git",
+  "language": "c",
+  "base_commit": "bcfc15fdc61ddd5925a7e3ddc28f3fc1fc3679d4",
+  "problem_statement": "Rename MaybePointer to NullablePointer\n\nResolves #3273 as of [RFC 63](https://github.com/ponylang/rfcs/blob/master/text/0063-rename-maybe-pointer.md)\r\n\r\nAccording to my research all the changes in files relates to MaybePointer and only MaybePointer.\r\n\r\nExcerps from the old code follows as a proof of thought:\r\n\r\ncodegen.h\r\n```\r\ntypedef struct compile_t\r\n{\r\n  const char* str_Maybe;\r\n}\r\n```\r\ncodegen.c\r\n```\r\nstatic void init_runtime(compile_t* c)\r\n{\r\n  c->str_Maybe = stringtab(\"MaybePointer\");\r\n}\r\n```\r\ngenserialise.c\r\n```\r\nif(package == c->str_builtin)\r\n{\r\n  // Don't serialise MaybePointer[A]\r\n  if(name == c->str_Maybe)\r\n    return true;\r\n}\r\n```\r\ngentype.c\r\n```\r\nif(package == c->str_builtin)\r\n{\r\n  if(name == c->str_Pointer)\r\n    genprim_pointer_methods(c, t);\r\n  else if(name == c->str_Maybe)\r\n    genprim_maybe_methods(c, t);\r\n}\r\n```\r\nffi.c\r\n```\r\n// Parameter type is Pointer[None]\r\n// If the argument is Pointer[A], MaybePointer[A] or USize, allow it\r\nwhile(ast_id(arg_type) == TK_ARROW)\r\n  arg_type = ast_childidx(arg_type, 1);\r\n\r\nif(is_pointer(arg_type) ||\r\n  is_maybe(arg_type) ||\r\n  is_literal(arg_type, \"USize\"))\r\n  return true;\r\n```\r\nreference.c\r\n```\r\nif(is_maybe(ast))\r\n{\r\n  // MaybePointer[A] must be bound to a struct.\r\n  ...\r\n```\r\nsubtype.c\r\n```\r\nbool is_maybe(ast_t* type)\r\n{\r\n  return is_literal(type, \"MaybePointer\");\r\n}\r\n```\r\ngentrace.c\r\n```\r\nif(is_maybe(type))\r\n  return TRACE_MAYBE;\r\n```",
+  "source": "Multi"
+}

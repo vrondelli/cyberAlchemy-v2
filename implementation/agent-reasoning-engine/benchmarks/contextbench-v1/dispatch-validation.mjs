@@ -5,7 +5,34 @@ import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 
 const allowed = new Set(['final_context_selected', 'no_context_selected', 'invalid_final_response', 'token_budget_stopped', 'context_budget_stopped', 'call_budget_exhausted']);
+const localTokenizerFailures = new Set(['request-failed', 'deadline-exceeded']);
+const localModelOutputFailures = new Map([
+  ['message-invalid', null],
+  ['reasoning-invalid', null],
+  ['incomplete-output', 'length'],
+  ['finish-reason-unsupported', null],
+  ['tool-calls-invalid', 'tool_calls'],
+  ['final-text-invalid', 'stop'],
+]);
 const object = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+function accountedLocalFailure(result) {
+  if (!object(result) || result.status !== 'run_error' || typeof result.error !== 'string' || !result.error.startsWith('glm.')) return null;
+  if (!Array.isArray(result.receipts) || result.receipts.length === 0 || result.selection != null || result.native_export != null || result.export_error != null) return null;
+  const modelReceipts = result.receipts.filter(receipt => receipt?.kind === 'model' && receipt.dispatched === true);
+  if (modelReceipts.some(receipt => !Number.isSafeInteger(receipt.input_tokens) || !Number.isSafeInteger(receipt.output_tokens))) return null;
+  const terminal = result.receipts.at(-1), code = result.error.slice('glm.'.length);
+  if (!object(terminal) || terminal.dispatched !== true) return null;
+  let family;
+  if (localTokenizerFailures.has(code)) {
+    if (terminal.kind !== 'tokenizer' || terminal.status !== null || terminal.response_bytes !== 0 || terminal.failure_code !== code) return null;
+    family = 'tokenizer-transport';
+  } else if (localModelOutputFailures.has(code)) {
+    const expectedFinish = localModelOutputFailures.get(code);
+    if (terminal.kind !== 'model' || terminal.status !== 200 || !Number.isSafeInteger(terminal.input_tokens) || !Number.isSafeInteger(terminal.output_tokens) || terminal.response_bytes <= 0 || terminal.failure_code != null || (expectedFinish !== null && terminal.finish_reason !== expectedFinish)) return null;
+    family = 'model-output-protocol';
+  } else return null;
+  return {scope: 'local-branch', failure_family: family, failure_code: code, terminal_kind: terminal.kind, terminal_status: terminal.status, response_bytes: terminal.response_bytes, known_model_tokens: modelReceipts.reduce((sum, receipt) => sum + receipt.input_tokens + receipt.output_tokens, 0), unknown_model_receipts: 0};
+}
 export function validateDispatchCompletion({cell, root}) {
   const issues = [], add = (path, code) => issues.push({path, code});
   function read(name) {
@@ -30,10 +57,11 @@ export function validateDispatchCompletion({cell, root}) {
       add('completed.json/result_sha256', 'dispatch.result-integrity');
     if (c.status !== r.status) add('completed.json/status', 'dispatch.status-mismatch');
   }
+  const localFailure = accountedLocalFailure(r);
   if (r) {
     if (r.cell_id !== cell.cell_id) add('result.json/cell_id', 'dispatch.cell-mismatch');
     if (r.instance_id !== cell.instance_id) add('result.json/instance_id', 'dispatch.instance-mismatch');
-    if (!allowed.has(r.status)) add('result.json/status', 'dispatch.shared-runtime-failure');
+    if (!allowed.has(r.status) && !localFailure) add('result.json/status', 'dispatch.shared-runtime-failure');
     if (r.status === 'no_context_selected' && (!Array.isArray(r.selection?.final_read_ids) || r.selection.final_read_ids.length !== 0))
       add('result.json/selection', 'dispatch.no-context-selection-mismatch');
     // Export failure is a shared instrument boundary even if terminal JSON was valid.
@@ -55,6 +83,6 @@ export function validateDispatchCompletion({cell, root}) {
       void prediction; void score;
     }
   }
-  return {ok: issues.length === 0, directive: issues.length ? 'pause-unstarted' : 'continue-sequence',
-    cell_id: cell.cell_id, status: r?.status ?? null, issues, authority_effect: 'none', benchmark_cleared: false};
+  return {ok: issues.length === 0, directive: issues.length ? 'pause-unstarted' : localFailure ? 'continue-after-local-failure' : 'continue-sequence',
+    cell_id: cell.cell_id, status: r?.status ?? null, issues, local_failure: localFailure, authority_effect: 'none', benchmark_cleared: false};
 }

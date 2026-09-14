@@ -18,14 +18,14 @@ authority_effect: none
 | outputMode | split |
 | executionPackRef | [execution-pack.md](execution-pack.md) |
 | layeringArtifactRef | [implementation-layering.md](implementation-layering.md) |
-| activeLayerWindow | L3 Auth Foundation fresh freeze and replay |
+| activeLayerWindow | L4 product pilot/revise/defer decision |
 | readinessProfile | pilot |
 | lastUpdatedAt | 2026-09-12 |
 
-L2 is complete under the owner's bounded native-execution authorization. Task
-Session remains excluded. The product owner selected Auth Foundation as the L3
-replacement target. L3 now requires a separately routed fresh freeze because
-the prior Auth evidence binds two host tools whose current bytes have drifted.
+L2 and the Auth Foundation L3 transfer are complete under the owner's bounded
+native-execution authorization. Task Session remains excluded. A separate
+technical reviewer agreed with the Auth author result and corrected one false
+toolchain limitation. L4 now packages the earned evidence for product review.
 
 ## Objective and success condition
 
@@ -47,8 +47,8 @@ evidence and reviewer agreement or explicit resolution of disagreement.
 | [T2](work-pack/tasks/TASK-T2-EXECUTE.md) | Freeze and execute the complete 48/48/2 attempt | L2 | [W2](work-pack/waves/W2.md) | T1 | passed | complete |
 | [T3](work-pack/tasks/TASK-T3-FALSIFY.md) | Run negative controls and assess L2 evidence | L2 | [W2](work-pack/waves/W2.md) | T1; joins T2 | passed | complete |
 | [T4](work-pack/tasks/TASK-T4-REVIEW.md) | Independently replay and decide L2 promotion | L2 | [W3](work-pack/waves/W3.md) | T2, T3 | passed | complete |
-| [T5](work-pack/tasks/TASK-T5-TRANSFER.md) | Freeze, evaluate and independently replay Auth Foundation | L3 | [W4](work-pack/waves/W4.md) | T4 promotion; Auth selection | fresh implementation route required | selected-ready-for-freeze |
-| [T6](work-pack/tasks/TASK-T6-PACKAGE.md) | Assemble measured service candidate and decide pilot readiness | L4 | [W5](work-pack/waves/W5.md) | T5 | blocked B-004 | not-started |
+| [T5](work-pack/tasks/TASK-T5-TRANSFER.md) | Freeze, evaluate and independently replay Auth Foundation | L3 | [W4](work-pack/waves/W4.md) | T4 promotion; Auth selection | passed with reviewer correction | complete |
+| [T6](work-pack/tasks/TASK-T6-PACKAGE.md) | Assemble measured service candidate and decide pilot readiness | L4 | [W5](work-pack/waves/W5.md) | T5 | B-004 product decision | package-complete-decision-pending |
 
 ## Shared SWU manifest
 
@@ -66,9 +66,9 @@ evidence and reviewer agreement or explicit resolution of disagreement.
 | SWU-T4-02 | T4 | T4-01 | Fresh reviewer attempt and review report only | Reviewer reproduces L2 result and controls or records disagreement. | Reviewer raw evidence, corrections and timing. | Package verification plus independent probes. | separate technical reviewer | complete |
 | SWU-T4-03 | T4 | T4-02 | L2 promotion decision only | Promote, remediate, narrow or stop is attributable. | Completion decision linked to evidence. | Requirement-by-requirement audit. | assessment lead + reviewer | complete |
 | SWU-T5-01 | T5 | T4-03 | Auth target-selection record and exact property boundary only | Product owner selects Auth Foundation; prior candidate, exclusions and currentness limits are explicit. | Owner decision plus Auth transfer assessment. | Decision and source-binding review. | CyberAlchemy v2 product owner | complete |
-| SWU-T5-02 | T5 | T5-01 | New Auth transfer package and isolated evidence in a separately authorized sibling scope | Fresh source/tool binding yields a typed result for 48 obligations, six behavioral mutants, twelve hostile controls and two EVF routes. | Frozen property, manifests, raw results, counterexamples and core/adapter effort split. | Recompute checks and mutations from raw evidence. | Auth transfer engineer | ready after exact route |
-| SWU-T5-03 | T5 | T5-02 | Fresh reviewer evidence and review only | Separate reviewer reproduces the Auth transfer outcome. | Reviewer result, corrections and timing. | Fresh replay. | separate technical reviewer | blocked by T5-02 |
-| SWU-T6-01 | T6 | T5-03 | New private service-candidate docs only | Offering, intake, report, data and acceptance templates trace to L2/L3. | Traceability and claim audit. | Link/claim/source validation. | product designer | blocked |
+| SWU-T5-02 | T5 | T5-01 | New Auth transfer package and isolated evidence in a separately authorized sibling scope | Fresh source/tool binding yields a typed result for 48 obligations, six behavioral mutants, twelve hostile controls and two EVF routes. | Frozen property, manifests, raw results, counterexamples and core/adapter effort split. | Recompute checks and mutations from raw evidence. | Auth transfer engineer | complete |
+| SWU-T5-03 | T5 | T5-02 | Fresh reviewer evidence and review only | Separate reviewer reproduces the Auth transfer outcome. | Reviewer result, corrections and timing. | Fresh replay. | separate technical reviewer | complete |
+| SWU-T6-01 | T6 | T5-03 | New private service-candidate docs only | Offering, intake, report, data and acceptance templates trace to L2/L3. | Traceability and claim audit. | Link/claim/source validation. | product designer | complete |
 | SWU-T6-02 | T6 | T6-01 | Unit-economics and decision record only | Cost model uses measured hours/compute/retest; owner chooses pilot/revise/defer. | Measured ledger and owner decision. | Recompute totals; inspect claim ceiling. | product owner | blocked B-004 |
 
 One SWU must be selected before mutation-capable work begins. T2-02 and T3-01

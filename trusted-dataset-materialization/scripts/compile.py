@@ -25,8 +25,8 @@ def file_digest(relative: str) -> str:
     return "sha256:" + hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
 
 
-def repo_file_digest(relative: str) -> str:
-    return "sha256:" + hashlib.sha256((ROOT.parents[1] / relative).read_bytes()).hexdigest()
+def workspace_file_digest(relative: str) -> str:
+    return "sha256:" + hashlib.sha256((ROOT.parent / relative).read_bytes()).hexdigest()
 
 
 def write(relative: str, value) -> None:
@@ -152,7 +152,7 @@ def main() -> None:
             "pipeline_runtime": {"path":"runtime/pipeline.py", "digest":file_digest("runtime/pipeline.py")},
             "postgres_runtime": {"path":"runtime/postgres_store.py", "digest":file_digest("runtime/postgres_store.py")},
             "rwo_adapter": {"path":"rwo-adapter/src/main.rs", "digest":file_digest("rwo-adapter/src/main.rs")},
-            "rwo_semantic_kernel": {"path":"projects/cyberalchemy-orchestrator/implementations/rwo-rust/src/lib.rs", "digest":repo_file_digest("projects/cyberalchemy-orchestrator/implementations/rwo-rust/src/lib.rs")},
+            "rwo_semantic_kernel": {"path":"orchestrator/rwo/src/lib.rs", "digest":workspace_file_digest("orchestrator/rwo/src/lib.rs")},
             "rwo_composition": {"path":"generated/rwo-composition.json", "digest":digest(composition)}
         },
         "components": system_bindings["components"],

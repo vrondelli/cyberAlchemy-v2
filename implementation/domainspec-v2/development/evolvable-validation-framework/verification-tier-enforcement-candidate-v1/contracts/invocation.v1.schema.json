@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evf.verification-tier-invocation/v1",
+  "type": "object",
+  "required": ["schema_version", "request_id", "requested_tier", "profile", "property", "subject", "bounds", "providers", "controls", "effect_ceiling"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "evf.verification-tier-invocation/v1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "requested_tier": {"enum": ["V0", "V1", "V2"]},
+    "profile": {"$ref": "#/$defs/exactProfile"},
+    "property": {"$ref": "#/$defs/property"},
+    "subject": {"$ref": "#/$defs/exactRef"},
+    "bounds": {"$ref": "#/$defs/bounds"},
+    "providers": {"type": "array", "items": {"$ref": "#/$defs/providerReceipt"}},
+    "controls": {"type": "array", "items": {"$ref": "#/$defs/control"}},
+    "effect_ceiling": {"const": "read-only-isolated-verification"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "exactRef": {
+      "type": "object",
+      "required": ["path", "sha256", "size_bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "exactProfile": {
+      "type": "object",
+      "required": ["path", "sha256", "profile_id", "profile_version"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "profile_id": {"type": "string", "minLength": 1},
+        "profile_version": {"type": "string", "minLength": 1}
+      }
+    },
+    "property": {
+      "type": "object",
+      "required": ["property_id", "meaning_owner", "obligation_id", "traits", "definition_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "property_id": {"type": "string", "minLength": 1},
+        "meaning_owner": {"type": "string", "minLength": 1},
+        "obligation_id": {"type": "string", "minLength": 1},
+        "traits": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["recursive-relational", "bounded-structural", "executable-implementation"]}},
+        "definition_ref": {"$ref": "#/$defs/exactRef"}
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["denominator", "timeout_seconds", "max_output_bytes", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {"type": "integer", "minimum": 1},
+        "timeout_seconds": {"type": "integer", "minimum": 1},
+        "max_output_bytes": {"type": "integer", "minimum": 1},
+        "digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "providerReceipt": {
+      "type": "object",
+      "required": ["schema_version", "receipt_kind", "provider_id", "provider_version", "capability", "route_id", "independence_group", "property_id", "obligation_id", "subject_sha256", "bounds_digest", "normalized_outcome", "observation_count", "fresh", "raw_evidence_valid", "exact_bindings", "execution_state", "fixture", "payload_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "evf.verification-tier-provider-receipt/v1"},
+        "receipt_kind": {"const": "provider-evidence"},
+        "provider_id": {"type": "string", "minLength": 1},
+        "provider_version": {"type": "string", "minLength": 1},
+        "capability": {"enum": ["datalog-fixed-point", "relational-model-finding", "executable-evaluation"]},
+        "route_id": {"type": "string", "minLength": 1},
+        "independence_group": {"type": "string", "minLength": 1},
+        "property_id": {"type": "string", "minLength": 1},
+        "obligation_id": {"type": "string", "minLength": 1},
+        "subject_sha256": {"$ref": "#/$defs/sha256"},
+        "bounds_digest": {"$ref": "#/$defs/sha256"},
+        "normalized_outcome": {"enum": ["counterexample", "no-counterexample", "unresolved"]},
+        "observation_count": {"type": "integer", "minimum": 0},
+        "fresh": {"type": "boolean"},
+        "raw_evidence_valid": {"type": "boolean"},
+        "exact_bindings": {"type": "boolean"},
+        "execution_state": {"enum": ["completed", "launch-failed", "timed-out", "output-overflow", "interrupted"]},
+        "fixture": {"type": "boolean"},
+        "payload_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "control": {
+      "type": "object",
+      "required": ["control_id", "class", "expected_non_success", "detected"],
+      "additionalProperties": false,
+      "properties": {
+        "control_id": {"type": "string", "minLength": 1},
+        "class": {"enum": ["subject", "oracle", "denominator", "evidence", "execution"]},
+        "expected_non_success": {"type": "boolean"},
+        "detected": {"type": "boolean"}
+      }
+    }
+  }
+}
+

@@ -25,8 +25,8 @@ def file_digest(relative: str) -> str:
     return "sha256:" + hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
 
 
-def repo_file_digest(relative: str) -> str:
-    return "sha256:" + hashlib.sha256((ROOT.parents[1] / relative).read_bytes()).hexdigest()
+def workspace_file_digest(relative: str) -> str:
+    return "sha256:" + hashlib.sha256((ROOT.parent / relative).read_bytes()).hexdigest()
 
 
 def main() -> None:
@@ -55,7 +55,7 @@ def main() -> None:
         "pipeline_runtime": file_digest("runtime/pipeline.py"),
         "postgres_runtime": file_digest("runtime/postgres_store.py"),
         "rwo_adapter": file_digest("rwo-adapter/src/main.rs"),
-        "rwo_semantic_kernel": repo_file_digest("projects/cyberalchemy-orchestrator/implementations/rwo-rust/src/lib.rs"),
+        "rwo_semantic_kernel": workspace_file_digest("orchestrator/rwo/src/lib.rs"),
         "rwo_composition": digest(composition),
     }
     assert set(system["compiled_from"]) == set(expected_sources)

@@ -62,8 +62,9 @@ def main() -> None:
             assert file_sha(REPO / dependency["path"]) == dependency["sha256"]
     checks.append({"id": "selected-dependency-bytes", "status": "PASS"})
 
-    run("cargo", "test", "--manifest-path", str(ROOT / "rwo-adapter/Cargo.toml"), "--offline")
-    run("cargo", "build", "--manifest-path", str(ROOT / "rwo-adapter/Cargo.toml"), "--offline")
+    cargo = str(ROOT.parent / "tools/toolchain/run-rwo")
+    run(cargo, "cargo", "test", "--manifest-path", str(ROOT / "rwo-adapter/Cargo.toml"), "--offline")
+    run(cargo, "cargo", "build", "--manifest-path", str(ROOT / "rwo-adapter/Cargo.toml"), "--offline")
     checks.append({"id": "rwo-adapter-tests", "status": "PASS"})
 
     with tempfile.TemporaryDirectory() as temporary:

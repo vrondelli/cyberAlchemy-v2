@@ -7,6 +7,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,20 +19,56 @@ from jsonschema.exceptions import SchemaError
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 
-def find_repo_root(start: Path) -> Path:
-    for candidate in (start, *start.parents):
-        if (candidate / "cyberAlchemy-v2").is_dir() and (candidate / "projects").is_dir():
-            return candidate
-    raise RuntimeError("repository root not found")
+def find_workspace_layout(start: Path) -> tuple[Path, Path, Path]:
+    """Return display root, CyberAlchemy root, and DomainSpec umbrella root.
+
+    ORODI supports both its historical ``domainspec-core/cyberAlchemy-v2``
+    placement and the extracted sibling checkouts used by current workspaces.
+    Source registry paths keep their historical ``cyberAlchemy-v2/`` and
+    ``projects/`` prefixes; ``repo_path`` resolves them without changing bytes.
+    """
+    cav2_root = next(
+        (
+            candidate
+            for candidate in (start, *start.parents)
+            if candidate.name == "cyberAlchemy-v2"
+            and (candidate / "product").is_dir()
+            and (candidate / "goals").is_dir()
+        ),
+        None,
+    )
+    if cav2_root is None:
+        raise RuntimeError("CyberAlchemy repository root not found")
+
+    historical_root = cav2_root.parent
+    if (historical_root / "projects").is_dir():
+        domain_root = historical_root
+    else:
+        sibling_root = historical_root / "domainspec-core"
+        if not (sibling_root / "projects").is_dir():
+            raise RuntimeError("DomainSpec projects root not found")
+        domain_root = sibling_root
+
+    display_root = Path(os.path.commonpath((str(cav2_root), str(domain_root))))
+    return display_root, cav2_root, domain_root
 
 
-REPO_ROOT = find_repo_root(PACKAGE_ROOT)
-ONTOLOGY_ROOT = (
-    REPO_ROOT
-    / "projects/domainspec-v2/development/operational-resilience-observability-deployment-integration/ontology"
+REPO_ROOT, CAV2_ROOT, DOMAIN_ROOT = find_workspace_layout(PACKAGE_ROOT)
+
+
+def repo_path(ref: str) -> Path:
+    if ref == "cyberAlchemy-v2":
+        return CAV2_ROOT
+    if ref.startswith("cyberAlchemy-v2/"):
+        return CAV2_ROOT / ref.removeprefix("cyberAlchemy-v2/")
+    return DOMAIN_ROOT / ref
+
+
+ONTOLOGY_ROOT = repo_path(
+    "projects/domainspec-v2/development/operational-resilience-observability-deployment-integration/ontology"
 )
-SHARED_CAPABILITY_SCHEMA = REPO_ROOT / "cyberAlchemy-v2/capability/schemas/capability.schema.json"
-GOAL_SCHEMA = REPO_ROOT / "cyberAlchemy-v2/goals/schemas/goal-package.schema.json"
+SHARED_CAPABILITY_SCHEMA = repo_path("cyberAlchemy-v2/capability/schemas/capability.schema.json")
+GOAL_SCHEMA = repo_path("cyberAlchemy-v2/goals/schemas/goal-package.schema.json")
 EXPECTED_CAPABILITIES = {
     "CA2-CAP-ORODI-EVALUATE-OFFLINE-EVIDENCE",
     "CA2-CAP-ORODI-PROJECT-DENIED-RUNTIME-EVIDENCE",
@@ -121,7 +158,7 @@ def check_exact_ref(ref: Any, label: str, errors: list[str]) -> None:
     if not isinstance(ref, dict) or set(ref) != {"ref", "digest"}:
         errors.append(f"{label}: invalid exact-ref shape")
         return
-    path = REPO_ROOT / str(ref["ref"])
+    path = repo_path(str(ref["ref"]))
     if not path.is_file():
         errors.append(f"{label}: missing {ref['ref']}")
         return
@@ -216,7 +253,7 @@ def validate(write_receipt: bool) -> tuple[list[str], dict[str, Any]]:
             continue
         source_id = str(source.get("source_id", ""))
         source_by_id[source_id] = source
-        path = REPO_ROOT / str(source.get("path", ""))
+        path = repo_path(str(source.get("path", "")))
         if not path.is_file():
             errors.append(f"{source_id}: source missing")
             continue
@@ -235,7 +272,7 @@ def validate(write_receipt: bool) -> tuple[list[str], dict[str, Any]]:
         if source is None:
             errors.append(f"{selection_id}: unknown source")
             continue
-        path = REPO_ROOT / str(source["path"])
+        path = repo_path(str(source["path"]))
         try:
             selected = (
                 path.read_bytes()
@@ -301,8 +338,8 @@ def validate(write_receipt: bool) -> tuple[list[str], dict[str, Any]]:
     checks.append({"check": "capability-support-closure", "actors": len(actors), "bindings": len(bindings), "obligations": len(obligations)})
 
     goal_schema = load(GOAL_SCHEMA, errors)
-    project_path = REPO_ROOT / "cyberAlchemy-v2/goals/projects/craft/project.json"
-    goal_path = REPO_ROOT / "cyberAlchemy-v2/goals/projects/craft/goals/craft-orodi-integration.goal.json"
+    project_path = repo_path("cyberAlchemy-v2/goals/projects/craft/project.json")
+    goal_path = repo_path("cyberAlchemy-v2/goals/projects/craft/goals/craft-orodi-integration.goal.json")
     project = load(project_path, errors)
     goal = load(goal_path, errors)
     validate_definition(project, goal_schema, "project", "Craft Project", errors)
@@ -389,9 +426,9 @@ def validate(write_receipt: bool) -> tuple[list[str], dict[str, Any]]:
     decision_record_ref = resolved_decision.get("decision_record_ref", {})
     request_ref = resolved_decision.get("admissibility_request_ref", {})
     receipt_ref = resolved_decision.get("admissibility_receipt_ref", {})
-    decision_record = load(REPO_ROOT / str(decision_record_ref.get("ref", "")), errors)
-    request_doc = load(REPO_ROOT / str(request_ref.get("ref", "")), errors)
-    receipt_doc = load(REPO_ROOT / str(receipt_ref.get("ref", "")), errors)
+    decision_record = load(repo_path(str(decision_record_ref.get("ref", ""))), errors)
+    request_doc = load(repo_path(str(request_ref.get("ref", ""))), errors)
+    receipt_doc = load(repo_path(str(receipt_ref.get("ref", ""))), errors)
     if decision_record.get("decision_id") != resolved_decision.get("successor_decision_id"):
         errors.append("immutable Product Capability decision ID mismatch")
     if decision_record.get("owner_ref") != resolved_decision.get("owner_ref"):

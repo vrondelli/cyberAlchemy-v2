@@ -207,17 +207,20 @@ example is not proof of automatic runtime preference learning.
 
 ## 7. Current code versus the product model
 
-Source inspection on 2026-09-05 found:
+Current source review: 2026-09-12. The earlier September 5 gap table is
+superseded by objective/requirement continuity, the full-loop prototype, and the
+[interaction review candidate](../development/agent-reasoning-engine/planning/interaction-context/product-review-v1/README.md).
 
-| Current code | What it does | Missing connection |
+| Implemented path | Current behavior | Remaining limit |
 | --- | --- | --- |
-| [Intent compiler](../implementation/agent-reasoning-engine/packages/request-intent-runtime/src/compiler.mjs) | Uses objective_hint or the first request sentence on its fast path; a configured provider can supply a structured candidate. | General transition classification from active/suspended work is not supplied by the fallback. |
-| [Request context](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/request-context.mjs) | Takes objective_kind from a context hint or turn binding, otherwise null. | A category is not a fully grounded objective. |
-| [Intent lifecycle](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/intent-lifecycle.mjs) | Opt-in compilation and correction handling; passes request, context digests and source references. | It does not pass the full selected objective/interaction meanings into the compiler. |
-| [Continuation](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/continuation.mjs) | Validates supplied causal/opportunity bindings, derives a frontier, and resolves a bounded set of short continuation phrases against a selected proposal. | Supplied relation labels and phrase matching do not classify arbitrary new requests. |
-| [Wrapper](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/wrapper.mjs) | Projects prior continuation, runs preflight, then optional intent compilation and dispatch. | Interpretation arrives too late to resolve a request preflight has already stopped. |
+| [Objective lifecycle](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/objective-lifecycle.mjs) | Resolves active/suspended objectives before preflight; selected interaction meanings reach the optional provider. | Deterministic cues are bounded; arbitrary interpretation needs a configured provider and remains a proposal. |
+| [Request context](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/request-context.mjs) | Routes from the verified resolved objective while binding the original request. | Routing and structure do not prove understanding or permission. |
+| [Intent lifecycle](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/intent-lifecycle.mjs) | Supplies the resolved objective as objective_hint and rejects a compiler mismatch. | The standalone compiler still has its first-sentence fallback. |
+| [Requirement continuity](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/objective-requirements.mjs) | Preserves explicit requirements through changes, interruptions, resumption and file-backed replay. | New objectives require an explicit seed, including an explicit empty set when appropriate. |
+| [Learning lifecycle](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/interaction-learning-lifecycle.mjs) | Joins attributed correction, scoped projection, dispatch, observed application and bounded evolution. | Literal checks do not establish semantic task success; failed/interrupted completion is inconclusive. |
+| [Interaction host](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/interaction-host.mjs) and [review product](../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/interaction-review.mjs) | Provide explicit source-role separation, selected-response corrections, inspection, controls, a text-response provider and persistent review flow. | V1 uses explicit host/user actions, not autonomous preference discovery. Reference text is data, not instruction authority. |
 
-Thus the target integration is:
+The joined integration is:
 
 ```text
 request + selected active state
@@ -228,10 +231,12 @@ request + selected active state
             -> scoped learning + measured application
 ```
 
-The [implementation plan](../development/agent-reasoning-engine/planning/interaction-context/PLAN.md)
-owns this unfinished integration. Existing scorecard results cover their exact
-fixtures, not general discourse understanding. No benchmark score or runtime
-behavior changes with this document.
+The [original implementation plan](../development/agent-reasoning-engine/planning/interaction-context/PLAN.md)
+is historical design evidence. The [review construction plan](../development/agent-reasoning-engine/planning/interaction-context/product-review-v1/PLAN.md)
+and its current source manifest/test report own this candidate's completion.
+Earlier live canaries demonstrated bounded integration and explicit retention;
+equal-information summaries tied ARE in the transfer/control experiments. Those
+results do not establish general discourse understanding or a quality advantage.
 
 ## 8. How the claims should be benchmarked
 
@@ -253,17 +258,15 @@ to run the same experiment indefinitely.
 
 ## Construction frontier and operational residue
 
-Product construction: the product-local meanings, ontology relationships and
-this explanation are runnable design work. Implementation remains with the
-existing interaction-learning plan; no parallel interpreter or memory service
-is proposed here.
+Product construction: the review candidate extends the existing wrapper and
+reasoning ledger. Its isolated DomainSpec graph, exact manifest, runnable CLI
+and tests are owned by the linked review epoch. Historical full-loop and live
+experiment receipts retain their original bytes and claims.
 
-Operational support: the package validator reports pre-existing drift in
-CAP-SEL-ARE-CODEX-WRAPPER and CAP-SEL-ARE-JOURNALED-CODEX-WRAPPER. Their owner must
-reconcile those exact bindings before full deterministic system rematerialization.
-No hashes for these unrelated runtime changes were silently refreshed. This
-does not prevent authoring product meanings. Existing generated projections and
-historical receipts remain historical, not evidence for the new relationships.
+Operational support: a configured response/interpretation provider is needed
+for live general-language use. The review demonstration uses labeled fixtures.
+Product approval, shared serving bindings and activation remain separate owner
+decisions after review; no approval is inferred from passing tests.
 
 ## Open Questions
 

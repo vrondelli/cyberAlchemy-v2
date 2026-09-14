@@ -8,7 +8,7 @@ import {createStatelessRecyclingTransport,openContextRecycling} from '../../pack
 import {runEpisode} from './episode.mjs';
 import {stable,bodyForReceipt} from './delivery.mjs';
 const hash=x=>createHash('sha256').update(x).digest('hex');
-async function run({arm='baseline',budget=10000,pressure=false,extraTool=false,badTool=false,badFinal=false,incomplete=false,incompleteAt=2,incompleteCorrections=0,taskState=false,stateTokenCap=2000}={}){
+async function run({arm='baseline',budget=10000,pressure=false,extraTool=false,longRun=false,badTool=false,badFinal=false,incomplete=false,incompleteAt=2,incompleteCorrections=0,taskState=false,noveltyGate=false,stateTokenCap=2000}={}){
   const root=mkdtempSync(join(tmpdir(),'are-cb-loop-'));mkdirSync(join(root,'fixture'));
   const receipts=[];let requests=0,previousIds=[],stateMeasurements=0;
   const transport=createStatelessRecyclingTransport({adapter_id:'cb-offline-test',source_ref:'episode.test.mjs',maximum_output_tokens:1024,
@@ -17,9 +17,9 @@ async function run({arm='baseline',budget=10000,pressure=false,extraTool=false,b
       requests++;
       const messages=JSON.parse(prompt).messages;
       let message,finish_reason;
-      if(requests===1||(pressure&&requests===2)||(extraTool&&requests===3)||(badTool&&requests===2)){
-        const arguments_=badTool&&requests===1?'broken-json':stable({path:'a.py',start_line:1,line_count:1});
-        message={role:'assistant',tool_calls:[{id:`r${requests}`,type:'function',function:{name:'read_file',arguments:arguments_}}]};finish_reason='tool_calls';
+      if(requests===1||(pressure&&requests===2)||(extraTool&&requests===3)||(longRun&&requests<=6)||(badTool&&requests===2)){
+        const name=longRun&&requests>3?'search':'read_file',arguments_=badTool&&requests===1?'broken-json':name==='search'?stable({query:'absent',path_prefix:'',offset:0,limit:10}):stable({path:'a.py',start_line:1,line_count:1});
+        message={role:'assistant',tool_calls:[{id:`r${requests}`,type:'function',function:{name,arguments:arguments_}}]};finish_reason='tool_calls';
       }else{
         const ids=[];
         for(const m of messages){
@@ -39,9 +39,9 @@ async function run({arm='baseline',budget=10000,pressure=false,extraTool=false,b
   const task={problem_statement:'Fix the fixture issue'},recycler=openContextRecycling({transport,fixture_root:join(root,'fixture'),scope:{request:task.problem_statement},options:{directory:join(root,'state'),context_limit:8000,recycle_at:7000,safety_margin:1000,state:{objective:task.problem_statement,constraints:[],completed:[],pending:[],facts:[],lessons:[],evidence_refs:['fixture-base']}}});
   try{
     const result=await runEpisode({task,arm,client:{receipts,transport,maximum_model_retries:0},recycler,
-      tools:[{type:'function',function:{name:'read_file',parameters:{type:'object'}}}],
-      execute_tool:async()=>({ok:true,output:{path:'a.py',start_line:1,end_line:1,utf8:'source',source_sha256:hash('source')}}),
-      measure_index_tokens:async s=>{if(s.startsWith('POST-RECYCLE OBSERVED TASK STATE'))stateMeasurements++;return s.length;},limits:{maximum_calls:4,output_cap:1024,total_tokens:budget,index_entries:10,index_tokens:1000,incomplete_output_corrections:incompleteCorrections,...(taskState?{task_state_projection:true,task_state_bytes:4096,task_state_tokens:stateTokenCap,task_state_evidence:8,task_state_outcomes:12}:{})},run_id:'fixture'});
+      tools:[{type:'function',function:{name:'read_file',parameters:{type:'object'}}},...(longRun?[{type:'function',function:{name:'search',parameters:{type:'object'}}}]:[])],
+      execute_tool:async name=>name==='search'?({ok:true,output:{total:0,observations:[],next_offset:null}}):({ok:true,output:{path:'a.py',start_line:1,end_line:1,utf8:'source',source_sha256:hash('source')}}),
+      measure_index_tokens:async s=>{if(s.startsWith('POST-RECYCLE OBSERVED TASK STATE'))stateMeasurements++;return s.length;},limits:{maximum_calls:longRun?8:4,output_cap:1024,total_tokens:budget,index_entries:10,index_tokens:1000,incomplete_output_corrections:incompleteCorrections,...(taskState?{task_state_projection:true,task_state_bytes:4096,task_state_tokens:stateTokenCap,task_state_evidence:8,task_state_outcomes:12,...(noveltyGate?{task_state_include_outcomes:false,task_state_max_paths:8,task_state_handles_per_path:1,task_state_handle_selection:'widest',task_state_novelty_gate:true}:{})}:{})},run_id:'fixture'});
     return {...result,requests,stateMeasurements};
   }finally{recycler.close();rmSync(root,{recursive:true,force:true});}
 }
@@ -73,6 +73,14 @@ test('task-state projection appears only once across successful requests in one 
   assert.equal(r.recycling.recycles,1);assert.equal(r.task_state_presentations.length,1);assert.equal(r.stateMeasurements,1);
   const last=JSON.parse(r.captures.at(-1).prompt).messages;
   assert.equal(last.some(message=>message.content?.startsWith('POST-RECYCLE OBSERVED TASK STATE')),false);
+});
+test('novelty-gated episode records no-message suppression after the same widest handle was presented',async()=>{
+  const r=await run({pressure:true,longRun:true,taskState:true,noveltyGate:true,budget:50000});
+  assert.ok(r.recycling.recycles>=2,JSON.stringify(r.recycling));assert.ok(r.task_state_presentations.length>=1);
+  assert.ok(r.task_state_suppressions.length>=1);assert.equal(r.task_state_suppressions[0].suppression_reason,'no-novel-selected-evidence');
+  assert.equal(r.task_state_suppressions[0].measured_tokens,0);assert.equal(r.task_state_suppressions[0].fit.tokenizer_calls,0);
+  const ids=r.task_state_presentations.flatMap(item=>item.evidence.map(evidence=>evidence.read_id)),presented=new Set(ids);
+  assert.equal(presented.size,ids.length);assert.equal(r.stateMeasurements,r.task_state_presentations.length);
 });
 test('shared prefix pauses before post-recycle rendering and resumes isolated control/state branches',async t=>{
   const root=mkdtempSync(join(tmpdir(),'are-cb-shared-prefix-')),fixture=join(root,'fixture');mkdirSync(fixture);writeFileSync(join(fixture,'a.py'),'source\n');

@@ -53,7 +53,7 @@ export async function runPreparedTask({task_path,task_sha256,repository_cache,ou
     if(client.bindRunLedger)client.bindRunLedger({directory:join(root,'state'),binding:hash(stable(scope))});
     const episode=await runEpisode({task,arm:cell.arm,client,recycler,tools:[...repositoryTools,recoveryTool],execute_tool,
       measure_index_tokens:text=>measure_index_tokens(text,client),limits:cell.limits,run_id:cell.cell_id,
-      source_context:()=>({snapshots:[...snapshots.values()],repoRoot:join(root,'base')}),model_dispatch_enabled,pause_after_first_recycle,on_event:async event=>append(event)});
+      source_context:()=>({snapshots:[...snapshots.values()],repoRoot:join(root,'base'),patch:git(join(root,'work'),['diff','--no-ext-diff','--no-textconv','--binary',task.base_commit,'--'])}),model_dispatch_enabled,pause_after_first_recycle,on_event:async event=>append(event)});
     result={...episode,index_tokenizer_receipts:client.index_receipts??[],instance_id:task.instance_id,cell_id:cell.cell_id,task_sha256,
       patch:git(join(root,'work'),['diff','--no-ext-diff','--no-textconv','--binary',task.base_commit,'--']),native_export:null};
     save(join(root,'episode.json'),episode);
@@ -75,7 +75,7 @@ export async function runPreparedTask({task_path,task_sha256,repository_cache,ou
 }
 
 const branchComparable=cell=>stable({arm:cell.arm,instance_id:cell.instance_id,context_limit:cell.context_limit,recycle_at:cell.recycle_at,safety_margin:cell.safety_margin,
-  provider_profile:cell.provider_profile,limits:Object.fromEntries(Object.entries(cell.limits).filter(([key])=>key!=='task_state_projection'))});
+  provider_profile:cell.provider_profile,limits:Object.fromEntries(Object.entries(cell.limits).filter(([key])=>!['task_state_projection','task_state_novelty_gate','terminal_effect_state'].includes(key)))});
 
 export async function runPreparedBranch({task_path,task_sha256,prefix_root,out,cell,create_client,measure_index_tokens,model_dispatch_enabled=true}){
   const taskBytes=readFileSync(task_path);
@@ -84,8 +84,9 @@ export async function runPreparedBranch({task_path,task_sha256,prefix_root,out,c
   const inspection=inspectSharedPrefix(prefix),prefixResult=JSON.parse(readFileSync(join(prefix,'result.json'))),prefixStarted=JSON.parse(readFileSync(join(prefix,'started.json'))),prefixCell=prefixStarted.cell;
   if(prefixResult.task_sha256!==task_sha256||prefixResult.instance_id!==task.instance_id||cell.instance_id!==task.instance_id)throw Error('orchestration.branch-task-mismatch');
   if(branchComparable(prefixCell)!==branchComparable(cell))throw Error('orchestration.branch-policy-drift');
-  const projected=cell.limits?.task_state_projection;
-  if(typeof projected!=='boolean'||!['control','state'].includes(cell.state_arm)||projected!==(cell.state_arm==='state'))throw Error('orchestration.branch-treatment-mismatch');
+  const projected=cell.limits?.task_state_projection,effectState=cell.limits?.terminal_effect_state??false;
+  if(typeof projected!=='boolean'||typeof effectState!=='boolean'||!['control','state'].includes(cell.state_arm)||
+    (projected&&effectState)||(projected||effectState)!==(cell.state_arm==='state'))throw Error('orchestration.branch-treatment-mismatch');
   if(typeof create_client!=='function'||typeof measure_index_tokens!=='function')throw Error('orchestration.client-required');
   const ancestry=cloneSharedPrefix({prefix_root:prefix,out:root,branch_id:cell.cell_id});
   save(join(root,'started.json'),{task_sha256,cell,prefix_cell_id:prefixCell.cell_id,prefix_tree_digest:inspection.tree_digest,status:'started',authority_effect:'none'});
@@ -103,7 +104,7 @@ export async function runPreparedBranch({task_path,task_sha256,prefix_root,out,c
     if(client.bindRunLedger)client.bindRunLedger({directory:join(root,'state'),binding:hash(stable(scope)),require_existing:true});
     const episode=await runEpisode({task,arm:cell.arm,client,recycler,tools:[...repositoryTools,recoveryTool],execute_tool,
       measure_index_tokens:text=>measure_index_tokens(text,client),limits:cell.limits,run_id:cell.cell_id,continuation:prefixResult.continuation,
-      source_context:()=>({snapshots:loadSnapshots(),repoRoot:join(root,'base')}),model_dispatch_enabled,on_event:async event=>append(event)});
+      source_context:()=>({snapshots:loadSnapshots(),repoRoot:join(root,'base'),patch:git(join(root,'work'),['diff','--no-ext-diff','--no-textconv','--binary',task.base_commit,'--'])}),model_dispatch_enabled,on_event:async event=>append(event)});
     result={...episode,index_tokenizer_receipts:client.index_receipts??[],instance_id:task.instance_id,cell_id:cell.cell_id,task_sha256,prefix_ancestry:ancestry,
       prefix_model_tokens:prefixResult.receipts?.filter(receipt=>receipt.kind==='model').reduce((sum,receipt)=>sum+(receipt.input_tokens??0)+(receipt.output_tokens??0),0)??0,
       patch:git(join(root,'work'),['diff','--no-ext-diff','--no-textconv','--binary',task.base_commit,'--']),native_export:null};

@@ -88,7 +88,7 @@ function createLineReader(stream, onLine, onOverflow, initial = "") {
   return () => stream.off("data", onData);
 }
 
-function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, maxBufferedMessages, reconnectEnabled, continuityMode, detachTimeoutMs, idleTimeoutMs, maxRetainedBytes, maxReasoningLogBytes, evictionRetryMs, onBackendStderr, onClosed, onExpired, onDurableEvent = () => ({ok: true}), initialStableRequests = [], initialDeliveries = [], initialAcknowledgedThrough = 0, initialDeliverySequence = 0, initialServerRequests = []}) {
+function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, maxBufferedMessages, reconnectEnabled, continuityMode, detachTimeoutMs, idleTimeoutMs, maxRetainedBytes, maxReasoningLogBytes, evictionRetryMs, onBackendStderr, onClosed, onExpired, onDurableEvent = () => ({ok: true}), initialResumeToken = null, initialStableRequests = [], initialDeliveries = [], initialAcknowledgedThrough = 0, initialDeliverySequence = 0, initialServerRequests = []}) {
   const child = spawnCodexBackend(backend, spawnImpl, WebSocketImpl);
   let client = null;
   let detachReader = null;
@@ -97,7 +97,9 @@ function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, ma
   let closed = false;
   let closeReason = null;
   const buffered = [];
-  const resumeToken = continuityMode === ACKNOWLEDGED_CONTINUITY_MODE ? randomBytes(32).toString("base64url") : null;
+  const resumeToken = continuityMode === ACKNOWLEDGED_CONTINUITY_MODE
+    ? (initialResumeToken ?? randomBytes(32).toString("base64url"))
+    : null;
   const resumeTokenDigest = resumeToken ? digestValue(resumeToken) : null;
   const deliveries = new Map();
   const deliveredThisAttachment = new Set();
@@ -411,6 +413,20 @@ function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, ma
     return {intercepted: false, entry};
   }
 
+  function interceptRecoveredInitialization(message, requestKey) {
+    if (message.method !== "initialize" || initialization.status !== "not-started" || !requestKey) return false;
+    const existing = stableRequests.get(requestKey);
+    if (!existing) return false;
+    const bindingDigest = initializationBinding(message);
+    if (existing.binding_digest !== bindingDigest) {
+      emitClient(stableRequestError(message.id, "gateway.request-binding-mismatch", requestKey, existing.binding_digest, bindingDigest));
+      return true;
+    }
+    stableRequests.delete(requestKey);
+    upstreamRequests.delete(String(existing.upstream_id));
+    return false;
+  }
+
   function processClientLine(line) {
     clientChain = clientChain.then(async () => {
       touch();
@@ -442,6 +458,7 @@ function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, ma
         return;
       }
       const message = metadataResult.message;
+      if (interceptRecoveredInitialization(message, metadataResult.request_key)) return;
       const serverRequest = !message.method && Object.hasOwn(message, "id") ? serverRequests.get(String(message.id)) : null;
       if (serverRequest?.status === "outcome-unknown") {
         emitClient(jsonRpcError(message.id, -32098, "Gateway server-request outcome is unknown after recovery", {
@@ -829,6 +846,7 @@ export function createPersistentGateway(options = {}) {
             onClosed: closeSession,
             onExpired: recordExpiration,
             onDurableEvent: (eventKind, content) => sessionStore.append({event_kind: eventKind, consumer_id: metadata.consumer_id, content}),
+            initialResumeToken: durableSession?.status === "active" ? metadata.continuity?.resume_token ?? null : null,
             initialStableRequests: durableSession?.status === "active" ? durableSession.requests : [],
             initialDeliveries: durableSession?.status === "active" ? durableSession.deliveries : [],
             initialAcknowledgedThrough: durableSession?.status === "active" ? durableSession.acknowledged_through : 0,

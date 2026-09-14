@@ -7,6 +7,11 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--matrix',type=Path,required=True);p.add_argument('--cache',type=Path,required=True);a=p.parse_args()
     matrix=json.loads(a.matrix.read_text());a.cache.mkdir(parents=True,exist_ok=True);rows=[]
     for task in matrix['tasks']:
+        if task.get('input_status') == 'input-unavailable':
+            row={'instance_id':task['instance_id'],'repo_url':task['repo_url'],
+                 'base_commit':task['base_commit'],'cache_path':None,
+                 'status':'input-unavailable','reason':task['input_reason']}
+            rows.append(row);print(json.dumps(row),flush=True);continue
         url=task['repo_url'];commit=task['base_commit'];key=hashlib.sha256(url.encode()).hexdigest()[:20];root=a.cache/key
         if not root.exists():
             root.mkdir();git(root,'init');git(root,'remote','add','origin',url)

@@ -55,7 +55,10 @@ for(const kind of ['schema','semantic','combined'])test(`one ${kind} correction 
  x.options.maximum_model_retries=1;
  x.options.request_once=async prompt=>{
   logicalCalls++;
-  const client=createGlmClient({chat_endpoint:origin+'/chat/completions',tokenizer_endpoint:origin+'/tokenizer',maximum_requests:1,maximum_model_retries:1,native_submission:true,timeout_ms:100,model_timeout_ms:500,final_timeout_ms:500,token_margin:512});
+  // The fault under test is the first model connection being destroyed. Give
+  // the independent tokenizer request enough time under parallel suite load so
+  // scheduler variance cannot turn this into a different timeout test.
+  const client=createGlmClient({chat_endpoint:origin+'/chat/completions',tokenizer_endpoint:origin+'/tokenizer',maximum_requests:1,maximum_model_retries:1,native_submission:true,timeout_ms:1000,model_timeout_ms:5000,final_timeout_ms:5000,token_margin:512});
   const directory=join(dirname(x.options.directory),'transport'),scope={request:'one correction',test:kind,client:client.identity};
   const state={objective:'one correction',constraints:[],completed:[],pending:['one correction'],facts:[],lessons:[],evidence_refs:['test']};
   const session=openContextRecycling({options:{directory,context_limit:10000,recycle_at:7744,safety_margin:1024,state},transport:client.transport,scope,fixture_root:process.cwd()});

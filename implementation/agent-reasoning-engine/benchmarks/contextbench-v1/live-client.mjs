@@ -40,10 +40,12 @@ export function liveClientFactory({credential_path,signal}){
       const profile=cell.provider_profile;
       if(!profile||!Number.isSafeInteger(profile.index_tokenizer_maximum_calls))throw Error('live-client.profile-required');
       if(![1,2].includes(profile.index_tokenizer_transport_attempts??1))throw Error('live-client.tokenizer-transport-attempt-policy');
+      if(![1,2].includes(profile.request_tokenizer_transport_attempts??1))throw Error('live-client.request-tokenizer-transport-attempt-policy');
       if(cell.limits.output_deferral===true&&(profile.request_budget!=='contextbench-deferral-v1'||
         profile.request_tokenizer_maximum_calls!==3*(cell.limits.maximum_calls+1)))throw Error('live-client.deferral-tokenizer-policy-mismatch');
       const client=createGlmClient({api_key_ref:reference,secret_registry:registry,maximum_requests:cell.limits.maximum_calls,
         maximum_output_tokens:cell.limits.output_cap,maximum_model_retries:0,
+        maximum_tokenizer_transport_attempts:profile.request_tokenizer_transport_attempts??1,
         request_budget:cell.limits.output_deferral===true?'contextbench-deferral-v1':cell.limits.finalization_reserve_tokens>0?'contextbench-budget-v1':'holdout-window-v1',
         maximum_request_bytes:262144,token_margin:profile.token_margin,reasoning_effort:profile.reasoning_effort,
         model_timeout_ms:profile.model_timeout_ms,signal});

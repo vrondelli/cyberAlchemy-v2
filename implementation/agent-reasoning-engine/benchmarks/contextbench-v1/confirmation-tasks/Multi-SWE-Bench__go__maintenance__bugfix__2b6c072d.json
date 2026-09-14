@@ -1,0 +1,10 @@
+{
+  "instance_id": "Multi-SWE-Bench__go__maintenance__bugfix__2b6c072d",
+  "original_inst_id": "cli__cli-8238",
+  "repo": "cli/cli",
+  "repo_url": "https://github.com/cli/cli.git",
+  "language": "go",
+  "base_commit": "ebcf3a10225a9b7c9422f6b63ff798d695f7f0a2",
+  "problem_statement": "Fix executable location\n\n<!--\r\n  Thank you for contributing to GitHub CLI!\r\n  To reference an open issue, please write this in your description: `Fixes #NUMBER`\r\n-->\r\nOn WSL2 Ubuntu (and possibly other Linux), Homebrew will use relative paths to establish symbolic links, which means that `t` in the following line of code will never be equal to `exe`, which means that the executable function will always return os.Executable() execution results. This caused me to run into the same problem as #5482.\r\n\r\nhttps://github.com/cli/cli/blob/5023b619099ffdd5dc0d57c0b7f4718706c249b0/pkg/cmdutil/factory.go#L85-L87\r\n\r\nTherefore, I changed the method `os.ReadLink()` to `filepath.EvalSymlinks()` which behaves like the command `realpath`.\r\n\r\nA demo `main.go`:\r\n\r\n```go\r\npackage main\r\n\r\nimport (\r\n\t\"fmt\"\r\n\t\"os\"\r\n\t\"path/filepath\"\r\n)\r\n\r\nfunc main() {\r\n\tdest, _ := os.Readlink(\"/home/linuxbrew/.linuxbrew/bin/gh\")\r\n\tfmt.Println(\"ReadLink:     \", dest)\r\n\tdest, _ = filepath.EvalSymlinks(\"/home/linuxbrew/.linuxbrew/bin/gh\")\r\n\tfmt.Println(\"EvalSymlinks: \", dest)\r\n}\r\n```\r\n\r\nBuild and run it:\r\n\r\n```sh\r\n> readlink /home/linuxbrew/.linuxbrew/bin/gh\r\n../Cellar/gh/2.37.0/bin/gh\r\n\r\n> realpath /home/linuxbrew/.linuxbrew/bin/gh\r\n/home/linuxbrew/.linuxbrew/Cellar/gh/2.37.0/bin/gh\r\n\r\n> ./main\r\nReadLink:      ../Cellar/gh/2.37.0/bin/gh\r\nEvalSymlinks:  /home/linuxbrew/.linuxbrew/Cellar/gh/2.37.0/bin/gh\r\n```\r\n\r\nFixes #5428",
+  "source": "Multi"
+}

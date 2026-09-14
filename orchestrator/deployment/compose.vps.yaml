@@ -1,0 +1,33 @@
+services:
+  orchestrator:
+    container_name: cyberalchemy-orchestrator
+    cpus: "1.0"
+    mem_limit: 1g
+    pids_limit: 128
+    stop_grace_period: 30s
+    networks: [edge]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "troqar_edge"
+      traefik.http.routers.cyberalchemy-orchestrator.rule: "Host(`${PUBLIC_HOST:?set PUBLIC_HOST}`)"
+      traefik.http.routers.cyberalchemy-orchestrator.entrypoints: "websecure"
+      traefik.http.routers.cyberalchemy-orchestrator.tls: "true"
+      traefik.http.routers.cyberalchemy-orchestrator.tls.certresolver: "letsencrypt"
+      traefik.http.routers.cyberalchemy-orchestrator.middlewares: "cyberalchemy-orchestrator-auth"
+      traefik.http.middlewares.cyberalchemy-orchestrator-auth.basicauth.users: "${BASIC_AUTH_USERS:?set BASIC_AUTH_USERS}"
+      traefik.http.middlewares.cyberalchemy-orchestrator-auth.basicauth.removeheader: "true"
+      traefik.http.services.cyberalchemy-orchestrator.loadbalancer.server.port: "8787"
+
+volumes:
+  orchestrator_state:
+    name: cyberalchemy_orchestrator_v2_state
+
+networks:
+  edge:
+    external: true
+    name: troqar_edge

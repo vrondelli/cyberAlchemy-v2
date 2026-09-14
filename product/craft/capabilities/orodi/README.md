@@ -28,6 +28,17 @@ and Goal closure, and the exact owner decision. It does not admit the business
 ontology or DomainSpec profile, establish implementation conformance or runtime
 truth, commission, publish, release, or deploy anything.
 
+Run the validator directly from either the historical umbrella checkout or the
+current extracted sibling checkout:
+
+```bash
+python3 product/craft/capabilities/orodi/scripts/validate.py
+python3 -m unittest product.craft.capabilities.orodi.tests.test_validate_layout
+```
+
+A nonzero result preserves current source, schema, Project, or admission drift;
+it must not be converted into a fresh owner decision by updating digests.
+
 ## Related work and current reconciliation
 
 [Related work](RELATED-WORK.md) connects the definitions, promotion record, ontology,

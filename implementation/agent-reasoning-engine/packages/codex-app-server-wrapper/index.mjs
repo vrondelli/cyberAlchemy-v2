@@ -1,4 +1,6 @@
 // Candidate public API. All decisions and receipts remain non-authorizing.
+export {createInteractionReview} from "./src/interaction-review.mjs";
+export {validateInteractionHostRequest, materializeInteractionHostInput, interactionHostMessage, learningRequestRef, INTERACTION_HOST_CONTEXT_KEY} from "./src/interaction-host.mjs";
 export {loadRepositoryProfile} from "./src/config.mjs";
 export {materializeDefinitionCatalog, materializeOntologySnapshot} from "./src/source-adapters.mjs";
 export {evaluateTurnPreflight} from "./src/preflight.mjs";

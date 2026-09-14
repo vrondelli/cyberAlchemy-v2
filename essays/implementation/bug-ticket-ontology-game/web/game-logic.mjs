@@ -175,7 +175,7 @@ export function submitPuzzle(model, state, puzzleId, answer) {
   const puzzle = puzzleById(model, puzzleId);
   if (!puzzle) throw new Error(`PUZZLE_UNKNOWN:${puzzleId}`);
   const missing = (puzzle.prerequisite_items ?? []).filter((item) => !state.inventory.includes(item));
-  if (missing.length) return failedAttempt(state, `The exit lock is missing ${missing.length} required record${missing.length === 1 ? "" : "s"}. The override would create a false green.`);
+  if (missing.length) return failedAttempt(state, `Missing records: ${missing.map(id => model.game.items[id].name).join(", ")}. The override would create a false green.`);
   let correct = false;
   if (puzzle.kind === "word-rain") {
     return submitWordRainRun(model, state, puzzleId, answer);
@@ -195,7 +195,9 @@ export function unlockWordRain(model, state, puzzleId, address) {
   assertPlaying(state);
   const puzzle = puzzleById(model, puzzleId);
   if (puzzle?.kind !== "word-rain") throw new Error(`PUZZLE_NOT_WORD_RAIN:${puzzleId}`);
-  const normalized = String(address ?? "").trim().toUpperCase();
+  const entered = String(address ?? "").trim().toUpperCase();
+  const parts = entered.match(/^(?:LP[- ]?)?(\d{4})[- /]+(\d{2}):?(\d{2})[- /]+(R\d+)$/);
+  const normalized = parts ? `${parts[1]}-${parts[2]}${parts[3]}-${parts[4]}` : entered;
   const draft = state.puzzle_drafts[puzzleId] ?? defaultDraft(puzzle);
   if (normalized !== puzzle.unlock_code.toUpperCase()) {
     const compact = normalized.replace(/[^A-Z0-9]/g, "");

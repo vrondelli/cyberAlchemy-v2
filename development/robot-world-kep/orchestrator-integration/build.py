@@ -9,7 +9,7 @@ HERE = Path(__file__).resolve().parent
 CA2 = HERE.parents[2]
 LOCK = json.loads((HERE / 'source-binding.json').read_text())
 VENDOR = (HERE / LOCK['source_root']).resolve()
-ORCHESTRATOR = VENDOR.parents[1]
+ORCHESTRATOR = CA2 / 'orchestrator/examples/robot-world'
 LAUNCHER = CA2 / 'tools/toolchain/run-rwo'
 
 
@@ -25,7 +25,6 @@ if __name__ == '__main__':
     for manifest, extra in [
         (ORCHESTRATOR / 'Cargo.toml', ['--bin', 'world_contracts']),
         (HERE.parent / 'runtime/Cargo.toml', []),
-        (CA2 / 'trusted-dataset-materialization/rwo-adapter/Cargo.toml', ['--target-dir', str(target)])
     ]:
         subprocess.run([str(LAUNCHER), 'cargo', 'build', '--offline', '--locked',
                         '--manifest-path', str(manifest), *extra], check=True, cwd=CA2)

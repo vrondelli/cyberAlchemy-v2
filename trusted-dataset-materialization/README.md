@@ -36,7 +36,13 @@ loopback HTTP source -> immutable landed pages -> canonical mapping
                          +--reject--> quarantine residue
 ```
 
-RWO is the control plane. It compiles the graph and reduces accepted events into the next structural command. The Python host owns connector calls, data bytes, durable journal append, artifact production, validation, publication, lineage, and recovery. DomainSpec owns what recovery means.
+RWO is the control plane. The adapter now uses the public `orchestrator/rwo`
+API and `rwo-core-dag/v2`; it compiles the graph and reduces accepted events
+into the next structural command. The Python host owns connector calls, data
+bytes, durable journal append, artifact production, validation, publication,
+lineage, and recovery. DomainSpec owns what recovery means. The former external
+kernel identities remain in `orchestrator/examples/trusted-dataset/LEGACY-PROVENANCE.json`
+as migration evidence.
 
 The recommended Layer 1 binding uses PostgreSQL as the one accepted-history authority and persistence system for dataset versions, normalized observations, source checkpoints, quarantine residue, and lineage events. The original `journal.jsonl` and atomic-file warehouse remain available as the Layer 0 reference fixture.
 

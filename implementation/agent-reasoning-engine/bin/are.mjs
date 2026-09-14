@@ -6,6 +6,7 @@ import {inspectProduct, materializeProductClosure, productRoot} from "../src/pro
 import {inspectFrozenProductCandidate} from "../src/product-candidate.mjs";
 
 function usage() {
+  process.stderr.write("Interaction review: are interaction demo [--json] | run --state <file> --provider <module> | inspect --state <file>\n");
   process.stderr.write("Usage: are hook prompt|config|inspect-host|native-test|native-events-test|native-gateway-test | decide route|context|effect|continue | doctor [--json] | closure [--json] | candidate freeze | candidate inspect [--json] | test | gateway <gateway-options> | benchmark <benchmark-options> | improve inspect --report <file> | improve run-canary [--output <file>] | define <define-options> | coding-agent demo [--approve] [--keep] [--fault-after-effect] | coding-agent live-demo [--codex-command <path>] [--model <id>] [--approve] [--keep]\n");
 }
 
@@ -16,7 +17,9 @@ function run(script, args) {
 }
 
 const [command, ...args] = process.argv.slice(2);
-if (command === "decide") {
+if (command === "interaction") {
+  run(resolve(productRoot, "packages/codex-app-server-wrapper/bin/are-interaction.mjs"), args);
+} else if (command === "decide") {
   run(resolve(productRoot, "bin/are-decide.mjs"), args);
 } else if (command === "hook" && args[0] === "native-gateway-test" && args.length === 2) {
   run(resolve(productRoot, "scripts/test-native-prompt-hook.mjs"), [args[1], "--gateway"]);

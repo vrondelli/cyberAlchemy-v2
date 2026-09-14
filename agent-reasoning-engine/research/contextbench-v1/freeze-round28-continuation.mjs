@@ -1,0 +1,28 @@
+import {existsSync,readFileSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {verifyResearchContinuity} from '../../../implementation/agent-reasoning-engine/packages/evolution-runtime/index.mjs';
+import {sha,verifyFreeze} from '../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/verify-freeze.mjs';
+
+const repository=resolve('.'),root=resolve('agent-reasoning-engine/research/contextbench-v1'),live='/home/vrondelli/.cache/are/contextbench-round28-live';
+const path=name=>resolve(root,name),read=name=>JSON.parse(readFileSync(path(name))),fileSha=target=>sha(readFileSync(target));
+const write=(name,value)=>{const target=path(name),bytes=JSON.stringify(value,null,2)+'\n';if(existsSync(target)){if(readFileSync(target,'utf8')!==bytes)throw Error('round28-continuation.drift:'+name);}else writeFileSync(target,bytes,{flag:'wx'});};
+export function freezeContinuation(){
+  const failedLog=resolve(live,'sequence/r28-01-state-rep1-8k.log'),controlResult=resolve(live,'r28-01-control-rep1-8k/result.json'),controlCompleted=resolve(live,'r28-01-control-rep1-8k/completed.json'),stateRoot=resolve(live,'r28-01-state-rep1-8k');
+  if(!existsSync(failedLog)||!existsSync(controlResult)||!existsSync(controlCompleted)||existsSync(stateRoot))throw Error('round28-continuation.boundary');
+  const log=readFileSync(failedLog,'utf8');if(!log.includes('orchestration.branch-treatment-mismatch'))throw Error('round28-continuation.reason');
+  const control=JSON.parse(readFileSync(controlResult));if(control.status!=='final_context_selected'||control.receipts.filter(r=>r.kind==='model'&&r.dispatched).length===0)throw Error('round28-continuation.control');
+  write('round28-predispatch-stopping-review.json',{schema_version:'are.contextbench-predispatch-stopping-review/v1',status:'eligible-for-corrected-freeze-continuation',failed_cell_id:'r28-01-state-rep1-8k',failure:'orchestration.branch-treatment-mismatch',failure_phase:'before branch output directory, client creation, tokenizer call, or model dispatch',failed_identity_model_calls:0,failed_identity_tokenizer_calls:0,completed_control:{cell_id:'r28-01-control-rep1-8k',result_ref:controlResult,result_sha256:fileSha(controlResult),completion_ref:controlCompleted,completion_sha256:fileSha(controlCompleted),immutable:true},failed_log:{path:failedLog,sha256:fileSha(failedLog),preserve_as:'sequence/r28-01-state-rep1-8k.predispatch-failure.log'},correction:'Accept either repeated task-state projection or terminal effect state as the single declared treatment dimension; reject both together and reject treatment in control.',tests:{contextbench:175,passed:175,failed:0,log_ref:'round28-contextbench-tests-v2.log',log_sha256:fileSha(path('round28-contextbench-tests-v2.log'))},rerun_posture:'The failed state identity was never dispatched. Continue it once under a superseding exact freeze; never rerun the completed control.',benchmark_cleared:false,authority_effect:'none',open_questions_ref:'PLAN-round28.md#open-questions'});
+  const old=read('freeze-round28-execution.json'),continuity=structuredClone(read('round28-freeze-continuity.json'));
+  const reviewed=['round28-predispatch-stopping-review.json','round28-contextbench-tests-v2.log'];
+  continuity.continuity_review.reviewed_artifacts.push(...reviewed.map(name=>({path:'agent-reasoning-engine/research/contextbench-v1/'+name,sha256:fileSha(path(name))})));
+  const verdict=verifyResearchContinuity({binding:continuity,policy:JSON.parse(readFileSync(resolve('agent-reasoning-engine/research/continuity-policy-v4.json'))),hypotheses:read('hypotheses-round28.json'),phase:'freeze',root:repository});if(!verdict.ok)throw Error('round28-continuation.continuity:'+verdict.reason_codes.join(','));
+  write('round28-freeze-continuity-v2.json',continuity);
+  const additions=['agent-reasoning-engine/research/contextbench-v1/freeze-round28-continuation.mjs','agent-reasoning-engine/research/contextbench-v1/resume-round28.mjs','agent-reasoning-engine/research/contextbench-v1/round28-predispatch-stopping-review.json','agent-reasoning-engine/research/contextbench-v1/round28-contextbench-tests-v2.log','agent-reasoning-engine/research/contextbench-v1/round28-freeze-continuity-v2.json','implementation/agent-reasoning-engine/benchmarks/contextbench-v1/orchestrate.mjs','implementation/agent-reasoning-engine/benchmarks/contextbench-v1/orchestrate.test.mjs'].map(p=>resolve(repository,p));
+  const sourcePaths=[...new Set([...old.sources.map(item=>resolve(item.path)),...additions])].sort(),sources=sourcePaths.map(path=>({path,sha256:fileSha(path)}));
+  const {freeze_sha256:discarded,...base}=old;
+  const material={...base,sources,continuity_review:{...continuity.continuity_review,passed:true},pre_dispatch_supersedes_ref:path('freeze-round28-execution.json'),successor_reason:'The first treatment branch was rejected by a local treatment-dimension assertion before its directory, client, tokenizer, or model dispatch existed. Preserve the completed control and dispatch only the untouched treatment suffix under corrected tested orchestration.'};
+  write('freeze-round28-execution-v2.json',{...material,freeze_sha256:sha(material)});verifyFreeze(path('freeze-round28-execution-v2.json'));
+  return{status:'frozen-continuation-ready',sources:sources.length,freeze_sha256:sha(material),preserved_completed_control:'r28-01-control-rep1-8k',untouched_next_identity:'r28-01-state-rep1-8k'};
+}
+if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)console.log(JSON.stringify(freezeContinuation()));

@@ -1,0 +1,116 @@
+{
+  "schema_version": "evf.verification-tier-independent-review/v1",
+  "review_id": "evf-v0-v2-reviewer-attempt-001",
+  "reviewed_at_utc": "2026-09-12T19:52:00Z",
+  "candidate_id": "evf.core.verification-tiers.v0-v2",
+  "verdict": "DISAGREE",
+  "verdict_basis": "The sealed files and authored 23-test validation replay exactly, but independent adversarial checks expose two paths that grant V2 despite evidence that should fail closed.",
+  "routing": {
+    "route_id": "CA2-ROUTE-VALIDATE",
+    "receipt_digest": "b400a0f932a27d04125905667cacadfc124262df9d0d13f5beb7f2cefeac97c2",
+    "authority_effect": "none"
+  },
+  "seal_verification": {
+    "status": "PASS",
+    "manifest": "evidence/author/AUTHOR-MANIFEST.json",
+    "files_checked": 21,
+    "hash_and_size_mismatches": [],
+    "evidence": "REPLAY.log#manifest-verification"
+  },
+  "package_validation": {
+    "status": "PASS",
+    "construction_tests_reported": 23,
+    "current_tde_product_evidence": "NOT_EVALUABLE",
+    "evidence": "REPLAY.log#package-validation"
+  },
+  "historical_compatibility": {
+    "profile_integrity": "PASS",
+    "runtime_binding_integrity": "PASS",
+    "exact_runtime_presence": "ABSENT",
+    "not_evaluable_claim_truthful": true,
+    "retroactive_tier_granted": false,
+    "evidence": "REPLAY.log#historical-compatibility"
+  },
+  "required_properties": {
+    "no_silent_downgrade": "PASS",
+    "no_voting": "PASS",
+    "contract_state_property_outcome_separation": "PASS",
+    "no_retroactive_tier_grant": "PASS",
+    "fail_closed_profile_identity": "FAIL",
+    "fail_closed_negative_controls": "FAIL"
+  },
+  "findings": [
+    {
+      "finding_id": "EVF-REVIEW-001-F1",
+      "severity": "HIGH",
+      "status": "FAIL",
+      "title": "A weaker profile can reuse the sealed profile ID and version and grant V2",
+      "evidence": {
+        "source": "evf_tiers/kernel.py:41-59",
+        "behavior": "_profile_current accepts any repository-local JSON file whose caller-supplied digest matches and whose profile_id/profile_version equal the invocation fields. It does not bind the invocation to the sealed profile path or digest, nor validate the loaded profile shape.",
+        "adversarial_case": "same-id-version-weakened-profile",
+        "observed": {
+          "contract_state": "satisfied",
+          "verified_tier": "V2"
+        },
+        "input_change": "A temporary exact profile retained profile_id evf.core.verification-tiers.v0-v2 and profile_version 1, but changed V2 to one route, no independence, and no controls. One provider then received V2."
+      },
+      "implication": "Exact-byte binding to an attacker-selected profile does not preserve the tier contract's identity. The candidate can silently weaken V2 while presenting the same profile identity.",
+      "required_resolution": "Bind evaluation to an authorized profile path and digest, or make profile identity content-addressed and validate the complete loaded profile against a closed schema before applying requirements."
+    },
+    {
+      "finding_id": "EVF-REVIEW-001-F2",
+      "severity": "HIGH",
+      "status": "FAIL",
+      "title": "A surviving declared negative control is ignored when its class is also covered by a passing control",
+      "evidence": {
+        "source": "evf_tiers/kernel.py:170-178",
+        "behavior": "Control enforcement reduces controls to the set of classes having at least one expected_non_success=true and detected=true record. It does not fail when another declared expected-non-success control in the same class has detected=false.",
+        "adversarial_case": "duplicate-class-surviving-control",
+        "observed": {
+          "contract_state": "satisfied",
+          "verified_tier": "V2"
+        },
+        "input_change": "A sixth subject-class control with expected_non_success=true and detected=false was added beside the passing subject-class control."
+      },
+      "implication": "V2 can be granted while a declared negative control survives, contradicting the candidate's fail-closed control claim.",
+      "required_resolution": "Require every declared expected-non-success control to be detected and still require complete class coverage; reject duplicate or contradictory control records when their semantics are not explicitly defined."
+    },
+    {
+      "finding_id": "EVF-REVIEW-001-F3",
+      "severity": "INFO",
+      "status": "PASS",
+      "title": "No voting, no silent downgrade, and contract/property separation replay correctly",
+      "evidence": {
+        "three_route_majority": "Two no-counterexample results plus one counterexample produced conflicting_evidence and no verified tier.",
+        "lower_tier": "A V2 request without controls preserved requested_tier V2, left verified_tier null, and reported available_lower_tier V1.",
+        "counterexample": "Two agreeing counterexample providers plus complete controls produced contract_state satisfied, property_outcome counterexample, and verified_tier V2."
+      }
+    },
+    {
+      "finding_id": "EVF-REVIEW-001-F4",
+      "severity": "INFO",
+      "status": "PASS",
+      "title": "Historical compatibility is additive and presently not evaluable",
+      "evidence": {
+        "historical_profile_hashes": "L0, L1, and L2 profile hashes and sizes exactly match compatibility/tde.v1-candidate.json.",
+        "runtime_binding_hash": "bc32ddf1e78775d7b562f578a397b75d345560ce9eb4b912d4a81829cb438379",
+        "missing_exact_files": [
+          "../.formal-tools/souffle/2.5/usr/bin/souffle",
+          "../.formal-tools/jre/current/bin/java",
+          "../.formal-tools/alloy/org.alloytools.alloy.dist-6.2.0.jar"
+        ],
+        "evaluator_result": "not_evaluable with tier_granted false for every mapping and retroactive_verification false"
+      }
+    }
+  ],
+  "exact_commands": [
+    "node - <<'NODE' ... recompute SHA-256 and size for every AUTHOR-MANIFEST.json entry ... NODE",
+    "node - <<'NODE' ... recompute compatibility-record SHA-256 and size for L0/L1/L2 profiles and runtime binding ... NODE",
+    "for p in ../.formal-tools/souffle/2.5/usr/bin/souffle ../.formal-tools/jre/current/bin/java ../.formal-tools/alloy/org.alloytools.alloy.dist-6.2.0.jar; do if [ -f \"$p\" ]; then sha256sum \"$p\"; else echo \"MISSING $p\"; fi; done",
+    "PYTHONDONTWRITEBYTECODE=1 python3 validate.py",
+    "PYTHONDONTWRITEBYTECODE=1 python3 - <<'PY' ... six independent adversarial cases recorded in REPLAY.log ... PY"
+  ],
+  "claim_ceiling": "Independent local construction replay and current exact-file compatibility assessment only; no product approval, governance admission, runtime admission, publication, release, deployment, or operational authority.",
+  "authority_effect": "none"
+}

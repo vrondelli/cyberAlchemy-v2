@@ -6,8 +6,8 @@ Status: planning candidate. Complexity: high. Authority effect: none.
 
 Prove that the completed property-to-repair workflow can resist selected
 false-success paths, evaluate the existing three-replica CRABS experiment, and
-transfer to a financial-settlement rule before packaging a bounded service
-candidate.
+transfer to the owner-selected Auth Foundation authorization property before
+packaging a bounded service candidate.
 
 Success is a chain of earned decisions:
 
@@ -17,7 +17,7 @@ completed reference case
   -> complete typed 48/48/2 outcome
   -> negative controls detected
   -> independent replay
-  -> owner-confirmed financial property
+  -> owner-confirmed Auth Foundation property
   -> second-target replay
   -> measured service candidate
 ```
@@ -39,8 +39,9 @@ exact change scope.
    Exact owner authorization governs each native execution scope.
 5. Negative controls run against isolated successor copies or explicit mutation
    adapters. They never rewrite the frozen accepted subject or prior evidence.
-6. Financial settlement is the proposed L3 target. Its current C3/P4 evidence
-   and eight mutations are candidate inputs, not owner approval or full coverage.
+6. Auth Foundation is the owner-selected L3 target. Financial settlement is
+   deferred until its real consumer implementation and owner are available; no
+   specification-derived surrogate is used.
 7. Service packaging uses measured effort and outcomes from L2/L3. It creates
    no price commitment, customer claim or external communication.
 
@@ -52,7 +53,7 @@ exact change scope.
 | S1 — harden | R00-R08 evidence mechanism satisfies the existing repair plan and failure-path tests. | D, E | Raw-derived outcomes, process supervision, durable attempts, independent observations and non-regression tests. |
 | S2 — evaluate and falsify | One frozen 48/48/2 attempt plus all selected negative controls. | F, G, H | Complete denominator; typed outcomes; every control non-pass; no overwritten evidence. |
 | S3 — review | Separate technical reviewer reproduces the L2 result and challenges comparison integrity. | R, I, J | Reviewer outputs, corrections, costs and bounded promotion decision. |
-| S4 — transfer | Financial-settlement property is owner-confirmed, bound to implementation and independently replayed. | K, L, M | Property decision, source/consumer binding, typed result, mutation calibration and transfer-cost split. |
+| S4 — transfer | Auth Foundation authorization property is owner-confirmed, bound to implementation and independently replayed. | K, L, M | Property decision, source/implementation binding, typed result, mutation calibration, actual pipeline defect and transfer-cost split. |
 | S5 — package | Private commercial-service candidate based on measured delivery. | N, O | Scope/intake/report templates, data boundary, unit economics and product-owner review decision. |
 
 ## Negative-control contract

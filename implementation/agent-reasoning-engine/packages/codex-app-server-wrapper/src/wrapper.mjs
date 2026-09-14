@@ -8,6 +8,7 @@ import {emitCompletionImprovementSignals} from "./evolution-signals.mjs";
 import {addIntentLifecycleContext, prepareCodexIntentLifecycle, INTENT_CONTEXT_KEY} from "./intent-lifecycle.mjs";
 import {addObjectiveContext, createCodexObjectiveLifecycle, OBJECTIVE_CONTEXT_KEY} from "./objective-lifecycle.mjs";
 import {createInteractionLearningLifecycle, addInteractionLearningContext, LEARNING_CONTEXT_KEY} from "./interaction-learning-lifecycle.mjs";
+import {INTERACTION_HOST_CONTEXT_KEY} from "./interaction-host.mjs";
 import {deriveReasoningReceiptConstraints} from "./reasoning-receipt-constraints.mjs";
 import {
   acquireReasoningStateWriterLock,
@@ -347,12 +348,12 @@ export function createCodexAppServerWrapper(options) {
     });
     if (!cacheAffinity.ok) return fail("reasoning-dispatch", cacheAffinity.reason_codes, cacheAffinity.residue);
     const forwardedMessage = addIntentLifecycleContext(addContextFragment(result.forwarded_message, result.fragment, cacheAffinity), intentLifecycle);
-    if (result.objective_lifecycle?.requirement_continuity || result.interaction_learning?.view) {
+    if (result.objective_lifecycle?.requirement_continuity || result.interaction_learning?.view || forwardedMessage.params.additionalContext?.[INTERACTION_HOST_CONTEXT_KEY]) {
       const budget = Math.min(options.loaded_profile.context_projection?.max_inline_bytes ?? 32768, 32768);
       // Charge additional semantic input against the existing selected-content
       // budget. Cache projections and envelope metadata repeat that content on
       // the wire and are not what max_inline_bytes measures.
-      const extraBytes = [OBJECTIVE_CONTEXT_KEY, INTENT_CONTEXT_KEY, LEARNING_CONTEXT_KEY].reduce((sum, key) =>
+      const extraBytes = [OBJECTIVE_CONTEXT_KEY, INTENT_CONTEXT_KEY, LEARNING_CONTEXT_KEY, INTERACTION_HOST_CONTEXT_KEY].reduce((sum, key) =>
         sum + Buffer.byteLength(forwardedMessage.params.additionalContext[key]?.value ?? '', "utf8"), 0);
       const bytes = result.context_envelope.value.inline_bytes + extraBytes;
       if (!Number.isSafeInteger(budget) || budget < 1 || !Number.isSafeInteger(bytes) || bytes > budget) return fail("reasoning-dispatch", ["requirements.shared-context-budget-exceeded"]);
@@ -543,10 +544,15 @@ export function createCodexAppServerWrapper(options) {
     let selectedSources = null;
     const interaction = learning.prepare(message);
     if (!interaction.ok) return fail("interaction-learning", interaction.reason_codes);
+    const hostReferenceContext = message.params?.additionalContext?.[INTERACTION_HOST_CONTEXT_KEY];
+    const selectedInteractionContext = [
+      ...(interaction.view ? [{source_ref: `interaction-view:${interaction.view.record_digest}`, content: JSON.stringify(interaction.view)}] : []),
+      ...(typeof hostReferenceContext?.value === 'string' ? [{source_ref: `host-reference-data:${digestValue(hostReferenceContext.value)}`, content: hostReferenceContext.value}] : []),
+    ];
     const objective = await objectiveLifecycle.prepare(message, binding, async () => {
       selectedSources = await loadCurrentSources();
       return selectedSources;
-    }, interaction.view ? [{source_ref: `interaction-view:${interaction.view.record_digest}`, content: JSON.stringify(interaction.view)}] : []);
+    }, selectedInteractionContext);
     if (!objective.ok) return freezeResult({ok: false, stage: "objective-resolution", ...objective, authority_effect: "none"});
     if (objective.resolution) ledger.record({event_kind: "objective-transition-resolved", direction: "wrapper", method: TURN_START,
       rpc_id: message.id, thread_id: message.params.threadId, objective_resolution_digest: objective.resolution.resolution_digest,

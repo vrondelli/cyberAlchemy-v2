@@ -10,3 +10,14 @@ test('unknown usage is not zero or confirmed delivery',()=>{const x=fixture();de
 test('altered prompt fails binding',()=>{const x=fixture();x.captures[0].prompt+=' ';assert.throws(()=>bindDelivery(x),/capture.digest/);});
 test('correctly rehashed but different prompt does not match receipt',()=>{const x=fixture();x.captures[0].prompt=stable({messages:[],tools:[]});x.captures[0].prompt_sha256=hash(x.captures[0].prompt);assert.throws(()=>bindDelivery(x),/capture-not-found/);});
 test('tokenizer receipts cannot confirm delivery',()=>{const x=fixture();x.receipts[0].kind='tokenizer';assert.equal(bindDelivery(x).read_observations.length,0);});
+test('malformed arguments on a rejected read do not poison later delivered evidence',()=>{
+ const x=fixture(),prompt=JSON.parse(x.captures[0].prompt),bad={id:'bad-read',type:'function',function:{name:'read_file',arguments:'{"path":"unterminated'}};
+ prompt.messages.unshift({role:'assistant',tool_calls:[bad]},{role:'tool',tool_call_id:'bad-read',content:stable({ok:false,error:'invalid arguments'})});
+ x.captures[0].prompt=stable(prompt);x.captures[0].prompt_sha256=hash(x.captures[0].prompt);x.receipts[0].request_sha256=hash(stable(bodyForReceipt(x.captures[0].prompt,x.receipts[0])));
+ const result=bindDelivery(x);assert.equal(result.unmapped.length,0);assert.equal(result.read_observations.length,1);
+});
+test('malformed arguments on a successful read remain explicit unmapped evidence',()=>{
+ const x=fixture(),prompt=JSON.parse(x.captures[0].prompt);prompt.messages[0].tool_calls[0].function.arguments='{"path":"unterminated';
+ x.captures[0].prompt=stable(prompt);x.captures[0].prompt_sha256=hash(x.captures[0].prompt);x.receipts[0].request_sha256=hash(stable(bodyForReceipt(x.captures[0].prompt,x.receipts[0])));
+ const result=bindDelivery(x);assert.equal(result.unmapped.length,1);assert.equal(result.read_observations.length,0);
+});

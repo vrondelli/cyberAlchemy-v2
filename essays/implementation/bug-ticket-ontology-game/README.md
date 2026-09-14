@@ -18,10 +18,12 @@ deliberately unsafe false-green ending.
 
 The primary place renderer uses Three.js for navigable 3D rooms, unique
 illustrated machines, lights, shadows, bounded movement, collision standoff,
-physical state indicators, and doors. Guided control is the default: click a
-machine to walk to its authored inspection point, click the floor to relocate,
-and drag to look. `Tab` cycles machines and doors; `E` or `Space` approaches and
-activates the selected target. `WASD` and arrow keys remain available. The
+state indicators, and doors. Guided control is the default: click a
+machine or its visible label to walk along a collision-free route to an
+inspection point that keeps the artwork in view. Click the floor to relocate
+and drag to look. **Room view** returns to the overview. `Tab` moves through
+native controls; `E` or `Space` activates a hovered target while the room canvas
+has focus. `WASD` and arrow keys move only while that canvas has focus. The
 optional Immersive mode enables pointer-lock mouse-look for players who want
 direct first-person control, while sound remains opt-in. Phaser 4.2.1 retains
 the original populated room plates as a progressive fixed-camera fallback for
@@ -71,15 +73,38 @@ image-generation workflow and are consumed locally by the Three.js renderer
 and Phaser fallback. Inspectable objects are discovered in the world rather
 than exposed as an always-visible station menu.
 
-The Three.js art is decomposed by place and machine rather than treated as one
-flat painting. Each place has an empty architectural shell, and every one of
+The Three.js scene uses illustrated cutouts in a navigable 3D room. Machine
+images keep their native proportions, face the camera, and fit a physical size
+envelope after transparent image margins are excluded at render time. Each place has an empty architectural shell, and every one of
 the 13 evidence machines has its own transparent RGBA asset, spatial footprint,
 interaction anchor, look-at height, and state beacon. The three original
-populated plates remain only for the fixed-camera fallback. Procedural geometry
-remains the collision and raycast surface, while authored content remains the
-source of puzzle behavior; generated pixels own neither semantics nor authority.
+populated plates remain only for the fixed-camera fallback. Collision envelopes govern movement. Machine raycasts test the visible
+artwork alpha; labels invoke the same approach and action as the artwork.
+Authored content remains the source of puzzle behavior; generated pixels own neither semantics nor authority.
 The exact accepted asset digests and normalized generation prompt sets are in
 [`web/assets/art-manifest.json`](web/assets/art-manifest.json).
+
+## Playability checks
+
+`npm test` includes collision-free paths between every room's inspection points
+and aspect-ratio preservation alongside the existing game-logic tests.
+
+`tests/browser-playability.mjs` runs a visible-control mouse playthrough, with
+real movement and a browser reload. Run it against a local server with
+`GAME_URL` set to the server address and `PLAYWRIGHT_MODULE` pointing to an
+existing Playwright module if it is not available through normal resolution.
+`BROWSER_OUTPUT` selects a run-local screenshot directory. The test reads
+localStorage for assertions; it never injects game state or activates hidden
+station controls.
+
+Repair scope, evidence and unresolved checks are recorded in
+[PLAYABILITY-REPAIR.md](PLAYABILITY-REPAIR.md).
+
+## Open Questions
+
+See [PLAYABILITY-REPAIR.md](PLAYABILITY-REPAIR.md#open-questions) for remaining
+interaction and device checks, and [version-0.7-plan.md](version-0.7-plan.md)
+for the reusable-runtime work.
 
 ## Claim ceiling
 

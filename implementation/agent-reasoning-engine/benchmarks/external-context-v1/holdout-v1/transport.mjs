@@ -76,11 +76,12 @@ export function createGlmClient({api_key_ref, secret_registry,
   tokenizer_endpoint = 'https://api.z.ai/api/paas/v4/tokenizer',
   maximum_output_tokens = 2048, maximum_requests = 12, timeout_ms = 30000,
   maximum_request_bytes = 131072, maximum_response_bytes = 262144,
-  maximum_model_retries = 0, native_submission = false, model_timeout_ms = timeout_ms, final_timeout_ms = model_timeout_ms, request_budget = 'standard-v1', token_margin = 256, reasoning_effort = 'low', final_reasoning_effort = reasoning_effort, signal} = {}) {
+  maximum_model_retries = 0, maximum_tokenizer_transport_attempts = 1, native_submission = false, model_timeout_ms = timeout_ms, final_timeout_ms = model_timeout_ms, request_budget = 'standard-v1', token_margin = 256, reasoning_effort = 'low', final_reasoning_effort = reasoning_effort, signal} = {}) {
   const chat = endpoint(chat_endpoint), tokenizer = endpoint(tokenizer_endpoint);
   need(chat.pathname.endsWith('/chat/completions') && tokenizer.pathname.endsWith('/tokenizer') && chat.origin === tokenizer.origin, 'endpoint-pair-invalid');
   for (const n of [maximum_output_tokens, maximum_requests, timeout_ms, maximum_request_bytes, maximum_response_bytes, token_margin]) need(integer(n) && n > 0, 'limits-invalid');
   need(integer(maximum_model_retries)&&maximum_model_retries<=2,'model-retry-budget-invalid');
+  need([1,2].includes(maximum_tokenizer_transport_attempts),'tokenizer-transport-attempt-policy-invalid');
   need(['standard-v1','paging-v1','diagnostic-v1','diagnostic-latency-v1','holdout-window-v1','contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget),'request-budget-invalid');
   need(maximum_output_tokens <= 2048 && maximum_requests <= (['contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget)?96:['diagnostic-v1','diagnostic-latency-v1','holdout-window-v1'].includes(request_budget)?24:request_budget==='paging-v1'?16:12) && timeout_ms <= 30000, 'limits-exceed-candidate');
   need(maximum_request_bytes <= (['holdout-window-v1','contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget)?262144:131072) && maximum_response_bytes <= 262144 && token_margin <= 4096, 'limits-exceed-candidate');
@@ -96,14 +97,16 @@ export function createGlmClient({api_key_ref, secret_registry,
   const reference = authenticated ? projectSecretReference(api_key_ref) : null;
   const maximum_tokenizer_requests = request_budget === 'contextbench-deferral-v1' ? 3 * (maximum_requests + 1) : maximum_requests * 2;
   const identity = hash({version: 1, accounting_policy: 'retained-reasoning-v1', model: MODEL, chat: chat.href, tokenizer: tokenizer.href, maximum_output_tokens,
-    maximum_requests, timeout_ms, maximum_request_bytes, maximum_response_bytes, token_margin, reasoning_effort, reference,...(maximum_model_retries?{maximum_model_retries}:{}),...(model_timeout_ms!==timeout_ms?{model_timeout_ms}:{}),...(final_reasoning_effort!==reasoning_effort?{final_reasoning_effort}:{}),...(native_submission?{native_submission}:{}),...(final_timeout_ms!==timeout_ms?{final_timeout_ms}:{}),...(request_budget==='contextbench-deferral-v1'?{request_budget,maximum_tokenizer_requests}:{}),...(['paging-v1','diagnostic-v1','diagnostic-latency-v1','holdout-window-v1'].includes(request_budget)?{request_budget}:{})});
+    maximum_requests, timeout_ms, maximum_request_bytes, maximum_response_bytes, token_margin, reasoning_effort, reference,...(maximum_model_retries?{maximum_model_retries}:{}),...(maximum_tokenizer_transport_attempts>1?{maximum_tokenizer_transport_attempts}:{}),...(model_timeout_ms!==timeout_ms?{model_timeout_ms}:{}),...(final_reasoning_effort!==reasoning_effort?{final_reasoning_effort}:{}),...(native_submission?{native_submission}:{}),...(final_timeout_ms!==timeout_ms?{final_timeout_ms}:{}),...(request_budget==='contextbench-deferral-v1'?{request_budget,maximum_tokenizer_requests}:{}),...(['paging-v1','diagnostic-v1','diagnostic-latency-v1','holdout-window-v1'].includes(request_budget)?{request_budget}:{})});
   const measurements = new Map();
   const receipts = [];
-  let modelCalls = 0, tokenizerCalls = 0, modelRequests = 0, retryCalls = 0, activeAttempt = 0;
+  let modelCalls = 0, tokenizerCalls = 0, tokenizerRequests = 0, tokenizerRetryCalls = 0, activeTokenizerAttempt = 0, modelRequests = 0, retryCalls = 0, activeAttempt = 0;
   const logicalReceipts = () => maximum_model_retries ? receipts.filter(r => r.kind !== 'model' || r.attempt_index === 1 || !receipts.some(other => other.kind === 'model' && other.model_request_sequence === r.model_request_sequence && other.attempt_index === 1)) : receipts;
   const transientReceipt = r => r?.kind==='model' && r.dispatched===true && !r.secret_resolution_failure &&
     (['deadline-exceeded','request-failed','response-interrupted'].includes(r.failure_code) ||
       ([500,502,503,504].includes(r.status)&&[null,'500'].includes(r.provider_code)));
+  const retryableTokenizerReceipt = r => r?.kind==='tokenizer' && r.dispatched===true && !r.secret_resolution_failure &&
+    r.status===null && r.failure_code==='request-failed' && r.response_bytes===0;
   function checkRecoveryAccounting(items) {
     let logical = 0, retries = 0, previous;
     for (const r of items) if(r.kind === 'model') {
@@ -117,11 +120,20 @@ export function createGlmClient({api_key_ref, secret_registry,
     need(logical <= maximum_requests && retries <= maximum_model_retries, 'ledger-retry-integrity');
     return {logical,retries};
   }
+  function checkTokenizerRecoveryAccounting(items) {
+    let logical=0,retries=0,previous;
+    for(const r of items)if(r.kind==='tokenizer'){
+      if(r.attempt_index===0){logical++;need(r.tokenizer_request_sequence===logical,'ledger-tokenizer-retry-integrity');}
+      else{need(r.attempt_index===1&&previous?.attempt_index===0&&previous.retryable===true&&retryableTokenizerReceipt(previous)&&r.tokenizer_request_sequence===logical&&r.request_sha256===previous.request_sha256,'ledger-tokenizer-retry-integrity');retries++;}
+      need(r.automatic_retries===r.attempt_index,'ledger-tokenizer-retry-integrity');previous=r;
+    }
+    need(logical<=maximum_tokenizer_requests&&retries<=logical,'ledger-tokenizer-retry-integrity');return{logical,retries};
+  }
   let ledger = null;
   function persistLedger(phase) {
     if (!ledger) return;
     const value = {version: 1, binding: ledger.binding, identity, phase,
-      model_calls: modelCalls, tokenizer_calls: tokenizerCalls,...(maximum_model_retries?{model_requests:modelRequests}:{}), receipts};
+      model_calls: modelCalls, tokenizer_calls: tokenizerCalls,...(maximum_tokenizer_transport_attempts>1?{tokenizer_requests:tokenizerRequests,tokenizer_retry_calls:tokenizerRetryCalls}:{}),...(maximum_model_retries?{model_requests:modelRequests}:{}), receipts};
     const temporary = `${ledger.path}.${randomUUID()}.tmp`;
     const fd = openSync(temporary, 'wx', 0o600);
     try { writeFileSync(fd, stable({...value, ledger_digest: hash(value)})); fsyncSync(fd); }
@@ -147,7 +159,7 @@ export function createGlmClient({api_key_ref, secret_registry,
       need(body.binding === binding && body.identity === identity, 'ledger-binding-drift');
       need(body.phase === 'idle', 'ledger-uncertain-or-failed');
       need(integer(body.model_calls) && body.model_calls <= maximum_requests + maximum_model_retries &&
-        integer(body.tokenizer_calls) && body.tokenizer_calls <= maximum_tokenizer_requests &&
+        integer(body.tokenizer_calls) && body.tokenizer_calls <= maximum_tokenizer_requests*maximum_tokenizer_transport_attempts &&
         Array.isArray(body.receipts) && body.receipts.length === body.model_calls + body.tokenizer_calls &&
         body.receipts.filter(r => r.kind === 'model').length === body.model_calls &&
         body.receipts.filter(r => r.kind === 'tokenizer').length === body.tokenizer_calls, 'ledger-integrity');
@@ -155,6 +167,8 @@ export function createGlmClient({api_key_ref, secret_registry,
         (modelCalls === body.model_calls && tokenizerCalls === body.tokenizer_calls && stable(receipts) === stable(body.receipts)), 'ledger-client-already-used');
       if(maximum_model_retries) { const counted=checkRecoveryAccounting(body.receipts); need(body.model_requests===counted.logical&&body.model_calls===counted.logical+counted.retries,'ledger-retry-integrity'); modelRequests=counted.logical; retryCalls=counted.retries; }
       else modelRequests=body.model_calls;
+      if(maximum_tokenizer_transport_attempts>1){const counted=checkTokenizerRecoveryAccounting(body.receipts);need(body.tokenizer_requests===counted.logical&&body.tokenizer_retry_calls===counted.retries&&body.tokenizer_calls===counted.logical+counted.retries,'ledger-tokenizer-retry-integrity');tokenizerRequests=counted.logical;tokenizerRetryCalls=counted.retries;}
+      else tokenizerRequests=body.tokenizer_calls;
       modelCalls = body.model_calls; tokenizerCalls = body.tokenizer_calls;
       receipts.splice(0, receipts.length, ...body.receipts);
       ledger = {root, path, binding, phase: 'idle'};
@@ -167,7 +181,8 @@ export function createGlmClient({api_key_ref, secret_registry,
   }
   function reserveAttempt(kind) {
     need(!ledger || ledger.phase === 'idle', 'ledger-uncertain-or-failed');
-    if (kind === 'model') { modelCalls++; modelRequests++; activeAttempt=0; } else tokenizerCalls++;
+    if (kind === 'model') { modelCalls++; modelRequests++; activeAttempt=0; }
+    else { tokenizerCalls++;tokenizerRequests++;activeTokenizerAttempt=0; }
     // A crash from this point poisons resume, including tokenizer-only attempts.
     if (ledger) ledger.phase = `${kind}-pending`;
     persistLedger(`${kind}-pending`);
@@ -214,7 +229,7 @@ export function createGlmClient({api_key_ref, secret_registry,
     const receipt = {kind, model: MODEL, request_sha256: hash(body), status: response?.status ?? null,
       ...(resolutionFailure ? {secret_resolution_failure: resolutionFailure} : {}),
       latency_ms: Date.now() - started, timeout_ms:selectedTimeout, response_bytes: response?.bytes ?? 0, provider_code: providerCode,
-      ...(kind==='model'?{reasoning_effort:object.reasoning_effort}:{}),...(kind==='model'&&maximum_model_retries?{model_request_sequence:modelRequests,attempt_index:activeAttempt}:{}),dispatched, automatic_retries: kind==='model'?activeAttempt:0, redirects_followed: 0, authority_effect: 'none'};
+      ...(kind==='model'?{reasoning_effort:object.reasoning_effort}:{}),...(kind==='model'&&maximum_model_retries?{model_request_sequence:modelRequests,attempt_index:activeAttempt}:{}),...(kind==='tokenizer'&&maximum_tokenizer_transport_attempts>1?{tokenizer_request_sequence:tokenizerRequests,attempt_index:activeTokenizerAttempt}:{}),dispatched, automatic_retries: kind==='model'?activeAttempt:kind==='tokenizer'?activeTokenizerAttempt:0, redirects_followed: 0, authority_effect: 'none'};
     receipts.push(receipt);
     if (failure) { receipt.failure_code=failure instanceof GlmError ? failure.code : 'request-failed'; throw new GlmError(receipt.failure_code, receipt); }
     need(response, 'response-missing');
@@ -238,9 +253,12 @@ export function createGlmClient({api_key_ref, secret_registry,
       const retained=retainedReasoning(body.messages,receipts);
       need(Buffer.byteLength(stable(body)) <= maximum_request_bytes, 'request-too-large');
       if (!measurements.has(key)) {
-        need(tokenizerCalls < maximum_tokenizer_requests, 'tokenizer-limit');
+        need(tokenizerRequests < maximum_tokenizer_requests, 'tokenizer-limit');
         await attempted('tokenizer', async () => {
-          const {payload, receipt} = await send(tokenizer, {model: MODEL, messages: body.messages, tools: body.tools}, 'tokenizer');
+          const tokenizerBody={model:MODEL,messages:body.messages,tools:body.tools};let response;
+          try{response=await send(tokenizer,tokenizerBody,'tokenizer');}
+          catch(error){const failed=error?.receipt;if(maximum_tokenizer_transport_attempts<2||!retryableTokenizerReceipt(failed)||signal?.aborted)throw error;failed.retryable=true;persistLedger('tokenizer-pending');tokenizerRetryCalls++;tokenizerCalls++;activeTokenizerAttempt=1;persistLedger('tokenizer-pending');response=await send(tokenizer,tokenizerBody,'tokenizer');}
+          const {payload, receipt} = response;
           const count = payload?.usage?.prompt_tokens;
           need(integer(count), 'tokenizer-count-invalid');
           receipt.input_tokens = count;
@@ -299,5 +317,5 @@ export function createGlmClient({api_key_ref, secret_registry,
       return {final_bytes: stable({message, finish_reason}), receipt,...(maximum_model_retries?{attempt_receipts:receipts.slice(firstReceiptIndex)}:{})};
       });
     }});
-  return Object.freeze({transport, identity, maximum_requests, maximum_tokenizer_requests, maximum_model_retries, get logical_receipts(){return logicalReceipts();}, request_budget, native_submission, final_reasoning_effort, model_timeout_ms, final_timeout_ms, token_margin, receipts, model: MODEL, bindRunLedger});
+  return Object.freeze({transport, identity, maximum_requests, maximum_tokenizer_requests, maximum_tokenizer_transport_attempts, maximum_model_retries, get logical_receipts(){return logicalReceipts();}, request_budget, native_submission, final_reasoning_effort, model_timeout_ms, final_timeout_ms, token_margin, receipts, model: MODEL, bindRunLedger});
 }

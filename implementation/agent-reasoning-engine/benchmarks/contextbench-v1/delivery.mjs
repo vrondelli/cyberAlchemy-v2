@@ -58,8 +58,12 @@ export function bindDelivery({captures,receipts}){
    }
    if(m.role!=='tool')continue;
    const call=calls.get(m.tool_call_id);if(!call||!['read_file','read-file','search'].includes(call.function?.name))continue;
-   let args,result;try{args=JSON.parse(call.function.arguments);result=JSON.parse(m.content);}catch{failures.push({receipt_index,tool_call_id:m.tool_call_id,reason:'unparseable-read-envelope'});continue;}
+   let result;try{result=JSON.parse(m.content);}catch{failures.push({receipt_index,tool_call_id:m.tool_call_id,reason:'unparseable-read-envelope'});continue;}
+   // A rejected read has delivered no source evidence. Its arguments may be the
+   // malformed input that caused the rejection, so they are irrelevant to the
+   // delivery ledger and must not poison later valid observations.
    if(result?.ok!==true)continue;
+   let args;try{args=JSON.parse(call.function.arguments);}catch{failures.push({receipt_index,tool_call_id:m.tool_call_id,reason:'unparseable-read-envelope'});continue;}
    let items;try{items=observationItems(call,result);}catch(e){failures.push({receipt_index,tool_call_id:m.tool_call_id,reason:e.message});continue;}
    for(const {tool_call_id,o} of items){
     let material;try{material=observationMaterial(tool_call_id,o);}catch(e){failures.push({receipt_index,tool_call_id,reason:e.message});continue;}

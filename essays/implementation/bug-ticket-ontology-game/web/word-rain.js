@@ -33,8 +33,8 @@ export function mountWordRain({canvas, tokens, seed, captured = [], onCapture}) 
   function resize() {
     const bounds = canvas.getBoundingClientRect();
     dpr = window.devicePixelRatio || 1;
-    width = Math.max(320, bounds.width);
-    height = Math.max(260, bounds.height);
+    width = Math.max(1, bounds.width);
+    height = Math.max(1, bounds.height);
     canvas.width = Math.floor(width * dpr);
     canvas.height = Math.floor(height * dpr);
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -49,17 +49,19 @@ export function mountWordRain({canvas, tokens, seed, captured = [], onCapture}) 
     drawGrid();
 
     const lineHeight = 23;
-    context.font = "600 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    const fontSize = Math.min(13, (width - 24) / (Math.max(...tokens.map(token => token.length)) * 0.62));
+    context.font = `600 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
     context.textBaseline = "middle";
 
     drops.forEach((drop, index) => {
       if (reducedMotion) {
-        drop.renderX = 22 + (index % 2) * Math.max(250, width / 2);
-        drop.renderY = 34 + Math.floor(index / 2) * 43;
+        const columns = width >= 600 ? 2 : 1;
+        drop.renderX = 12 + (index % columns) * width / columns;
+        drop.renderY = 20 + Math.floor(index / columns) * (height - 40) / Math.max(1, Math.ceil(tokens.length / columns) - 1);
       } else {
         drop.y += drop.speed * delta;
         if (drop.y > 1.22) drop.y = -0.18 - drop.phase * 0.58;
-        drop.renderX = drop.x * width;
+        drop.renderX = 12 + drop.x * Math.max(0, width - context.measureText(drop.token).width - 24);
         drop.renderY = drop.y * height;
       }
 
@@ -107,7 +109,6 @@ export function mountWordRain({canvas, tokens, seed, captured = [], onCapture}) 
       return box && x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
     });
     if (!drop || capturedSet.has(drop.token)) return;
-    capturedSet.add(drop.token);
     onCapture(drop.token);
   }
 
@@ -117,6 +118,10 @@ export function mountWordRain({canvas, tokens, seed, captured = [], onCapture}) 
   frame = requestAnimationFrame(draw);
 
   return {
+    setCaptured(next) {
+      capturedSet.clear();
+      for (const token of next) capturedSet.add(token);
+    },
     destroy() {
       cancelAnimationFrame(frame);
       canvas.removeEventListener("pointerdown", captureAt);

@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader']});
+try {
+  const page=await browser.newPage({viewport:{width:1280,height:900},reducedMotion:'reduce'});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const state=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('bug-ticket-ontology-game/v0.6')));
+  await page.goto(process.env.GAME_URL || 'http://192.168.185.41:4173/?build=mechanics-review',{waitUntil:'networkidle'});
+  await page.locator('[data-room-exit="policy-archive"]').click();
+  await page.locator('[data-world-target="quality-index"]').click();
+  await page.locator('.inspection-result').waitFor();assert.match(await page.locator('#puzzle').innerText(),/LP-··41/);
+  await page.locator('#return-to-room').click();
+  await page.locator('[data-room-exit="incident-control-room"]').click();
+  await page.locator('[data-item="quality-witness"]').click();
+  await page.locator('[data-world-target="support-desk"]').click();
+  await page.locator('.inspection-result').waitFor();assert.match(await page.locator('#puzzle').innerText(),/does not fit/);
+  assert.equal((await state()).inventory.includes('bug-ticket'),false);
+  assert.equal(await page.locator('.folder-inspection').count(),0);
+  await page.locator('#return-to-room').click();
+  await page.locator('.spatial-prompt').click();await page.locator('.folder-inspection').waitFor();
+  assert.ok((await state()).inventory.includes('bug-ticket'));
+  await page.locator('#return-to-room').click();await page.locator('[data-overview]').click();
+  await page.locator('[data-world-target="event-ledger"]').click();
+  await page.locator('.inspection-result').waitFor();assert.match(await page.locator('#puzzle').innerText(),/warehouse|witness/i);
+  await page.screenshot({path:'/tmp/btg-review-locked.png'});
+  await page.locator('#return-to-room').click();await page.locator('[data-overview]').click();
+  await page.locator('[data-world-target="storefront-terminal"]').click();
+  await page.locator('.inspection-result').waitFor();assert.match(await page.locator('#puzzle').innerText(),/09:17/);
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:'/tmp/btg-review-witness-portrait.png'});
+  await page.locator('#return-to-room').click();assert.ok(await page.locator('#room canvas').isVisible());
+  assert.deepEqual(errors,[]);
+  console.log('PASS witness reading, selected-item mismatch without false folder collection, Inspect reopen, visible locked response, portrait evidence and return, no page errors');
+} finally {await browser.close();}

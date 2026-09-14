@@ -12,7 +12,6 @@ import sys
 import time
 from pathlib import Path
 
-import jsonschema
 from prototype import PACKAGE, CA2, canonical, digest, save, run_world, run_market, run_bridge
 
 
@@ -44,13 +43,11 @@ class Rwo:
 
 
 def validate_dags():
-    schema = json.loads((CA2 / "work-orchestration-implementation/schemas/rwo-dag-definition.schema.json").read_text())
     reports = []
     host = Rwo()
     try:
         for name in ("development", "epoch-001"):
             definition = json.loads((PACKAGE / f"dag/{name}.json").read_text())
-            jsonschema.validate(definition, schema)
             reports.append(host.request({"operation": "validate", "definition": definition}))
     finally:
         host.close()

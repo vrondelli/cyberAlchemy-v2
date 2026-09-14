@@ -9,7 +9,7 @@ import {runEpisode} from './episode.mjs';
 import {exportModelSelectedContext} from './final-selection.mjs';
 import {stable, bodyForReceipt} from './delivery.mjs';
 const hash = x => createHash('sha256').update(x).digest('hex');
-async function exercise({budget = 10000, maxCalls = 4, corrupt = false, repeatInvalid = false, pressure = false, emptyFinal = false, arm = 'baseline'} = {}) {
+async function exercise({budget = 10000, maxCalls = 4, corrupt = false, repeatInvalid = false, secondCorrection = false, maximumTerminalCorrections, pressure = false, emptyFinal = false, arm = 'baseline'} = {}) {
   const root = mkdtempSync(join(tmpdir(), 'are-episode-provenance-')), baseRoot = join(root, 'base');
   mkdirSync(baseRoot); const tail = pressure === 'long-source' ? 'x'.repeat(12000) : 'three';
   const base = 'one\ntwo\n' + tail + '\n', current = 'one\nchanged\n' + tail + '\n';
@@ -35,7 +35,7 @@ async function exercise({budget = 10000, maxCalls = 4, corrupt = false, repeatIn
       } else {
         const ids = p.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content).output.read_id);
         if (requests === 2) currentId = ids.at(-1);
-        message = {role: 'assistant', content: stable({summary: 'Source reviewed', context_read_ids: [repeatInvalid ? currentId : ids.at(-1)]})};
+        message = {role: 'assistant', content: stable({summary: 'Source reviewed', context_read_ids: [repeatInvalid || (secondCorrection && requests === 4) ? currentId : ids.at(-1)]})};
         finish_reason = 'stop';
       }
       const receipt = {kind: 'model', model: 'glm-5.3-flash', output_cap: 1024, reasoning_effort: 'low', dispatched: true, status: 200, input_tokens: 200, output_tokens: 10, finish_reason};
@@ -50,7 +50,7 @@ async function exercise({budget = 10000, maxCalls = 4, corrupt = false, repeatIn
       execute_tool: async (name, args) => { const text = args.revision === 'base' ? base : current;
         return {ok: true, output: {path: 'a.txt', start_line: 1, end_line: 3, utf8: text.split('\n').slice(0, 3).join('\n'), source_sha256: hash(text)}}; },
       source_context: () => ({snapshots, repoRoot: baseRoot}),
-      measure_index_tokens: async () => 100, limits: {maximum_calls: maxCalls, output_cap: 1024, total_tokens: budget, index_entries: 8, index_tokens: 1024}, run_id: 'fixture', on_event: async e => journal.push(e)});
+      measure_index_tokens: async () => 100, limits: {maximum_calls: maxCalls, output_cap: 1024, total_tokens: budget, index_entries: 8, index_tokens: 1024,...(maximumTerminalCorrections===undefined?{}:{maximum_terminal_corrections:maximumTerminalCorrections})}, run_id: 'fixture', on_event: async e => journal.push(e)});
     const exported = result.status === 'final_context_selected' ? exportModelSelectedContext({...result, task, source_snapshots: snapshots, response_capture: result.response_captures.at(-1)}, baseRoot) : null;
     return {result, journal, requests, prompts, exported};
   } finally { recycler.close(); rmSync(root, {recursive: true, force: true}); }
@@ -85,6 +85,22 @@ test('repeated invalid provenance stops after the bounded correction opportunity
   const r = await exercise({repeatInvalid: true});
   assert.equal(r.result.status, 'invalid_final_response'); assert.equal(r.requests, 4);
   assert.equal(r.result.terminal_corrections, 1); assert.equal(r.result.selection, null);
+});
+
+test('a second exhaustive terminal correction can recover provenance within original budgets', async () => {
+  const r = await exercise({secondCorrection: true, maximumTerminalCorrections: 2, maxCalls: 6});
+  assert.equal(r.result.status, 'final_context_selected', r.result.error);
+  assert.equal(r.requests, 5); assert.equal(r.result.terminal_corrections, 2);
+  assert.equal(r.result.admissions.at(-1).known_consumed, 840);
+  assert.equal(r.journal.filter(e => e.kind === 'terminal-diagnostic').length, 2);
+  assert.deepEqual(r.exported.prediction.traj_data.pred_spans, {'a.txt': [{start: 1, end: 3}]});
+});
+
+test('a third invalid terminal response stops after exactly two corrections', async () => {
+  const r = await exercise({repeatInvalid: true, maximumTerminalCorrections: 2, maxCalls: 6});
+  assert.equal(r.result.status, 'invalid_final_response');
+  assert.equal(r.requests, 5); assert.equal(r.result.terminal_corrections, 2);
+  assert.equal(r.journal.filter(e => e.kind === 'terminal-diagnostic').length, 3);
 });
 
 test('provenance feedback survives real recycling before evidence recovery', async () => {

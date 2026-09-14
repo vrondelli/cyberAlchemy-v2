@@ -83,7 +83,17 @@ export function selectTerminalSubmission({captures, receipts, response_capture, 
 
 export function exportModelSelectedContext(input, repoRoot) {
   const terminal=input.response_capture?.public_response?.message?.tool_calls?.some(call=>call?.function?.name==='submit_context_selection');
-  const selection = terminal ? selectTerminalSubmission(input) : selectFinalReads(input);
+  const modelSelection = terminal ? selectTerminalSubmission(input) : selectFinalReads(input);
+  let selection=modelSelection;
+  if(input.selection?.terminal_effect_read_ids!==undefined){
+    need(Array.isArray(input.selection.model_read_ids)&&Array.isArray(input.selection.terminal_effect_read_ids)&&Array.isArray(input.selection.final_read_ids),'terminal-effect-selection-shape');
+    need(stable(input.selection.model_read_ids)===stable(modelSelection.final_read_ids),'terminal-effect-model-selection-mismatch');
+    const binding=bindDelivery(input),delivered=new Set(binding.read_observations.map(read=>read.id));
+    need(input.selection.terminal_effect_read_ids.every(id=>delivered.has(id)),'terminal-effect-undelivered-read');
+    const final_read_ids=[...new Set([...modelSelection.final_read_ids,...input.selection.terminal_effect_read_ids])];
+    need(stable(input.selection.final_read_ids)===stable(final_read_ids),'terminal-effect-final-selection-mismatch');
+    selection={...modelSelection,model_read_ids:modelSelection.final_read_ids,terminal_effect_read_ids:input.selection.terminal_effect_read_ids,final_read_ids};
+  }
   const exported = exportCapturedContext({...input, final_read_ids: selection.final_read_ids}, repoRoot);
   return {...exported, selection,
     selection_posture: `Explicit terminal model ${terminal?'submission':'content'} bound to local transport response capture and matching successful request receipt; not archive union or proof of semantic use.`};

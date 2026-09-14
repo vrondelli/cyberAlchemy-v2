@@ -1,6 +1,6 @@
 //! JSON-lines host for the existing RWO DAG engine; executes no task commands.
 //! Open questions are tracked in ../../OPEN-QUESTIONS.md.
-use cav2_work_orchestration_etl_demo::dag::{DagDefinition, DagEngine, NodeEvent};
+use rwo_core::{DagDefinition, DagEngine, NodeEvent};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 
