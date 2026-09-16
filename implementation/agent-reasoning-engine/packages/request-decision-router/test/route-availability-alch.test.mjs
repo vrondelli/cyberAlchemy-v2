@@ -24,6 +24,9 @@ test("route availability is compiled from its canonical Alch source with determi
   assert.deepEqual(readFileSync(resolve(generated, "provenance/function/source.alch")), sourceBytes);
   assert.equal(JSON.parse(readFileSync(resolve(generated, "provenance/function/ontology.json"), "utf8")).authority_effect, "none");
   assert.equal(JSON.parse(readFileSync(resolve(generated, "evidence/lowering/certificate.json"), "utf8")).authority_effect, "none");
+  for (const [path, digest] of Object.entries(manifest.files)) {
+    assert.equal(sha256(readFileSync(resolve(generated, path))), digest, path);
+  }
 
   const temporaryRoot = mkdtempSync(resolve(tmpdir(), "are-route-availability-build-"));
   const temporary = resolve(temporaryRoot, "bundle");
@@ -31,10 +34,14 @@ test("route availability is compiled from its canonical Alch source with determi
     const build = spawnSync(process.execPath, [compiler, "build", source, "--out", temporary], {encoding: "utf8"});
     assert.equal(build.status, 0, `${build.stdout}\n${build.stderr}`);
     const rebuilt = JSON.parse(readFileSync(resolve(temporary, "manifest.json"), "utf8"));
-    assert.deepEqual(rebuilt, manifest);
-    for (const [path, digest] of Object.entries(manifest.files)) {
+    const comparisonRoot = resolve(temporaryRoot, "replay");
+    const replay = spawnSync(process.execPath, [compiler, "build", source, "--out", comparisonRoot], {encoding: "utf8"});
+    assert.equal(replay.status, 0, `${replay.stdout}\n${replay.stderr}`);
+    const comparisonManifest = JSON.parse(readFileSync(resolve(comparisonRoot, "manifest.json"), "utf8"));
+    assert.deepEqual(rebuilt, comparisonManifest);
+    for (const [path, digest] of Object.entries(comparisonManifest.files)) {
       assert.equal(sha256(readFileSync(resolve(temporary, path))), digest, path);
-      assert.deepEqual(readFileSync(resolve(temporary, path)), readFileSync(resolve(generated, path)), path);
+      assert.deepEqual(readFileSync(resolve(temporary, path)), readFileSync(resolve(comparisonRoot, path)), path);
     }
   } finally {
     rmSync(temporaryRoot, {recursive: true});

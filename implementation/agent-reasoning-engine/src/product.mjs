@@ -1,12 +1,14 @@
 import {createHash} from "node:crypto";
-import {readFileSync, readdirSync, statSync} from "node:fs";
-import {resolve} from "node:path";
+import {existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, statSync} from "node:fs";
+import {dirname, extname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
 import {loadRepositoryProfile} from "../packages/codex-app-server-wrapper/index.mjs";
 
 export const productRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 export const repositoryRoot = resolve(productRoot, "../../..");
+export const projectRoot = resolve(productRoot, "../..");
+export const PRODUCT_CLOSURE_LIMITS = Object.freeze({maximum_files: 4000, maximum_bytes: 80 * 1024 * 1024});
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -31,12 +33,190 @@ function collectFiles(root, exclusions, output = []) {
   return output;
 }
 
+function repositoryFile(path) {
+  const absolute = resolve(path);
+  return absolute === repositoryRoot || absolute.startsWith(`${repositoryRoot}/`);
+}
+
+function relativeModuleSpecifiers(source) {
+  const found = [];
+  const staticPattern = /\b(?:import|export)\s+(?:[^;"']*?\s+from\s*)?["'](\.{1,2}\/[^"']+)["']/gu;
+  const dynamicPattern = /\bimport\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/gu;
+  const localUrlPattern = /\bnew\s+URL\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*,\s*import\.meta\.url\s*,?\s*\)/gu;
+  for (const pattern of [staticPattern, dynamicPattern, localUrlPattern]) {
+    for (const match of source.matchAll(pattern)) found.push(match[1]);
+  }
+  return found;
+}
+
+function resolveModuleDependencies(importer, specifier) {
+  const base = resolve(dirname(importer), specifier);
+  const candidates = [base, `${base}.mjs`, `${base}.js`, `${base}.json`, resolve(base, "index.mjs"), resolve(base, "index.js")];
+  const file = candidates.find((candidate) => {
+    try { return statSync(candidate).isFile() && repositoryFile(candidate); } catch { return false; }
+  });
+  if (file) return [file];
+  if (base.startsWith(`${productRoot}/`) && directory(base)) return collectFiles(base, []);
+  return [];
+}
+
+function declaredRepositoryFileDependencies(source) {
+  const dependencies = [];
+  const candidates = [];
+  for (const match of source.matchAll(/\bpath\s*:\s*["']([^"']+)["']/gu)) candidates.push(match[1]);
+  for (const match of source.matchAll(/["']((?:agent-routing|authority|capability|define|development|goals|implementation|language|ontology|tools)\/[^"']+)["']/gu)) candidates.push(match[1]);
+  for (const candidatePath of candidates) {
+    if (candidatePath.startsWith("/") || candidatePath.includes("..")) continue;
+    for (const root of [projectRoot, repositoryRoot]) {
+      const candidate = resolve(root, candidatePath);
+      try {
+        if (statSync(candidate).isFile() && repositoryFile(candidate)) dependencies.push(candidate);
+      } catch {}
+    }
+  }
+  return dependencies;
+}
+
+function expandRelativeModuleClosure(seedFiles) {
+  const files = new Set(seedFiles.map((path) => resolve(path)));
+  const queue = [...files];
+  while (queue.length > 0) {
+    const path = queue.shift();
+    if (![".js", ".mjs", ".rs"].includes(extname(path))) continue;
+    let source;
+    try { source = readFileSync(path, "utf8"); } catch { continue; }
+    for (const specifier of relativeModuleSpecifiers(source)) {
+      for (const dependency of resolveModuleDependencies(path, specifier)) {
+        if (files.has(dependency)) continue;
+        files.add(dependency);
+        queue.push(dependency);
+      }
+    }
+    for (const dependency of declaredRepositoryFileDependencies(source)) {
+      if (files.has(dependency)) continue;
+      files.add(dependency);
+      queue.push(dependency);
+    }
+  }
+  return [...files];
+}
+
+function packagedVerifierFiles(profile) {
+  if (!profile.components.some((component) => component.component_id === "module-port-governance-cutover")) return [];
+  const packageRoot = resolve(productRoot, "packages/module-port-governance-binding-rust");
+  const manifestPath = resolve(packageRoot, "artifacts/linux-x64/manifest.json");
+  if (!existsSync(manifestPath)) throw new Error("product.packaged-verifier-manifest-missing");
+  const manifest = readJson(manifestPath);
+  const declaredSources = (manifest.source_files ?? []).map((entry) => {
+    const repositoryRelative = resolve(repositoryRoot, entry.path);
+    return existsSync(repositoryRelative) ? repositoryRelative : resolve(projectRoot, entry.path);
+  });
+  const buildSupport = [
+    resolve(projectRoot, "tools/toolchain/run"),
+    resolve(projectRoot, "tools/toolchain/lock.json"),
+    resolve(projectRoot, "tools/toolchain/compiler.sh"),
+    resolve(projectRoot, "tools/toolchain/README.md"),
+  ];
+  return [
+    ...collectFiles(packageRoot, profile.closure_exclusions),
+    ...declaredSources,
+    ...buildSupport,
+  ];
+}
+
+function collectSourceBindingPaths(value, output = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectSourceBindingPaths(item, output);
+    return output;
+  }
+  if (!value || typeof value !== "object") return output;
+  if (typeof value.path === "string" && value.path.length > 0) output.push(resolve(repositoryRoot, value.path));
+  for (const [key, item] of Object.entries(value)) {
+    if (key !== "path") collectSourceBindingPaths(item, output);
+  }
+  return output;
+}
+
+function repositoryProfileFiles(profile) {
+  const repositoryProfilePath = resolve(productRoot, profile.repository_profile);
+  const repositoryProfile = readJson(repositoryProfilePath);
+  const sourceFiles = collectSourceBindingPaths(repositoryProfile.sources ?? {});
+  const decisionProfilePath = repositoryProfile.sources?.decision_profile?.path;
+  if (typeof decisionProfilePath === "string") {
+    const decisionProfile = readJson(resolve(repositoryRoot, decisionProfilePath));
+    sourceFiles.push(...collectSourceBindingPaths(decisionProfile.provenance ?? []));
+  }
+  return [repositoryProfilePath, ...sourceFiles];
+}
+
+function externalTestSupportFiles() {
+  const secretManagementPackage = resolve(repositoryRoot, "domainspec-core/projects/secret-management/secret_management");
+  if (!directory(secretManagementPackage)) throw new Error("product.secret-management-test-support-missing");
+  const routeAvailabilityBundle = resolve(productRoot, "packages/request-decision-router/generated/route-availability");
+  const codexProtocolEvidence = resolve(projectRoot, "development/agent-reasoning-engine/codex-integration/evidence");
+  const systemOntologyRoot = resolve(projectRoot, "define/system-ontology");
+  const defineCatalog = resolve(projectRoot, "define/definitions.json");
+  const compiledDefineService = resolve(projectRoot, "implementation/define-cli/generated/define-service");
+  return [
+    ...collectFiles(secretManagementPackage, ["/__pycache__/", "/.pytest_cache/"]),
+    ...collectFiles(routeAvailabilityBundle, []),
+    ...collectFiles(codexProtocolEvidence, []),
+    defineCatalog,
+    ...collectFiles(compiledDefineService, []),
+    ...["PROFILE.json", "NODES.json", "RELATIONS.json"].map((name) => resolve(systemOntologyRoot, name)),
+  ];
+}
+
+function domainSpecCompilerDistributionFiles() {
+  const packageRoot = resolve(repositoryRoot, "domainspec-core/projects/domainspec-v2/impl/cli");
+  const manifestPath = resolve(packageRoot, "package.json");
+  if (!existsSync(manifestPath)) throw new Error("product.domainspec-compiler-distribution-missing");
+  const manifest = readJson(manifestPath);
+  const distribution = [manifestPath];
+  for (const entry of manifest.files ?? []) {
+    const path = resolve(packageRoot, entry);
+    if (directory(path)) distribution.push(...collectFiles(path, ["/__pycache__/", "/.pytest_cache/"]));
+    else if (existsSync(path)) distribution.push(path);
+  }
+  const alchImplementation = resolve(projectRoot, "language/capabilities/alchlang/plans/general-compiler-v1/implementation");
+  const alchDistRoot = resolve(alchImplementation, "dist");
+  const compilerRoot = resolve(alchImplementation, "node_modules/@typescript/old");
+  const compilerLauncher = resolve(alchImplementation, "node_modules/.bin/tsc");
+  return [
+    ...distribution,
+    ...collectFiles(alchDistRoot, []).filter((path) => extname(path) === ".js"),
+    compilerLauncher,
+    ...collectFiles(compilerRoot, []),
+  ];
+}
+
 export function materializeProductClosure() {
   const profile = readJson(resolve(productRoot, "product.json"));
-  const files = profile.source_roots.flatMap((root) => collectFiles(resolve(repositoryRoot, root), profile.closure_exclusions));
+  const componentRoots = profile.components.map((component) => resolve(productRoot, component.path));
+  const integrationRoots = profile.integrations.map((integration) => resolve(productRoot, integration.path));
+  const directoryRoots = profile.source_roots.map((root) => resolve(repositoryRoot, root));
+  const fileRoots = (profile.source_files ?? []).map((file) => resolve(repositoryRoot, file));
+  const seeds = [...new Set([
+    ...directoryRoots.flatMap((root) => collectFiles(root, profile.closure_exclusions)),
+    ...componentRoots.flatMap((root) => collectFiles(root, profile.closure_exclusions)),
+    ...integrationRoots.flatMap((root) => collectFiles(root, profile.closure_exclusions)),
+    ...fileRoots,
+    ...packagedVerifierFiles(profile),
+    ...repositoryProfileFiles(profile),
+    ...externalTestSupportFiles(),
+    ...domainSpecCompilerDistributionFiles(),
+  ])];
+  const files = expandRelativeModuleClosure(seeds);
   const entries = files.map((path) => {
     const bytes = readFileSync(path);
-    return {path: path.slice(repositoryRoot.length + 1).replaceAll("\\", "/"), bytes: bytes.length, sha256: sha256(bytes)};
+    const metadata = lstatSync(path);
+    return {
+      path: path.slice(repositoryRoot.length + 1).replaceAll("\\", "/"),
+      bytes: bytes.length,
+      sha256: sha256(bytes),
+      mode: statSync(path).mode & 0o777,
+      ...(metadata.isSymbolicLink() ? {kind: "symlink", link_target: readlinkSync(path)} : {}),
+    };
   }).sort((a, b) => a.path.localeCompare(b.path));
   const material = {schema_version: "are.product-source-closure/v1", product_id: profile.product_id, product_version: profile.version, files: entries, authority_effect: "none"};
   return Object.freeze({...material, closure_digest: sha256(JSON.stringify(material))});

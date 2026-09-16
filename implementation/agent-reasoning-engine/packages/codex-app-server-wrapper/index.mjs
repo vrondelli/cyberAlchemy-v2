@@ -69,6 +69,13 @@ export {
 export {runStdioProxy} from "./src/stdio-proxy.mjs";
 export {resolveBackendCommand, spawnCodexBackend} from "./src/backend.mjs";
 export {
+  createCodexGatewayBackendAdapter,
+  createJsonLineProcessBackendAdapter,
+  GATEWAY_BACKEND_ADAPTER_SCHEMA,
+  spawnGatewayBackend,
+  validateGatewayBackendAdapter,
+} from "./src/backend-adapter.mjs";
+export {
   ACKNOWLEDGED_CONTINUITY_MODE,
   createPersistentGateway,
   GATEWAY_ACK_SCHEMA,

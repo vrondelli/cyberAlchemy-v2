@@ -161,6 +161,13 @@ export function createGlmClient({api_key_ref, secret_registry,
       persistLedger('idle');
     }
   }
+  function acknowledgeResponseFailure({request_sha256, code}) {
+    const allowed=new Set(['incomplete-output','tool-calls-invalid','final-text-invalid','finish-reason-unsupported','message-invalid','reasoning-invalid']);
+    need(allowed.has(code),'response-failure-code-invalid');
+    const receipt=receipts.at(-1);
+    need(ledger?.phase==='failed'&&receipt?.kind==='model'&&receipt.dispatched===true&&receipt.status===200&&receipt.request_sha256===request_sha256&&integer(receipt.input_tokens)&&integer(receipt.output_tokens),'response-failure-ack-invalid');
+    persistLedger('idle');
+  }
   function reserveAttempt(kind) {
     need(!ledger || ledger.phase === 'idle', 'ledger-uncertain-or-failed');
     if (kind === 'model') { modelCalls++; modelRequests++; activeAttempt=0; } else tokenizerCalls++;
@@ -287,5 +294,5 @@ export function createGlmClient({api_key_ref, secret_registry,
       return {final_bytes: stable({message, finish_reason}), receipt,...(maximum_model_retries?{attempt_receipts:receipts.slice(firstReceiptIndex)}:{})};
       });
     }});
-  return Object.freeze({transport, identity, maximum_requests, maximum_model_retries, get logical_receipts(){return logicalReceipts();}, request_budget, native_submission, final_reasoning_effort, model_timeout_ms, final_timeout_ms, token_margin, receipts, model: MODEL, bindRunLedger});
+  return Object.freeze({transport, identity, maximum_requests, maximum_model_retries, get logical_receipts(){return logicalReceipts();}, request_budget, native_submission, final_reasoning_effort, model_timeout_ms, final_timeout_ms, token_margin, receipts, model: MODEL, bindRunLedger, acknowledgeResponseFailure});
 }

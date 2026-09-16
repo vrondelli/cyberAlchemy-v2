@@ -1,4 +1,3 @@
-import {spawnSync} from "node:child_process";
 import {existsSync, readFileSync, writeFileSync} from "node:fs";
 
 import {runFailureLearningCanary} from "../benchmarks/real-reasoning-v1/src/evolution-canary.mjs";
@@ -13,7 +12,7 @@ import {
   projectProductTestResult,
 } from "../src/product-candidate.mjs";
 import {canonicalJson} from "../packages/intent-route-resolver/index.mjs";
-import {productRoot} from "../src/product.mjs";
+import {runIsolatedProductTests} from "../src/product-isolation.mjs";
 
 function pretty(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -30,18 +29,13 @@ function writeImmutable(path, bytes, identity) {
 }
 
 const candidate = materializeProductCandidate();
-const testRun = spawnSync(process.execPath, [new URL("../bin/are.mjs", import.meta.url).pathname, "test"], {
-  cwd: productRoot,
-  encoding: "utf8",
-  timeout: 600_000,
-  maxBuffer: 64 * 1024 * 1024,
-});
-if (testRun.status !== 0) {
-  process.stderr.write(testRun.stdout ?? "");
-  process.stderr.write(testRun.stderr ?? "");
-  throw new Error(`PRODUCT_TESTS_FAILED:${testRun.status ?? "signal"}`);
+let testResult;
+try { testResult = runIsolatedProductTests({closure: candidate.source_closure}); }
+catch (error) {
+  process.stderr.write(error.stdout ?? "");
+  process.stderr.write(error.stderr ?? "");
+  throw error;
 }
-const testResult = JSON.parse(testRun.stdout);
 const testEvidence = projectProductTestResult(testResult);
 
 const canaryResult = await runFailureLearningCanary();
@@ -62,9 +56,9 @@ if (receipt.status !== "PASS") throw new Error(`PRODUCT_TEST_RECEIPT_BLOCKED:${r
 const receiptBytes = pretty(receipt);
 
 const writes = {
-  candidate: writeImmutable(PRODUCT_CANDIDATE_PATH, candidateBytes, "PRODUCT_CANDIDATE_005"),
-  canary: writeImmutable(FAILURE_LEARNING_CANARY_PATH, canaryBytes, "FAILURE_LEARNING_CANARY_005"),
-  receipt: writeImmutable(PRODUCT_TEST_RECEIPT_PATH, receiptBytes, "PRODUCT_TEST_RECEIPT_005"),
+  candidate: writeImmutable(PRODUCT_CANDIDATE_PATH, candidateBytes, "PRODUCT_CANDIDATE_013"),
+  canary: writeImmutable(FAILURE_LEARNING_CANARY_PATH, canaryBytes, "FAILURE_LEARNING_CANARY_013"),
+  receipt: writeImmutable(PRODUCT_TEST_RECEIPT_PATH, receiptBytes, "PRODUCT_TEST_RECEIPT_013"),
 };
 const inspection = inspectFrozenProductCandidate();
 if (inspection.status !== "PASS") throw new Error(`PRODUCT_CANDIDATE_INSPECTION_BLOCKED:${inspection.reason_codes.join(",")}`);

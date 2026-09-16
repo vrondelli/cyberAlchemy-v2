@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+import {resolve} from "node:path";
 import test from "node:test";
 
-import {inspectProduct, materializeProductClosure} from "../src/product.mjs";
+import {inspectProduct, materializeProductClosure, PRODUCT_CLOSURE_LIMITS} from "../src/product.mjs";
+import {materializeProductTestPlan} from "../src/product-test-plan.mjs";
 import {
   materializeFailureLearningCanaryEvidence,
   materializeProductCandidate,
@@ -17,20 +20,85 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   assert.equal(health.status, "PASS", health.reason_codes.join(","));
   assert.equal(health.node.exact_match, true);
   assert.equal(health.repository_profile.verified, true);
-  assert.equal(health.components.length, 16);
+  assert.equal(health.components.length, 18);
   assert.equal(health.components.every((component) => component.present && component.package_name), true);
   assert.equal(health.integrations.every((integration) => integration.present), true);
   assert.equal(health.authority_effect, "none");
   const replay = materializeProductClosure();
   assert.equal(health.source_closure.closure_digest, replay.closure_digest);
   assert.equal(replay.files.length > 100, true);
-  assert.equal(replay.files.some((entry) => entry.path.includes("/evidence/")), false);
+  const evidencePaths = replay.files.filter((entry) => entry.path.includes("/evidence/")).map((entry) => entry.path);
+  assert.deepEqual(evidencePaths.filter((path) => !(
+    path.startsWith("cyberAlchemy-v2/development/agent-reasoning-engine/codex-integration/evidence/")
+    || path.startsWith("cyberAlchemy-v2/implementation/define-cli/generated/define-service/")
+    || path.startsWith("cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/test/evidence/")
+    || path.startsWith("cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/request-decision-router/generated/route-availability/evidence/")
+    || path === "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/evidence/prompt-overhead-baseline.json"
+    || path === "cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/are-runtime-configuration-v1/evidence/runtime-conformance.json"
+    || path === "cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/semantic-contract-v1/evidence/bundle/app/prelude.mjs"
+  )), []);
   assert.equal(replay.files.some((entry) => entry.path.includes("/runs/")), false);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-reasoning-engine/product.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-routing/capabilities/are-cli/request.schema.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-reasoning-engine/product-capability.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/ontology/product/nodes.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/capability/capability-references.json"), true);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/agent-reasoning-engine/research/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/benchmarks/contextbench-v1/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/benchmarks/glm-episodes-v1/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/packages/evolution-runtime/research/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/index.mjs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/extensions/semantic-contract-v1/consumer-runtime.mjs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port-governance-binding-rust/src/lib.rs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port-governance-binding-rust/artifacts/linux-x64/are-module-port-governance-binding")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/tools/toolchain/run")), true);
+  for (const required of [
+    "/goals/profile.json",
+    "/authority/AUTHORITY-MODEL.md",
+    "/ontology/governance/invariants.json",
+    "/ontology/governance/rules.json",
+    "/define/profile.json",
+    "/agent-routing/routes.json",
+    "/define/system-ontology/PROFILE.json",
+    "/define/system-ontology/NODES.json",
+    "/define/system-ontology/RELATIONS.json",
+    "/define/definitions.json",
+    "/implementation/define-cli/generated/define-service/entries/AlchHandoffReadiness/evidence/function/composition-trace.json",
+    "domainspec-core/projects/secret-management/secret_management/store.py",
+    "domainspec-core/projects/domainspec-v2/impl/cli/package.json",
+    "domainspec-core/projects/domainspec-v2/impl/cli/dist/index.js",
+    "/language/capabilities/alchlang/plans/general-compiler-v1/implementation/node_modules/.bin/tsc",
+    "/language/capabilities/alchlang/plans/general-compiler-v1/implementation/node_modules/@typescript/old/bin/tsc",
+    "/language/capabilities/alchlang/plans/general-compiler-v1/implementation/dist/boundary-runtime.js",
+  ]) assert.equal(replay.files.some((entry) => entry.path.endsWith(required)), true, required);
+  assert.equal(replay.files.find((entry) => entry.path.endsWith("/general-compiler-v1/implementation/node_modules/.bin/tsc"))?.kind, "symlink");
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/conversation-runtime/index.mjs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/__pycache__/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith(".pyc")), false);
+  assert.equal(replay.files.length < PRODUCT_CLOSURE_LIMITS.maximum_files, true, `release closure contains ${replay.files.length} files`);
+  assert.equal(replay.files.reduce((sum, entry) => sum + entry.bytes, 0) < PRODUCT_CLOSURE_LIMITS.maximum_bytes, true, "release closure exceeds byte limit");
+});
+
+test("product test plan covers every in-closure nested and native suite", () => {
+  const plan = materializeProductTestPlan();
+  assert.deepEqual(plan.unowned_test_files, []);
+  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/glm-flash-v1/test.mjs"))), true);
+  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/continuous-construction-task-loop/test/continuous-construction-adapter.test.mjs"))), true);
+  assert.equal(plan.suites.some((suite) => suite.runner === "cargo-test" && suite.manifest_ref.endsWith("/module-port-governance-binding-rust/Cargo.toml")), true);
+  assert.equal(plan.suites.some((suite) => suite.target_id === "integration:are-product-package" && suite.runner === "python-unittest" && suite.test_refs.some((path) => path.endsWith("/agent-reasoning-engine/tests/test_negative_mutations.py"))), true);
+  assert.equal(plan.suites.some((suite) => suite.target_id === "component:conversation-runtime" && suite.test_refs.length === 4), true);
+  for (const integration of ["module-port-cutover-alch", "module-port-packaged-verifier-alch", "module-port-signed-envelope-alch"]) {
+    assert.equal(plan.suites.some((suite) => suite.target_id === `integration:${integration}` && suite.test_refs.some((path) => path.endsWith("/integration.test.mjs"))), true, integration);
+  }
+  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.includes("/evolution-runtime/research/"))), false);
+});
+
+test("package and product versions identify the same release candidate", () => {
+  const root = new URL("..", import.meta.url).pathname;
+  const packageManifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+  const productProfile = JSON.parse(readFileSync(resolve(root, "product.json"), "utf8"));
+  assert.equal(packageManifest.version, productProfile.version);
+  assert.equal(packageManifest.private, true);
 });
 
 test("integrated product candidate is deterministic, current, and non-authorizing", () => {
@@ -62,13 +130,18 @@ function canaryFixture() {
 
 test("test receipt binds stable product evidence and the failure-learning canary", () => {
   const candidate = materializeProductCandidate();
+  const plan = materializeProductTestPlan();
   const testEvidence = projectProductTestResult({
     schema_version: "are.product-test-result/v1",
     status: "PASS",
     product_id: candidate.product.product_id,
     product_version: candidate.product.version,
-    total_test_cases: 2,
-    results: [{target: new URL("..", import.meta.url).pathname, test_files: 1, test_cases: 2, status: "PASS", elapsed_ms: 19.8}],
+    source_closure_digest: candidate.source_closure.closure_digest,
+    test_plan_digest: plan.plan_digest,
+    execution_mode: "isolated-source-closure",
+    total_test_files: plan.suites.reduce((sum, suite) => sum + suite.test_refs.length, 0),
+    total_test_cases: plan.suites.length,
+    results: plan.suites.map((suite) => ({target_ref: suite.target_ref, target_id: suite.target_id, runner: suite.runner, test_files: suite.test_refs.length, test_paths: suite.test_refs, test_cases: 1, status: "PASS", elapsed_ms: 19.8})),
   });
   assert.deepEqual(testEvidence.volatile_fields_excluded, ["elapsed_ms"]);
   const canary = materializeFailureLearningCanaryEvidence(canaryFixture());

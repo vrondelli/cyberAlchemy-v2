@@ -10,6 +10,7 @@ import {
   ACKNOWLEDGED_CONTINUITY_MODE,
   connectGatewayRpcTransport,
   createAppServerRpcClient,
+  createJsonLineProcessBackendAdapter,
   createPersistentGateway,
   deriveGatewayReasoningStateProfile,
   GATEWAY_ACK_SCHEMA,
@@ -112,6 +113,7 @@ function fixture(options = {}) {
     listen_path: listenPath,
     runtime_epoch_id: "are-gateway-runtime:test",
     backend: options.backend ?? {mode: "direct-stdio"},
+    backend_adapter: options.backend_adapter,
     max_clients: options.max_clients ?? 4,
     max_buffered_messages_per_client: options.max_buffered_messages_per_client ?? 4,
     reconnect: options.reconnect ?? true,
@@ -139,6 +141,18 @@ test("backend resolution distinguishes direct stdio from the official daemon pro
   assert.deepEqual(resolveBackendCommand({mode: "daemon-proxy", socket_path: "/tmp/codex.sock"}).args, ["app-server", "proxy", "--sock", "/tmp/codex.sock"]);
   assert.equal(resolveBackendCommand({mode: "websocket", url: "ws://127.0.0.1:4500"}).url, "ws://127.0.0.1:4500");
   assert.throws(() => resolveBackendCommand({mode: "invented"}), /Unsupported/);
+});
+
+test("persistent gateway runs a model-neutral backend adapter without changing its continuity protocol", async (context) => {
+  const adapter = createJsonLineProcessBackendAdapter({adapter_id: "fixture-agent/v1", command: "fixture-agent", args: ["serve", "--jsonl"]});
+  const {gateway, listenPath, children} = fixture({backend: {}, backend_adapter: adapter});
+  await gateway.start();
+  context.after(() => gateway.close());
+  const connection = await connectGateway(listenPath, "fixture:agent", "interaction-bound");
+  assert.equal(connection.receipt.ok, true);
+  assert.equal(gateway.inspect().backend_adapter_id, "fixture-agent/v1");
+  assert.deepEqual({command: children[0].command, args: children[0].args}, {command: "fixture-agent", args: ["serve", "--jsonl"]});
+  connection.socket.destroy();
 });
 
 test("gateway derives collision-resistant durable logs per consumer", () => {

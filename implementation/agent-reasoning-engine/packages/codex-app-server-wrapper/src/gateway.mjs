@@ -2,7 +2,7 @@ import {randomBytes, randomUUID, timingSafeEqual} from "node:crypto";
 import {chmodSync, existsSync, lstatSync, statSync, unlinkSync} from "node:fs";
 import {createServer} from "node:net";
 
-import {spawnCodexBackend} from "./backend.mjs";
+import {createCodexGatewayBackendAdapter, spawnGatewayBackend, validateGatewayBackendAdapter} from "./backend-adapter.mjs";
 import {digestValue, freezeResult, isRecord, nonEmptyString} from "./canonical.mjs";
 import {createFileGatewaySessionStore, createMemoryGatewaySessionStore} from "./gateway-session-store.mjs";
 import {jsonLine, jsonRpcError, parseJsonLine} from "./protocol.mjs";
@@ -88,8 +88,8 @@ function createLineReader(stream, onLine, onOverflow, initial = "") {
   return () => stream.off("data", onData);
 }
 
-function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, maxBufferedMessages, reconnectEnabled, continuityMode, detachTimeoutMs, idleTimeoutMs, maxRetainedBytes, maxReasoningLogBytes, evictionRetryMs, onBackendStderr, onClosed, onExpired, onDurableEvent = () => ({ok: true}), initialResumeToken = null, initialStableRequests = [], initialDeliveries = [], initialAcknowledgedThrough = 0, initialDeliverySequence = 0, initialServerRequests = []}) {
-  const child = spawnCodexBackend(backend, spawnImpl, WebSocketImpl);
+function createSession({metadata, wrapper, backend, backendAdapter, spawnImpl, WebSocketImpl, maxBufferedMessages, reconnectEnabled, continuityMode, detachTimeoutMs, idleTimeoutMs, maxRetainedBytes, maxReasoningLogBytes, evictionRetryMs, onBackendStderr, onClosed, onExpired, onDurableEvent = () => ({ok: true}), initialResumeToken = null, initialStableRequests = [], initialDeliveries = [], initialAcknowledgedThrough = 0, initialDeliverySequence = 0, initialServerRequests = []}) {
+  const child = spawnGatewayBackend(backendAdapter, backend, {spawn_impl: spawnImpl, websocket_impl: WebSocketImpl});
   let client = null;
   let detachReader = null;
   let clientChain = Promise.resolve();
@@ -722,6 +722,9 @@ function createSession({metadata, wrapper, backend, spawnImpl, WebSocketImpl, ma
 export function createPersistentGateway(options = {}) {
   if (!nonEmptyString(options.listen_path)) throw new TypeError("A Unix gateway listen_path is required.");
   if (typeof options.wrapper_factory !== "function") throw new TypeError("A wrapper_factory is required.");
+  const backendAdapter = options.backend_adapter ?? createCodexGatewayBackendAdapter();
+  const backendAdapterValidation = validateGatewayBackendAdapter(backendAdapter);
+  if (!backendAdapterValidation.ok) throw new TypeError(`Invalid gateway backend adapter: ${backendAdapterValidation.reason_codes.join(",")}`);
   const maxClients = options.max_clients ?? 8;
   const maxBufferedMessages = options.max_buffered_messages_per_client ?? 256;
   const detachTimeoutMs = options.detach_timeout_ms ?? 300_000;
@@ -832,6 +835,7 @@ export function createPersistentGateway(options = {}) {
             metadata,
             wrapper,
             backend: options.backend ?? {},
+            backendAdapter,
             spawnImpl: options.spawn_impl,
             WebSocketImpl: options.websocket_impl,
             maxBufferedMessages,
@@ -917,6 +921,7 @@ export function createPersistentGateway(options = {}) {
       return freezeResult({
       schema_version: "are.codex-persistent-gateway-state/v1",
       runtime_epoch_id: runtimeEpochId,
+      backend_adapter_id: backendAdapter.adapter_id,
       listen_path: options.listen_path,
       started,
       sessions: [...sessions.values()].map((session) => session.inspect()).sort((a, b) => a.consumer_id.localeCompare(b.consumer_id)),

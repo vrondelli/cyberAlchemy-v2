@@ -286,6 +286,16 @@ for(const [label,payload,reason] of [
  });
 }
 
+test('accounted malformed response can return the bound transport ledger to idle without tool execution',async t=>{
+ const x=await setup(t,({req})=>req.url.endsWith('/chat/completions')?reply({content:'',tool_calls:[]},'tool_calls'):undefined);
+ let invoked=0;x.input.tool_runtime={...x.input.tool_runtime,invoke(){invoked++;}};
+ const result=await runGlmAgent(x.input);assert.equal(result.status,'BLOCK');assert.deepEqual(result.reason_codes,['glm.tool-calls-invalid']);assert.equal(invoked,0);
+ const receipt=x.input.client.receipts.at(-1);assert.equal(receipt.status,200);assert.ok(Number.isSafeInteger(receipt.input_tokens));assert.ok(Number.isSafeInteger(receipt.output_tokens));
+ x.input.client.acknowledgeResponseFailure({request_sha256:receipt.request_sha256,code:'tool-calls-invalid'});
+ const ledger=JSON.parse(readFileSync(join(x.dir,'state','glm-transport-ledger.json')));assert.equal(ledger.phase,'idle');
+ assert.throws(()=>x.input.client.acknowledgeResponseFailure({request_sha256:'0'.repeat(64),code:'tool-calls-invalid'}),/response-failure-ack-invalid/);
+});
+
 test('batch validation rejects duplicate IDs before any execution',()=>{
  assert.throws(()=>validateCalls([tc(),tc()],['read-file'],new Set(),[]),/duplicate/);
  assert.throws(()=>validateCalls([tc('old')],['read-file'],new Set(['old']),[]),/duplicate/);

@@ -1,0 +1,49 @@
+# ARE release process
+
+The supported release unit is a private repository product candidate. It
+contains the ARE runtime, its declared components, integrations, and immutable
+test evidence. It is not an npm publication or a deployment.
+
+Use Node `26.8.1`. From this directory, run:
+
+```sh
+node bin/are.mjs doctor --json
+node bin/are.mjs test
+node bin/are.mjs candidate freeze
+npm run release:verify
+```
+
+`candidate freeze` binds the exact source closure to the complete product test
+result and failure-learning canary. Candidate identities are immutable; change
+the candidate number before freezing different bytes. `release:verify` checks
+the runtime and metadata, replays candidate inspection, enforces closure size
+and content boundaries, requires test coverage for every declared component,
+and scans the candidate closure for common credential and private-key forms.
+
+The release closure intentionally excludes ContextBench, GLM fitting corpora,
+experiment runs, undeclared packages, interpreter caches, and ontology
+research. Declared components and integrations are added to the closure from
+the product profile, so adding a required component also adds its exact source
+and tests. The declared surface includes `conversation-runtime` and the
+model-neutral `are.gateway-backend-adapter/v1` contract; it does not imply a
+hosted endpoint, operational installation, or effect authority. Research
+assets have independent evidence and lifecycle gates. The
+GLM 5.3 Flash 8K chapter is packaged under
+[`../../agent-reasoning-engine/research/contextbench-v1/releases/glm-5.3-flash-8k-v1/`](../../agent-reasoning-engine/research/contextbench-v1/releases/glm-5.3-flash-8k-v1/README.md).
+Its validation does not imply that the full ContextBench acceptance matrix or
+the 10K and 12K chapters have passed.
+
+After verification, review the exact changed paths before committing. Product
+approval, commit, tag, push, publication, activation, and deployment are
+separate owner actions.
+
+## Open Questions
+
+- Which owner will approve the private candidate after reviewing its immutable
+  receipt?
+- Which repository tag convention will identify the accepted candidate?
+- When the 10K and 12K ContextBench chapters finish, should their release
+  indexes be linked from a combined research release without entering the ARE
+  runtime closure?
+- When should AlchLang generated provenance replace checkout-local absolute
+  paths with portable source identities?

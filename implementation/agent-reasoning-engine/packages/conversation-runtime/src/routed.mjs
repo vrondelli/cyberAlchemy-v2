@@ -23,7 +23,7 @@ export function createRoutedConversationRuntime(options = {}) {
   return createConversationRuntime({
     ...options,
     turnHandler: async (turn) => {
-      const decision = route(requestContext(turn), options.decisionProfile);
+      const decision = route(requestContext(turn), options.decisionProfile, options.modulePort);
       onRouteDecision(decision, turn);
       if (decision.kind === "gate") {
         return {
@@ -42,4 +42,3 @@ export function createRoutedConversationRuntime(options = {}) {
     },
   });
 }
-

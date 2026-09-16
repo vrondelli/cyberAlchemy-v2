@@ -9,11 +9,12 @@ import {
   sha256HexText,
 } from "../packages/intent-route-resolver/index.mjs";
 import {inspectProduct, materializeProductClosure, productRoot, repositoryRoot} from "./product.mjs";
+import {materializeProductTestPlan} from "./product-test-plan.mjs";
 
-export const PRODUCT_CANDIDATE_ID = "ARE-PRODUCT-CANDIDATE-008";
-export const PRODUCT_CANDIDATE_PATH = resolve(productRoot, "evidence/product-candidate.008.json");
-export const PRODUCT_TEST_RECEIPT_PATH = resolve(productRoot, "evidence/product-test-receipt.008.json");
-export const FAILURE_LEARNING_CANARY_PATH = resolve(productRoot, "evidence/failure-learning-canary.008.json");
+export const PRODUCT_CANDIDATE_ID = "ARE-PRODUCT-CANDIDATE-013";
+export const PRODUCT_CANDIDATE_PATH = resolve(productRoot, "evidence/product-candidate.013.json");
+export const PRODUCT_TEST_RECEIPT_PATH = resolve(productRoot, "evidence/product-test-receipt.013.json");
+export const FAILURE_LEARNING_CANARY_PATH = resolve(productRoot, "evidence/failure-learning-canary.013.json");
 
 function digest(value) {
   return sha256HexText(canonicalJson(value));
@@ -110,10 +111,17 @@ export function projectProductTestResult(result) {
     status: result.status,
     product_id: result.product_id ?? null,
     product_version: result.product_version ?? null,
+    source_closure_digest: result.source_closure_digest ?? null,
+    test_plan_digest: result.test_plan_digest ?? null,
+    execution_mode: result.execution_mode ?? null,
+    total_test_files: result.total_test_files ?? 0,
     total_test_cases: result.total_test_cases ?? 0,
     targets: (result.results ?? []).map((entry) => ({
-      target: repositoryPath(entry.target),
+      target: entry.target_ref ?? repositoryPath(entry.target),
+      target_id: entry.target_id ?? null,
+      runner: entry.runner ?? "node-test",
       test_files: entry.test_files,
+      test_paths: [...(entry.test_paths ?? [])].sort(),
       test_cases: entry.test_cases,
       status: entry.status,
     })).sort((left, right) => left.target.localeCompare(right.target)),
@@ -192,6 +200,7 @@ export function materializeProductTestReceipt(input) {
   const candidateVerification = verifyProductCandidate(candidate);
   const canaryVerification = verifyFailureLearningCanaryEvidence(canaryEvidence);
   const health = inspectProduct({require_exact_runtime: true});
+  const testPlan = materializeProductTestPlan();
   const reasons = [...candidateVerification.reason_codes, ...canaryVerification.reason_codes];
   if (testEvidence?.schema_version !== "are.product-test-evidence/v1") reasons.push("product-tests.evidence-invalid");
   else {
@@ -199,13 +208,20 @@ export function materializeProductTestReceipt(input) {
     if (testEvidence.status !== "PASS") reasons.push("product-tests.failed");
     if (!(testEvidence.total_test_cases > 0)) reasons.push("product-tests.empty");
     if (testEvidence.targets.some((target) => target.status !== "PASS")) reasons.push("product-tests.target-failed");
+    if (testEvidence.execution_mode !== "isolated-source-closure") reasons.push("product-tests.not-isolated");
+    if (testEvidence.source_closure_digest !== candidate?.source_closure?.closure_digest) reasons.push("product-tests.source-closure-mismatch");
+    if (testEvidence.test_plan_digest !== testPlan.plan_digest) reasons.push("product-tests.plan-digest-mismatch");
+    const expectedPaths = unique(testPlan.suites.flatMap((suite) => suite.test_refs));
+    const observedPaths = unique(testEvidence.targets.flatMap((target) => target.test_paths ?? []));
+    if (JSON.stringify(expectedPaths) !== JSON.stringify(observedPaths)) reasons.push("product-tests.file-coverage-mismatch");
+    if (testEvidence.total_test_files !== expectedPaths.length) reasons.push("product-tests.file-count-mismatch");
   }
   if (health.status !== "PASS") reasons.push(...health.reason_codes.map((reason) => `product-health.${reason}`));
   if (health.source_closure.closure_digest !== candidate?.source_closure?.closure_digest) reasons.push("product-health.source-closure-mismatch");
   const status = reasons.length === 0 ? "PASS" : "BLOCK";
   return sealed({
     schema_version: "are.integrated-product-test-receipt/v1",
-    receipt_id: "ARE-PRODUCT-TEST-RECEIPT-008",
+    receipt_id: "ARE-PRODUCT-TEST-RECEIPT-013",
     status,
     candidate_binding: {
       candidate_id: candidate?.candidate_id ?? null,

@@ -66,61 +66,31 @@ candidate mechanisms to test separately, not established universal solutions.
 
 ## Current evidence and next research frontier
 
-The [feedback-timing round plan](research/feedback-timing-v1/PLAN.md) turns this
-direction into competing hypotheses and a 12-episode GLM coding comparison at
-the 12K threshold. Finish and audit the small-window chapter first; non-coding
-and cross-model experiments remain deferred follow-up work. The fixed comparison
-is now complete: [final result](../implementation/agent-reasoning-engine/benchmarks/external-context-v1/feedback-timing-v1/FINAL-RESULT.md),
-with six repairs verified twice among 12 attempts and equal 3/6 results per arm.
-H1 remains inconclusive because no live candidate had invalid syntax.
+The GLM-5.3-flash 8K ContextBench context-selection milestone is complete. The
+H72 request-local terminal evidence-handle mechanism passed a fresh development
+canary in Round 52 and an independent eight-pair confirmation in Round 55.
+Confirmation improved macro Span-F1 by 13.15 percentage points, increased valid
+selections from 6/8 to 8/8, and used 3,568 fewer logical model tokens. The
+[release candidate](research/contextbench-v1/releases/glm-5.3-flash-8k-v1/README.md)
+defines the exact bounded claim and reproducible evidence set.
 
-The [completed GLM holdout study](../implementation/agent-reasoning-engine/benchmarks/external-context-v1/holdout-v1/RESULT.md)
-and [syntax diagnostic](../implementation/agent-reasoning-engine/benchmarks/external-context-v1/holdout-v1/syntax-diagnostic/report.json)
-support a narrow observation: a parse check detects one retained invalid
-JavaScript candidate before a full test. They do not prove improved repair
-success, benefits in other domains, or superiority of a context-window size.
+This closes the 8K milestone, not the complete ContextBench acceptance contract.
+The original contract also names all 1,136 pinned identities, 10K and 12K
+windows, two confirmation repetitions, and fixed statistical checks. The raw
+Round 55 benchmark_cleared field is therefore interpreted only within its
+recorded 8K milestone scope.
 
-The GLM small-window comparison is closed with repair scores, 35 verified
-mechanical recycling events, costs and unresolved failures. Its traces identify
-late or absent candidate construction, output-budget exhaustion, and a terminal
-tool-protocol rejection for future investigation. Select the next hypothesis
-from that evidence in a separate plan; no broader experiment starts automatically.
-Generalization guides what we learn without replacing concrete milestones.
+The active frontier is the
+[larger-window plan](research/contextbench-v1/larger-window-v1/PLAN.md). It first
+tests unchanged H72 at 10K so window transfer is not confounded with a new
+intervention. A frozen development pass advances to fresh confirmation; a valid
+failure returns to competing hypotheses. Only a reviewed 10K confirmation can
+advance the same mechanism to 12K. SWE-bench remains outside this research loop.
 
-The subsequent [recovery-reservation comparison](../implementation/agent-reasoning-engine/benchmarks/external-context-v1/recovery-reservation-v1/FINAL-RESULT.md)
-is also complete: eight episodes, one repeat-verified repair per four attempts in
-each arm, and no repair of task 16542. Strict checkpoints conflicted with source
-rereads requested by staging-error feedback. This is evidence about a workflow
-policy, not a direct test of deterministic state usefulness.
-
-Current frontier: [ContextBench hypothesis and experiment loop](research/tool-state-audit-v1/PLAN.md),
-task C1: define the ContextBench acceptance contract and bind research questions.
-Tool/data audits and the [research-method audit](research/research-method-audit-v1/AUDIT.md)
-are complete. Native ContextBench integration and scoring remain unfinished.
-
-**Keep iterating hypotheses and separately frozen experiments until ContextBench
-is cleared against its declared criteria.** The active plan has no SWE-bench
-stage or automatic other-benchmark follow-on. Prior repair results stay preserved
-as historical evidence. Controlled post-delivery retention experiments support
-ContextBench diagnosis; custom metrics are distinct from native scores.
-
-Carry objective → question → competing hypotheses → selection → verified protocol
-and question-bound tasks → observations → reviewed learning decision → successor
-round. Tool repairs and token accounting are bounded preparation. A negative or
-inconclusive result closes its fixed round but leaves this chapter open. Revise
-the explanation and intervention, preserve all outcomes, and create new record
-versions rather than rerunning unchanged until lucky or lowering acceptance.
-
-Define metric thresholds and scope before live development; verify the scorer,
-use finite per-round token budgets, and reserve independent confirmation. Evidence
-used to tune becomes development evidence. Clear ContextBench only after verified
-confirmation meets the frozen acceptance contract; one passing example or archive
-integrity is insufficient. Broader GLM qualification remains separately recorded.
-
-Operational prerequisites, owners, and causal blockers for any live experiment
-must be recorded in its own plan. No operational deployment is required to
-record this direction. Implementation remains subject to the selected route
-and D65 construction boundary; this guidance grants no runtime effects.
+The research still follows objective → gap → question → competing hypotheses →
+selection → experiment/tasks/criteria → results → observations → reviewed
+decision → successor. Context-selection improvement remains distinct from
+completed-task correctness, non-code transfer, and cross-model transfer.
 
 ## Open Questions
 

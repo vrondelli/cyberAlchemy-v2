@@ -280,6 +280,20 @@ test("a recycle boundary can pause durably before post-recycle rendering or disp
   assert.equal(calls,2); assert.equal(postRecycleRenders,1); recycler.completeStep(restored,true); recycler.close();
 });
 
+test("an explicit shared boundary archives completed history before either branch renders", async (t) => {
+  const root=mkdtempSync(resolve(tmpdir(),"are-runtime-explicit-boundary-")),fixtureRoot=resolve(root,"fixture"),stateRoot=resolve(root,"state");mkdirSync(fixtureRoot);writeFileSync(resolve(fixtureRoot,"a.txt"),"source\n");t.after(()=>rmSync(root,{recursive:true,force:true}));
+  let calls=0,lastPrompt=null;
+  const model=createStatelessRecyclingTransport({adapter_id:"explicit-boundary",source_ref:"context-recycling.test.mjs:explicit-boundary",maximum_output_tokens:100,measure_request:()=>100,
+    request_once:async({prompt})=>{calls++;lastPrompt=prompt;return{final_bytes:'{"message":{"role":"assistant","content":"ok"}}'};}});
+  const scope={request:"explicit boundary"},options={directory:stateRoot,context_limit:8000,recycle_at:7000,safety_margin:500,state:{objective:"explicit boundary",constraints:[],completed:[],pending:[],facts:[],lessons:[],evidence_refs:["fixture"]}};
+  let recycler=openContextRecycling({options,transport:model,scope,fixture_root:fixtureRoot});
+  await recycler.generate({history:[],run_id:"prefix",render:async()=>"prefix"});const history=[{role:"assistant",content:"held terminal candidate"}];recycler.completeStep(history);
+  const boundary=recycler.prepareSharedBoundary(history);assert.equal(boundary.generation,1);assert.equal(boundary.start_index,1);assert.equal(boundary.history_count,1);assert.equal(calls,1);
+  await assert.rejects(async()=>recycler.prepareSharedBoundary(history),/shared-boundary-already-pending/);recycler.close();
+  recycler=openContextRecycling({options,transport:model,scope,fixture_root:fixtureRoot});const restored=recycler.initialHistory(history);
+  await recycler.generate({history:restored,run_id:"branch",render:async visible=>{assert.deepEqual(visible,[]);return"review";}});assert.equal(calls,2);assert.equal(lastPrompt,"review");recycler.completeStep(restored,true);recycler.close();
+});
+
 test("a resumed recycle boundary selects bounded render candidates before fresh-context rejection", async (t) => {
   const root=mkdtempSync(resolve(tmpdir(),"are-runtime-resumed-projection-")),fixtureRoot=resolve(root,"fixture"),stateRoot=resolve(root,"state");mkdirSync(fixtureRoot);writeFileSync(resolve(fixtureRoot,"a.txt"),"source\n");t.after(()=>rmSync(root,{recursive:true,force:true}));
   let calls=0,lastPrompt=null;

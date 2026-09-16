@@ -20,8 +20,8 @@ This directory is the supported product surface for the integrated ARE
 stability candidate. It composes deterministic routing, request-aware Context
 Envelopes, automatically evolved append-only Reasoning State, an exact-bound
 opt-in definition-readiness semantic domain, authenticated restartable Codex
-app-server continuity, measured cache-affinity telemetry, and the
-real-reasoning benchmark.
+app-server continuity, an ARE-owned conversation runtime, measured
+cache-affinity telemetry, and the real-reasoning benchmark.
 
 Use Node `26.8.1` and begin with:
 
@@ -57,7 +57,11 @@ surface is ready:
 ```sh
 node bin/are.mjs candidate freeze
 node bin/are.mjs candidate inspect --json
+npm run release:verify
 ```
+
+The [release process](RELEASE.md) defines the private candidate boundary,
+verification gates, and the separate lifecycle of ContextBench research.
 
 The freeze command materializes a content-addressed source closure, runs the
 complete product suite, runs the registered failure-to-learning canary, and
@@ -76,6 +80,19 @@ node bin/are.mjs gateway \
   --repository-root /path/to/domainspec-core \
   --listen /run/user/$(id -u)/are-codex/gateway.sock
 ```
+
+The gateway supports the exported
+`are.gateway-backend-adapter/v1` contract in
+`packages/codex-app-server-wrapper/src/backend-adapter.mjs`. Codex remains the
+default backend. Any agent process that implements the validated JSON-RPC 2.0
+over JSON-lines transport can use the same authenticated continuity protocol
+through `createJsonLineProcessBackendAdapter`. Adapter selection grants no
+effect authority and does not install or deploy an agent process.
+
+`packages/conversation-runtime` is a required product component. It owns
+conversation identity, ordered turns, pending-decision gates, internal route
+changes, usability observations, and bounded improvement handoff while keeping
+the user in one conversation.
 
 `node bin/are.mjs benchmark --mode core` and `node bin/are.mjs define ...`
 expose the benchmark and Define integration through the same product entrypoint.

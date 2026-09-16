@@ -9,6 +9,7 @@ const stable = (value) => JSON.stringify(value, (_, item) => item && typeof item
   ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) : item);
 const digest = (value) => createHash("sha256").update(stable(value)).digest("hex");
 const clone = (value) => JSON.parse(stable(value));
+const recoverableResponseFailures = new Set(["incomplete-output", "tool-calls-invalid", "final-text-invalid", "finish-reason-unsupported", "message-invalid", "reasoning-invalid"]);
 const TOOL = "read-context-evidence";
 
 /** Trusted adapter boundary: request_once must be stateless, enforce the supplied
@@ -214,7 +215,7 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
           let generated;
           try { generated = await transport.generate({prompt, run_id, dispatch}); }
           catch (error) {
-            if (error?.code === "incomplete-output") {
+            if (recoverableResponseFailures.has(error?.code)) {
               checkpoint.recoverable_failures.push({sequence: dispatch.sequence, generation: dispatch.generation, prompt_digest: dispatch.prompt_digest, code: error.code});
               checkpoint.phase = "model-failed-recoverable";
               persist();
@@ -234,9 +235,26 @@ export function openContextRecycling({options, transport, scope, fixture_root}) 
         persist();
       },
       acknowledgeIncompleteOutput() {
-        requireCondition(checkpoint.phase === "model-failed-recoverable" && checkpoint.recoverable_failures.at(-1)?.code === "incomplete-output", "incomplete-output-not-recorded");
+        this.acknowledgeResponseFailure("incomplete-output");
+      },
+      acknowledgeResponseFailure(code) {
+        requireCondition(recoverableResponseFailures.has(code), "response-failure-code-invalid");
+        requireCondition(checkpoint.phase === "model-failed-recoverable" && checkpoint.recoverable_failures.at(-1)?.code === code, "response-failure-not-recorded");
         checkpoint.phase = "idle";
         persist();
+      },
+      prepareSharedBoundary(history) {
+        requireCondition(!closed && !busy && checkpoint.phase === "idle", "shared-boundary-state-invalid");
+        requireCondition(checkpoint.post_recycle_render_pending === null, "shared-boundary-already-pending");
+        requireCondition(digest(history) === digest(checkpoint.history), "history-drift");
+        const history_ref = archive(history);
+        checkpoint.generation += 1;
+        checkpoint.start_index = history.length;
+        checkpoint.recycles += 1;
+        checkpoint.post_recycle_render_pending = {generation: checkpoint.generation, start_index: checkpoint.start_index,
+          history_ref, history_count: history.length, history_digest: digest(history)};
+        persist();
+        return clone({binding, ...checkpoint.post_recycle_render_pending, recycles: checkpoint.recycles});
       },
       completeStep(history, terminal = false) {
         requireCondition(["tool-pending", "model-returned"].includes(checkpoint.phase), "completion-phase-invalid");
