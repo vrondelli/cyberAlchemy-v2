@@ -1,0 +1,69 @@
+name: are-public-chat-security
+x-runtime: &runtime
+  user: "65532:65532"
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 384m
+  cpus: 1.0
+  restart: "no"
+  tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"]
+  logging: {driver: json-file, options: {max-size: 5m, max-file: "2"}}
+services:
+  edge:
+    <<: *runtime
+    image: are-chat-edge:security-candidate
+    build: {context: .., dockerfile: deploy/edge.Dockerfile}
+    environment:
+      ARE_CHAT_PUBLIC_HOST: "127.0.0.1:${ARE_CHAT_BIND_PORT:-14193}"
+    ports: ["127.0.0.1:${ARE_CHAT_BIND_PORT:-14193}:8080"]
+    networks: [host-edge, chat-ingress]
+    depends_on:
+      public-chat: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  public-chat:
+    <<: *runtime
+    image: are-public-chat:security-candidate
+    build: {context: .., dockerfile: deploy/chat.Dockerfile}
+    environment:
+      ARE_CHAT_PUBLIC_ORIGIN: "http://127.0.0.1:${ARE_CHAT_BIND_PORT:-14193}"
+    networks: [chat-ingress, inference]
+    depends_on:
+      inference-broker: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:4193/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  inference-broker:
+    <<: *runtime
+    image: are-inference-broker:security-candidate
+    build: {context: .., dockerfile: deploy/broker.Dockerfile}
+    secrets:
+      - source: model_api_key
+        target: model_api_key
+        uid: "65532"
+        gid: "65532"
+        mode: 0400
+    volumes: ["broker-quota:/var/lib/are-broker-quota"]
+    networks: [inference, provider-egress]
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:4194/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+secrets:
+  model_api_key: {file: "${ARE_MODEL_API_KEY_FILE:?set ARE_MODEL_API_KEY_FILE to a dedicated secret file}"}
+networks:
+  host-edge: {}
+  chat-ingress: {internal: true}
+  inference: {internal: true}
+  provider-egress: {}
+volumes:
+  broker-quota: {}

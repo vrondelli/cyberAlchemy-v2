@@ -81,3 +81,17 @@ test('build emits ontology and preserves all pricing fixtures; CLI inspection is
  const invalid=path.join(p,'invalid.alch');writeFileSync(invalid,source.replace('q.amountMinor <','q.missing <'));
  assert.throws(()=>execFileSync(process.execPath,[cli,'ontology',invalid],{encoding:'utf8',stdio:'pipe'}));
 });
+
+
+test('function provenance is independent of the checkout root and remains content-bound',async()=>{
+ const parsed=parseDeclarativeSource(source);
+ const compiled=(await loadDomainSpecCompiler()).compileDeclarativeFunction(parsed.contract);
+ const a=deriveOntology(parsed,compiled.trace,'/first-checkout/functions/quantity-price.alch');
+ const b=deriveOntology(parsed,compiled.trace,'/second-checkout/functions/quantity-price.alch');
+ assert.deepEqual(a,b);
+ assert.equal(a.source.path,'quantity-price.alch');
+ assert.equal(a.source.sha256,digest(source));
+ assert.ok(!JSON.stringify(a).includes('/first-checkout'));
+ const changed=await inspect('# different content\n'+source);
+ assert.notEqual(changed.source.sha256,a.source.sha256);
+});

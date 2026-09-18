@@ -1,8 +1,9 @@
 # ARE release process
 
-The supported release unit is a private repository product candidate. It
-contains the ARE runtime, its declared components, integrations, and immutable
-test evidence. It is not an npm publication or a deployment.
+The supported release unit is a self-contained source-closure candidate. It
+contains the ARE runtime, declared components and integrations, and immutable
+test evidence without Alch or DomainSpec build-time or runtime dependencies.
+It is not an npm publication or a deployment.
 
 Use Node `26.8.1`. From this directory, run:
 
@@ -11,6 +12,7 @@ node bin/are.mjs doctor --json
 node bin/are.mjs test
 node bin/are.mjs candidate freeze
 npm run release:verify
+npm run distribution:materialize -- /tmp/are-standalone
 ```
 
 `candidate freeze` binds the exact source closure to the complete product test
@@ -33,6 +35,10 @@ GLM 5.3 Flash 8K chapter is packaged under
 Its validation does not imply that the full ContextBench acceptance matrix or
 the 10K and 12K chapters have passed.
 
+The materializer accepts an empty destination, copies the exact content-addressed
+closure, verifies every copied digest, and emits a distribution receipt. The
+isolated candidate suite must report `execution_mode: isolated-source-closure`.
+
 After verification, review the exact changed paths before committing. Product
 approval, commit, tag, push, publication, activation, and deployment are
 separate owner actions.
@@ -45,5 +51,5 @@ separate owner actions.
 - When the 10K and 12K ContextBench chapters finish, should their release
   indexes be linked from a combined research release without entering the ARE
   runtime closure?
-- When should AlchLang generated provenance replace checkout-local absolute
-  paths with portable source identities?
+- Which archive format and signing identity should wrap the verified source
+  closure for delivery?

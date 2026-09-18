@@ -22,6 +22,18 @@ test('retained task/call/token/format outcomes permit later cells', t => {
     assert.equal(validateDispatchCompletion({cell, root}).directive, 'continue-sequence');
   }
 });
+test('shared-prefix outcomes use the same schema-wide completion validator', t => {
+  const root=fixture(t,{status:'shared_prefix_ready',shared_prefix_boundary:{kind:'effect-confirmed-completion-readiness'},continuation:{}});
+  const result=validateDispatchCompletion({cell:{...cell,cell_kind:'shared-prefix'},root});
+  assert.equal(result.ok,true);
+  assert.equal(result.directive,'continue-sequence');
+});
+test('terminal shared prefix validates export but does not require branch scorer artifacts', t => {
+  const root=fixture(t,{status:'final_context_selected',selection:{final_read_ids:['a']},native_export:{prediction:{}}});
+  const result=validateDispatchCompletion({cell:{...cell,cell_kind:'shared-prefix'},root});
+  assert.equal(result.ok,true);
+  assert.equal(result.directive,'continue-sequence');
+});
 test('fully accounted zero-byte tokenizer branch failures remain failed and permit independent cells', t => {
   for (const failure of ['request-failed', 'deadline-exceeded']) {
     const root = fixture(t, {status: 'run_error', error: `glm.${failure}`, receipts: [
@@ -53,6 +65,20 @@ test('fully accounted HTTP-200 model output protocol failures remain failed and 
     assert.equal(result.local_failure.failure_code, failure);
     assert.equal(result.local_failure.known_model_tokens, 128);
   }
+});
+test('conservatively bounded zero-byte model timeout permits independent cells', t => {
+  const root=fixture(t,{status:'run_error',error:'glm.deadline-exceeded',receipts:[
+    {kind:'model',dispatched:true,status:200,response_bytes:600,input_tokens:120,output_tokens:8,automatic_retries:0},
+    {kind:'model',dispatched:true,status:null,response_bytes:0,input_tokens:null,output_tokens:null,automatic_retries:0,failure_code:'deadline-exceeded'},
+  ],recycling:{dispatches:[
+    {sequence:1,input_upper_bound:632,output_reservation:2048,projected_upper_bound:2680},
+    {sequence:2,input_upper_bound:700,output_reservation:2048,projected_upper_bound:2748},
+  ]},admissions:[{admissible:true,known_consumed:128,request_reservation:2748,total_token_limit:96000}]});
+  const result=validateDispatchCompletion({cell,root});
+  assert.equal(result.ok,true);
+  assert.equal(result.directive,'continue-after-local-failure');
+  assert.equal(result.local_failure.indeterminate_token_debit,2748);
+  assert.equal(result.local_failure.conservative_model_token_upper_bound,2876);
 });
 test('unknown usage, malformed receipts, budget violations and unenumerated failures pause globally', t => {
   const unknown = fixture(t, {status: 'run_error', error: 'glm.deadline-exceeded', receipts: [

@@ -3,7 +3,7 @@ import {selectRequestContext} from "../../../packages/context-basis-runtime/inde
 import {evaluateTurnPreflight} from "../../../packages/codex-app-server-wrapper/index.mjs";
 import {loadRuntime, requestContext, resultEnvelope, ratio, timing, turnMessage} from "./common.mjs";
 import {scoreContextScenario} from "./scorer.mjs";
-import {createAlchSemanticModulePort} from "../../../packages/module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../../packages/module-port/native-semantic-adapter.mjs";
 
 function normalizedKind(decision) {
   if (decision.kind === "gate" || decision.kind === "ambiguous") return "gate";
@@ -30,7 +30,7 @@ export async function runCoreBenchmark(benchmark, options = {}) {
   const {profile, corpora} = benchmark;
   const loaded = loadRuntime(profile);
   const current = await loaded.context_source_provider();
-  const modulePort = createAlchSemanticModulePort();
+  const modulePort = createNativeSemanticModulePort();
   if (!current.ok) throw new Error(`Context source load failed: ${current.reason_codes?.join(",")}`);
   const routingCases = corpora.routing.map((scenario) => {
     const decision = routeRequest(requestContext(scenario.request, scenario.objective_kind, scenario.scenario_id), loaded.decision_profile, modulePort);

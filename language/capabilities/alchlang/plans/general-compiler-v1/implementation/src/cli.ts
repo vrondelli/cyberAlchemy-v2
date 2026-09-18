@@ -36,12 +36,29 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return parsed;
 }
 function usage(): never {
+  console.error("Application profile:\n  alchlang check <application.alch> [--application-bindings <relative-file>]\n  alchlang build|verify <application.alch> --out <directory> [--application-bindings <relative-file>]");
   console.error("Usage:\n  alchlang check|build <service.alch> [--out <new-directory>]\n  alchlang check|ontology <semantic-contract.alch>\n  alchlang build <semantic-contract.alch> --out <new-directory>\n  alchlang conformance <file.alch> --fixtures <file.json> --out <new-directory>\n  alchlang trace <file.alch> --input <input.json>\n  alchlang ontology <file.alch>\n  alchlang explain <file.alch> <declaration>\n  alchlang check <domain.alch> --profile domainspec-1.0.0 [--bindings file]\n  alchlang emit-domainspec <domain.alch> --out <new-directory> [--bindings file]\n  alchlang build <domain.alch> --backend domainspec --language typescript --out <new-directory> [--bindings file]\n  alchlang domainspec <compiler-command> [arguments]\n  domainspec check <domain.alch> --backend local-compat\n  domainspec build <domain.alch> --backend local-compat [--out generated] [--force]\n  domainspec run <domain.alch> <action> --actor <actor> --facts '<json>' --grant <boundary> --adapter memory\n  domainspec run <domain.alch> <action> --actor <actor> --facts '<json>' --grant <boundary> --binding sqlite-transactional-outbox --database <path> --effect-request-file <json>\n  domainspec outbox pending|status --database <path> [--status pending|leased|published|dead]\n  domainspec outbox dispatch --database <path> --transport stdout --worker-id <id> [--now <ISO>]\n  domainspec outbox dispatch --database <path> --transport http --worker-id <id> --endpoint <url> --allow-origin <origin> --confirm-network-dispatch <origin>\n  domainspec outbox requeue-dead --database <path> --message-id <id> --now <ISO>\n  domainspec registry build --config <registry-compiler.config.json>\n  domainspec patterns [--available|--blocked]\n  domainspec pattern <pattern-id>\n\nCanonical source files use .alch. A fenced .md file is supported only for legacy compatibility.");
   process.exit(2);
 }
 
 export async function main(): Promise<void> {
   const [, , command, ...args] = process.argv;
+  if (["check", "build", "verify"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile application-v1\r?$/m.test(readFileSync(args[0], "utf8"))) {
+    const allowed = new Set(["--application-bindings", ...(command === "check" ? [] : ["--out"])]), seen = new Set<string>();
+    for (let i = 1; i < args.length; i += 2) {
+      if (!allowed.has(args[i]!) || seen.has(args[i]!) || !args[i + 1] || args[i + 1]!.startsWith("--")) throw Error("APPLICATION_FILE_ARGUMENT");
+      seen.add(args[i]!);
+    }
+    const options = { companion: option(args, "--application-bindings") };
+    const { checkApplicationFile } = await import("./application-file-check.js");
+    if (command === "check") console.log(JSON.stringify(await checkApplicationFile(args[0], options), null, 2));
+    else {
+      const out = option(args, "--out"); if (!out) throw Error("APPLICATION_FILE_ARGUMENT: --out required");
+      const { buildApplicationFile, verifyApplicationFile } = await import("./application-file-build.js");
+      console.log(JSON.stringify(await (command === "build" ? buildApplicationFile : verifyApplicationFile)(args[0], out, options), null, 2));
+    }
+    return;
+  }
   if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && /^profile module-configuration-v1$/m.test(readFileSync(args[0],'utf8'))){
     if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('MODULE_CONFIGURATION_ARGUMENT: build <file.alch> --out <new-directory>');console.log(JSON.stringify(buildModuleConfiguration(args[0],args[2]),null,2));}
     else {if(args.length!==1)throw Error('MODULE_CONFIGURATION_ARGUMENT');console.log(JSON.stringify(command==='ontology'?compileModuleConfiguration(args[0]).ontology:checkModuleConfiguration(args[0]),null,2));}
@@ -209,6 +226,7 @@ export async function main(): Promise<void> {
   if (command === "check") {
     const sourcePath = args[0]; if (!sourcePath || sourcePath.startsWith("--")) usage();
     const loaded = loadAlchLangSource(sourcePath);
+    for (const diagnostic of loaded.diagnostics) console.error(`${diagnostic.code}: ${diagnostic.message}`);
     const result = compileCarrier(loaded.carrier);
     console.log(JSON.stringify({ status: "valid", source: loaded.source_path, file_format: loaded.file_format, domain_id: result.plan.model.domain_id, plan_digest: result.plan_digest, authority_effect: "none" }, null, 2));
     return;
@@ -216,6 +234,7 @@ export async function main(): Promise<void> {
   if (command === "build") {
     const sourcePath = args[0]; if (!sourcePath || sourcePath.startsWith("--")) usage();
     const parsed = loadAlchLangSource(sourcePath);
+    for (const diagnostic of parsed.diagnostics) console.error(`${diagnostic.code}: ${diagnostic.message}`);
     const result = compileCarrier(parsed.carrier);
     const receipt = writeCompilation(result, option(args, "--out") ?? path.resolve(process.cwd(), "generated"), { force: args.includes("--force"), carrier: parsed.carrier });
     console.log(JSON.stringify({ status: "built", source: path.resolve(sourcePath), ...receipt, authority_effect: "none" }, null, 2));

@@ -121,12 +121,15 @@ skips. The real SOPS tests create isolated synthetic vaults and exercise actual
 encryption, decryption, process-bridge consumption, and redacted results; they
 do not read the live vault.
 
-From the coding-agent-runtime package directory, the validated environment is:
+From the coding-agent-runtime package directory, use Node 26.8.1, the pinned
+SOPS/age tools on PATH, and Python >=3.12. Set `ARE_SECRET_PROJECT` to the absolute
+path of your installed `domainspec-core/projects/secret-management` package.
+The following explicitly selects the test bridge rather than relying on the
+original workstation layout:
 
 ```bash
-PATH=/home/vrondelli/.local/bin:$PATH \
-ARE_SECRET_PYTHON=/usr/bin/python3 \
-ARE_SECRET_PROJECT=/home/vrondelli/projects/domainspec-core/projects/secret-management \
+ARE_SECRET_PYTHON="$(command -v python3)" \
+ARE_SECRET_PROJECT="${ARE_SECRET_PROJECT:?Set the installed secret-management package path}" \
 npm test
 ```
 
@@ -218,7 +221,7 @@ does not establish canary success.
 ### Forced recycling scenario
 
 ```bash
-npm run canary:glm:recycling -- --credential /home/vrondelli/.config/are/glm-flash-credential.json
+npm run canary:glm:recycling -- --credential "$HOME/.config/are/glm-flash-credential.json"
 ```
 
 This scenario adds two files containing 56 FIFO, duplicate-ID, and ID-reuse
@@ -255,39 +258,40 @@ options in both CLI and canary are implemented and tested.
    and caps output at 2048 tokens. Preserve explicit budgets and measure the
    tradeoff; do not silently raise the canary's limits.
 
-Operational prerequisites for the live canary, owned by the runtime/environment
-owner:
+Historical validation environment (2026-09-07). These home-relative locations
+describe that run; they do not assert that tools, credentials or a vault exist on
+a customer machine. Configure your own tool and credential paths explicitly:
 
 - Node 26.8.1 is installed under
-  `/home/vrondelli/.local/share/are-runtimes/node-v26.8.1-linux-x64`, with
-  `node`, `npm`, and `npx` launchers under `/home/vrondelli/.local/bin`.
+  `~/.local/share/are-runtimes/node-v26.8.1-linux-x64`, with
+  `node`, `npm`, and `npx` launchers under `~/.local/bin`.
   The official download was verified against its published SHA-256 checksum.
-  Prefix PATH as shown above if the shell does not include that bin directory.
+  Put the selected installation’s bin directory on PATH before using these examples.
 - When overrides are omitted, the provider's derived bridge root resolves to
-  `/home/vrondelli/projects/projects/secret-management`, which does not exist.
+  `<checkout-parent>/projects/secret-management`, which does not exist.
   The source bridge is at
-  `/home/vrondelli/projects/domainspec-core/projects/secret-management`.
+  the selected sibling `projects/secret-management` package.
 - The provider defaults to `/usr/bin/python3.12`, absent in this environment.
   Set `python_command` to `/usr/bin/python3` (Python 3.14.4); it meets the secret
   package's `>=3.12` requirement and passed both real SOPS integration tests.
 - SOPS 3.13.3, age 1.3.1, and age-keygen are installed under
-  `/home/vrondelli/.local/bin`. Downloaded archives and all three executables
+  `~/.local/bin`. Downloaded archives and all three executables
   were checked against the existing secret package's pinned SHA-256 values.
 - On 2026-09-07, the owner requested fresh setup from `../domainspec-core`.
   Its `projects/secret-management` package now backs the installed
-  `/home/vrondelli/.local/bin/secret-store` launcher. No existing identity/vault
+  `~/.local/bin/secret-store` launcher. No existing identity/vault
   was located in the sibling checkout; a new age identity and empty encrypted
   vault were initialized at the default paths above. `doctor` reports `ready`,
   zero records, and `0600` key/vault permissions. External recovery backup is
   not verified.
 - The validated reference-only configuration is
-  `/home/vrondelli/.config/are/glm-flash-credential.json` (mode `0600`). It selects
+  `~/.config/are/glm-flash-credential.json` (mode `0600`). It selects
   the sibling secret-management project and `/usr/bin/python3` explicitly.
   The owner entered the API key on 2026-09-07 and the bridge/live canary passed.
   For a future fresh store, the hidden-entry command is:
 
   ```bash
-  /home/vrondelli/.local/bin/secret-store put model/zai-key --purpose model-provider
+  secret-store put model/zai-key --purpose model-provider
   ```
 
   This prompts twice with input hidden. Do not paste the key into chat or put it
@@ -361,7 +365,7 @@ After reviewing the exact candidate and selecting a live pilot, invoke:
 
 ```bash
 node implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/paired-canary.mjs \
-  --credential /home/vrondelli/.config/are/glm-flash-credential.json \
+  --credential "$HOME/.config/are/glm-flash-credential.json" \
   --output-directory /tmp/are-glm-retention-pair-UNIQUE
 ```
 
@@ -411,7 +415,7 @@ Use the optional paired flags to compare v2 under either supported threshold:
 
 ```bash
 node implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/paired-canary.mjs \
-  --credential /home/vrondelli/.config/are/glm-flash-credential.json \
+  --credential "$HOME/.config/are/glm-flash-credential.json" \
   --output-directory /tmp/are-glm-v2-pair-UNIQUE \
   --treatment recent-observations-v2 --recycle-at 8000
 ```

@@ -1,0 +1,10 @@
+{
+  "instance_id": "Multi-SWE-Bench__cpp__maintenance__bugfix__3eb5a2e7",
+  "original_inst_id": "simdjson__simdjson-954",
+  "repo": "simdjson/simdjson",
+  "repo_url": "https://github.com/simdjson/simdjson.git",
+  "language": "cpp",
+  "base_commit": "c25928e44fb69f5a3b1d0bbbabf75742e15269ee",
+  "problem_statement": "Return error from parse_many\n\nThis makes it so parse_many and load_many behave like other APIs and return simdjson_result<document_stream>. Previously, if there was an error while loading, we would stash the error in the document_stream and return it when you first iterated.\r\n\r\nThe purpose here is to ensure we handle errors the same way everywhere (and to allow users to check for and recover from them as soon as they like).\r\n\r\n### Concerns\r\n\r\nThis is a win for us internally, but it makes the use of parse_many() harder when you have exceptions off. I think the control flow makes more *sense* if you have exceptions off--you would expect the file itself to have at least one error--but it definitely makes the code you have to write harder:\r\n\r\nNow:\r\n\r\n```c++\r\ndocument_stream stream;\r\nif ((error = parser.parse_many(json).get(stream)) { exit(1); }\r\nfor (auto [doc, error] : stream) {\r\n  ...\r\n}\r\n```\r\n\r\nBefore:\r\n\r\n```c++\r\nfor (auto [doc, error] : parser.parse_many(json)) {\r\n  ...\r\n}\r\n```\r\n\r\nFixes #952.",
+  "source": "Multi"
+}

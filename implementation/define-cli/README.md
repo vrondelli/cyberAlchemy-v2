@@ -86,7 +86,7 @@ grants no ontology admission or runtime authority.
 A reviewed, handoff-ready conversational result can be materialized explicitly:
 
 ```bash
-$NODE cyberAlchemy-v2/implementation/define-cli/bin/define.mjs compile \
+node cyberAlchemy-v2/implementation/define-cli/bin/define.mjs compile \
   --input /path/to/definition-pack-result.json \
   --out /path/to/new-definition-contract
 ```
@@ -137,17 +137,17 @@ provider.
 
 ## Conversational run
 
-Use the repository-supported Node binary:
+Use Node 26.8.1 on PATH. Start from the directory containing `cyberAlchemy-v2`
+in the checkout or extracted engine:
 
 ```bash
-NODE=/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node
-$NODE cyberAlchemy-v2/implementation/define-cli/bin/define.mjs
+node cyberAlchemy-v2/implementation/define-cli/bin/define.mjs
 ```
 
 You can also supply the broad opening immediately:
 
 ```bash
-$NODE cyberAlchemy-v2/implementation/define-cli/bin/define.mjs \
+node cyberAlchemy-v2/implementation/define-cli/bin/define.mjs \
   "We are building a knowledge system for clinical research teams and the language is becoming inconsistent"
 ```
 
@@ -167,7 +167,7 @@ result instead of the compact human summary.
 `define run` retains the deterministic exact-input interface for automation:
 
 ```bash
-$NODE cyberAlchemy-v2/implementation/define-cli/bin/define.mjs run \
+node cyberAlchemy-v2/implementation/define-cli/bin/define.mjs run \
   --goal "Define a release channel" \
   --intent "Remove ambiguity for a local consumer" \
   --context "A release channel names how candidate output reaches a consumer." \
@@ -195,7 +195,6 @@ readiness block. All outputs retain `authority_effect: none`.
 ## Test
 
 ```bash
-NODE=/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node
 cd cyberAlchemy-v2/implementation/define-cli
 npm test
 ```

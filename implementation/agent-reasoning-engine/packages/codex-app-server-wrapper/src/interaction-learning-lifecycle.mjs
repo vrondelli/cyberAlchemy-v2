@@ -73,7 +73,7 @@ export function createInteractionLearningLifecycle({ledger, configuration = {ena
           predecessor: feedback.revises_lesson_id ? state.lessons[feedback.revises_lesson_id] : undefined});
         const stored = apply({event_id: `feedback:${request_ref}`, kind: 'lesson', lesson}); if (!stored.ok) return stored;
       }
-      const current = {...binding, interaction_ref: thread, request, request_ref, target: supplied.target ?? 'response', checks: supplied.checks ?? [],
+      const current = {...binding, interaction_ref: thread, request, request_ref, target: supplied.target ?? 'response', representation: supplied.representation, checks: supplied.checks ?? [],
         override_lesson_ids: supplied.override_lesson_ids ?? [], invalidated_refs: supplied.invalidated_refs ?? []};
       const view = projectInteractionContext(state, current, policy());
       return {ok: true, request: current, view, lessons: view.items.map(i => state.lessons[i.lesson_id]), policy: policy(), rpc_id: message.id};

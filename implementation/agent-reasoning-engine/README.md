@@ -2,9 +2,13 @@
 
 For the enduring objective and criteria for selecting future experiments, read
 the [project lighthouse](../../agent-reasoning-engine/LIGHTHOUSE.md).
+The complete product manual starts at [docs/README.md](docs/README.md); its
+[coverage map](docs/DOCUMENTATION-COVERAGE.md) identifies the guide that owns
+each reader question and the lifecycle state of each release-readiness guide.
+The [Candidate 018 release note](docs/releases/0.10.0-self-contained-candidate.7.md)
+and [changelog](CHANGELOG.md) describe the current private history.
 
-The first-class Product identity, Product Capability, business ontology, and
-DomainSpec construction package live at
+The companion Product identity, Product Capability, and business ontology live at
 [`../../agent-reasoning-engine/`](../../agent-reasoning-engine/README.md). This
 directory owns the working runtime and exact tested implementation candidates;
 the development directory owns research, designs, and historical decisions.
@@ -28,6 +32,7 @@ Use Node `26.8.1` and begin with:
 ```sh
 node bin/are.mjs doctor --json
 node bin/are.mjs test
+npm run distribution:materialize -- /tmp/are-standalone
 ```
 
 Repository sessions can consult the engine without starting a host or model:
@@ -77,7 +82,7 @@ Start the configured app-server gateway with:
 ```sh
 node bin/are.mjs gateway \
   --config packages/codex-app-server-wrapper/profiles/repository-v1.json \
-  --repository-root /path/to/domainspec-core \
+  --repository-root /path/to/are-workspace \
   --listen /run/user/$(id -u)/are-codex/gateway.sock
 ```
 
@@ -94,8 +99,9 @@ conversation identity, ordered turns, pending-decision gates, internal route
 changes, usability observations, and bounded improvement handoff while keeping
 the user in one conversation.
 
-`node bin/are.mjs benchmark --mode core` and `node bin/are.mjs define ...`
-expose the benchmark and Define integration through the same product entrypoint.
+`node bin/are.mjs benchmark --mode core` exposes the benchmark through the same
+product entrypoint. Define remains a separate CyberAlchemy workflow and is not
+part of the self-contained ARE distribution.
 The improvement surface runs the registered failure-to-learning canary and
 shows a compact view of any saved result:
 

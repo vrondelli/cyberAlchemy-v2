@@ -1,5 +1,7 @@
 # ARE Evolution Runtime
 
+Command examples require Node 26.8.1 on PATH and run from this package directory.
+
 This package implements the Agent Reasoning Engine improvement loop as
 immutable records stored through the existing append-only Reasoning State
 ledger.
@@ -131,7 +133,7 @@ canary, cadence, and whether controlled local activation is enabled.
 Run tests with Linux Node v26.8.1:
 
 ```sh
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node --test test/*.test.mjs
+node --test test/*.test.mjs
 ```
 
 Run the first deterministic learning canary:

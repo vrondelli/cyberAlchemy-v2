@@ -5,7 +5,7 @@ import {resolve} from "node:path";
 import {loadVerifiedDecisionProfile, routeRequest, evaluateContinuation} from "../packages/request-decision-router/index.mjs";
 import {loadRepositoryProfile, evaluateTurnPreflight, evaluateEffectRequest} from "../packages/codex-app-server-wrapper/index.mjs";
 import {digestValue} from "../packages/codex-app-server-wrapper/src/canonical.mjs";
-import {createAlchSemanticModulePort} from "../packages/module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../packages/module-port/native-semantic-adapter.mjs";
 
 const productRoot = fileURLToPath(new URL("../", import.meta.url));
 export const repositoryRoot = resolve(productRoot, "../../..");
@@ -56,7 +56,7 @@ export function decide(operation, input, paths = {}) {
     if (!loaded.ok) return failure(loaded.reason_codes);
     const profile = loaded.value;
     const request = {schema_version: "are.request-context/v1", request_id: input.request_id, ...input.request};
-    const modulePort = paths.modulePort ?? createAlchSemanticModulePort();
+    const modulePort = paths.modulePort ?? createNativeSemanticModulePort();
     const route = routeRequest(request, profile, modulePort);
     const binding = {schema_version: "are.cli-route-receipt/v1", session_id: input.session_id, request_id: input.request_id,
       request_digest: digestValue(input.request), decision_profile_digest: profile.profile_digest,

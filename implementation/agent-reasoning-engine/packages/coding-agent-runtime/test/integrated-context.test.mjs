@@ -7,7 +7,7 @@ import {fileURLToPath} from "node:url";
 
 import {loadVerifiedDecisionProfile} from "../../request-decision-router/index.mjs";
 import {applyIntegratedCorrection, openPersistentCodingSession, prepareIntegratedContext} from "../integrated-context.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../../../../..");
@@ -36,7 +36,7 @@ test("context, intent, correction, and append-only recovery remain digest-bound"
   try {
     const opened = openPersistentCodingSession({log_path: logPath, ledger_id: "coding:test"});
     assert.equal(opened.ok, true);
-    const prepared = await prepareIntegratedContext({session: opened.session, request: "Research current context management approaches.", request_ref: "request:1", context_input: contextInput(), module_port: createAlchSemanticModulePort()});
+    const prepared = await prepareIntegratedContext({session: opened.session, request: "Research current context management approaches.", request_ref: "request:1", context_input: contextInput(), module_port: createNativeSemanticModulePort()});
     assert.equal(prepared.ok, true, prepared.reason_codes?.join(","));
     const corrected = await applyIntegratedCorrection({
       session: opened.session,

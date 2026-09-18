@@ -23,6 +23,8 @@ if (closure.files.length >= PRODUCT_CLOSURE_LIMITS.maximum_files) reasonCodes.pu
 if (totalBytes >= PRODUCT_CLOSURE_LIMITS.maximum_bytes) reasonCodes.push("closure.byte-limit-exceeded");
 
 const forbiddenSegments = [
+  "domainspec-core/",
+  "/language/capabilities/alchlang/",
   "/agent-reasoning-engine/research/",
   "/benchmarks/contextbench-v1/",
   "/benchmarks/external-context-v1/",
@@ -43,7 +45,10 @@ for (const component of health.components) {
 for (const integration of health.integrations) {
   if (!testPlan.suites.some((suite) => suite.target_id === `integration:${integration.integration_id}`)) reasonCodes.push(`tests.integration-uncovered:${integration.integration_id}`);
 }
-if (!testPlan.suites.some((suite) => suite.target_id === "derived:module-port-governance-binding-rust" && suite.runner === "cargo-test")) reasonCodes.push("tests.rust-binding-uncovered");
+if (health.components.some((component) => component.component_id === "module-port-governance-cutover")
+  && !testPlan.suites.some((suite) => suite.target_id === "derived:module-port-governance-binding-rust" && suite.runner === "cargo-test")) {
+  reasonCodes.push("tests.rust-binding-uncovered");
+}
 
 let recordedTests = null;
 try { recordedTests = JSON.parse(readFileSync(PRODUCT_TEST_RECEIPT_PATH, "utf8")).product_test_evidence; }
@@ -58,9 +63,7 @@ if (recordedTests) {
 }
 
 for (const requiredPath of [
-  "cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/semantic-contract-v1/consumer-runtime.mjs",
-  "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/module-port-governance-binding-rust/src/lib.rs",
-  "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/module-port-governance-binding-rust/artifacts/linux-x64/are-module-port-governance-binding",
+  "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/module-port/native-semantic-adapter.mjs",
 ]) {
   if (!closure.files.some((file) => file.path === requiredPath)) reasonCodes.push(`closure.required-runtime-source-missing:${requiredPath}`);
 }
@@ -84,7 +87,7 @@ const uniqueReasons = [...new Set(reasonCodes)].sort();
 const result = {
   schema_version: "are.release-verification/v1",
   status: uniqueReasons.length === 0 ? "PASS" : "BLOCK",
-  distribution: "private-repository-product-candidate",
+  distribution: "self-contained-source-closure",
   product_id: productProfile.product_id,
   product_version: productProfile.version,
   runtime: health.node,
@@ -105,7 +108,7 @@ const result = {
   tests: candidate.tests ?? null,
   canary: candidate.canary ?? null,
   reason_codes: uniqueReasons,
-  claim_limit: "PASS verifies the private repository candidate and its bound evidence. Publication, deployment, activation, and product approval remain separate actions.",
+  claim_limit: "PASS verifies the self-contained ARE source closure and its bound evidence. Publication, deployment, activation, and product approval remain separate actions.",
   authority_effect: "none",
 };
 

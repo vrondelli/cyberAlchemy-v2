@@ -7,7 +7,7 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 
 import {loadRuntime, packageRoot, percentile, repositoryRoot, requestContext, sha256, turnMessage} from "./common.mjs";
-import {createAlchSemanticModulePort} from "../../../packages/module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../../packages/module-port/native-semantic-adapter.mjs";
 
 export const IMPACT_PROFILE_SCHEMA = "are.local-turn-impact-profile/v1";
 
@@ -251,7 +251,7 @@ export async function runImpactProfile(benchmark, options = {}) {
   const warmIterations = validateIterations(options.warm_iterations ?? config.warm_iterations ?? 20, "warm_iterations");
   const iterations = validateIterations(options.iterations ?? config.iterations ?? 100, "iterations");
   const loaded = loadRuntime(benchmark.profile);
-  const modulePort = createAlchSemanticModulePort();
+  const modulePort = createNativeSemanticModulePort();
   const current = await loaded.context_source_provider();
   if (!current.ok) throw new Error(`Context source load failed: ${(current.reason_codes ?? []).join(",")}`);
   const routingScenarios = benchmark.corpora.routing;

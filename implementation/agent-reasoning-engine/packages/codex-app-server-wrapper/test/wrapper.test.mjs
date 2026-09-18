@@ -25,7 +25,7 @@ import {
 import {digestValue} from "../../semantic-judgment-evaluator/index.mjs";
 import {composeSemanticLifecycle, loadSemanticInputProfile} from "../../semantic-input-runtime/index.mjs";
 import {sha256HexText} from "../../intent-route-resolver/index.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 import {createStaticContextSourcesAdapter, contextSourceOutputValidators} from "../../module-port/context-sources.mjs";
 import {composeStaticModulePort, sealStaticModuleConfiguration} from "../../module-port/static-composition.mjs";
 import {semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
@@ -75,7 +75,7 @@ test("wrapper starts and exposes non-context operations with no definition or on
 });
 
 test("one statically composed module port supplies semantic and context capabilities", async () => {
-  const semantic = createAlchSemanticAdapter();
+  const semantic = createNativeSemanticAdapter();
   const context = createStaticContextSourcesAdapter({
     definition_catalog: loaded.definition_catalog,
     ontology_snapshot: loaded.ontology_snapshot,

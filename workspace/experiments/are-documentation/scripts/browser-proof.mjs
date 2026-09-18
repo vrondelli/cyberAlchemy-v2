@@ -1,0 +1,47 @@
+import {createRequire} from 'node:module';
+import {mkdirSync,writeFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {resolve,dirname} from 'node:path';
+const require=createRequire(import.meta.url);
+const {chromium}=require(process.env.ARE_PLAYWRIGHT_ROOT??'/home/vrondelli/.local/share/are-workspace/browser-tests/node_modules/playwright');
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');mkdirSync(resolve(root,'evidence'),{recursive:true});
+const browser=await chromium.launch({headless:true,executablePath:process.env.ARE_CHROMIUM??'/home/vrondelli/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome'});
+const page=await browser.newPage({viewport:{width:1440,height:960}});const errors=[];const external=[];const checks=[];
+page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});page.on('request',r=>{if(!new URL(r.url()).hostname.match(/^(127\.0\.0\.1|localhost)$/)&&!r.url().startsWith('data:'))external.push(r.url())});
+const check=(name,condition)=>{if(!condition)throw Error(name);checks.push(name)};
+try{
+await page.goto(process.env.ARE_CANVAS_URL??'http://127.0.0.1:4193',{waitUntil:'networkidle'});
+check('introduction visible',await page.getByRole('heading',{name:'Agent Reasoning Engine',exact:true}).isVisible());
+await page.screenshot({path:resolve(root,'evidence/introduction.png')});
+await page.getByRole('button',{name:/Explore how it works/}).click();await page.waitForTimeout(450);
+check('eight icon nodes',await page.locator('.icon-button').count()===8);
+check('nodes have no card background',await page.locator('.react-flow__node').evaluateAll(ns=>ns.every(n=>getComputedStyle(n).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(n).boxShadow==='none')));
+check('eight property choices',await page.locator('.properties>button').count()===8);
+await page.screenshot({path:resolve(root,'evidence/canvas.png')});
+await page.getByRole('button',{name:'Explore Working memory',exact:true}).click();await page.waitForTimeout(400);
+check('nonmodal reader visible',await page.getByRole('complementary',{name:'Working memory explanation'}).isVisible());
+check('no modal',await page.locator('dialog,[aria-modal=true]').count()===0);
+check('reader belongs to React Flow canvas',await page.locator('.react-flow .canvas-expansion').count()===1);
+check('graph retains full canvas width',await page.evaluate(()=>Math.abs(document.querySelector('.graph-area').getBoundingClientRect().width-document.querySelector('.canvas-frame').getBoundingClientRect().width)<2));
+const panelBefore=await page.locator('.canvas-expansion').boundingBox();const graph=await page.locator('.graph-area').boundingBox();
+await page.mouse.move(graph.x+100,graph.y+110);await page.mouse.down();await page.mouse.move(graph.x+135,graph.y+130,{steps:6});await page.mouse.up();await page.waitForTimeout(100);
+const panelAfter=await page.locator('.canvas-expansion').boundingBox();check('expansion follows graph pan',Math.abs(panelAfter.x-panelBefore.x-35)<3&&Math.abs(panelAfter.y-panelBefore.y-20)<3);
+
+const inside=await page.evaluate(()=>{const r=document.querySelector('.reader').getBoundingClientRect(),f=document.querySelector('.canvas-frame').getBoundingClientRect();return r.left>=f.left&&r.right<=f.right+1&&r.top>=f.top&&r.bottom<=f.bottom+1});check('reader contained in canvas',inside);
+check('selected node not covered',await page.locator('[data-component="state"]').evaluate(el=>{const n=el.getBoundingClientRect(),r=document.querySelector('.reader').getBoundingClientRect();return n.right<=r.left}));
+const before=await page.locator('.react-flow__viewport').getAttribute('style');await page.locator('.reader').hover();await page.mouse.wheel(0,180);await page.waitForTimeout(100);check('reader scrolling does not zoom graph',before===await page.locator('.react-flow__viewport').getAttribute('style'));
+await page.locator('.reader').evaluate(e=>e.scrollTop=0);
+await page.screenshot({path:resolve(root,'evidence/reader.png')});
+await page.getByRole('button',{name:'Read full page'}).click();check('full page uses same content',await page.locator('.full-reader h2').textContent()==='Working memory');
+await page.getByRole('button',{name:'Show in canvas'}).click();check('return to selected component',await page.locator('.reader h2').textContent()==='Working memory');
+await page.keyboard.press('Escape');await page.waitForTimeout(200);check('escape closes reader',await page.locator('.reader').count()===0);check('focus restored',await page.locator('[data-component="state"]').evaluate(e=>document.activeElement===e));
+await page.keyboard.press('Enter');await page.waitForTimeout(150);check('keyboard opens explanation',await page.locator('.reader').count()===1);
+await page.getByRole('button',{name:/Use tokens well/}).click();await page.goBack();await page.waitForTimeout(150);check('browser back restores selection',await page.locator('.reader h2').textContent()==='Working memory');
+await page.goto('http://127.0.0.1:4193/#view=controlled-action&node=boundary');await page.waitForTimeout(200);check('deep link restores lens and node',await page.locator('.reader h2').textContent()==='Permissions');
+await page.setViewportSize({width:390,height:844});await page.waitForTimeout(300);await page.screenshot({path:resolve(root,'evidence/mobile.png'),fullPage:true});
+check('mobile selected icon remains visible',await page.locator('[data-component="boundary"]').evaluate(el=>{const n=el.getBoundingClientRect(),g=document.querySelector('.graph-area').getBoundingClientRect();return n.left>=g.left&&n.right<=g.right&&n.top>=g.top&&n.bottom<=g.bottom}));
+check('mobile has no horizontal page overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+check('mobile reader uses at most half the canvas',await page.evaluate(()=>document.querySelector('.reader').getBoundingClientRect().height<=document.querySelector('.canvas-frame').getBoundingClientRect().height*.5));
+check('no browser errors',errors.length===0);check('no external requests',external.length===0);
+writeFileSync(resolve(root,'evidence/browser-proof.json'),JSON.stringify({status:'PASS',checks,errors,external,date:new Date().toISOString(),scope:'Local UI behavior only; no engine execution or reader-comprehension evidence'},null,2));console.log(JSON.stringify({status:'PASS',checks:checks.length}));
+}finally{await browser.close()}

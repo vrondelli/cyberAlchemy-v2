@@ -1,0 +1,147 @@
+name: keld-sandbox
+x-logging: &logging
+  driver: json-file
+  options: {max-size: 10m, max-file: "3"}
+x-app: &app
+  image: keld-sandbox:${KELD_VERSION:-candidate}
+  build: {context: .bundle, dockerfile: Dockerfile}
+  user: "10001:10001"
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 768m
+  restart: unless-stopped
+  stop_grace_period: 135s
+  logging: *logging
+  networks: [backend, egress]
+  tmpfs: ["/tmp:size=16m,mode=1777", "/scratch:size=600m,mode=1777"]
+  volumes:
+    - ./.runtime/keld.json:/config/keld.json:ro
+    - ./.runtime/commerce:/data
+    - ./.runtime/artifacts:/artifacts:ro
+x-payments: &payments
+  KELD_STRIPE_SECRET_FILE: /run/secrets/stripe
+  KELD_MP_TOKEN_FILE: /run/secrets/mercadopago
+  KELD_PAYPAL_CLIENT_ID_FILE: /run/secrets/paypal_client_id
+  KELD_PAYPAL_SECRET_FILE: /run/secrets/paypal_secret
+services:
+  edge:
+    image: keld-caddy:2.11.4-security-candidate
+    build: {context: ., dockerfile: Caddy.Dockerfile}
+    user: "1001:1001"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      KELD_DOMAIN: ${KELD_DOMAIN:?set KELD_DOMAIN}
+      AUTH_DOMAIN: ${AUTH_DOMAIN:?set AUTH_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [backend, egress]
+    logging: *logging
+    depends_on:
+      web: {condition: service_healthy}
+  postgres:
+    image: keld-postgres:16-security-candidate
+    build: {context: ., dockerfile: Postgres.Dockerfile}
+    user: "70:70"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+    secrets: [postgres_admin_password]
+    volumes:
+      - ./.runtime/postgres:/var/lib/postgresql/data
+      - ./.runtime/init-databases.sql:/docker-entrypoint-initdb.d/10-keld.sql:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/run/postgresql:size=16m,uid=70,gid=70,mode=3775
+    networks: [backend]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 768m
+    logging: *logging
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+    entrypoint: ["/bin/bash", "/opt/keld-entrypoint.sh"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_HOSTNAME: https://${AUTH_DOMAIN:?set AUTH_DOMAIN}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: keld-admin
+      KC_HEALTH_ENABLED: "true"
+    secrets: [keycloak_db_password, keycloak_admin_password]
+    volumes:
+      - ./keycloak-entrypoint.sh:/opt/keld-entrypoint.sh:ro
+      - ./.runtime/keld-realm.json:/opt/keycloak/data/import/keld-realm.json:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [backend, egress]
+    restart: unless-stopped
+    mem_limit: 2g
+    logging: *logging
+  web:
+    <<: *app
+    environment:
+      <<: *payments
+      KELD_OIDC_SECRET_FILE: /run/secrets/oidc
+      KELD_DATABASE_URL_FILE: /run/secrets/session_database_url
+      KELD_SESSION_KEY_FILE: /run/secrets/session_key
+      KELD_STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook
+      KELD_MP_WEBHOOK_SECRET_FILE: /run/secrets/mp_webhook
+    secrets: [stripe, mercadopago, paypal_client_id, paypal_secret, oidc, session_database_url, session_key, stripe_webhook, mp_webhook]
+    depends_on:
+      postgres: {condition: service_healthy}
+      keycloak: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+  worker:
+    <<: *app
+    command: ["node", "bin/maintain.mjs", "/config/keld.json", "watch", "60"]
+    environment: *payments
+    secrets: [stripe, mercadopago, paypal_client_id, paypal_secret]
+    depends_on:
+      web: {condition: service_healthy}
+secrets:
+  stripe: {file: ./.runtime/secrets/stripe}
+  mercadopago: {file: ./.runtime/secrets/mercadopago}
+  paypal_client_id: {file: ./.runtime/secrets/paypal_client_id}
+  paypal_secret: {file: ./.runtime/secrets/paypal_secret}
+  oidc: {file: ./.runtime/secrets/oidc}
+  session_database_url: {file: ./.runtime/secrets/session_database_url}
+  session_key: {file: ./.runtime/secrets/session_key}
+  stripe_webhook: {file: ./.runtime/secrets/stripe_webhook}
+  mp_webhook: {file: ./.runtime/secrets/mp_webhook}
+  postgres_admin_password: {file: ./.runtime/secrets/postgres_admin_password}
+  keycloak_db_password: {file: ./.runtime/secrets/keycloak_db_password}
+  keld_db_password: {file: ./.runtime/secrets/keld_db_password}
+  keycloak_admin_password: {file: ./.runtime/secrets/keycloak_admin_password}
+networks:
+  backend: {internal: true}
+  egress: {}
+volumes:
+  caddy_data: {}
+  caddy_config: {}

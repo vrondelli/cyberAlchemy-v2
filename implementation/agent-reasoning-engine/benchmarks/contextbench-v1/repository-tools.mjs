@@ -27,9 +27,17 @@ export const tools=Object.entries(schemas).map(([name,parameters])=>({type:'func
 
 export function createRepositoryTools({root,base_commit,record_source=()=>{}}){
   const repo=realpathSync(root);
-  const git=args=>execFileSync('git',['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...args],{cwd:repo,maxBuffer:16000000});
+  const git=args=>execFileSync('git',['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...args],{cwd:repo,maxBuffer:16000000,timeout:120000});
   if(!/^[a-f0-9]{40}$/.test(base_commit)||git(['rev-parse','HEAD']).toString().trim()!==base_commit)throw Error('repository.base-mismatch');
   const paths=git(['ls-files','-z']).toString().split('\0').filter(Boolean).sort();
+  const grepPaths=(literal,rev)=>{
+    const args=['grep','-F','-l','-z','--',literal];
+    if(rev==='base')args.push(base_commit);
+    let bytes;
+    try{bytes=git(args);}catch(error){if(error?.status===1)bytes=error.stdout??Buffer.alloc(0);else throw error;}
+    const prefix=rev==='base'?base_commit+':':'';
+    return bytes.toString().split('\0').filter(Boolean).map(value=>value.startsWith(prefix)?value.slice(prefix.length):value).filter(path=>paths.includes(path));
+  };
   const safe=path=>{
     if(!paths.includes(path)||isAbsolute(path)||path.includes('\\')||path.split('/').some(x=>['..','.',''].includes(x)))throw Error('repository.invalid-path');
     const abs=realpathSync(resolve(repo,path)),rel=relative(repo,abs);
@@ -63,14 +71,16 @@ export function createRepositoryTools({root,base_commit,record_source=()=>{}}){
       }else if(name==='read_file')output=observation(args.path,args.revision,args.start_line,args.line_count);
       else if(name==='search'){
         const matches=[],skipped=[];
-        for(const path of paths.filter(p=>p.startsWith(args.path_prefix))){
+        const candidates=grepPaths(args.query,args.revision).filter(path=>path.startsWith(args.path_prefix));
+        for(const path of candidates){
           let s;try{s=source(path,args.revision);}catch(e){skipped.push({path,reason:String(e.message)});continue;}
           const lines=s.text.split('\n');
           for(let i=0;i<lines.length;i++)if(lines[i].includes(args.query))matches.push({path,line:i+1});
         }
         const page=matches.slice(args.offset,args.offset+args.limit);
         output={observations:page.map(x=>observation(x.path,args.revision,x.line,1)),total:matches.length,
-          next_offset:args.offset+page.length<matches.length?args.offset+page.length:null,skipped};
+          next_offset:args.offset+page.length<matches.length?args.offset+page.length:null,skipped,
+          search_engine:'git-grep-literal',scanned_matching_files:candidates.length};
       }else if(name==='get_patch')output={base_commit,patch:git(['diff','--no-ext-diff','--no-textconv','--binary',base_commit,'--']).toString()};
       else{
         const staged=new Map(),originals=new Map();

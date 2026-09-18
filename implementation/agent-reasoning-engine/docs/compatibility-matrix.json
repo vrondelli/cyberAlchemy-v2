@@ -1,0 +1,227 @@
+{
+  "schema_version": "are.compatibility-matrix/v1",
+  "matrix_id": "ARE-COMPATIBILITY-CANDIDATE-018",
+  "lifecycle_status": "candidate-internal",
+  "applies_to": {
+    "candidate_id": "ARE-PRODUCT-CANDIDATE-018",
+    "candidate_digest": "36e9ecd02bd19346207ccced8d16d4ee0a4036d757398d7b961e8feee41327ab",
+    "product_version": "0.10.0-self-contained-candidate.7",
+    "source_closure_digest": "02b2fc81eabd58b7273d2a909df355e11388ad871d365596506897a6fa58462c"
+  },
+  "required_categories": [
+    "artifact",
+    "configuration",
+    "protocol",
+    "schema",
+    "state",
+    "journal",
+    "credential"
+  ],
+  "boundaries": [
+    {
+      "boundary_id": "product-source-artifact",
+      "category": "artifact",
+      "current_identities": [
+        "ARE-PRODUCT-CANDIDATE-018",
+        "0.10.0-self-contained-candidate.7",
+        "closure:02b2fc81eabd58b7273d2a909df355e11388ad871d365596506897a6fa58462c"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/src/product.mjs",
+        "implementation/agent-reasoning-engine/src/distribution.mjs"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/src/product-candidate.mjs",
+        "implementation/agent-reasoning-engine/scripts/verify-release.mjs"
+      ],
+      "persistence": "normalized tar+gzip source closure",
+      "compatibility_rule": "Exact candidate and closure digests must match; filename or version text alone is insufficient.",
+      "current_read_support": "exact-current-only",
+      "migration_support": "fresh-install-only"
+    },
+    {
+      "boundary_id": "product-profile",
+      "category": "configuration",
+      "current_identities": [
+        "are.product-profile/v1",
+        "0.10.0-self-contained-candidate.7",
+        "node:26.8.1"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/product.json",
+        "implementation/agent-reasoning-engine/package.json"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/src/product.mjs"
+      ],
+      "persistence": "JSON source configuration",
+      "compatibility_rule": "Unknown fields, missing declared components, source drift, or runtime mismatch fail product health.",
+      "current_read_support": "exact-current-only",
+      "migration_support": "fresh-install-only"
+    },
+    {
+      "boundary_id": "repository-runtime-profile",
+      "category": "configuration",
+      "current_identities": [
+        "are.codex-wrapper-repository-profile/v4"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/profiles/repository-v1.json"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/config.mjs"
+      ],
+      "persistence": "JSON profile with selected-source digests",
+      "compatibility_rule": "Schema identity, selected source digests, limits and protocol binding must validate together.",
+      "current_read_support": "v4-current-profile",
+      "migration_support": "no-cross-version-migrator"
+    },
+    {
+      "boundary_id": "decision-cli-wire-contract",
+      "category": "protocol",
+      "current_identities": [
+        "are.cli-request/v1",
+        "are.cli-result/v1",
+        "are.cli-route-receipt/v1"
+      ],
+      "writer_refs": [
+        "agent-routing/capabilities/are-cli/request.schema.json",
+        "implementation/agent-reasoning-engine/src/decision-cli.mjs"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/src/decision-cli.mjs",
+        "agent-routing/capabilities/are-cli/result.schema.json"
+      ],
+      "persistence": "caller-carried JSON request and receipt",
+      "compatibility_rule": "Closed schemas reject unknown fields; route, session, request and profile identity must remain bound.",
+      "current_read_support": "v1-exact-schema",
+      "migration_support": "no-automatic-translation"
+    },
+    {
+      "boundary_id": "gateway-session-store",
+      "category": "state",
+      "current_identities": [
+        "are.gateway-session-event/v1",
+        "are.gateway-session-index/v1"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/gateway-session-store.mjs"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/gateway-session-store.mjs"
+      ],
+      "persistence": "append-only JSON Lines with fsync and single-writer lock",
+      "compatibility_rule": "Store id, sequence, predecessor digest, event digest and event semantics must all validate.",
+      "current_read_support": "v1-exact-schema",
+      "migration_support": "backup-restore-same-version-only"
+    },
+    {
+      "boundary_id": "reasoning-state-ledger",
+      "category": "state",
+      "current_identities": [
+        "are.reasoning-state-event/v1",
+        "are.reasoning-state-epoch/v1",
+        "are.reasoning-state-checkpoint/v1",
+        "are.reasoning-state-log-verification/v1"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/packages/reasoning-state-runtime/index.mjs"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/packages/reasoning-state-runtime/index.mjs"
+      ],
+      "persistence": "append-only canonical JSON Lines with checkpoints",
+      "compatibility_rule": "Ledger id, record kind, hash chain, epochs, checkpoints and completed frontiers must verify before recovery.",
+      "current_read_support": "v1-exact-schema",
+      "migration_support": "backup-restore-same-version-only"
+    },
+    {
+      "boundary_id": "runtime-journal",
+      "category": "journal",
+      "current_identities": [
+        "are.runtime-journal-event/v1",
+        "are.runtime-journal-cut/v1",
+        "are.runtime-journal-replay/v1",
+        "are.runtime-journal-eviction-receipt/v1"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/packages/runtime-journal/index.mjs"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/packages/runtime-journal/index.mjs"
+      ],
+      "persistence": "bounded ordered runtime records",
+      "compatibility_rule": "Event schema, order, cut identity and replay limits must validate; the journal is not Reasoning State.",
+      "current_read_support": "v1-exact-schema",
+      "migration_support": "no-cross-version-migrator"
+    },
+    {
+      "boundary_id": "secret-reference-and-local-vault",
+      "category": "credential",
+      "current_identities": [
+        "are.secret-reference/v1",
+        "are.secret-consumption-receipt/v1",
+        "secret-ref:1",
+        "secret-store:1"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/packages/coding-agent-runtime/secret-provider.mjs",
+        "implementation/agent-reasoning-engine/packages/coding-agent-runtime/secret-bridge/secret_management/store.py"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/packages/coding-agent-runtime/secret-provider.mjs",
+        "implementation/agent-reasoning-engine/packages/coding-agent-runtime/secret-bridge/secret_management/secret_contract.py"
+      ],
+      "persistence": "references in runtime records; optional encrypted local vault records",
+      "compatibility_rule": "References, scope and provider identity cross the runtime boundary; secret material does not enter product receipts or source closures.",
+      "current_read_support": "current-v1-contracts",
+      "migration_support": "provider-owned-export-import-only"
+    },
+    {
+      "boundary_id": "selected-json-contracts",
+      "category": "schema",
+      "current_identities": [
+        "are.cli-request/v1",
+        "are.cli-result/v1",
+        "are.coding-agent-run-config/v1",
+        "are.next-action-candidate/v1",
+        "are.patch-set-candidate/v1"
+      ],
+      "writer_refs": [
+        "implementation/agent-reasoning-engine/docs/reference/api-surface.json"
+      ],
+      "reader_refs": [
+        "implementation/agent-reasoning-engine/docs/generate-api-reference.mjs",
+        "implementation/agent-reasoning-engine/docs/reference/API-FIELDS.md"
+      ],
+      "persistence": "JSON records crossing selected CLI and coding-agent boundaries",
+      "compatibility_rule": "Required fields, closed-object behavior, meaning, access and sensitivity annotations are part of the candidate contract.",
+      "current_read_support": "candidate-internal-current",
+      "migration_support": "no-public-compatibility-promise"
+    },
+    {
+      "boundary_id": "archive-signing-statement",
+      "category": "artifact",
+      "current_identities": [
+        "are.source-distribution-signing-statement/v1",
+        "are.source-distribution-signature/v1",
+        "Ed25519"
+      ],
+      "writer_refs": [
+        "development/agent-reasoning-engine/planning/documentation-readiness/sign-source-distribution.mjs"
+      ],
+      "reader_refs": [
+        "development/agent-reasoning-engine/planning/documentation-readiness/sign-source-distribution.mjs"
+      ],
+      "persistence": "JSON statement and detached signature record",
+      "compatibility_rule": "Candidate, closure, archive digest, size, statement digest and owner-approved public-key fingerprint must match.",
+      "current_read_support": "v1-mechanism-tested",
+      "migration_support": "signing-identity-unselected"
+    }
+  ],
+  "predecessor_successor_pairs": [],
+  "upgrade_posture": "NO_SUPPORTED_PATH",
+  "next_gate": "DR-41 selects one exact supported predecessor/successor pair and defines preflight, migration, verification, rollback and downgrade behavior for every affected boundary.",
+  "claim_limit": "This matrix inventories current readers, writers and identities. It does not promise cross-version compatibility, automatic migration, downgrade, or public API stability.",
+  "authority_effect": "none"
+}

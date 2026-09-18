@@ -26,6 +26,11 @@ export function assessGrounding({request, source, participant_ref, product_ref})
   assert(source.quoted !== true && !/^\s*["'`>]/.test(request), 'quoted-source-not-instruction');
   return rec('grounding-assessment', {source: clone(source), disposition: 'explicit-source-bound', semantic_posture: 'host-attributed-not-semantic-proof'});
 }
+export function validateRepresentationScope(value) {
+  assert(isRecord(value) && Object.keys(value).length === 2
+    && ['plan', 'compare'].includes(value.task) && ['dag', 'table', 'checklist', 'plain'].includes(value.format), 'representation-scope-invalid');
+  return clone(value);
+}
 export function materializeCommunicationPreference(input) {
   assert(isRecord(input) && ['explicit', 'inferred'].includes(input.posture), 'preference-invalid');
   assert([input.participant_ref, input.product_ref, input.interaction_ref, input.target, input.instruction].every(text), 'preference-scope-required');
@@ -37,7 +42,8 @@ export function materializeCommunicationPreference(input) {
   return rec('communication-preference', {participant_ref: input.participant_ref, product_ref: input.product_ref,
     interaction_ref: input.interaction_ref, target: input.target, instruction: input.instruction,
     conditions: input.conditions ?? [], exclusions: input.exclusions ?? [], posture: input.posture,
-    retention_scope: input.retention_scope, user_selected: input.user_selected === true, grounding: input.grounding});
+    retention_scope: input.retention_scope, user_selected: input.user_selected === true, grounding: input.grounding,
+    ...(input.representation ? {representation: validateRepresentationScope(input.representation)} : {})});
 }
 export function validateOutcomeChecks(checks) {
   assert(Array.isArray(checks) && checks.length <= 64, 'checks-invalid');
@@ -74,10 +80,12 @@ export function assessPreferenceApplication(lesson, request, policy, disabled = 
   if (disabled.includes(lesson.lesson_id) || policy.mode !== 'apply-scoped') disposition = 'disabled';
   else if (p.participant_ref !== request.participant_ref || p.product_ref !== request.product_ref || p.target !== request.target
     || (p.retention_scope === 'current-interaction' && p.interaction_ref !== request.interaction_ref)
+    || (p.representation && p.representation.task !== request.representation?.task)
     || p.conditions.some(c => !request.request.toLowerCase().includes(c.toLowerCase()))
     || p.exclusions.some(c => request.request.toLowerCase().includes(c.toLowerCase()))) disposition = 'inapplicable';
   else if ((request.invalidated_refs ?? []).includes(p.grounding.source.request_ref)) disposition = 'unsupported';
-  else if ((request.override_lesson_ids ?? []).includes(lesson.lesson_id)
+  else if ((p.representation && request.representation?.format && p.representation.format !== request.representation.format)
+    || (request.override_lesson_ids ?? []).includes(lesson.lesson_id)
     || (request.checks ?? []).some(c => lesson.expected_checks.some(old => old.value.toLowerCase() === c.value.toLowerCase() && old.kind !== c.kind))) disposition = 'overridden';
   return rec('preference-application-assessment', {lesson_digest: lesson.record_digest, lesson_id: lesson.lesson_id,
     request_ref: request.request_ref, request_digest: digest(request.request), policy_digest: policy.record_digest, disposition});
@@ -93,6 +101,9 @@ export function projectInteractionContext(state, request, policy) {
   // Conflicting lessons require a current explicit override; recency alone cannot choose.
   const selected = applicable.map(a => latest.find(l => l.record_digest === a.lesson_digest));
   assert(!selected.some((a, i) => selected.slice(i + 1).some(b => a.expected_checks.some(x => b.expected_checks.some(y => x.value === y.value && x.kind !== y.kind)))), 'lesson-conflict');
+  assert(!selected.some((a, i) => selected.slice(i + 1).some(b => a.preference.representation && b.preference.representation
+    && a.preference.representation.task === b.preference.representation.task
+    && a.preference.representation.format !== b.preference.representation.format)), 'representation-conflict');
   const view = rec('interaction-context-view', {state_digest: state.record_digest, request_ref: request.request_ref,
     policy_digest: policy.record_digest, items: selected.map(l => ({lesson_id: l.lesson_id, lesson_digest: l.record_digest,
       instruction: l.preference.instruction, target: l.preference.target, source_ref: l.preference.grounding.source.request_ref})), assessments});

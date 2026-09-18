@@ -4,10 +4,10 @@ import {performance} from "node:perf_hooks";
 import {compileRequestIntent, resolveObjectiveTransition, digestIntentMaterial} from "../index.mjs";
 import {createModulePort} from "../../module-port/index.mjs";
 import {createSemanticTextFacade, semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 
 const fixture = JSON.parse(readFileSync(new URL("../benchmarks/objective-resolution-v1/cases.json", import.meta.url)));
-const semanticText = createSemanticTextFacade(createModulePort({adapters: [createAlchSemanticAdapter()], output_validators: semanticTextOutputValidators}), {consumer_id: "request-intent-runtime"});
+const semanticText = createSemanticTextFacade(createModulePort({adapters: [createNativeSemanticAdapter()], output_validators: semanticTextOutputValidators}), {consumer_id: "request-intent-runtime"});
 const resolveObjective = (input, provider = null) => resolveObjectiveTransition(input, provider, semanticText);
 const rows = [], inputs = [];
 const normalize = value => value?.trim().replace(/[.!?]+$/, "").replace(/\s+/g, " ").toLowerCase();

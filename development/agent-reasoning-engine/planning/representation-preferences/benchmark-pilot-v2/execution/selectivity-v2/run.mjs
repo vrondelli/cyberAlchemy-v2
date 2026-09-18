@@ -1,0 +1,22 @@
+import {readFileSync,writeFileSync,mkdirSync,statfsSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {createProvider,sha,ROOT} from './provider.mjs';
+import {executeSchedule} from '../shared/run-core.mjs';
+import {scoreOutput} from './scorer.mjs';
+const dir=import.meta.dirname;
+const json=p=>JSON.parse(readFileSync(join(dir,p)));
+const freeze=json('freeze.json');
+if(freeze.status!=='frozen'||!json('freeze-validation.json').ok)throw Error('freeze not admitted');
+for(const b of freeze.bindings)if(sha(readFileSync(resolve(ROOT,b.path)))!==b.sha256)throw Error('frozen file drift: '+b.path);
+const {verifyResearchContinuity}=await import(resolve(ROOT,'implementation/agent-reasoning-engine/packages/evolution-runtime/index.mjs'));
+const binding=json('run-continuity.json');
+const verification=verifyResearchContinuity({binding,policy:JSON.parse(readFileSync(resolve(ROOT,binding.policy_ref))),hypotheses:json('run-hypotheses.json'),phase:'freeze',root:ROOT});
+if(!verification.ok)throw Error(JSON.stringify(verification));
+const disk=statfsSync(dir);if(disk.bavail*disk.bsize<2*1024**3)throw Error('disk floor');
+const output=join(dir,'live');mkdirSync(output);
+const provider=createProvider({directory:output});
+const schedule=json('preflight/schedule.json'),counts=json('preflight/result.json').counts;
+await executeSchedule({schedule,counts,budget:freeze.total_token_cap,generate:provider.generate,score:scoreOutput,save:async result=>{
+ writeFileSync(join(output,'result.json'),JSON.stringify(result,null,2)+'\n');
+ console.log(JSON.stringify({status:result.status,completed:result.completed,total_tokens:result.total_tokens}));
+}});

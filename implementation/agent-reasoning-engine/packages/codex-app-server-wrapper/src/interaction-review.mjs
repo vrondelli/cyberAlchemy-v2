@@ -9,6 +9,8 @@ import {materializeRequirementSnapshot} from '../../request-intent-runtime/index
 import {OBJECTIVE_CONTEXT_KEY} from './objective-lifecycle.mjs';
 import {validateInteractionHostRequest, materializeInteractionHostInput, interactionHostMessage, learningRequestRef} from './interaction-host.mjs';
 
+import {classifyRepresentationRequest, inspectPreferenceOffers, proposePreferenceOffers, applyPreferenceDecision} from './representation-preferences.mjs';
+
 const fail = reason => ({ok: false, disposition: 'blocked', reason_codes: [reason], authority_effect: 'none'});
 const HOST_REQUEST = 'interaction-host-request';
 const HOST_RESULT = 'interaction-host-result';
@@ -84,9 +86,12 @@ export function createInteractionReview({state_path, participant_ref = 'review:u
       const history = ledger.snapshot().filter(e => e.event_kind === HOST_REQUEST);
       if (history.some(e => e.content.response_id === responseId)) return fail('interaction-review.request-already-recorded');
       if (history.length >= 256) return fail('interaction-review.request-budget-exceeded');
-      materializeInteractionHostInput(request, wrapper.inspectLearningState({detail: true}));
-      currentRequest = request;
-      persist(HOST_REQUEST, `host-request:${responseId}`, {response_id: responseId, request, request_digest: digestValue(request)});
+      const learning = wrapper.inspectLearningState({detail: true});
+      const preparedRequest = applyPreferenceDecision(request, ledger.snapshot(), learning);
+      materializeInteractionHostInput(preparedRequest, learning);
+      currentRequest = preparedRequest;
+      persist(HOST_REQUEST, `host-request:${responseId}`, {response_id: responseId, request, request_digest: digestValue(request),
+        ...(learning.policy?.mode === 'apply-scoped' || !learning.policy ? {preference_observation: classifyRepresentationRequest(request.text)} : {})});
       const actions = await wrapper.processClientMessage(interactionHostMessage(request));
       if (actions.to_server.length !== 1 || actions.to_server[0].method !== 'turn/start') {
         const data = actions.to_client.find(m => m.error)?.error?.data;
@@ -119,6 +124,7 @@ export function createInteractionReview({state_path, participant_ref = 'review:u
         outcome: turn.outcome, selected_lessons: turn.view.items, lesson_assessments: turn.view.assessments,
         lesson_applications: learningState.applications.filter(a => a.request_ref === responseId && a.outcome_ref),
         dispatch_digest: turn.dispatch_digest, authority_effect: 'none'};
+      result.preference_offers = proposePreferenceOffers([...ledger.snapshot(), {event_kind: HOST_RESULT, content: result}], learningState, binding);
       persist(HOST_RESULT, `host-result:${responseId}`, result);
       return freezeResult(result);
     } catch (error) {
@@ -138,9 +144,10 @@ export function createInteractionReview({state_path, participant_ref = 'review:u
     for (const e of events.filter(e => e.event_kind === 'objective-transition-resolved')) objectives.set(e.content.thread_id, e.content.resolution.next_state);
     return freezeResult({ok: true, scope: binding, ...wrapper.inspectLearningState(), objectives: [...objectives].map(([thread_id, state]) => ({thread_id, ...state})),
       lessons: Object.values(state.lessons).map(l => ({lesson_id: l.lesson_id, revision: l.revision, predecessor_digest: l.predecessor_digest,
-        instruction: l.preference.instruction, retention_scope: l.preference.retention_scope, conditions: l.preference.conditions,
+        instruction: l.preference.instruction, ...(l.preference.representation ? {representation: l.preference.representation} : {}), retention_scope: l.preference.retention_scope, conditions: l.preference.conditions,
         exclusions: l.preference.exclusions, disabled: state.disabled.includes(l.lesson_id), source_ref: l.preference.grounding.source.request_ref,
         corrected_response_id: l.episode_ref, expected_checks: l.expected_checks})),
+      preference_offers: inspectPreferenceOffers(events, state),
       applications: state.applications,
       turns: events.filter(e => e.event_kind === HOST_REQUEST).map(e => ({response_id: e.content.response_id, request: e.content.request,
         result: results.get(e.content.response_id) ?? {disposition: 'delivery-unknown', authority_effect: 'none'}})), authority_effect: 'none'});

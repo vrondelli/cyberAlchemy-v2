@@ -24,7 +24,7 @@ import {composeReasoningEvolution} from "../../reasoning-policy-runtime/index.mj
 import {extractProviderCacheUsage} from "./cache-telemetry.mjs";
 import {createCodexContextWindowTracker} from "./context-window-telemetry.mjs";
 import {applyIntentControl, assessIntentRealization, materializeUserControlProfile, projectIntentInspection} from "../../request-intent-runtime/index.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 import {
   admitJsonRpcMessage,
   addContextFragment,
@@ -63,7 +63,7 @@ export function createCodexAppServerWrapper(options) {
     throw new TypeError("A loaded repository profile and verified decision profile are required.");
   }
   const ledger = options.ledger ?? createEvidenceLedger({profile: options.loaded_profile.runtime_journal});
-  const modulePort = Object.hasOwn(options, "module_port") ? options.module_port : createAlchSemanticModulePort();
+  const modulePort = Object.hasOwn(options, "module_port") ? options.module_port : createNativeSemanticModulePort();
   const contextModulePort = Object.hasOwn(options, "context_module_port") ? options.context_module_port : modulePort;
   const reasoningLedgerId = options.loaded_profile.reasoning_state?.ledger_id ?? `are-reasoning-state:${options.loaded_profile.profile_id}`;
   let reasoningRecovery = null;

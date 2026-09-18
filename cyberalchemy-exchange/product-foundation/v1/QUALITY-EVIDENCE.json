@@ -300,6 +300,306 @@
       "question": "Should resume readiness include a small synthetic test request to confirm offering execution, with bounded cost and timeout, separate from quality scoring?",
       "raw_request": "yes",
       "meaning": "Resume readiness includes a small synthetic test request to confirm that the engine can execute the offering, with bounded cost and timeout. This checks operational readiness separately from quality scoring."
+    },
+    {
+      "question": "Should readiness probes be non-billable, with providers covering their own compute, and excluded from customer-usage counts used to validate scores?",
+      "raw_request": "yes",
+      "meaning": "Readiness probes are non-billable; providers cover their own probe compute. Probe traffic is excluded from customer-usage counts used to validate scores and is recorded separately as readiness evidence."
+    },
+    {
+      "question": "If a readiness probe fails, should the offering remain unavailable, show a clear reason to the provider, and require an explicit retry?",
+      "raw_request": "yes",
+      "meaning": "If a readiness probe fails, the offering remains unavailable, the provider sees a clear failure reason, and another probe requires an explicit provider retry. Failure does not start automatic probe retries."
+    },
+    {
+      "question": "Should we adopt this combined approach—host heartbeats plus per-offering request monitoring?",
+      "raw_request": "yes",
+      "meaning": "Exchange combines lightweight host heartbeats for reachability with actual request outcomes and latency per offering for service health. Expired heartbeat freshness stops new routing to the host’s offerings; repeated serving failures can make an affected offering unavailable independently of a connected host. Heartbeats do not clear pauses or failed readiness checks, establish provider fault, or automatically refund accepted requests."
+    },
+    {
+      "question": "Accept 15-second heartbeats with a 60-second timeout?",
+      "raw_request": "yes",
+      "meaning": "Hosts send a lightweight heartbeat every 15 seconds. After 60 seconds without a heartbeat, Exchange marks the host unreachable and stops routing new requests to its offerings. Accepted requests retain their existing deadlines and settlement rules."
+    },
+    {
+      "question": "Accept explicit resume after a heartbeat timeout?",
+      "raw_request": "yes",
+      "meaning": "After a heartbeat timeout, reconnecting restores host reachability only. Accepting new requests requires explicit provider resume and a fresh passing readiness check. Individually paused offerings remain paused until explicitly resumed; all other eligibility rules still apply."
+    },
+    {
+      "question": "Accept the MVP threshold of 3 consecutive provider-caused execution failures within 5 minutes, with success resetting the streak and quota rejections, customer cancellations and Exchange failures excluded?",
+      "raw_request": "yes",
+      "meaning": "Three consecutive provider-caused execution failures within five minutes stop new routing to the affected offering. Successful execution resets the streak; quota rejections, customer cancellations and Exchange failures do not count. Other offerings remain eligible under their existing eligibility rules. Recovery after this threshold remains open."
+    },
+    {
+      "question": "Accept explicit provider resume and a passing readiness probe for recovery after repeated request failures, with no restoration merely by waiting five minutes and existing pauses respected?",
+      "raw_request": "yes",
+      "meaning": "Recovery after the request-failure threshold requires explicit provider resume and a fresh passing readiness probe. Waiting five minutes alone does not restore routing. Existing host and offering pauses and all other eligibility rules remain respected."
+    },
+    {
+      "question": "Accept resetting the active failure streak to zero after successful recovery while retaining past failures in the offering’s performance history?",
+      "raw_request": "yes",
+      "meaning": "Successful recovery resets the offering’s active failure streak to zero while retaining past failures in its performance history. Resetting the operational counter does not erase the reliability record."
+    },
+    {
+      "question": "Accept that late outcomes from requests accepted before recovery retain original settlement and performance-history effects but do not change the new failure streak, which only post-recovery requests affect?",
+      "raw_request": "yes",
+      "meaning": "Requests accepted before successful recovery keep their original settlement rules and contribute to performance history, but their late outcomes do not change the new active failure streak. Only requests accepted after recovery affect that counter, subject to the existing success-reset and excluded-outcome rules."
+    },
+    {
+      "question": "Accept keeping offerings discoverable to their permitted audience while unavailable after heartbeat timeouts or repeated failures, excluding new requests and showing providers cause/recovery details and customers a simple status?",
+      "raw_request": "yes",
+      "meaning": "Offerings unavailable because of heartbeat timeouts or repeated execution failures remain discoverable to their permitted audience, marked unavailable and excluded from new requests. Providers see the specific cause and required recovery action; customers see a simple availability status."
+    },
+    {
+      "question": "Accept immediately returning No provider available without acceptance, charging or queueing, allowing later caller retry and preserving budget, access and task requirements?",
+      "raw_request": "yes",
+      "meaning": "When no eligible provider is available, Exchange immediately returns No provider available without accepting, charging or queueing the request. The caller may retry later. Exchange does not relax the caller’s budget, access or task requirements."
+    },
+    {
+      "question": "Accept retrying an unchanged No provider available request with the same idempotency key to recheck availability, while accepted requests return the existing request without another execution?",
+      "raw_request": "yes",
+      "meaning": "After No provider available, the caller may retry the unchanged request with the same idempotency key and Exchange rechecks availability. Once accepted, that key returns the existing request rather than creating another execution. Existing authenticated-caller scope and different-input/terms conflict rules remain applicable."
+    },
+    {
+      "question": "Accept returning the full escrow amount if provider unavailability during funding prevents execution start, without cancellation charge or automatic provider substitution, allowing a fresh quote?",
+      "raw_request": "yes",
+      "meaning": "If the provider becomes unavailable during escrow funding and funding completes but execution cannot start, Exchange returns the full escrow amount with no cancellation charge and no automatic provider substitution. The customer may request a fresh quote."
+    },
+    {
+      "question": "Accept showing Refund pending until the return transaction is confirmed, then Refund completed, with failed refund attempts remaining pending for retry and reconciliation?",
+      "raw_request": "yes",
+      "meaning": "For the refund after provider unavailability during funding, show Refund pending until the return transaction is confirmed, then Refund completed. Failed refund attempts remain pending for retry and reconciliation."
+    },
+    {
+      "question": "Accept requiring a new quote and new idempotency key for another attempt after this funded request fails, while the original key returns the original request and refund status?",
+      "raw_request": "yes",
+      "meaning": "Another attempt after a funded request fails because provider unavailability prevents execution start requires a new quote and a new idempotency key. The original key continues returning the original request and its refund status; it does not restart execution or reuse its escrow funding."
+    },
+    {
+      "question": "Accept allowing a new separately funded attempt without waiting for the previous refund confirmation, clearly showing that refund as pending and prohibiting its escrow from funding the new request?",
+      "raw_request": "yes",
+      "meaning": "A new attempt after funded provider-unavailability failure may proceed with separate funding while the original refund remains pending. Exchange clearly shows the pending refund. The new attempt requires a new quote and idempotency key; the original escrow cannot fund it."
+    },
+    {
+      "question": "Accept a 15-minute pending-refund escalation threshold?",
+      "raw_request": "yes and we must have a process that takes care and monitor this type of things so we can mitigate the escalations",
+      "meaning": "Escalate a refund to the Exchange operator after 15 minutes pending, preserving Refund pending and continuing reconciliation and the refund obligation. This is an alert threshold, not a completion guarantee. Exchange must have a proactive monitoring and recovery process to mitigate avoidable escalations."
+    },
+    {
+      "question": "Allow automatic reconciliation and retries for transient failures, while requiring operator intervention for conflicting evidence or changes to refund amounts or destinations?",
+      "raw_request": "yes",
+      "meaning": "The recovery process may automatically reconcile state and retry transient failures. Conflicting evidence or changes to refund amounts or destinations require operator intervention. This does not grant unrestricted authority to alter refund entitlements or bypass existing request and escrow rules."
+    },
+    {
+      "question": "Accept immediate escalation when evidence conflicts or operator intervention is required, pausing affected payment actions while continuing status checks and retaining the 15-minute threshold for routine delays?",
+      "raw_request": "yes",
+      "meaning": "Conflicting evidence or cases requiring operator intervention escalate immediately, without waiting 15 minutes. Affected payment actions pause while status checks continue. The 15-minute pending-refund threshold remains the fallback for unresolved routine delays; the refund obligation persists."
+    },
+    {
+      "question": "Accept requiring a recorded resolution with operator identity, supporting evidence and permitted recovery action before paused payment actions resume, with alert acknowledgement alone insufficient?",
+      "raw_request": "yes",
+      "meaning": "Before paused payment actions resume, the operator must record a resolution containing their identity, supporting evidence and the permitted recovery action. Acknowledging the alert alone does not resume payment actions. Resolution does not establish refund completion, which still requires confirmed return."
+    },
+    {
+      "question": "Accept an independent watchdog that detects stalled recovery workers, alerts the operator, and preserves pending obligations for recovery after restart, without depending on the worker it monitors?",
+      "raw_request": "yes",
+      "meaning": "Exchange requires an independent watchdog that detects stalled recovery workers and alerts the operator. It must not depend on the worker it monitors. Pending obligations must persist durably and remain recoverable after restart."
+    },
+    {
+      "question": "Accept checking both worker heartbeat and successful completion of scheduled reconciliation checks, even when nothing is pending, to detect a running but stuck recovery worker?",
+      "raw_request": "yes",
+      "meaning": "Recovery health requires both a worker heartbeat and successful completion of scheduled reconciliation checks, including when no obligations are pending. A running worker alone is insufficient evidence that recovery is functioning."
+    },
+    {
+      "question": "Accept temporarily blocking new paid requests affected by a recovery outage until recovery is healthy, preserving existing terms and refund obligations and allowing otherwise healthy free services to continue?",
+      "raw_request": "yes",
+      "meaning": "During a recovery outage, Exchange temporarily blocks affected new paid requests until recovery is healthy. Existing requests retain their agreed terms and refund obligations. Free services may continue if otherwise healthy."
+    },
+    {
+      "question": "Accept automatic reopening of paid requests for routine outages after sustained healthy heartbeats and reconciliation checks, preserving recorded operator resolution for conflicting evidence, with the stability period defined next?",
+      "raw_request": "yes",
+      "meaning": "After a routine recovery outage, Exchange automatically reopens affected new paid requests following sustained healthy worker heartbeats and successful scheduled reconciliation checks. Conflicting evidence and other cases requiring operator intervention retain the recorded operator-resolution requirement; recovery health alone does not clear those restrictions."
+    },
+    {
+      "question": "Accept 2 consecutive minutes of healthy heartbeats and successful scheduled reconciliation checks before reopening, with any renewed health failure resetting the timer?",
+      "raw_request": "yes",
+      "meaning": "Automatic reopening after a routine recovery outage requires 2 consecutive minutes (120 seconds) of healthy worker heartbeats and successful scheduled reconciliation checks. Any renewed recovery-health failure resets the stability timer; a fresh full healthy period is required before reopening."
+    },
+    {
+      "question": "Accept immediately returning Paid requests temporarily unavailable before requesting escrow funding, with no charge or automatic queue and customers able to retry later, for new requests during the outage?",
+      "raw_request": "yes",
+      "meaning": "For affected new paid requests during a recovery outage, Exchange immediately returns Paid requests temporarily unavailable before requesting escrow funding. There is no charge or automatic queue; customers may retry later."
+    },
+    {
+      "question": "Accept returning the full escrow when funding already underway at the recovery outage completes but execution has not started, with no cancellation charge or provider penalty and Refund pending until the return is confirmed?",
+      "raw_request": "yes",
+      "meaning": "For a request affected by a recovery outage, if escrow funding was already underway when the outage began and completes before execution starts, Exchange returns the full escrow amount with no cancellation charge or provider penalty. The customer sees Refund pending until the return is confirmed."
+    },
+    {
+      "question": "Accept requiring a new quote and idempotency key for a new attempt after the recovery-outage refund outcome, with the original key returning the original refund status and unable to restart execution?",
+      "raw_request": "yes",
+      "meaning": "A new attempt after the recovery-outage refund outcome requires a new quote and a new idempotency key. The original key continues returning the original request and its refund status; it cannot restart execution."
+    },
+    {
+      "question": "Accept allowing a separately funded new attempt once paid requests reopen while the original recovery-outage refund is pending, with the outstanding refund clearly shown and independently due?",
+      "raw_request": "yes",
+      "meaning": "Once affected paid requests reopen, a customer may make a new attempt with separate funding while the original recovery-outage refund remains pending. Exchange clearly shows the outstanding refund, which remains independently due. The new attempt still requires a new quote and idempotency key; the original escrow cannot fund it."
+    },
+    {
+      "question": "Accept same-key retries of unchanged requests rejected before funding during an outage to recheck availability, with existing-request retrieval and no duplicate execution or funding once accepted?",
+      "raw_request": "yes",
+      "meaning": "After an outage rejection before funding is requested, the customer may retry the unchanged request with the same idempotency key to recheck availability. Once accepted, that key returns the existing request without duplicate execution or funding."
+    },
+    {
+      "question": "Accept returning a suggested retry delay during outages as guidance rather than a restoration promise, with clients spacing out retries instead of continuously polling?",
+      "raw_request": "yes",
+      "meaning": "Outage rejection responses include a suggested retry delay, clearly described as guidance rather than a promise of service restoration. Clients should space out retries instead of continuously polling."
+    },
+    {
+      "question": "Accept suggesting 30 seconds before retrying, with clients adding a small random delay so they do not all retry together, as the MVP outage retry default?",
+      "raw_request": "yes",
+      "meaning": "The MVP outage response suggests waiting 30 seconds before retrying. Clients add a small random delay to spread retries out. This remains retry guidance, not a promise of service restoration."
+    },
+    {
+      "question": "Accept one operator incident per shared outage, linking all affected requests and refunds while preserving each refund age and escalation status so grouping cannot hide overdue obligations?",
+      "raw_request": "yes",
+      "meaning": "Exchange groups a shared outage into one operator incident linking all affected requests and refunds. Each refund retains its own pending age and escalation status; incident grouping must not hide overdue obligations."
+    },
+    {
+      "question": "Accept Service restored—refunds pending when recovery is healthy but refunds remain unresolved, with full closure requiring evidence-backed resolution of all linked obligations and paid reopening still governed by the agreed health rules?",
+      "raw_request": "yes",
+      "meaning": "When recovery is healthy but linked refunds remain unresolved, the operator incident is marked Service restored—refunds pending. Full incident closure requires all linked obligations to be resolved with evidence. Paid requests may reopen under the existing recovery-health rules while the incident remains open for outstanding obligations."
+    },
+    {
+      "question": "Accept automatic incident closure when recovery is healthy and all linked obligations have verified completion, provided no operator-required issue remains unresolved?",
+      "raw_request": "yes",
+      "meaning": "Exchange automatically closes an operator incident when recovery is healthy, every linked obligation has verified completion, and no operator-required issue remains unresolved. All three conditions are required; automatic closure does not replace confirmed refund returns or required recorded operator resolutions."
+    },
+    {
+      "question": "Accept reopening the original Exchange recovery-outage incident when an unpaid refund from that outage is discovered after closure, preserving history and alerting the Exchange operator?",
+      "raw_request": "yes",
+      "meaning": "If a previously missed unpaid refund belonging to an Exchange recovery outage is discovered after its incident was closed, Exchange reopens the original incident, preserves its history including prior closure, and alerts the Exchange operator. These incident rules concern Exchange recovery outages."
+    },
+    {
+      "question": "Accept showing affected customers the Exchange incident status alongside their own request and refund status, without exposing other customers' details or internal diagnostics, for the MVP?",
+      "raw_request": "yes",
+      "meaning": "Affected customers can see the Exchange recovery-outage incident status alongside their own request and refund status. This customer view does not expose other customers' details or internal diagnostics."
+    },
+    {
+      "question": "Accept showing the last verified status and its timestamp with Updates temporarily unavailable when fresh information cannot be retrieved, with missing updates never implying refund completion?",
+      "raw_request": "yes",
+      "meaning": "When fresh customer status information cannot be retrieved during an Exchange recovery outage, show the last verified status and its timestamp with Updates temporarily unavailable. Missing updates must never imply refund completion."
+    },
+    {
+      "question": "Accept Status temporarily unavailable when no previous status is available, without guessing success, failure or refund, and allow retrying the status lookup without another execution?",
+      "raw_request": "yes",
+      "meaning": "When fresh status cannot be retrieved and no previous verified status is available, show Status temporarily unavailable without guessing whether the request succeeded, failed or was refunded. Customers may retry the status lookup without submitting another execution."
+    },
+    {
+      "question": "Accept returning the same status, verification timestamp when available and freshness indicator through the API and interface so applications can handle uncertainty too?",
+      "raw_request": "yes",
+      "meaning": "The API and customer interface share the same status contract for the customer-visible Exchange incident, request and refund information: status, verification timestamp when available, and a freshness indicator. Both surfaces preserve the same uncertainty and privacy rules."
+    },
+    {
+      "question": "Accept Current for successfully verified during this lookup, Stale for last verified information with refresh unavailable, and Unavailable for no verified information available, as freshness values separate from payment outcomes?",
+      "raw_request": "yes",
+      "meaning": "The shared status contract has three freshness values: Current means successfully verified during this lookup; Stale means last verified information with refresh unavailable; Unavailable means no verified information is available. These values describe information freshness, not request or payment outcomes."
+    },
+    {
+      "question": "Accept giving incident, request and refund status their own freshness indicator and verification timestamp, allowing current incident information alongside stale refund information?",
+      "raw_request": "yes",
+      "meaning": "Incident, request and refund status each carry their own freshness indicator and verification timestamp when available, in both the API and customer interface. Their freshness is independent: incident information may be Current while refund information is Stale."
+    },
+    {
+      "question": "Accept that “verified at” means when Exchange last successfully checked that specific status, not when the status changed or the page loaded, and a failed refresh leaves that timestamp unchanged?",
+      "raw_request": "yes",
+      "meaning": "“Verified at” means when Exchange last successfully checked that specific incident, request or refund status. It is not the time the status changed or the page loaded. A failed refresh leaves that status’s verification timestamp unchanged."
+    },
+    {
+      "question": "Accept notifying affected customers when their refund completes or an incident affecting their refund reopens, once per meaningful change, without notifying them about every internal retry?",
+      "raw_request": "yes",
+      "meaning": "Affected customers receive notifications when their own refund completes or an incident affecting their refund reopens, once per meaningful change. Internal retries do not each generate a customer notification."
+    },
+    {
+      "question": "Accept an in-app notification inbox, also readable through the API, for MVP customer notifications, with email and outgoing webhooks deferred?",
+      "raw_request": "yes",
+      "meaning": "MVP customer recovery notifications use an in-app notification inbox that is also readable through the API. Email and outgoing webhook delivery are deferred beyond the MVP."
+    },
+    {
+      "question": "Accept that refunds and recovery continue normally if notification creation fails, Exchange retains and retries the pending notification without duplicates, and notification failure never reverses a completed refund?",
+      "raw_request": "yes",
+      "meaning": "If customer notification creation fails, refunds and recovery continue normally. Exchange retains the pending notification and retries creating it without duplicates. Notification failure never reverses a completed refund."
+    },
+    {
+      "question": "Accept keeping inbox notifications for 90 days after creation, whether read or unread, without deleting underlying request, refund or incident records when a notification is removed?",
+      "raw_request": "yes",
+      "meaning": "Inbox notifications are retained for 90 days after creation, whether read or unread. Removing a notification does not delete its underlying request, refund or incident record."
+    },
+    {
+      "question": "Accept an explicit mark-as-read action in UI and API, with fetching alone leaving notifications unread and read status changing no payment, refund or incident state?",
+      "raw_request": "yes",
+      "meaning": "Marking a notification as read requires an explicit action available in both the UI and API. Fetching notifications alone leaves unread notifications unread. Notification read status changes no payment, refund or incident state."
+    },
+    {
+      "question": "Accept always creating refund-completion and incident-reopening notices in the inbox, allowing customers to mark them read but not disable creation, so updates remain available throughout the 90-day retention period?",
+      "raw_request": "yes",
+      "meaning": "Refund-completion and incident-reopening notices are always created in the affected customer inbox when their respective triggers occur. Customers can mark these notices as read but cannot disable their creation. These notices remain available throughout the 90-day retention period from creation."
+    },
+    {
+      "question": "Accept an operator dashboard plus email for critical alerts, with delivery independent of the monitored recovery worker, while customer email notifications remain deferred?",
+      "raw_request": "yes",
+      "meaning": "Exchange operators receive critical alerts through an operator dashboard and email. Alert delivery is independent of the monitored recovery worker, allowing alerts when that worker stops. Customer email notifications remain deferred."
+    },
+    {
+      "question": "Accept an initial operator email then reminders every 15 minutes while the incident is unresolved and unacknowledged, with acknowledgement stopping reminders without resolving the incident or resuming paused payment actions?",
+      "raw_request": "yes",
+      "meaning": "Critical operator alerts send an initial email, followed by a reminder every 15 minutes while the incident remains unresolved and unacknowledged. Acknowledgement stops reminders but does not resolve the incident or resume paused payment actions."
+    },
+    {
+      "question": "Accept requiring a fresh acknowledgement, sending a new alert and restarting 15-minute reminders when an incident reopens, while preserving the previous acknowledgement in history?",
+      "raw_request": "yes",
+      "meaning": "When an incident reopens, Exchange requires a fresh operator acknowledgement, sends a new operator alert and restarts the 15-minute reminders while the incident remains unresolved and unacknowledged. Previous acknowledgements remain in the incident history."
+    },
+    {
+      "question": "Accept explicit authenticated acknowledgement through the dashboard or API, recording who and when, with email opening and dashboard viewing not counting as acknowledgement?",
+      "raw_request": "yes",
+      "meaning": "Operator acknowledgement requires an explicit authenticated action through the dashboard or API, recording who acknowledged and when. Opening an email or viewing the dashboard does not count as acknowledgement."
+    },
+    {
+      "question": "Accept operator emails containing incident ID, severity, a brief operational summary and dashboard link, with customer details, prompts, outputs and internal diagnostics kept behind authenticated access?",
+      "raw_request": "yes",
+      "meaning": "Operator alert emails include the incident ID, severity, a brief operational summary and a dashboard link. Customer details, prompts, outputs and internal diagnostics stay behind authenticated access and are excluded from the email."
+    },
+    {
+      "question": "Accept retaining operator alerts, retrying failed email delivery with increasing delays and showing delivery failure on the operator dashboard, without counting failure as acknowledgement or stopping recovery?",
+      "raw_request": "yes",
+      "meaning": "When operator email delivery fails, Exchange retains the alert, retries delivery with increasing delays and shows the delivery failure on the operator dashboard. Failed delivery never counts as acknowledgement or stops recovery."
+    },
+    {
+      "question": "Accept one pending email per incident and recipient, updated with latest status instead of accumulating reminders, and suppressing it if acknowledged or resolved before sending while preserving history?",
+      "raw_request": "yes",
+      "meaning": "Exchange keeps one pending operator email per incident and recipient, updating it with the latest status instead of accumulating every reminder. If the incident is acknowledged or resolved before sending, Exchange suppresses the pending alert and preserves its history."
+    },
+    {
+      "question": "Accept waiting 1, 2, 5, then 15 minutes between temporary email failure retry attempts, capped at 15 minutes thereafter while unresolved and unacknowledged, with reminders updating the same pending email?",
+      "raw_request": "yes",
+      "meaning": "For temporary operator email delivery failures, Exchange waits 1, 2, 5, then 15 minutes between attempts, capped at 15 minutes thereafter, while the incident remains unresolved and unacknowledged. Reminders update the same pending email."
+    },
+    {
+      "question": "Accept pausing delivery to an address with permanent email failure, retaining its alert and showing Operator action required, with authorized configuration correction and explicit resume required while other recipients remain unaffected?",
+      "raw_request": "yes",
+      "meaning": "Permanent operator email failures pause delivery to the affected address, retain the alert and show “Operator action required” on the operator dashboard. An authorized operator must correct the configuration and explicitly resume delivery. Other recipients remain unaffected."
+    },
+    {
+      "question": "Accept an operator-managed list of verified email addresses, critical alerts to each recipient, and acknowledgement by any authorized operator stopping reminders for everyone on that incident?",
+      "raw_request": "yes",
+      "meaning": "MVP critical operator alerts use an operator-managed list of verified email addresses. Each listed recipient receives critical alerts, subject to existing delivery-pause rules. Acknowledgement by any authorized operator stops reminders for all recipients on that incident."
+    },
+    {
+      "question": "Accept that removing a recipient immediately prevents new sends and cancels pending emails while preserving delivery history, with emails already handed to the email service not recallable?",
+      "raw_request": "yes",
+      "meaning": "Removing an operator alert recipient address immediately prevents new sends to it and cancels its pending emails, while preserving delivery history. Emails already handed to the email service cannot be recalled."
     }
   ],
   "evidence_sources": [
@@ -755,7 +1055,90 @@
     "network_fee_boundary": "Exchange funds settlement/refund network fees separately, preserving promised payout and refund amounts.",
     "funding_fee_boundary": "Customer pays initial escrow-funding network fee separately from the full agreed usage price reserved for the request.",
     "platform_fee_rounding": "Round Exchange fee up in smallest currency units from the collected amount and pay remaining collected amount to provider; customer gross charge/refund remain determined separately.",
-    "cancellation_rounding": "Charge ceil(agreed_price_units / 2), refund the remainder, then deduct ceil(charge_units / 50) as the Exchange fee."
+    "cancellation_rounding": "Charge ceil(agreed_price_units / 2), refund the remainder, then deduct ceil(charge_units / 50) as the Exchange fee.",
+    "provider_unavailable_during_funding": {
+      "status": "owner-selected-mvp-requirement",
+      "trigger": "provider becomes unavailable during escrow funding; funding completes but execution cannot start",
+      "return_percent_of_escrow": 100,
+      "cancellation_charge_percent": 0,
+      "automatic_provider_substitution": false,
+      "customer_next_step": "another attempt requires a new quote and new idempotency key",
+      "boundary": "Existing network-fee rules apply: Exchange pays refund fees without deduction from escrow principal; initial funding network fee remains customer-paid. Unknown execution-start outcomes require reconciliation; a missing response alone is not proof execution never started. KEP purchase rules remain unchanged.",
+      "unresolved": [
+        "authoritative no-start evidence and funding/start/refund ordering",
+        "idempotent refund, confirmation, retry and reconciliation mechanics",
+        "refund completion timing, confirmation criteria and customer-status projection",
+        "new quote/key and separate-funding enforcement, pending-refund disclosure and independent reconciliation"
+      ],
+      "implementation_status": "pending",
+      "open_questions_ref": "OPEN-QUESTIONS.md#q4-exchange-commerce-owner",
+      "customer_refund_status": {
+        "status": "owner-selected-mvp-requirement",
+        "before_return_confirmation": "Refund pending",
+        "after_return_confirmation": "Refund completed",
+        "on_failed_attempt": "remain Refund pending for retry and reconciliation",
+        "boundary": "Submitting a refund transaction does not establish completion. Escalation occurs at 15 minutes pending; confirmation criteria, retry schedule and escalation enforcement remain open.",
+        "escalation": {
+          "status": "owner-selected-mvp-requirement",
+          "pending_duration_seconds": 900,
+          "recipient": "Exchange operator",
+          "customer_status": "Refund pending",
+          "refund_obligation_continues": true,
+          "reconciliation_continues": true,
+          "completion_time_guarantee": false,
+          "unresolved": [
+            "authoritative pending-start timestamp and restart-safe timer",
+            "operator assignment, escalation delivery and acknowledgement"
+          ],
+          "immediate_cases": {
+            "status": "owner-selected-mvp-requirement",
+            "triggers": [
+              "conflicting evidence",
+              "operator intervention required"
+            ],
+            "wait_for_routine_threshold": false,
+            "affected_payment_actions": "paused",
+            "status_checks_continue": true,
+            "refund_obligation_continues": true,
+            "boundary": "Applies to affected payment actions; read-only reconciliation continues. Routine unresolved delays still escalate after 900 seconds pending. Pausing new actions cannot revoke transactions already submitted.",
+            "unresolved": [
+              "durable action-pause enforcement and in-flight transaction reconciliation",
+              "acknowledgement delivery, resolution evidence/permission validation, atomic resume and verified closure"
+            ],
+            "resume_resolution": {
+              "status": "owner-selected-mvp-requirement",
+              "recorded_resolution_required_before_resume": true,
+              "required_record_fields": [
+                "operator identity",
+                "supporting evidence",
+                "permitted recovery action"
+              ],
+              "acknowledgement_alone_resumes_actions": false,
+              "boundary": "A resolution does not override operator permissions, existing refund terms or transaction confirmation requirements. Authorization, evidence validation and atomic resume enforcement remain to be implemented.",
+              "unresolved": [
+                "operator identity and permission binding",
+                "resolution schema, evidence validation and retention",
+                "atomic resume, action scope and concurrent reconciliation"
+              ]
+            }
+          }
+        }
+      },
+      "new_attempt": {
+        "status": "owner-selected-mvp-requirement",
+        "scope": "another attempt after funded provider-unavailability failure before execution start",
+        "new_quote_required": true,
+        "new_idempotency_key_required": true,
+        "original_key_behavior": "return original request and its refund status",
+        "original_key_restarts_execution": false,
+        "reuse_original_escrow_funding": false,
+        "boundary": "Existing caller-scoped identity and new-request eligibility rules apply. This does not change same-key retries after pre-acceptance No provider available. The original refund remains independently due and tracked.",
+        "allowed_while_original_refund_pending": true,
+        "separate_funding_required": true,
+        "pending_refund_disclosure_required": true
+      }
+    },
+    "recovery_outage_during_funding_ref": "QUALITY-EVIDENCE.json#/operational_recovery_process/outage_admission/funding_in_flight"
   },
   "exchange_failure_billing": {
     "status": "owner-selected-mvp-requirement",
@@ -858,7 +1241,7 @@
   "request_idempotency": {
     "status": "owner-selected-mvp-requirement",
     "scope": "inference and task-service API request retries",
-    "same_request_identifier": "return existing request status or retained result",
+    "same_request_identifier": "return existing request status or retained result; unchanged No provider available retries may recheck availability before acceptance",
     "duplicate_execution": false,
     "duplicate_escrow_reservation": false,
     "duplicate_charge": false,
@@ -889,6 +1272,73 @@
       "same_identifier_across_callers": "separate requests",
       "identifier_alone_grants_access": false,
       "boundary": "The authenticated identity must be established by Exchange authentication; a supplied caller label is not proof of identity. Exact identity binding, delegated callers and authorization enforcement remain open."
+    },
+    "no_provider_retry": {
+      "status": "owner-selected-mvp-requirement",
+      "same_key_allowed": true,
+      "unchanged_request_required": true,
+      "before_acceptance": "recheck availability after No provider available",
+      "after_acceptance": "return existing request; no duplicate execution, reservation or charge",
+      "boundary": "Existing caller-scoped identifier and payload-conflict rules remain applicable. Other rejection classes and funding races are not resolved by this decision."
+    },
+    "funded_provider_loss_new_attempt": {
+      "status": "owner-selected-mvp-requirement",
+      "scope": "another attempt after funded provider-unavailability failure before execution start",
+      "new_quote_required": true,
+      "new_idempotency_key_required": true,
+      "original_key_behavior": "return original request and its refund status",
+      "original_key_restarts_execution": false,
+      "reuse_original_escrow_funding": false,
+      "boundary": "Existing caller-scoped identity and new-request eligibility rules apply. This does not change same-key retries after pre-acceptance No provider available. The original refund remains independently due and tracked.",
+      "allowed_while_original_refund_pending": true,
+      "separate_funding_required": true,
+      "pending_refund_disclosure_required": true
+    },
+    "recovery_outage_refund_new_attempt": {
+      "status": "owner-selected-mvp-requirement",
+      "new_quote_required": true,
+      "new_idempotency_key_required": true,
+      "original_key_behavior": "return original request and its refund status",
+      "original_key_restarts_execution": false,
+      "boundary": "A new key does not bypass recovery-outage admission restrictions or existing eligibility and funding rules.",
+      "unresolved": [
+        "pending-refund disclosure contract",
+        "atomic new-attempt and original-request identity enforcement",
+        "separate funding and independent refund reconciliation enforcement"
+      ],
+      "allowed_while_original_refund_pending": true,
+      "paid_request_admission_must_be_open": true,
+      "separate_funding_required": true,
+      "outstanding_refund_disclosure_required": true,
+      "original_refund_independently_due": true,
+      "original_escrow_reusable_for_new_attempt": false
+    },
+    "recovery_outage_prefunding_retry": {
+      "status": "owner-selected-mvp-requirement",
+      "scope": "outage rejection before requesting escrow funding",
+      "same_key_unchanged_request_may_recheck_availability": true,
+      "once_accepted": "return existing request",
+      "duplicate_execution": false,
+      "duplicate_funding": false,
+      "boundary": "Existing authenticated-caller scope and changed-request conflict rules apply. This does not restart a funded request with a refund outcome, which requires a new quote and key for another attempt.",
+      "unresolved": [
+        "atomic admission and concurrent retry enforcement",
+        "key retention, random-delay details and guidance delivery"
+      ],
+      "guidance": {
+        "status": "owner-selected-mvp-requirement",
+        "suggested_delay_in_response": true,
+        "restoration_guarantee": false,
+        "client_behavior": "wait the suggested 30 seconds plus a small additional random delay to spread out retries",
+        "suggested_delay_seconds": 30,
+        "boundary": "Guidance does not enqueue requests, initiate funding, or override existing idempotency and admission rules.",
+        "unresolved": [
+          "additional random-delay range and distribution",
+          "delay adjustment policy",
+          "API representation and client handling"
+        ],
+        "additional_client_random_delay": true
+      }
     }
   },
   "platform_fee": {
@@ -1122,7 +1572,7 @@
       "unresolved": [
         "synthetic probe contract, pass criteria and resource limits",
         "freshness threshold and timeout",
-        "failed checks, retry behavior and status representation"
+        "failure/retry status representation, diagnostics and explicit-retry enforcement"
       ],
       "open_questions_ref": "OPEN-QUESTIONS.md#q14-exchange-host-owner-and-community-providers",
       "synthetic_probe": {
@@ -1137,10 +1587,862 @@
         "unresolved": [
           "synthetic input and pass criteria per offering/profile",
           "resource/cost budget and timeout values",
-          "probe cost ownership and usage accounting",
-          "probe frequency, retries and evidence freshness"
+          "probe classification/evidence and exclusion enforcement",
+          "explicit-retry enforcement, probe concurrency and evidence freshness"
+        ],
+        "open_questions_ref": "OPEN-QUESTIONS.md#q14-exchange-host-owner-and-community-providers",
+        "accounting": {
+          "status": "owner-selected-mvp-requirement",
+          "billable": false,
+          "compute_cost_owner": "provider",
+          "counts_as_customer_usage_for_score_validation": false,
+          "record_type": "readiness evidence separate from customer traffic",
+          "boundary": "Existing bounded-cost and timeout requirements still apply. This does not select probe budget, frequency or retries.",
+          "open_questions_ref": "OPEN-QUESTIONS.md#q14-exchange-host-owner-and-community-providers"
+        }
+      },
+      "on_probe_failure": {
+        "status": "owner-selected-mvp-requirement",
+        "offering_state": "unavailable for new requests",
+        "provider_failure_reason_required": true,
+        "explicit_provider_retry_required": true,
+        "automatic_probe_retry": false,
+        "boundary": "A retry must still pass the required fresh readiness checks and respect independent pause states. Probe budget and timeout remain bounded.",
+        "unresolved": [
+          "failure reason schema and safe diagnostic details",
+          "retry authorization, concurrent retry handling and resource accounting"
         ],
         "open_questions_ref": "OPEN-QUESTIONS.md#q14-exchange-host-owner-and-community-providers"
+      }
+    }
+  },
+  "health_monitoring": {
+    "status": "owner-selected-mvp-requirement",
+    "implementation_status": "pending",
+    "host_heartbeat": {
+      "scope": "host reachability",
+      "model_inference_required": false,
+      "on_freshness_expiry": "mark host unreachable and stop new routing to its offerings",
+      "interval_seconds": 15,
+      "freshness_timeout_seconds": 60,
+      "accepted_requests": "existing deadlines and settlement rules remain unchanged",
+      "recovery": {
+        "status": "owner-selected-mvp-requirement",
+        "reconnection_restores": "host reachability only",
+        "automatic_request_acceptance_on_reconnection": false,
+        "explicit_provider_resume_required": true,
+        "fresh_passing_readiness_required": true,
+        "preserves_individual_offering_pauses": true,
+        "boundary": "Existing independent pause states, other eligibility checks and explicit provider retry after a failed readiness probe still apply."
+      }
+    },
+    "request_monitoring": {
+      "scope": "per offering",
+      "signals": [
+        "successful requests",
+        "failed requests",
+        "latency"
+      ],
+      "on_repeated_serving_failures": "stop new routing to the affected offering when the threshold is met, even while the host is connected",
+      "unrelated_offerings": "not automatically disabled by one engine failure",
+      "failure_threshold": 3,
+      "failure_window_seconds": 300,
+      "failure_pattern": "consecutive provider-caused execution failures within the window",
+      "streak_reset": "successful execution",
+      "excluded_outcomes": [
+        "quota rejections",
+        "customer cancellations",
+        "Exchange failures"
+      ],
+      "recovery": {
+        "status": "owner-selected-mvp-requirement",
+        "explicit_provider_resume_required": true,
+        "fresh_passing_readiness_probe_required": true,
+        "elapsed_failure_window_restores_routing": false,
+        "preserves_existing_pauses": true,
+        "boundary": "Other eligibility rules and existing probe cost, timeout and explicit retry requirements still apply.",
+        "unresolved": [
+          "atomic request-acceptance/recovery binding and enforcement of late-outcome isolation",
+          "resume authorization, durable state and atomic readiness/acceptance ordering"
+        ],
+        "active_failure_streak_after_recovery": 0,
+        "preserve_past_failures_in_performance_history": true,
+        "pre_recovery_outcomes": {
+          "request_scope": "requests accepted before successful recovery",
+          "affect_new_active_failure_streak": false,
+          "settlement": "original request rules remain applicable",
+          "performance_history": "retain outcomes in offering performance history"
+        },
+        "new_streak_request_scope": "requests accepted after successful recovery; existing success-reset and excluded-outcome rules apply"
+      }
+    },
+    "readiness_boundary": "Existing explicit resume, bounded synthetic probe and explicit provider retry after probe failure remain required. A heartbeat alone clears neither manual pauses nor failed readiness checks.",
+    "attribution_and_payment": "Routing protection is separate from provider fault and settlement. Missing heartbeats alone neither prove provider fault nor refund accepted requests. Quota rejections, customer cancellations and Exchange failures remain distinct.",
+    "unresolved": [
+      "request-failure recovery enforcement and atomic streak-reset implementation, authoritative outcome ordering, window boundaries and duplicate-event handling",
+      "trustworthy outcome reporting for direct free delivery",
+      "health-state propagation and correlated Exchange-side outage handling",
+      "heartbeat freshness timestamp source, expiry ordering and stale/replayed message handling",
+      "heartbeat-timeout resume authorization, durable recovery state and atomic readiness/acceptance ordering"
+    ],
+    "open_questions_ref": "OPEN-QUESTIONS.md#q14-exchange-host-owner-and-community-providers",
+    "unavailable_visibility": {
+      "status": "owner-selected-mvp-requirement",
+      "causes": [
+        "heartbeat timeout",
+        "repeated execution failures"
+      ],
+      "discoverable": true,
+      "audience": "existing permitted audience",
+      "customer_status_label": "unavailable",
+      "new_requests_allowed": false,
+      "provider_information": [
+        "specific cause",
+        "required recovery action"
+      ],
+      "customer_information": "simple availability status",
+      "unresolved": [
+        "status and diagnostic response schema",
+        "provider diagnostic access and safe disclosure",
+        "status propagation, cache freshness and acceptance enforcement"
+      ],
+      "open_questions_ref": "OPEN-QUESTIONS.md#q14-exchange-host-owner-and-community-providers"
+    }
+  },
+  "no_eligible_provider": {
+    "status": "owner-selected-mvp-requirement",
+    "implementation_status": "pending",
+    "scope": "new request selection when no eligible provider is available",
+    "response": "No provider available",
+    "accept_request": false,
+    "charge_request": false,
+    "queue_request": false,
+    "caller_may_retry_later": true,
+    "relax_caller_constraints": false,
+    "preserved_constraints": [
+      "budget",
+      "access",
+      "task requirements"
+    ],
+    "boundary": "This pre-acceptance response does not redefine already accepted request outcomes. Provider unavailability during funding follows payment_reservation.provider_unavailable_during_funding.",
+    "unresolved": [
+      "response schema and safe eligibility explanation",
+      "retry timing and atomic pre-acceptance retry enforcement",
+      "availability changes during selection/acceptance and enforcement of the selected funding-loss refund rule"
+    ],
+    "open_questions_ref": "OPEN-QUESTIONS.md#q21-exchange-productnetwork-owner",
+    "retry": {
+      "status": "owner-selected-mvp-requirement",
+      "same_key_allowed": true,
+      "unchanged_request_required": true,
+      "before_acceptance": "recheck availability after No provider available",
+      "after_acceptance": "return existing request; no duplicate execution, reservation or charge",
+      "boundary": "Existing caller-scoped identifier and payload-conflict rules remain applicable. Other rejection classes and funding races are not resolved by this decision."
+    }
+  },
+  "operational_recovery_process": {
+    "status": "owner-required-process-details-proposed",
+    "implementation_status": "pending",
+    "purpose": "proactively monitor unresolved operations and recover routine failures to mitigate avoidable escalations",
+    "proposed_owner": "Exchange operations",
+    "initial_scope": "pending refunds, including provider unavailability during funding",
+    "proposed_extension_scope": [
+      "settlement reconciliation",
+      "delivery recovery",
+      "host health incidents under their existing recovery rules"
+    ],
+    "proposed_steps": [
+      "Persist each unresolved obligation with request identity, due amount, pending-since time, transaction references, last attempt, next check and responsible owner.",
+      "Use operation events and periodic reconciliation sweeps so missed events or worker restarts do not lose obligations.",
+      "Verify actual transaction and escrow state before any retry; do not infer failure from an unconfirmed response or issue a duplicate refund.",
+      "Retry only classified transient failures with bounded backoff and resource limits; retain one obligation across attempts.",
+      "Detect shared causes such as RPC outages, fee-payer shortage or stuck workers; group related incidents without hiding individual overdue obligations.",
+      "Escalate unresolved refunds at 15 minutes pending with evidence and attempted recovery; continue reconciliation and close only on verified completion.",
+      "Track backlog age, recovery success, escalation rate and worker freshness; detect loss of the monitoring process itself."
+    ],
+    "boundaries": [
+      "No provider auto-resume or automatic readiness-probe retry that bypasses existing explicit-provider rules.",
+      "Automation must not change refund amount, recipient, accepted terms or request-specific escrow ownership; operator intervention and separately defined authorization are required for proposed refund changes.",
+      "Retry attempts must not reset the original pending-age escalation clock (proposed enforcement rule).",
+      "Uncertain outcomes require reconciliation rather than duplicate execution or payment."
+    ],
+    "open_questions": [
+      "operator permissions, evidence-resolution and refund-change approval contract",
+      "retry cadence, attempt/resource budgets and transient/permanent classification",
+      "confirmation evidence, timer authority, durable ownership and deduplication",
+      "watchdog signal evidence, cadence, stall threshold and deployment independence; operator alert delivery enforcement, acknowledgement and closure evidence",
+      "scope and thresholds for additional incident types"
+    ],
+    "open_questions_ref": "OPEN-QUESTIONS.md#q4-exchange-commerce-owner",
+    "automation_boundary": {
+      "status": "owner-selected-mvp-requirement",
+      "automatic_actions": [
+        "state reconciliation",
+        "transient-failure retries"
+      ],
+      "operator_intervention_required_for": [
+        "conflicting evidence",
+        "refund amount changes",
+        "refund destination changes"
+      ],
+      "boundary": "Automation preserves original refund terms and prevents duplicate payments. Operator intervention is necessary, not blanket authorization to change entitlements; evidence, permissions and change approval rules remain to be defined. Existing explicit provider resume/probe-retry rules remain applicable."
+    },
+    "immediate_escalation": {
+      "status": "owner-selected-mvp-requirement",
+      "triggers": [
+        "conflicting evidence",
+        "operator intervention required"
+      ],
+      "wait_for_routine_threshold": false,
+      "affected_payment_actions": "paused",
+      "status_checks_continue": true,
+      "refund_obligation_continues": true,
+      "boundary": "Applies to affected payment actions; read-only reconciliation continues. Routine unresolved delays still escalate after 900 seconds pending. Pausing new actions cannot revoke transactions already submitted.",
+      "unresolved": [
+        "durable action-pause enforcement and in-flight transaction reconciliation",
+        "acknowledgement delivery, resolution evidence/permission validation, atomic resume and verified closure"
+      ],
+      "resume_resolution": {
+        "status": "owner-selected-mvp-requirement",
+        "recorded_resolution_required_before_resume": true,
+        "required_record_fields": [
+          "operator identity",
+          "supporting evidence",
+          "permitted recovery action"
+        ],
+        "acknowledgement_alone_resumes_actions": false,
+        "boundary": "A resolution does not override operator permissions, existing refund terms or transaction confirmation requirements. Authorization, evidence validation and atomic resume enforcement remain to be implemented.",
+        "unresolved": [
+          "operator identity and permission binding",
+          "resolution schema, evidence validation and retention",
+          "atomic resume, action scope and concurrent reconciliation"
+        ]
+      }
+    },
+    "watchdog": {
+      "status": "owner-selected-mvp-requirement",
+      "implementation_status": "pending",
+      "independent_of_monitored_worker": true,
+      "detects": "stalled recovery workers",
+      "alert_recipient": "Exchange operator",
+      "pending_obligations_durable": true,
+      "pending_obligations_recoverable_after_restart": true,
+      "boundary": "This requirement does not select automatic worker restart or bypass existing payment-action pauses, reconciliation, operator-resolution or provider-resume rules.",
+      "unresolved": [
+        "health-signal evidence, check cadence and stall threshold",
+        "watchdog deployment and independence boundary",
+        "operator alert delivery and acknowledgement",
+        "durable obligation storage, recovery ownership and duplicate-action prevention"
+      ],
+      "health_signals": {
+        "status": "owner-selected-mvp-requirement",
+        "required_signals": [
+          "worker heartbeat",
+          "successful completion of scheduled reconciliation checks"
+        ],
+        "require_all_signals": true,
+        "checks_required_when_no_obligations_pending": true,
+        "heartbeat_alone_sufficient": false,
+        "boundary": "Completion of a reconciliation check does not establish completion of a refund; the existing confirmed-return requirement still applies.",
+        "unresolved": [
+          "heartbeat freshness and reconciliation completion deadlines",
+          "check completion evidence, scheduling and clock authority",
+          "distinguishing stalled execution from checks blocked by unavailable dependencies"
+        ]
+      },
+      "operator_alerts_ref": "QUALITY-EVIDENCE.json#/operational_recovery_process/operator_alerts"
+    },
+    "outage_admission": {
+      "status": "owner-selected-mvp-requirement",
+      "implementation_status": "pending",
+      "trigger": "recovery outage",
+      "scope": "new paid requests affected by the recovery outage",
+      "action": "temporarily block acceptance",
+      "recovery_health_required_before_reopening": true,
+      "existing_request_terms_preserved": true,
+      "existing_refund_obligations_preserved": true,
+      "free_services": "may continue if otherwise healthy",
+      "boundary": "This admission restriction does not cancel existing requests, forgive obligations, establish provider fault or override existing payment-action pauses and provider readiness rules.",
+      "unresolved": [
+        "mapping outage impact to affected paid requests",
+        "atomic admission enforcement and funding-in-flight evidence/settlement ordering",
+        "API response contract, random-delay details and retry guidance delivery and atomic idempotency enforcement for pre-funding rejections",
+        "reopening stability evidence, timer and enforcement; operator-resolution binding"
+      ],
+      "reopening": {
+        "status": "owner-selected-mvp-requirement",
+        "routine_outage_mode": "automatic after sustained recovery health",
+        "required_health_signals": [
+          "healthy worker heartbeats",
+          "successful scheduled reconciliation checks"
+        ],
+        "stability_period_seconds": 120,
+        "operator_resolution_requirements_preserved": true,
+        "boundary": "Reopening removes only the routine recovery-outage admission restriction. It does not clear operator-required restrictions, provider pauses or readiness requirements, and does not confirm completion of pending refunds.",
+        "unresolved": [
+          "evidence of continuous health, timer authority and restart behavior",
+          "atomic reset and reopening under concurrent health events",
+          "atomic reopening and affected-scope enforcement"
+        ],
+        "continuous_health_required": true,
+        "renewed_health_failure_resets_stability_timer": true
+      },
+      "customer_response": {
+        "status": "owner-selected-mvp-requirement",
+        "message": "Paid requests temporarily unavailable",
+        "timing": "immediate, before requesting escrow funding",
+        "charge": false,
+        "automatic_queue": false,
+        "customer_may_retry_later": true,
+        "boundary": "Applies to affected new requests rejected before funding is requested. Existing accepted requests retain their terms and obligations; funding already underway when the outage begins follows outage_admission.funding_in_flight when its conditions hold.",
+        "unresolved": [
+          "API response schema and status code",
+          "random-delay details and retry guidance delivery, key retention and atomic idempotency enforcement"
+        ],
+        "retry": {
+          "status": "owner-selected-mvp-requirement",
+          "scope": "outage rejection before requesting escrow funding",
+          "same_key_unchanged_request_may_recheck_availability": true,
+          "once_accepted": "return existing request",
+          "duplicate_execution": false,
+          "duplicate_funding": false,
+          "boundary": "Existing authenticated-caller scope and changed-request conflict rules apply. This does not restart a funded request with a refund outcome, which requires a new quote and key for another attempt.",
+          "unresolved": [
+            "atomic admission and concurrent retry enforcement",
+            "key retention, random-delay details and guidance delivery"
+          ],
+          "guidance": {
+            "status": "owner-selected-mvp-requirement",
+            "suggested_delay_in_response": true,
+            "restoration_guarantee": false,
+            "client_behavior": "wait the suggested 30 seconds plus a small additional random delay to spread out retries",
+            "suggested_delay_seconds": 30,
+            "boundary": "Guidance does not enqueue requests, initiate funding, or override existing idempotency and admission rules.",
+            "unresolved": [
+              "additional random-delay range and distribution",
+              "delay adjustment policy",
+              "API representation and client handling"
+            ],
+            "additional_client_random_delay": true
+          }
+        }
+      },
+      "funding_in_flight": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "scope": "request affected by recovery outage; funding underway when outage begins",
+        "conditions": [
+          "escrow funding completes",
+          "execution has not started"
+        ],
+        "action": "return full escrow amount",
+        "refund_percent": 100,
+        "cancellation_charge_percent": 0,
+        "provider_penalty": false,
+        "customer_status_until_confirmed_return": "Refund pending",
+        "boundary": "Unknown execution-start state is not proof that execution never started; reconcile evidence before applying this outcome. Existing payment-action pauses and operator-resolution requirements still apply. The refund obligation persists during the outage; this rule does not promise immediate refund execution.",
+        "unresolved": [
+          "outage, funding and execution-start ordering and evidence",
+          "atomic prevention of execution after refund outcome selection",
+          "refund confirmation and durable reconciliation enforcement",
+          "new-attempt disclosure, separate funding and idempotency enforcement"
+        ],
+        "new_attempt": {
+          "status": "owner-selected-mvp-requirement",
+          "new_quote_required": true,
+          "new_idempotency_key_required": true,
+          "original_key_behavior": "return original request and its refund status",
+          "original_key_restarts_execution": false,
+          "boundary": "A new key does not bypass recovery-outage admission restrictions or existing eligibility and funding rules.",
+          "unresolved": [
+            "pending-refund disclosure contract",
+            "atomic new-attempt and original-request identity enforcement",
+            "separate funding and independent refund reconciliation enforcement"
+          ],
+          "allowed_while_original_refund_pending": true,
+          "paid_request_admission_must_be_open": true,
+          "separate_funding_required": true,
+          "outstanding_refund_disclosure_required": true,
+          "original_refund_independently_due": true,
+          "original_escrow_reusable_for_new_attempt": false
+        }
+      }
+    },
+    "incident_grouping": {
+      "status": "owner-selected-mvp-requirement",
+      "implementation_status": "pending",
+      "operator_incidents_per_shared_outage": 1,
+      "linked_records": [
+        "all affected requests",
+        "all affected refunds"
+      ],
+      "individual_refund_age_preserved": true,
+      "individual_refund_escalation_status_preserved": true,
+      "overdue_obligations_remain_visible": true,
+      "boundary": "Grouping does not merge escrow funds, alter refund entitlements, reset pending-age clocks or bypass immediate operator escalation and payment-action pause rules.",
+      "unresolved": [
+        "shared-outage correlation evidence and incident identity",
+        "deduplication and correction of incorrect incident grouping",
+        "operator notifications when linked obligations escalate",
+        "closure evidence validation, automation identity/permissions and concurrent obligation handling"
+      ],
+      "closure": {
+        "status": "owner-selected-mvp-requirement",
+        "restored_with_pending_refunds_label": "Service restored—refunds pending",
+        "restored_label_condition": "recovery is healthy and linked refunds remain unresolved",
+        "full_closure_requires_all_linked_obligations_resolved": true,
+        "resolution_evidence_required": true,
+        "paid_reopening_requires_incident_closure": false,
+        "paid_reopening_policy_ref": "QUALITY-EVIDENCE.json#/operational_recovery_process/outage_admission/reopening",
+        "boundary": "Service restoration and incident acknowledgement do not confirm refunds, reset their age or remove escalation status. Refund completion still requires confirmed return; existing operator-required restrictions remain applicable.",
+        "unresolved": [
+          "closure evidence validation and automation identity/permission binding",
+          "atomic closure with concurrent or newly discovered linked obligations",
+          "incident state transitions on recurring outage"
+        ],
+        "mode": "automatic when all closure conditions are satisfied",
+        "required_conditions": [
+          "recovery is healthy",
+          "every linked obligation has verified completion",
+          "no unresolved operator-required issue"
+        ],
+        "all_conditions_required": true
+      },
+      "scope": "Exchange recovery-infrastructure outages, including dependencies needed for payment/refund recovery",
+      "missed_refund_after_closure": {
+        "status": "owner-selected-mvp-requirement",
+        "trigger": "previously missed unpaid refund belonging to the same Exchange recovery outage discovered after incident closure",
+        "action": "reopen original incident",
+        "preserve_incident_history": true,
+        "preserve_prior_closure_record": true,
+        "alert_recipient": "Exchange operator",
+        "boundary": "Reopening preserves the refund obligation and its original pending age. It does not itself submit a payment or override reconciliation, payment-action pauses, operator-resolution or paid-admission rules.",
+        "unresolved": [
+          "evidence linking the missed unpaid refund to the original outage",
+          "atomic linking and reopening with duplicate discovery events",
+          "operator alert delivery and acknowledgement"
+        ]
+      },
+      "customer_visibility": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "audience": "affected customers",
+        "visible_information": [
+          "Exchange recovery-outage incident status",
+          "customer own request status",
+          "customer own refund status"
+        ],
+        "excluded_information": [
+          "other customers' details",
+          "internal diagnostics"
+        ],
+        "boundary": "Shared incident status does not establish the completion of an individual refund; each customer refund retains its independently verified status.",
+        "unresolved": [
+          "shared status field names, types and customer wording",
+          "authenticated affected-customer access and filtering",
+          "shared API/UI contract binding, projection and update delivery",
+          "stale-status evidence, timestamps, storage and unavailable-status enforcement"
+        ],
+        "stale_status": {
+          "status": "owner-selected-mvp-requirement",
+          "trigger": "fresh status information cannot be retrieved",
+          "display_last_verified_status": true,
+          "display_last_verified_timestamp": true,
+          "label": "Updates temporarily unavailable",
+          "missing_updates_imply_refund_completion": false,
+          "boundary": "Retained status remains subject to existing customer-access and privacy restrictions. A failed refresh does not make an old verification timestamp current or establish a new payment outcome.",
+          "unresolved": [
+            "verified-status timestamp source and freshness enforcement",
+            "cached status storage, access and API/UI representation",
+            "unavailable-status API representation and lookup retry enforcement"
+          ],
+          "no_verified_status": {
+            "status": "owner-selected-mvp-requirement",
+            "condition": "fresh status cannot be retrieved and no previous verified status is available",
+            "label": "Status temporarily unavailable",
+            "infer_request_outcome": false,
+            "status_lookup_retry_allowed": true,
+            "lookup_retry_submits_execution": false,
+            "boundary": "This is an unavailable-information state, not proof of success, failure, refund or request nonexistence. Existing access restrictions remain applicable.",
+            "unresolved": [
+              "API representation and status-only retry contract",
+              "distinguishing unavailable lookup from verified not-found or access denial"
+            ]
+          }
+        },
+        "shared_status_contract": {
+          "status": "owner-selected-mvp-requirement",
+          "implementation_status": "pending",
+          "surfaces": [
+            "API",
+            "customer interface"
+          ],
+          "shared_information": [
+            "status",
+            "verification timestamp when available",
+            "freshness indicator"
+          ],
+          "same_status_semantics": true,
+          "same_privacy_and_uncertainty_rules": true,
+          "boundary": "Consistency concerns the same underlying status observation; it does not promise simultaneous delivery. Neither surface may invent a verification timestamp or infer a payment outcome from unavailable updates.",
+          "unresolved": [
+            "field names, types and schema/version binding",
+            "per-status freshness assignment and verification timestamp enforcement",
+            "projection consistency and update delivery enforcement"
+          ],
+          "freshness": {
+            "status": "owner-selected-mvp-requirement",
+            "values": {
+              "Current": "successfully verified during this lookup",
+              "Stale": "last verified information; refresh unavailable",
+              "Unavailable": "no verified information available"
+            },
+            "describes": "information freshness, not request or payment outcomes",
+            "boundary": "Current does not mean successful execution or completed refund; the independently verified status carries that outcome. Stale retains its original verification timestamp, and Unavailable cannot invent one.",
+            "unresolved": [
+              "verification evidence and timestamp authority",
+              "wire representation and freshness assignment enforcement",
+              "per-status evidence binding and independent freshness projection enforcement"
+            ],
+            "granularity": {
+              "status": "owner-selected-mvp-requirement",
+              "per_status": [
+                "incident",
+                "request",
+                "refund"
+              ],
+              "independent_freshness_indicator": true,
+              "independent_verification_timestamp_when_available": true,
+              "mixed_freshness_allowed": true,
+              "boundary": "Verifying one status does not refresh another status or its timestamp. Unavailable information has no invented verification timestamp."
+            }
+          },
+          "verification_timestamp": {
+            "status": "owner-selected-mvp-requirement",
+            "meaning": "time Exchange last successfully checked this specific status",
+            "per_status": [
+              "incident",
+              "request",
+              "refund"
+            ],
+            "status_change_time": false,
+            "page_load_time": false,
+            "failed_refresh_updates_timestamp": false,
+            "unresolved": [
+              "verification evidence and clock authority binding",
+              "timestamp format, storage and projection enforcement"
+            ]
+          }
+        },
+        "notifications": {
+          "status": "owner-selected-mvp-requirement",
+          "implementation_status": "pending",
+          "audience": "affected customers",
+          "triggers": [
+            "customer own refund completion",
+            "reopening of an incident affecting customer own refund"
+          ],
+          "frequency": "once per meaningful change",
+          "notify_each_internal_retry": false,
+          "boundary": "Refund completion still requires confirmed return. Notifications retain existing customer-access and privacy restrictions and do not themselves establish payment outcomes.",
+          "unresolved": [
+            "mandatory notification creation and inbox read-state enforcement",
+            "meaningful-change identity and duplicate suppression enforcement",
+            "durable notification creation, retry scheduling and escalation enforcement",
+            "authenticated recipient binding and notification content",
+            "inbox retention enforcement, API schema and retrieval contract"
+          ],
+          "channels": {
+            "status": "owner-selected-mvp-requirement",
+            "implementation_status": "pending",
+            "mvp": [
+              "in-app notification inbox",
+              "API read access to the notification inbox"
+            ],
+            "deferred": [
+              "email",
+              "outgoing webhooks"
+            ],
+            "boundary": "Both surfaces retain the existing affected-customer access and privacy restrictions. This channel selection concerns customer recovery notifications; critical operator alerts use their separately selected dashboard and email channels."
+          },
+          "creation_failure": {
+            "status": "owner-selected-mvp-requirement",
+            "implementation_status": "pending",
+            "trigger": "customer notification creation fails",
+            "refunds_and_recovery_continue": true,
+            "retain_pending_notification": true,
+            "retry_notification_creation": true,
+            "duplicate_notifications_allowed": false,
+            "reverse_completed_refund": false,
+            "boundary": "Notification retries concern inbox creation only; they do not replay payment actions or alter verified request, refund or incident outcomes. Existing access and privacy restrictions remain applicable.",
+            "unresolved": [
+              "durable pending-notification recording and crash recovery",
+              "retry cadence, backoff and escalation thresholds",
+              "atomic inbox creation and duplicate suppression enforcement"
+            ]
+          },
+          "retention": {
+            "status": "owner-selected-mvp-requirement",
+            "implementation_status": "pending",
+            "duration_days": 90,
+            "starts_at": "notification creation",
+            "applies_to": [
+              "read",
+              "unread"
+            ],
+            "deletes_underlying_records": false,
+            "boundary": "Notification expiry does not define or change retention of the underlying request, refund or incident records.",
+            "unresolved": [
+              "creation timestamp binding and expiry enforcement across inbox and API",
+              "cleanup execution and interaction with notification duplicate suppression"
+            ]
+          },
+          "read_state": {
+            "status": "owner-selected-mvp-requirement",
+            "implementation_status": "pending",
+            "mark_as_read_requires_explicit_action": true,
+            "surfaces": [
+              "UI",
+              "API"
+            ],
+            "fetch_marks_as_read": false,
+            "changes_payment_state": false,
+            "changes_refund_state": false,
+            "changes_incident_state": false,
+            "boundary": "Existing affected-customer access and privacy restrictions apply; read state does not change the 90-day retention period from notification creation.",
+            "unresolved": [
+              "authenticated read-state mutation and UI/API contract binding",
+              "read-state persistence and concurrent updates"
+            ]
+          },
+          "creation_preference": {
+            "status": "owner-selected-mvp-requirement",
+            "implementation_status": "pending",
+            "creation_required_for_selected_triggers": true,
+            "customer_can_disable_creation": false,
+            "mark_as_read_allowed": true,
+            "boundary": "Applies only to the selected refund-completion and incident-reopening customer notices. Existing trigger verification, affected-customer privacy, duplicate suppression, creation-failure recovery and 90-day retention rules remain applicable.",
+            "unresolved": [
+              "mandatory creation enforcement across customer settings and notification processing"
+            ]
+          }
+        }
+      }
+    },
+    "operator_alerts": {
+      "status": "owner-selected-mvp-requirement",
+      "implementation_status": "pending",
+      "audience": "Exchange operators",
+      "scope": "critical recovery alerts",
+      "channels": [
+        "operator dashboard",
+        "email"
+      ],
+      "delivery_independent_of_monitored_worker": true,
+      "boundary": "Channel selection does not change existing escalation triggers, incident grouping, payment-action pauses or resolution requirements. Customer email notifications remain deferred. Independence from the monitored worker does not itself establish independence from every shared infrastructure dependency.",
+      "unresolved": [
+        "verified recipient configuration enforcement and authorized dashboard access",
+        "alert delivery deployment and independence enforcement",
+        "durable alert delivery, retries, failure detection and acknowledgement enforcement",
+        "email content filtering, duplicate suppression and reminder enforcement"
+      ],
+      "reminders": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "initial_email": true,
+        "interval_minutes": 15,
+        "continue_while_all": [
+          "incident unresolved",
+          "incident unacknowledged"
+        ],
+        "acknowledgement_stops_reminders": true,
+        "acknowledgement_resolves_incident": false,
+        "acknowledgement_resumes_paused_payment_actions": false,
+        "unresolved": [
+          "durable reminder scheduling and timer authority",
+          "authenticated acknowledgement recording and concurrent reminder suppression",
+          "email delivery failure enforcement and duplicate suppression",
+          "reopening reminder enforcement and acknowledgement binding"
+        ]
+      },
+      "incident_reopening": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "trigger": "incident reopens",
+        "fresh_acknowledgement_required": true,
+        "send_new_alert": true,
+        "restart_reminders": true,
+        "reminder_policy_ref": "QUALITY-EVIDENCE.json#/operational_recovery_process/operator_alerts/reminders",
+        "preserve_previous_acknowledgements": true,
+        "boundary": "Previous acknowledgement does not acknowledge the reopened incident. Existing incident identity, closure, refund-age and payment-action restrictions remain applicable.",
+        "unresolved": [
+          "binding acknowledgement and alerts to the specific reopening",
+          "atomic reopening, alert creation and reminder scheduling",
+          "duplicate reopening events and delayed acknowledgement handling"
+        ]
+      },
+      "acknowledgement": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "explicit_action_required": true,
+        "authentication_required": true,
+        "surfaces": [
+          "operator dashboard",
+          "API"
+        ],
+        "recorded_information": [
+          "operator identity",
+          "acknowledgement timestamp"
+        ],
+        "email_open_counts": false,
+        "dashboard_view_counts": false,
+        "boundary": "Acknowledgement retains its existing effect of stopping reminders without resolving the incident or resuming paused payment actions. Incident reopening still requires fresh acknowledgement and preserves earlier history.",
+        "unresolved": [
+          "operator authorization and identity binding",
+          "timestamp authority, durable recording and API schema",
+          "concurrent acknowledgement and reminder suppression",
+          "binding acknowledgement to the current incident opening or reopening"
+        ],
+        "stops_reminders_for_all_incident_recipients": true
+      },
+      "email_content": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "included": [
+          "incident ID",
+          "severity",
+          "brief operational summary",
+          "dashboard link"
+        ],
+        "excluded": [
+          "customer details",
+          "prompts",
+          "outputs",
+          "internal diagnostics"
+        ],
+        "excluded_details_require_authenticated_access": true,
+        "boundary": "The summary and dashboard link must respect the same email exclusions. Authentication does not grant access beyond existing authorization and privacy rules; this decision does not require collecting or retaining prompts or outputs.",
+        "unresolved": [
+          "email template and summary filtering enforcement",
+          "severity representation and assignment",
+          "dashboard link generation and authenticated access binding"
+        ]
+      },
+      "email_delivery_failure": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "retain_alert": true,
+        "retry_delivery": true,
+        "retry_delays": "increasing",
+        "show_failure_on_operator_dashboard": true,
+        "failure_counts_as_acknowledgement": false,
+        "failure_stops_recovery": false,
+        "boundary": "Email retries preserve the accepted email-content restrictions and independence from the monitored recovery worker. Recovery continues subject to existing payment-action pauses and operator-resolution requirements.",
+        "unresolved": [
+          "retry schedule enforcement and permanent-failure pause/resume enforcement",
+          "durable delivery state, failure evidence and dashboard projection",
+          "enforcement of pending-email coalescing and suppression across retries, reminders, acknowledgement and resolution",
+          "duplicate suppression and unknown delivery outcomes"
+        ],
+        "temporary_failure_retry": {
+          "status": "owner-selected-mvp-requirement",
+          "implementation_status": "pending",
+          "scope": "temporary operator email delivery failures",
+          "intervals_minutes": [
+            1,
+            2,
+            5,
+            15
+          ],
+          "interval_meaning": "delay between attempts",
+          "subsequent_interval_minutes": 15,
+          "continue_while_all": [
+            "incident unresolved",
+            "incident unacknowledged"
+          ],
+          "reminders_update_same_pending_email": true,
+          "boundary": "The schedule concerns failed email delivery attempts and retains pre-send suppression, latest-status content and existing privacy rules. Successful delivery is not acknowledgement. Permanent failures follow the separately selected address pause and explicit resume policy.",
+          "unresolved": [
+            "temporary-failure classification and delivery outcome evidence",
+            "durable attempt count, timer authority and restart recovery",
+            "concurrent scheduling of retries, reminder updates and suppression"
+          ]
+        },
+        "permanent_failure": {
+          "status": "owner-selected-mvp-requirement",
+          "implementation_status": "pending",
+          "trigger": "permanent operator email delivery failure",
+          "pause_scope": "affected recipient address",
+          "retain_alert": true,
+          "dashboard_label": "Operator action required",
+          "resume_requires_all": [
+            "authorized operator",
+            "configuration correction",
+            "explicit delivery resume"
+          ],
+          "other_recipients_affected": false,
+          "boundary": "This is an email-delivery pause. It does not acknowledge or resolve the incident, stop recovery or resume paused payment actions. Delivery resumption remains subject to existing suppression of acknowledged or resolved incident alerts.",
+          "unresolved": [
+            "permanent-failure classification and evidence",
+            "durable address pause and enforcement across reminders and retries",
+            "authorized correction and resume API/dashboard contract",
+            "recipient address changes, pending-alert rebinding and audit evidence"
+          ]
+        },
+        "retry_scope": "temporary failures; permanent failures follow the address pause policy"
+      },
+      "pending_email_policy": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "scope_key": [
+          "incident",
+          "recipient"
+        ],
+        "max_pending_emails_per_scope": 1,
+        "update_pending_with_latest_status": true,
+        "accumulate_each_reminder": false,
+        "suppress_before_send_if_any": [
+          "incident acknowledged",
+          "incident resolved"
+        ],
+        "preserve_suppressed_alert_history": true,
+        "boundary": "Latest-status updates retain the accepted email-content exclusions. Suppression does not itself acknowledge or resolve an incident. A later reopening retains the requirement for a new alert and fresh acknowledgement; previous acknowledgement does not suppress the reopened incident.",
+        "unresolved": [
+          "atomic pending-email update and pre-send state check",
+          "send-in-flight and unknown delivery outcomes",
+          "binding suppression and pending content to the current opening or reopening",
+          "history persistence and retention"
+        ]
+      },
+      "recipients": {
+        "status": "owner-selected-mvp-requirement",
+        "implementation_status": "pending",
+        "managed_by": "Exchange operators",
+        "address_verification_required": true,
+        "critical_alerts_to_each_listed_recipient": true,
+        "acknowledgement_by": "any authorized operator",
+        "acknowledgement_stops_reminders_for": "all recipients on that incident",
+        "boundary": "Recipient listing or email verification does not grant operator permissions. Existing per-address delivery pauses, pending-email suppression and fresh acknowledgement on reopening remain applicable.",
+        "unresolved": [
+          "email verification mechanism and evidence",
+          "recipient-management authorization and configuration contract",
+          "recipient additions and pending alerts; removal enforcement",
+          "empty recipient list and absence of usable addresses"
+        ],
+        "removal": {
+          "status": "owner-selected-mvp-requirement",
+          "implementation_status": "pending",
+          "prevent_new_sends_immediately": true,
+          "cancel_pending_emails": true,
+          "preserve_delivery_history": true,
+          "recall_after_email_service_handoff": false,
+          "boundary": "Recipient removal affects alert delivery only; it does not acknowledge or resolve incidents or change payment-action restrictions. Delivery history remains subject to its separately defined retention and access rules.",
+          "unresolved": [
+            "authorized removal and atomic enforcement against concurrent sends",
+            "email-service handoff evidence and unknown in-flight outcomes",
+            "pending cancellation persistence and delivery history retention"
+          ]
+        }
       }
     }
   }

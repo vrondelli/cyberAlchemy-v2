@@ -86,7 +86,7 @@ export function createGlmClient({api_key_ref, secret_registry,
   need(maximum_output_tokens <= 2048 && maximum_requests <= (['contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget)?96:['diagnostic-v1','diagnostic-latency-v1','holdout-window-v1'].includes(request_budget)?24:request_budget==='paging-v1'?16:12) && timeout_ms <= 30000, 'limits-exceed-candidate');
   need(maximum_request_bytes <= (['holdout-window-v1','contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget)?262144:131072) && maximum_response_bytes <= 262144 && token_margin <= 4096, 'limits-exceed-candidate');
   need(['low', 'high', 'max'].includes(reasoning_effort), 'reasoning-effort-invalid');
-  const timeoutCeiling=['contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget)?300000:['diagnostic-latency-v1','holdout-window-v1'].includes(request_budget)?120000:60000;
+  const timeoutCeiling=['contextbench-budget-v1','contextbench-deferral-v1'].includes(request_budget)?900000:['diagnostic-latency-v1','holdout-window-v1'].includes(request_budget)?120000:60000;
   need(integer(model_timeout_ms)&&model_timeout_ms>=timeout_ms&&model_timeout_ms<=timeoutCeiling,'model-timeout-invalid');
   need(integer(final_timeout_ms)&&final_timeout_ms>=model_timeout_ms&&final_timeout_ms<=timeoutCeiling,'final-timeout-invalid');
   need(typeof native_submission==='boolean','native-submission-invalid');

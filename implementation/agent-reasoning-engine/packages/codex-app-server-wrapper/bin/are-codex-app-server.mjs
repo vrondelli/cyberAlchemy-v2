@@ -2,7 +2,7 @@
 import {execFileSync} from "node:child_process";
 import {resolve} from "node:path";
 import {createCodexAppServerWrapper, loadRepositoryProfile, protocolBindingCheck, recoverReasoningStateLedger, runStdioProxy} from "../index.mjs";
-import {realizeActivatedModulePort} from "../../module-port-governance-cutover/index.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -18,11 +18,7 @@ if (!configArg || !repositoryRootArg) {
   process.exitCode = 2;
 } else {
   const repositoryRoot = resolve(repositoryRootArg);
-  const cutover = realizeActivatedModulePort({repository_root: resolve(repositoryRoot, "cyberAlchemy-v2")});
-  if (!cutover.ok) {
-    process.stderr.write(`${JSON.stringify({schema_version: "are.codex-app-server-start-failure/v1", reason: "app-server.module-port-cutover-blocked", reason_codes: cutover.reason_codes, authority_effect: "none"})}\n`);
-    process.exit(7);
-  }
+  const modulePort = createNativeSemanticModulePort();
   const loaded = loadRepositoryProfile(resolve(configArg), repositoryRoot);
   if (!loaded.ok) {
     process.stderr.write(`${JSON.stringify(loaded)}\n`);
@@ -54,7 +50,7 @@ if (!configArg || !repositoryRootArg) {
           source_snapshot: loaded.source_snapshot,
           context_source_provider: loaded.context_source_provider,
           semantic_profile: loaded.semantic_profile,
-          module_port: cutover.port,
+          module_port: modulePort,
           reasoning_ledger: recovered?.ledger,
         });
         runStdioProxy({wrapper, command: codexCommandArg});

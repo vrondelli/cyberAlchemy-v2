@@ -1,0 +1,16 @@
+import {readFileSync,writeFileSync,mkdirSync,statfsSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {createProvider,ROOT,sha} from '../../selectivity-v2/provider.mjs';
+import {verifyPrefix} from './verify.mjs';
+import {runSequential} from './runner.mjs';
+import {prepareTasks} from '../prepare.mjs';
+const dir=import.meta.dirname,json=p=>JSON.parse(readFileSync(join(dir,p)));
+const admission=json('recovery-freeze.json');
+if(admission.status!=='reviewed-recovery')throw Error('unreviewed recovery');
+for(const b of admission.bindings)if(sha(readFileSync(resolve(ROOT,b.path)))!==b.sha256)throw Error('recovery source drift');
+const {prefix,prefix_sha256}=verifyPrefix();if(prefix_sha256!==admission.prefix_sha256)throw Error('prefix drift');
+const {verifyResearchContinuity}=await import(resolve(ROOT,'implementation/agent-reasoning-engine/packages/evolution-runtime/index.mjs'));
+const binding=json('../run-continuity.json');const continuity=verifyResearchContinuity({binding,policy:JSON.parse(readFileSync(resolve(ROOT,binding.policy_ref))),hypotheses:json('../run-hypotheses.json'),phase:'freeze',root:ROOT});if(!continuity.ok)throw Error(JSON.stringify(continuity));
+const disk=statfsSync(dir);if(disk.bavail*disk.bsize<2*1024**3)throw Error('disk floor');
+const output=join(dir,'live');mkdirSync(output);
+await runSequential({tasks:prepareTasks(),preflight:json('../preflight-compact-notes/result.json'),prefix,provider:createProvider({directory:output}),budget:199499,saveClaim:async(id,c)=>writeFileSync(join(output,id+'-claim.json'),JSON.stringify(c,null,2)+'\n',{flag:'wx'}),save:async r=>{writeFileSync(join(output,'result.json'),JSON.stringify(r,null,2)+'\n');console.log(JSON.stringify({status:r.status,calls:r.completed_calls,answers:r.completed_answers,total_tokens:r.total_tokens}));}});

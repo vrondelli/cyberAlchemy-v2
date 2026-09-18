@@ -1,5 +1,5 @@
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 
 export function semanticModulePort() {
-  return createAlchSemanticModulePort();
+  return createNativeSemanticModulePort();
 }

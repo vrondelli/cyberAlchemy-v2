@@ -10,7 +10,7 @@ const repositoryRoot = resolve(packageRoot, "../../../../..");
 const implementationRoot = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/coding-agent-runtime");
 const rpcClientRoot = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/codex-app-server-wrapper");
 const generatedRoot = resolve(packageRoot, "domainspec/generated");
-const node = "/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node";
+const node = process.execPath;
 function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
 function load(path) { return JSON.parse(readFileSync(path, "utf8")); }
 function run(command, args, cwd) { return spawnSync(command, args, {cwd, encoding: "utf8", env: {...process.env, PATH: `${dirname(node)}:${process.env.PATH ?? ""}`}}); }

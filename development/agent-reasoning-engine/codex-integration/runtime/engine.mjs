@@ -7,7 +7,7 @@ import {
   loadVerifiedDecisionProfile,
   routeRequest,
 } from "../../../../implementation/agent-reasoning-engine/packages/request-decision-router/index.mjs";
-import {createAlchSemanticModulePort} from "../../../../implementation/agent-reasoning-engine/packages/module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../../../implementation/agent-reasoning-engine/packages/module-port/native-semantic-adapter.mjs";
 
 const runtimeRoot = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(runtimeRoot, "..");
@@ -165,7 +165,7 @@ function proposalBinding(proposal, index, lane) {
   }));
 }
 
-export function createDecisionEngine({profilePath = defaultProfilePath, repoRoot = repositoryRoot, modulePort = createAlchSemanticModulePort()} = {}) {
+export function createDecisionEngine({profilePath = defaultProfilePath, repoRoot = repositoryRoot, modulePort = createNativeSemanticModulePort()} = {}) {
   const loaded = loadVerifiedDecisionProfile(profilePath, repoRoot);
   if (!loaded.ok) throw new Error(`ARE_PROFILE_VERIFICATION_FAILED:${loaded.reason_codes.join(",")}`);
   const profile = loaded.value;

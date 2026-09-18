@@ -11,6 +11,8 @@ and deterministic system model. Research and historical decisions remain in
 [`../development/agent-reasoning-engine/`](../development/agent-reasoning-engine/README.md);
 runtime code remains in
 [`../implementation/agent-reasoning-engine/`](../implementation/agent-reasoning-engine/README.md).
+The integrated implementation manual starts at
+[`../implementation/agent-reasoning-engine/docs/README.md`](../implementation/agent-reasoning-engine/docs/README.md).
 
 ## Product thesis
 
@@ -64,11 +66,13 @@ weaknesses and benchmarks changes. A measured candidate and permission to upgrad
 are separate. Improvements must preserve declared speed, quality, reliability
 and safety checks; repeated no-gain results change or stop the experiment.
 
-**Implementation boundary:** the state, context, intent and continuation pieces
-exist, but general objective-transition classification and the complete
-interaction-learning connection remain planned. Today, wrapper preflight runs
-before optional intent compilation. The local scores below do not prove general
-conversational understanding.
+**Implementation boundary:** the state, context, intent, continuation,
+conversation, and scoped interaction-learning mechanisms exist. Interaction
+learning remains a default-off prototype, and objective-language resolution is
+deliberately conservative: the current authored corpus resolves 12 of 20
+paraphrases and safely defers 8. Wrapper preflight runs before optional intent
+compilation. The local scores below do not prove general conversational
+understanding.
 
 Read the [in-depth product explanation](REASONING-AND-LEARNING.md) for the loops,
 objective transitions, evidence model, current code and benchmark questions.

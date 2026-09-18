@@ -3,9 +3,9 @@ import test from "node:test";
 import {materializeRequirementSnapshot, verifyRequirementSnapshot, assessRequirementChange, resolveObjectiveTransition} from "../index.mjs";
 import {createModulePort} from "../../module-port/index.mjs";
 import {createSemanticTextFacade, semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 const identity = {consumer_ref: "c", scope_ref: "s"};
-const semanticText = createSemanticTextFacade(createModulePort({adapters: [createAlchSemanticAdapter()], output_validators: semanticTextOutputValidators}), {consumer_id: "request-intent-runtime"});
+const semanticText = createSemanticTextFacade(createModulePort({adapters: [createNativeSemanticAdapter()], output_validators: semanticTextOutputValidators}), {consumer_id: "request-intent-runtime"});
 const resolveObjective = (input, provider = null) => resolveObjectiveTransition(input, provider, semanticText);
 const seed = await resolveObjective({...identity, request_ref: "seed", request: "Research context reuse"});
 const snapshot = materializeRequirementSnapshot({...identity, objective_id: seed.next_state.active_objective.objective_id,

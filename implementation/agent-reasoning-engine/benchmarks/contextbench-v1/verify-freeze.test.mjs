@@ -12,8 +12,19 @@ function fixture(stage,claim){
   const path=resolve(root,'freeze.json');writeFileSync(path,JSON.stringify({...material,freeze_sha256:sha(material)}));return path;
 }
 
-test('legacy development and exact reserved confirmation claims are accepted',()=>{
+test('known evaluation stages accept only their exact claim ceilings',()=>{
   assert.equal(verifyFreeze(fixture('development','development diagnostic only; not benchmark clearance')).freeze.evaluation_stage,'development');
+  assert.equal(verifyFreeze(fixture('replication','8K replication diagnostic only; not complete benchmark clearance')).freeze.evaluation_stage,'replication');
   assert.equal(verifyFreeze(fixture('reserved-confirmation','untouched 8K confirmation only; not benchmark clearance')).freeze.evaluation_stage,'reserved-confirmation');
+  assert.equal(verifyFreeze(fixture('10k-development-transfer','10K development transfer only; not confirmation or benchmark clearance')).freeze.evaluation_stage,'10k-development-transfer');
+  assert.equal(verifyFreeze(fixture('10k-confirmation','fresh 10K confirmation only; not 12K or benchmark clearance')).freeze.evaluation_stage,'10k-confirmation');
+  assert.equal(verifyFreeze(fixture('10k-conditional-development','fresh 10K conditional development only; not confirmation, 12K, or benchmark clearance')).freeze.evaluation_stage,'10k-conditional-development');
 });
 test('confirmation mode rejects a broader clearance claim',()=>assert.throws(()=>verifyFreeze(fixture('reserved-confirmation','benchmark cleared')),/freeze.claim-invalid/));
+test('replication mode rejects a complete benchmark claim',()=>assert.throws(()=>verifyFreeze(fixture('replication','benchmark cleared')),/freeze.claim-invalid/));
+test('10K development mode rejects confirmation and unknown stages',()=>{
+  assert.throws(()=>verifyFreeze(fixture('10k-development-transfer','10K confirmation passed')),/freeze.claim-invalid/);
+  assert.throws(()=>verifyFreeze(fixture('future-stage','development diagnostic only; not benchmark clearance')),/freeze.claim-invalid/);
+});
+test('10K confirmation rejects 12K and broader claims',()=>assert.throws(()=>verifyFreeze(fixture('10k-confirmation','12K qualified')),/freeze.claim-invalid/));
+test('10K conditional development rejects confirmation and 12K claims',()=>assert.throws(()=>verifyFreeze(fixture('10k-conditional-development','10K confirmation passed')),/freeze.claim-invalid/));

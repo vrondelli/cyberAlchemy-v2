@@ -16,10 +16,10 @@ import {
   createStaticContextSourcesModulePort,
 } from "../context-sources.mjs";
 import {
-  ALCH_MODULE_PORT_CONTRACT_SHA256,
   composeStaticModulePort,
   sealStaticModuleConfiguration,
 } from "../static-composition.mjs";
+import {nativeSemanticModuleManifest} from "../native-semantic-adapter.mjs";
 
 function adapter(moduleId, capabilityId = "fixture.echo/v1", invoke = ({input}) => ({text: input.text}), dependencies = undefined) {
   return {
@@ -140,16 +140,11 @@ test("static composition binds reviewed factories exactly and rejects partial up
   assert.deepEqual(drifted.reason_codes, ["module.static-binding-drift"]);
 });
 
-test("static composition implementation is bound to the compiled Alch contract", () => {
-  const manifest = JSON.parse(readFileSync(new URL(
-    "../../../../../language/capabilities/alchlang/plans/general-compiler-v1/extensions/are-module-port-v1/generated/manifest.json",
-    import.meta.url,
-  ), "utf8"));
-  assert.equal(manifest.profile, "semantic-contract-v1");
-  assert.equal(manifest.source_sha256, ALCH_MODULE_PORT_CONTRACT_SHA256);
-  assert.equal(manifest.ontology_admitted, false);
-  assert.equal(manifest.constitution_adopted, false);
-  assert.equal(manifest.authority_effect, "none");
+test("native semantic adapter is self-contained and digest-bound", () => {
+  assert.equal(nativeSemanticModuleManifest.module_id, "are-native-semantic-text");
+  assert.equal(verifyModuleManifest(nativeSemanticModuleManifest), true);
+  assert.match(nativeSemanticModuleManifest.manifest_digest, /^[a-f0-9]{64}$/u);
+  assert.equal(nativeSemanticModuleManifest.authority_effect, "none");
 });
 
 test("manifest validation is closed and digest-bound", () => {
@@ -221,11 +216,11 @@ test("semantic facade exposes unavailable rather than false when no module is in
   assert.equal(phrase.value, null);
 });
 
-test("core and semantic facade do not import the optional Alch adapter", () => {
+test("core and semantic facade do not import the concrete native adapter", () => {
   const core = readFileSync(new URL("../index.mjs", import.meta.url), "utf8");
   const facade = readFileSync(new URL("../semantic-text.mjs", import.meta.url), "utf8");
-  assert.doesNotMatch(core, /semantic-contract-v1|alch-semantic-adapter/u);
-  assert.doesNotMatch(facade, /semantic-contract-v1|alch-semantic-adapter/u);
+  assert.doesNotMatch(core, /native-semantic-adapter/u);
+  assert.doesNotMatch(facade, /native-semantic-adapter/u);
 });
 
 test("context source facade returns typed catalog and ontology receipts", () => {

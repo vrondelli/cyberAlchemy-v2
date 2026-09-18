@@ -16,7 +16,7 @@ import {
   sealRecord,
 } from "../index.mjs";
 import {buildRequest, readFixture} from "./fixture-builder.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../../../../..");
@@ -26,7 +26,7 @@ assert.equal(profileResult.ok, true, profileResult.reason_codes?.join(","));
 const catalog = JSON.parse(readFileSync(resolve(contextRoot, "test/fixtures/definition-catalog.json"), "utf8"));
 const ontology = JSON.parse(readFileSync(resolve(contextRoot, "test/fixtures/ontology-snapshot.json"), "utf8"));
 const refund = await readFixture(new URL("../../../fixtures/evaluator-v1/refund-eligibility.json", import.meta.url));
-const modulePort = createAlchSemanticModulePort();
+const modulePort = createNativeSemanticModulePort();
 
 function contextEnvelope(overrides = {}) {
   const result = composeContextLifecycle({

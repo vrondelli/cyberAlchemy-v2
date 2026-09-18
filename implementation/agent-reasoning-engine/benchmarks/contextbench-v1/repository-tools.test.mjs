@@ -31,6 +31,11 @@ test('search pages exact whole lines with source hashes and explicit EOF',()=>fi
  assert.equal(first.observations[0].utf8,'alpha');assert.equal(first.observations[0].start_line,1);assert.equal(first.next_offset,1);
  const last=(await tool('search',{...args,offset:1})).output;assert.equal(last.observations[0].start_line,3);assert.equal(last.next_offset,null);
 }));
+test('literal search reads only git-matched candidates before exact observation projection',()=>fixture(async tool=>{
+ const result=await tool('search',{query:'beta',path_prefix:'',offset:0,limit:10,revision:'base'});
+ assert.equal(result.ok,true);assert.equal(result.output.search_engine,'git-grep-literal');
+ assert.equal(result.output.scanned_matching_files,1);assert.equal(result.output.total,1);assert.equal(result.output.observations[0].utf8,'beta');
+}));
 test('untracked and traversal paths produce corrective feedback',()=>fixture(async tool=>{
  for(const path of ['../escape','missing.py'])assert.equal((await tool('read_file',{path,start_line:1,line_count:1,revision:'current'})).ok,false);
 }));

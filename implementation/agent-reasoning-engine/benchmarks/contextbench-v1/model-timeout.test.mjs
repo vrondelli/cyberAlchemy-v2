@@ -4,12 +4,12 @@ import {createGlmClient} from '../external-context-v1/holdout-v1/transport.mjs';
 
 const endpoints={chat_endpoint:'http://127.0.0.1:1/chat/completions',tokenizer_endpoint:'http://127.0.0.1:1/tokenizer',maximum_requests:24};
 
-test('ContextBench policies admit a common five-minute model deadline',()=>{
+test('ContextBench policies admit a common fifteen-minute model deadline',()=>{
  for(const request_budget of ['contextbench-budget-v1','contextbench-deferral-v1']){
-  const client=createGlmClient({...endpoints,request_budget,model_timeout_ms:300000,final_timeout_ms:300000});
-  assert.equal(client.model_timeout_ms,300000);
-  assert.equal(client.final_timeout_ms,300000);
-  assert.throws(()=>createGlmClient({...endpoints,request_budget,model_timeout_ms:300001,final_timeout_ms:300001}),/model-timeout-invalid/);
+  const client=createGlmClient({...endpoints,request_budget,model_timeout_ms:900000,final_timeout_ms:900000});
+  assert.equal(client.model_timeout_ms,900000);
+  assert.equal(client.final_timeout_ms,900000);
+  assert.throws(()=>createGlmClient({...endpoints,request_budget,model_timeout_ms:900001,final_timeout_ms:900001}),/model-timeout-invalid/);
  }
 });
 

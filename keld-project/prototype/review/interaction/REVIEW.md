@@ -1,0 +1,25 @@
+# Independent KELD interaction review
+
+Date: 2026-09-18. Scope: current local prototype at localhost:4399, generated from index.template.html. Implementation was read-only. Evidence: [metrics.json](metrics.json), [extra-metrics.json](extra-metrics.json), [mobile scene capture](mobile-cinema.png), [short-screen menu capture](short-nav.png). Chromium headless, CSS viewports 1366×768, 390×844 and 640×360. Physical screen inches do not determine usable CSS viewport size.
+
+## Prioritized findings
+
+1. **P1 — Mobile menu hides destinations on short screens.** At 640×360 open navigation: menu spans y71–484; “Bring a question” spans y412–457. The menu has overflow visible rather than scrolling. Focusing the final link leaves it below the viewport; document scroll remains zero. Source: assets/styles.css mobile `.nav`, assets/app.js:112. Fix acceptance: at 640×360, each navigation action can be reached and seen by touch and keyboard, without moving the sticky header; menu has bounded viewport height and internal overflow where needed. Escape restores focus.
+
+2. **P1 — Expanded scene cannot show its text and navigation together; close disappears while reading.** Scene 5 at 1366×768 produces a dialog scrollHeight of 1011px, with Next at y770–818. On 390×844, scrolling to Next moves Close to y−103..−61. Sources: assets/legend.css `.cinema-figure>img`, `.cinema-caption`, `.cinema-top`; index.template.html:227. Fix acceptance: short laptop uses an image/text composition or paginated reading segment whose navigation is visible; Close remains visible while overflow text is read. At high zoom/mobile, preserving readable text and reachable controls takes precedence over forcing all prose into a tiny screen.
+
+3. **P1 — Chapter choice is visually disconnected from the result.** Selecting a bottom thumbnail leaves the new image wholly above the visible page. Recorded scene 1 image y−659..42 at 1366×768, under the sticky header. `select()` deliberately only scrolls the horizontal thumbnail track. Sources: assets/legend.js:20,38,58; index.template.html:123–172. Fix acceptance: choosing a chapter shows its title/image and reading segment alongside persistent chapter controls. Prefer controls before/beside content and viewport-sized scenes; if a vertical reposition is necessary, apply only to explicit user selection and respect reduced motion. Do not force page jumps when initializing or changing tabs with visible content.
+
+4. **P2 — Film remains active behind the full reader.** Start film, then open “Read all chapters”: reader is open while iframe remains mounted. The only stop hooks are hidden studio view and pagehide. Auditory impact inferred from retained iframe: actual YouTube playback was stubbed to avoid network-dependent testing; no claim of observed sound. Sources: assets/legend.js:115–138, assets/app.js openDialog. Fix acceptance: opening another consuming mode (reader, expanded scene, product modal) pauses/stops film, or supplies a clearly reachable persistent player; narration must not play invisibly behind a blocking dialog. Test lifecycle without requiring YouTube network access.
+
+5. **P2 — Site information contradicts the newly integrated film.** Privacy dialog states that no third-party embeds load. Film explicitly creates youtube-nocookie.com iframe on Play. Source: index.template.html:239; assets/legend.js:119–133. Fix acceptance: site information distinguishes initial local-only loading from user-triggered YouTube connection and avoids promising behavior of the embedded third-party player. No new consent gate required for this copy correction.
+
+6. **P2 — Small navigational and scene labels hurt legibility.** CSS specifies 6–9px labels in scene/cinema and 9–10px chapter names; fine copper/green labeling is hard to read at laptop viewing distance. Source: assets/legend.css. Fix acceptance: essential chapter identity and scene counters stay readable at normal browser scale; increase text sizes rather than shrinking text to meet viewport-fit target. Decorative archive metadata may be secondary. This is a visual usability finding, not a computed contrast conformance result.
+
+## Checks that passed
+
+No page JavaScript errors in exercised paths. Scene keyboard arrows and End work; disabled end-of-sequence controls are present. Escape closes expanded scene, and focus returns to View scene. Mobile menu supports Escape and a focus loop; selecting a destination closes it, and subsequent Tab reaches the destination film control. Film iframe is created only after Play. Original images use meaningful alt descriptions and full scene prose is present in the page.
+
+## Open Questions
+
+Parent review owns final scene pagination versus side-by-side layout selection. A long-form reading mode should remain naturally scrollable at high zoom and small mobile sizes. The acceptance goal is comprehensible scenes and reachable controls, not clipping content or shrinking every section into one viewport. Actual YouTube playback depends on browser/network and is separate from these deterministic UI checks. This review did not exercise payments or publish anything.

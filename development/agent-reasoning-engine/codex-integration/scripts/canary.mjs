@@ -11,7 +11,8 @@ import {evaluatePermissionPolicy} from "../client/permission-policy.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const proxyPath = resolve(packageRoot, "runtime/proxy.mjs");
-const upstream = process.env.CODEX_BINARY ?? "/mnt/c/Users/vlad_/.codex/bin/wsl/bf0dd1e87d338bce/codex";
+const upstream = process.env.CODEX_BINARY;
+if (typeof upstream !== "string" || !upstream.trim()) throw new Error("Set CODEX_BINARY to the supported Codex binary before running the live canary");
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : null;
 const work = mkdtempSync(resolve(tmpdir(), "are-codex-live-canary-"));
 const receiptPath = resolve(work, "events.jsonl");

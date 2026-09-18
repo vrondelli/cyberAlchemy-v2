@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {spawnSync} from "node:child_process";
-import {existsSync, mkdtempSync, rmSync} from "node:fs";
+import {mkdtempSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
-import {join, resolve} from "node:path";
+import {join} from "node:path";
 import {fileURLToPath} from "node:url";
 import test from "node:test";
 
@@ -10,10 +10,7 @@ import {createSecretProviderRegistry, createSecretReference} from "../secret-pro
 import {createSopsAgeProcessSecretProvider} from "../sops-age-secret-provider.mjs";
 
 const PYTHON = process.env.ARE_SECRET_PYTHON ?? "python3";
-const WORKSPACE_ROOT = fileURLToPath(new URL("../../../../../../", import.meta.url));
-const NESTED_SECRET_PROJECT = resolve(WORKSPACE_ROOT, "projects/secret-management");
-const SIBLING_SECRET_PROJECT = resolve(WORKSPACE_ROOT, "domainspec-core/projects/secret-management");
-const SECRET_PROJECT = process.env.ARE_SECRET_PROJECT ?? (existsSync(NESTED_SECRET_PROJECT) ? NESTED_SECRET_PROJECT : SIBLING_SECRET_PROJECT);
+const SECRET_PROJECT = process.env.ARE_SECRET_PROJECT ?? fileURLToPath(new URL("../secret-bridge", import.meta.url));
 const MATERIAL = "synthetic-node-bridge-material-never-log";
 const REQUEST_DIGEST = "b".repeat(64);
 

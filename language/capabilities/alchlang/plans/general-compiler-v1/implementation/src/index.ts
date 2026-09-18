@@ -20,6 +20,21 @@ export function compileCarrier(input: unknown): CompilationResult {
 
 export { CompilationRejected } from "./model.js";
 export { parseDomainSource } from "./parser.js";
+export { parseFormalProposition, type FormalSignature, type FormalTerm, type FormalProposition, type FormalClaimDeclaration, type ApplicationFormalSource } from "./formal-claim.js";
+export { parseApplicationType, type ApplicationType, type ApplicationDeclaration } from "./application-source.js";
+export { lowerApplicationFormalClaims, resolveExactFormalSource, FORMAL_IDENTITY_ALGORITHM_BYTES, type ExactFormalSourceRef } from "./formal-claim-lowering.js";
+export { lowerApplicationDomain, assertApplicationDomainCurrent } from "./application-domain-lowering.js";
+export { lowerApplicationRuntimeProfiles, assertApplicationRuntimeProfilesCurrent } from "./application-runtime-profile.js";
+export type { ApplicationRuntimeProfile, RuntimeProfileCompiler } from "./application-runtime-profile.js";
+export type { ApplicationRuntimeContext } from "./application-domain-lowering.js";
+export { compileApplicationWhole, assertApplicationWholeCurrent } from "./application-whole.js";
+export { loadApplicationEvidenceFiles } from "./application-evidence-files.js";
+export { loadApplicationFile, assertApplicationFileCurrent, type ApplicationFileOptions } from "./application-file-input.js";
+export { checkApplicationFile } from "./application-file-check.js";
+export { buildApplicationFile, verifyApplicationFile } from "./application-file-build.js";
+export { lowerApplicationRuleProjections, assertApplicationRuleProjectionCurrent } from "./application-rule-projection.js";
+export { prepareApplicationExecutable, compileApplicationExecutable } from "./application-executable.js";
+export type { ApplicationIntegration, ApplicationSubscription, ApplicationPublication, ApplicationInboundEndpoint, ApplicationOutboundCall, ApplicationPersistence } from "./application-integration.js";
 export { loadAlchLangSource } from "./source-file.js";
 export { parsePredicate, parseSfolFormula, translateLegacyPredicate } from "./predicate-parser.js";
 export { evaluateExpression, evaluateRule, evaluateSfolFormula, executeAction } from "./runtime.js";

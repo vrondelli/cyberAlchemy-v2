@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +12,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve()
 PACKAGE = SCRIPT.parents[1]
 REPOSITORY = SCRIPT.parents[6]
-NODE_BIN = Path("/home/vrondelli/.nvm/versions/node/v26.8.1/bin")
+NODE_BINARY = shutil.which(os.environ.get("NODE_BINARY", "node"))
 C19_RUNTIME = REPOSITORY / "cyberAlchemy-v2/ontology/governance/continuous-construction/runtime"
 C19_EVALUATOR = C19_RUNTIME / "target/debug/governance-continuous-construction"
 GENERATED = PACKAGE / "domainspec/generated"
@@ -34,6 +35,9 @@ def run(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> sub
 
 
 def main() -> int:
+    if NODE_BINARY is None:
+        print("Node executable unavailable: configure NODE_BINARY or PATH", file=sys.stderr)
+        return 1
     errors: list[str] = []
     checks: list[dict[str, object]] = []
 
@@ -112,11 +116,11 @@ def main() -> int:
         errors.append(f"C19 executable build failed: {cargo_build.stderr.strip()}")
 
     node_env = {
-        "PATH": f"{NODE_BIN}:{os.environ.get('PATH', '')}",
+        "PATH": f"{Path(NODE_BINARY).parent}:{os.environ.get('PATH', '')}",
         "REPOSITORY_ROOT": str(REPOSITORY),
         "C19_EVALUATOR_PATH": str(C19_EVALUATOR),
     }
-    tests = run(["node", "--test", *sorted(str(path) for path in (PACKAGE / "test").glob("*.test.mjs"))], REPOSITORY, node_env)
+    tests = run([NODE_BINARY, "--test", *sorted(str(path) for path in (PACKAGE / "test").glob("*.test.mjs"))], REPOSITORY, node_env)
     checks.append({"check": "l0-decision-and-adapter-tests", "status": "PASS" if tests.returncode == 0 else "BLOCK"})
     if tests.returncode != 0:
         errors.append(f"L0 tests failed: {tests.stdout.strip()} {tests.stderr.strip()}".strip())

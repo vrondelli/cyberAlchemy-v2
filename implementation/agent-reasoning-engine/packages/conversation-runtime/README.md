@@ -1,5 +1,7 @@
 # ARE Conversation Runtime
 
+Command examples require Node 26.8.1 on PATH and run from this package directory.
+
 Candidate ARE-owned conversation facade for one-chat interaction adapters.
 
 The runtime owns conversation and turn identity, request-intent compilation,
@@ -23,7 +25,7 @@ Run the deterministic single-chat benchmark from the TUI package with the
 repository's Node 26.8.1 runtime:
 
 ```text
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/single-chat-benchmark.mjs
+node bin/single-chat-benchmark.mjs
 ```
 
 The benchmark collects every check. Its deterministic run intentionally leaves

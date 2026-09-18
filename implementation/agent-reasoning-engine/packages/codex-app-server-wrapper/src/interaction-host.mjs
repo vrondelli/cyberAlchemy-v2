@@ -1,4 +1,5 @@
 import {canonicalJson, digestValue, freezeResult, isRecord, nonEmptyString} from './canonical.mjs';
+import {classifyRepresentationRequest, validatePreferenceDecision} from './representation-preferences.mjs';
 import {validateOutcomeChecks} from '../../request-intent-runtime/src/learning-loop.mjs';
 
 export const INTERACTION_HOST_CONTEXT_KEY = 'cyberalchemy.are.interaction-host';
@@ -35,7 +36,7 @@ function instructionSpan(request, span) {
 
 export function validateInteractionHostRequest(input) {
   check(closed(input, ['request_id', 'thread_id', 'text', 'references', 'requirements', 'checks', 'feedback',
-    'override_lesson_ids', 'invalidated_refs']), 'request-invalid');
+    'override_lesson_ids', 'invalidated_refs', 'preference_decision']), 'request-invalid');
   check(id(input.request_id) && id(input.thread_id) && nonEmptyString(input.text), 'identity-or-text-invalid');
   check(Buffer.byteLength(canonicalJson(input)) <= 32768, 'request-budget-exceeded');
   const references = input.references ?? [];
@@ -44,6 +45,8 @@ export function validateInteractionHostRequest(input) {
   check(input.requirements === undefined || strings(input.requirements), 'requirements-invalid');
   check(strings(input.override_lesson_ids ?? []) && strings(input.invalidated_refs ?? []), 'controls-invalid');
   validateOutcomeChecks(input.checks ?? []);
+  if (input.preference_decision !== undefined) validatePreferenceDecision(input.preference_decision);
+  check(!(input.preference_decision && input.feedback), 'decision-feedback-conflict');
   let feedback;
   if (input.feedback !== undefined) {
     const f = input.feedback;
@@ -69,12 +72,13 @@ export function materializeInteractionHostInput(request, state) {
     check(prior?.outcome && prior.interaction_ref === request.thread_id, 'completed-response-required');
     if (feedback.revises_lesson_id) check(Object.hasOwn(state.lessons, feedback.revises_lesson_id), 'revision-target-missing');
   }
-  return freezeResult({target: 'response', checks: request.checks,
+  return freezeResult({target: 'response', representation: classifyRepresentationRequest(request.text), checks: request.checks,
     override_lesson_ids: request.override_lesson_ids ?? [], invalidated_refs: request.invalidated_refs ?? [],
     ...(feedback ? {feedback: {episode_ref: feedback.response_id, quote: feedback.instruction, instruction: feedback.instruction,
       target: 'response', posture: 'explicit', retention_scope: feedback.retention_scope, user_selected: true,
       conditions: feedback.conditions ?? [], exclusions: feedback.exclusions ?? [], expected_checks: feedback.checks ?? [],
       correction_kind: feedback.correction_kind ?? 'new-preference',
+      ...(feedback.representation ? {representation: feedback.representation} : {}),
       ...(feedback.revises_lesson_id ? {revises_lesson_id: feedback.revises_lesson_id} : {})}} : {})});
 }
 

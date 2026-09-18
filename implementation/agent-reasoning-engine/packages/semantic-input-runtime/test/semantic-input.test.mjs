@@ -6,7 +6,7 @@ import test, {after} from "node:test";
 import {fileURLToPath} from "node:url";
 
 import {composeContextLifecycle} from "../../context-basis-runtime/index.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 import {loadVerifiedDecisionProfile} from "../../request-decision-router/index.mjs";
 import {assembleReasoningReceipt, digestValue, evaluateSemanticJudgment, OUTCOMES} from "../../semantic-judgment-evaluator/index.mjs";
 import {buildRequest} from "../../semantic-judgment-evaluator/test/fixture-builder.mjs";
@@ -30,7 +30,7 @@ assert.equal(decisionProfile.ok, true);
 const definitions = JSON.parse(readFileSync(resolve(contextRoot, "test/fixtures/definition-catalog.json"), "utf8"));
 const ontology = JSON.parse(readFileSync(resolve(contextRoot, "test/fixtures/ontology-snapshot.json"), "utf8"));
 const refund = JSON.parse(readFileSync(resolve(packageRoot, "../../fixtures/evaluator-v1/refund-eligibility.json"), "utf8"));
-const modulePort = createAlchSemanticModulePort();
+const modulePort = createNativeSemanticModulePort();
 const temporaryRoots = [];
 after(() => {
   for (const root of temporaryRoots) rmSync(root, {recursive: true, force: true});

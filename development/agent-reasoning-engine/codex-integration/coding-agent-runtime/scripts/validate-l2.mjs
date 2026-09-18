@@ -9,7 +9,7 @@ const packageRoot = resolve(scriptDir, "..");
 const repositoryRoot = resolve(packageRoot, "../../../../..");
 const implementationRoot = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/coding-agent-runtime");
 const generatedRoot = resolve(packageRoot, "domainspec/generated");
-const node = "/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node";
+const node = process.execPath;
 
 function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
 function load(path) { return JSON.parse(readFileSync(path, "utf8")); }

@@ -1,10 +1,10 @@
 import {createModulePort} from "../../module-port/index.mjs";
 import {createSemanticTextFacade, semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 
 export function semanticModulePort() {
   return createModulePort({
-    adapters: [createAlchSemanticAdapter()],
+    adapters: [createNativeSemanticAdapter()],
     output_validators: semanticTextOutputValidators,
   });
 }

@@ -8,7 +8,7 @@ const BRIDGE_SCHEMA_VERSION = "secret-management.process-bridge-request/v1";
 const DEFAULT_MAX_SECRET_BYTES = 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 5000;
 const SHA256 = /^[a-f0-9]{64}$/u;
-const defaultProjectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../projects/secret-management");
+const defaultProjectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "secret-bridge");
 
 function requiredText(value, field) {
   if (typeof value !== "string" || value.length === 0 || value.includes("\0")) throw new TypeError(`${field} is required.`);

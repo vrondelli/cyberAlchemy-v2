@@ -15,7 +15,7 @@ import {
 } from "../index.mjs";
 import {loadVerifiedDecisionProfile} from "../../request-decision-router/index.mjs";
 import {canonicalJson} from "../../intent-route-resolver/index.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 import {createStaticContextSourcesModulePort} from "../../module-port/context-sources.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,7 +25,7 @@ assert.equal(profileResult.ok, true, profileResult.reason_codes?.join(","));
 const profile = profileResult.value;
 const catalog = JSON.parse(readFileSync(resolve(packageRoot, "test/fixtures/definition-catalog.json"), "utf8"));
 const snapshot = JSON.parse(readFileSync(resolve(packageRoot, "test/fixtures/ontology-snapshot.json"), "utf8"));
-const modulePort = createAlchSemanticModulePort();
+const modulePort = createNativeSemanticModulePort();
 const composeContextBasis = (input, options = {}) => composeContextBasisWithoutModules(input, {module_port: modulePort, ...options});
 const composeContextLifecycle = (input, options = {}) => composeContextLifecycleWithoutModules(input, {module_port: modulePort, ...options});
 

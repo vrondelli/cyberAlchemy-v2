@@ -4,13 +4,14 @@ This candidate harness measures observable reasoning-engine behavior across rout
 
 ## Run
 
-Use the repository's Node 26.8.1 runtime:
+Use Node 26.8.1 on PATH. Start from the `cyberAlchemy-v2` directory in the
+checkout or extracted engine; all later commands use this benchmark directory:
 
 ```sh
-cd /home/vrondelli/projects/domainspec-core/cyberAlchemy-v2/implementation/agent-reasoning-engine/benchmarks/real-reasoning-v1
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs --mode core
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs --mode integration
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs --mode compaction-simulated
+cd implementation/agent-reasoning-engine/benchmarks/real-reasoning-v1
+node bin/benchmark.mjs --mode core
+node bin/benchmark.mjs --mode integration
+node bin/benchmark.mjs --mode compaction-simulated
 ```
 
 `compaction-simulated` compares full history, a recent-only control, the ARE
@@ -24,8 +25,7 @@ The opt-in real canary drives native compaction through the existing ARE Codex
 app-server wrapper and compares paired baseline/treatment recall on one model:
 
 ```sh
-PATH=/home/vrondelli/.nvm/versions/node/v26.8.1/bin:$PATH \
-  /home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs \
+node bin/benchmark.mjs \
   --mode compaction-live --model gpt-5.6-luna
 ```
 
@@ -42,8 +42,7 @@ run evidence. Wrapper integration and its 32 KiB mandatory Context Envelope
 remain covered by the separate canary and wrapper suites.
 
 ```sh
-PATH=/home/vrondelli/.nvm/versions/node/v26.8.1/bin:$PATH \
-  /home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs \
+node bin/benchmark.mjs \
   --mode compaction-auto-live --model gpt-5.6-luna --repetitions 1
 ```
 
@@ -54,8 +53,7 @@ registered recall delta, the run is `FAIL`, preserving the no-gain result.
 `all` runs all deterministic modes, including compaction. Real Codex comparison is deliberately opt-in:
 
 ```sh
-PATH=/home/vrondelli/.nvm/versions/node/v26.8.1/bin:$PATH \
-  /home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs \
+node bin/benchmark.mjs \
   --mode live --repetitions 3
 ```
 
@@ -63,8 +61,7 @@ The multi-turn extension keeps one ephemeral Codex thread alive for each
 Define, Research, Ontology, or Plan conversation and scores all three turns:
 
 ```sh
-PATH=/home/vrondelli/.nvm/versions/node/v26.8.1/bin:$PATH \
-  /home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/benchmark.mjs \
+node bin/benchmark.mjs \
   --mode live-multiturn --model gpt-5.6-luna --repetitions 1
 ```
 
@@ -242,8 +239,8 @@ References: [MLPerf Training](https://arxiv.org/abs/1910.01500),
 Run the adaptive reasoning-state reuse round with Linux Node v26.8.1:
 
 ```sh
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/adaptive-reuse.mjs
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/adaptive-reuse.mjs --holdout
+node bin/adaptive-reuse.mjs
+node bin/adaptive-reuse.mjs --holdout
 ```
 
 This round exercises the real structural runtime functions. It measures exact
@@ -283,7 +280,7 @@ node bin/benchmark.mjs \
   --dataset /path/to/arb/samples.jsonl \
   --predictions /path/to/are-predictions.jsonl \
   --dataset-id v2-positive-or-selective-release \
-  --dataset-revision <exact-upstream-revision> \
+  --dataset-revision 'exact-upstream-revision' \
   --stdout-only
 ```
 
@@ -305,7 +302,7 @@ node bin/benchmark.mjs \
   --dataset /path/to/arb/samples.jsonl \
   --corpus-dir /path/to/arb/corpus-release \
   --dataset-id v2-selective-release \
-  --dataset-revision <exact-upstream-revision> \
+  --dataset-revision 'exact-upstream-revision' \
   --predictions-output /path/to/are-predictions.jsonl
 ```
 
@@ -336,7 +333,7 @@ Start with a fast diagnosis and create one bounded iteration:
 
 ```sh
 node bin/improve.mjs --mode diagnose --fast
-node bin/improve.mjs --mode iterate --baseline runs/improvements/<diagnose-report>.json
+node bin/improve.mjs --mode iterate --baseline runs/improvements/'diagnose-report'.json
 ```
 
 The iteration report selects one target, records the exact baseline, snapshots every allowlisted implementation file, and prints the verification command. It never edits or reverts source files. After making the bounded change, verify it against that report:
@@ -344,7 +341,7 @@ The iteration report selects one target, records the exact baseline, snapshots e
 ```sh
 node bin/improve.mjs --mode verify-candidate \
   --target context-overflow \
-  --baseline runs/improvements/<iterate-report>.json
+  --baseline runs/improvements/'iterate-report'.json
 ```
 
 Fast baselines compare correctness and safety while recording, but not enforcing, noisy short-sample latency. Use a full diagnosis before final candidate verification. After one candidate returns `KEEP`, require a reproducible streak:
@@ -352,7 +349,7 @@ Fast baselines compare correctness and safety while recording, but not enforcing
 ```sh
 node bin/improve.mjs --mode loop \
   --target context-overflow \
-  --baseline runs/improvements/<iterate-report>.json \
+  --baseline runs/improvements/'iterate-report'.json \
   --max-attempts 5
 ```
 
@@ -369,7 +366,7 @@ upgrade decision by default.
 Run the deterministic, no-model fixture canary with:
 
 ```sh
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/evolution-canary.mjs
+node bin/evolution-canary.mjs
 ```
 
 The canary exercises the complete lifecycle but does not mutate the source tree,

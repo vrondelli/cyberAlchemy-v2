@@ -4,7 +4,7 @@ import {fileURLToPath} from "node:url";
 import {dirname, resolve} from "node:path";
 
 import {evaluateContinuation, loadVerifiedDecisionProfile, routeRequest} from "../index.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../../../../..");
@@ -12,7 +12,7 @@ const profilePath = resolve(packageRoot, "profiles/cyberalchemy-v1.json");
 const loaded = loadVerifiedDecisionProfile(profilePath, repositoryRoot);
 if (!loaded.ok) throw new Error(loaded.reason_codes.join(","));
 const profile = loaded.value;
-const modulePort = createAlchSemanticModulePort();
+const modulePort = createNativeSemanticModulePort();
 const contexts = [
   ["define", "Please clarify intent and define this concept.", "CA2-ROUTE-DEFINE"],
   ["goal", "Decompose goal into a work graph.", "CA2-ROUTE-PLAN"],

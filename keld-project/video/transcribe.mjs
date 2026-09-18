@@ -1,0 +1,16 @@
+import {join} from 'node:path';
+import {pipeline,env} from '@huggingface/transformers';
+import {init,source,root,cache,ffmpeg,readJSON,run,json} from './common.mjs';
+await init();env.cacheDir=join(cache,'models');
+const manifest=await readJSON(join(root,'assets.json'));
+const voice=manifest.files.find(x=>x.filename.endsWith('.mp3'));
+const pcm=await run(ffmpeg,['-v','error','-i',join(source,voice.filename),'-ar','16000','-ac','1','-f','f32le','pipe:1'],{capture:true});
+const waveform=new Float32Array(pcm.buffer.slice(pcm.byteOffset,pcm.byteOffset+pcm.byteLength));
+console.log('Loading local speech recognition model; audio stays local.');
+const model='Xenova/whisper-base.en';
+const asr=await pipeline('automatic-speech-recognition',model,{dtype:'q8',device:'cpu',session_options:{intraOpNumThreads:4}});
+console.log('Transcribing',waveform.length/16000,'seconds');
+const result=await asr(waveform,{return_timestamps:process.argv.includes('--words')?'word':true,chunk_length_s:30,stride_length_s:5});
+await json(join(root,process.argv.includes('--words')?'transcript-words.json':'transcript-raw.json'),{model,sourceSha256:voice.sha256,...result});
+console.log(JSON.stringify(result,null,2));
+await asr.dispose();

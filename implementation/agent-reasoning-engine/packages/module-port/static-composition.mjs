@@ -1,7 +1,6 @@
 import {canonicalModuleJson, createModulePort, digestModuleValue, verifyModuleManifest} from "./index.mjs";
 
 export const STATIC_MODULE_CONFIGURATION_SCHEMA = "are.static-module-configuration/v1";
-export const ALCH_MODULE_PORT_CONTRACT_SHA256 = "45754f9df1232e2d181d7b4be18cbbb3fae01f9d82afca8dc0444819805deaec";
 const BINDING_KEYS = new Set(["factory_id", "module_id", "version", "manifest_digest"]);
 const CONFIGURATION_KEYS = new Set(["schema_version", "configuration_id", "modules", "authority_effect"]);
 

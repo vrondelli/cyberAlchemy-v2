@@ -44,11 +44,19 @@ def main():
     expected=next(x['sha256'] for x in m['files'] if x['path']=='data/full.parquet')
     if hashlib.sha256(a.gold.read_bytes()).hexdigest()!=expected:raise ValueError('gold.dataset-drift')
     sys.path.insert(0,str(a.upstream));from contextbench.parsers.gold import GoldLoader
-    from contextbench.evaluate import evaluate_instance
+    import contextbench.evaluate as evaluator
+    from contextbench.core import checkout as native_checkout
     pred=json.loads(a.pred.read_text());loader=GoldLoader(str(a.gold));gold=loader.get(pred.get('instance_id'))
     if gold is None:raise ValueError('gold.instance-not-found')
     pred,gold=prepare_prediction(pred,gold)
-    result=evaluate_instance(pred['instance_id'],gold,pred,a.cache)
+    traj=pred['traj_data']; sparse_paths=set(gold.files())
+    sparse_paths.update(traj.get('pred_files') or []);sparse_paths.update((traj.get('pred_spans') or {}).keys())
+    for step in traj.get('pred_steps') or []:
+        sparse_paths.update(step.get('files') or []);sparse_paths.update((step.get('spans') or {}).keys())
+    original_checkout=evaluator.checkout
+    evaluator.checkout=lambda repo_url,commit,cache_dir: native_checkout(repo_url,commit,cache_dir,sparse_paths=sorted(sparse_paths))
+    try:result=evaluator.evaluate_instance(pred['instance_id'],gold,pred,a.cache)
+    finally:evaluator.checkout=original_checkout
     out={'upstream_revision':m['revision'],'native':result,'edit_location_posture':'reference-patch fallback disabled; only actual model patch may be scored','authority_effect':'none','open_questions_ref':'README.md'}
     a.out.write_text(json.dumps(out,indent=2)+'\n')
     if result.get('error'):return 2

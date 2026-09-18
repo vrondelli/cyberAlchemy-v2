@@ -3,7 +3,7 @@ import {spawnSync} from "node:child_process";
 import {lstatSync, readFileSync} from "node:fs";
 import {isAbsolute, resolve, sep} from "node:path";
 
-import {createAlchSemanticAdapter} from "../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../module-port/native-semantic-adapter.mjs";
 import {semanticTextOutputValidators} from "../module-port/semantic-text.mjs";
 import {composeStaticModulePort} from "../module-port/static-composition.mjs";
 import {digestModuleValue} from "../module-port/index.mjs";
@@ -241,7 +241,7 @@ export function realizeActivatedModulePort({repository_root, runner = spawnSync}
 
   const composition = composeStaticModulePort({
     configuration,
-    adapter_factories: {createAlchSemanticAdapter},
+    adapter_factories: {createNativeSemanticAdapter},
     output_validators: semanticTextOutputValidators,
   });
   if (!composition.ok || composition.disposition !== "available" || composition.module_set_digest !== MODULE_SET_DIGEST) {

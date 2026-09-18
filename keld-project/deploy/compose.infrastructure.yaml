@@ -1,0 +1,38 @@
+name: keld-staging
+services:
+  edge:
+    image: keld-caddy:2.11.4-security-candidate
+    build: {context: ., dockerfile: Caddy.Dockerfile}
+    user: "1001:1001"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      KELD_DOMAIN: ${KELD_DOMAIN:?set KELD_DOMAIN}
+      AUTH_DOMAIN: ${AUTH_DOMAIN:?set AUTH_DOMAIN}
+    volumes:
+      - ./Caddyfile.infrastructure:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [backend, egress]
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+  postgres:
+    extends: {file: compose.yaml, service: postgres}
+  keycloak:
+    extends: {file: compose.yaml, service: keycloak}
+secrets:
+  postgres_admin_password: {file: ./.runtime/secrets/postgres_admin_password}
+  keycloak_db_password: {file: ./.runtime/secrets/keycloak_db_password}
+  keycloak_admin_password: {file: ./.runtime/secrets/keycloak_admin_password}
+networks:
+  backend: {internal: true}
+  egress: {}
+volumes:
+  postgres_data: {}
+  caddy_data: {}
+  caddy_config: {}

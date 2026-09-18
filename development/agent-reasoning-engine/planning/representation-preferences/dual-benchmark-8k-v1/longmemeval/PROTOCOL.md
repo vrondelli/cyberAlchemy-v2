@@ -1,0 +1,16 @@
+# LongMemEval 8K archive-retrieval development adaptation
+
+Candidate protocol, pending coordinator freeze; no provider calls during development.
+Sources and prior negative results remain unchanged in [the pilot](../../benchmark-pilot-v2/execution/RESULTS.md).
+
+The fixed four original development tasks are retained, including the prior reasoning failure. No reserved tasks or gold fields enter projection. Stage one runs one pair per task with two concurrent pairs; a separately gated second repetition reverses arm order and evaluates four concurrent pairs. Each pair remains sequential internally. The branch ceiling is 204,800 cumulative model input plus output tokens per stage, failures included; the coordinator must enforce the cumulative ceiling in addition to pair admission. Cached input and reasoning output count. Tokenizer calls are separately recorded.
+
+Control reads every original dated turn through the unchanged 14,000-character sequential chunking and 384-token compact-note protocol, then answers within 1,024 output tokens. Treatment makes no model ingestion calls: a deterministic source archive projection prioritizes whole user turns, then lexical overlap with question terms, then chronological ties. It greedily fits at most 10,000 serialized characters and restores chronological order. Exact role/date/content/source ID are preserved. All user turns fit for all four fixed tasks. The archive itself is identical between arms; model exposure differs. Assistant recommendations may be omitted and source-referential replies may lose context: these are material counterhypotheses. This comparison tests an archive retrieval protocol against bounded notes, not an isolated ARE representation effect or official full-history benchmark score.
+
+8K means exactly 8,000 tokens of actual prompt plus reserved output per call, with input at most 6,976. Both arms receive identical final-answer system instructions and the same output cap for answers. Smaller caps or reservations do not prove savings. Native-rubric blinded correctness and completed answers use all planned slots as denominator, including failures. The acceptance gate requires at least 15% reduction in actual cumulative model input plus output, quality and completion no worse than control, and no unknown usage or admission failure. Report individual pairs and distinct tasks, not repetitions as independent samples.
+
+The long stratum is fixed by tokenizer measurement of serialized original history (before any arm transformation), at least 8,000 tokens. Both the long stratum and complete four-task cohort must be reported separately; prior sizing suggests only one truly long task, preventing broad long-history generalization. Root owns tokenizer admission, sealed code/source hashes, shared concurrency, blinded native-rubric scoring and conditional stage-two admission. No outcome-based task selection or silent retries.
+
+## Open questions
+
+Does preserved user evidence suffice when omitted assistant context contains necessary details? Does exact evidence improve the prior multi-session reasoning failure? Does the measured long stratum contain only one task? Can four workers preserve quality/completion and avoid throttling? All are empirical questions; no improvement is claimed before receipts and blind review.

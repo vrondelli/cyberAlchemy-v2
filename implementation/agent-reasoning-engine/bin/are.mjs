@@ -7,7 +7,7 @@ import {inspectFrozenProductCandidate} from "../src/product-candidate.mjs";
 
 function usage() {
   process.stderr.write("Interaction review: are interaction demo [--json] | run --state <file> --provider <module> | inspect --state <file>\n");
-  process.stderr.write("Usage: are hook prompt|config|inspect-host|native-test|native-events-test|native-gateway-test | decide route|context|effect|continue | doctor [--json] | closure [--json] | candidate freeze | candidate inspect [--json] | test | gateway <gateway-options> | benchmark <benchmark-options> | improve inspect --report <file> | improve run-canary [--output <file>] | define <define-options> | coding-agent demo [--approve] [--keep] [--fault-after-effect] | coding-agent live-demo [--codex-command <path>] [--model <id>] [--approve] [--keep]\n");
+  process.stderr.write("Usage: are hook prompt|config|inspect-host|native-test|native-events-test|native-gateway-test | decide route|context|effect|continue | doctor [--json] | closure [--json] | candidate freeze | candidate inspect [--json] | test | gateway <gateway-options> | benchmark <benchmark-options> | improve inspect --report <file> | improve run-canary [--output <file>] | coding-agent demo [--approve] [--keep] [--fault-after-effect] | coding-agent live-demo [--codex-command <path>] [--model <id>] [--approve] [--keep]\n");
 }
 
 function run(script, args) {
@@ -52,8 +52,6 @@ if (command === "interaction") {
   run(resolve(productRoot, "benchmarks/real-reasoning-v1/bin/benchmark.mjs"), args);
 } else if (command === "improve") {
   run(resolve(productRoot, "benchmarks/real-reasoning-v1/bin/improve.mjs"), args);
-} else if (command === "define") {
-  run(resolve(productRoot, "../define-cli/bin/define.mjs"), args);
 } else if (command === "coding-agent" && args[0] === "demo") {
   run(resolve(productRoot, "packages/coding-agent-runtime/bin/demo.mjs"), args.slice(1));
 } else if (command === "coding-agent" && args[0] === "live-demo") {

@@ -20,7 +20,7 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   assert.equal(health.status, "PASS", health.reason_codes.join(","));
   assert.equal(health.node.exact_match, true);
   assert.equal(health.repository_profile.verified, true);
-  assert.equal(health.components.length, 18);
+  assert.equal(health.components.length, 17);
   assert.equal(health.components.every((component) => component.present && component.package_name), true);
   assert.equal(health.integrations.every((integration) => integration.present), true);
   assert.equal(health.authority_effect, "none");
@@ -30,12 +30,9 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   const evidencePaths = replay.files.filter((entry) => entry.path.includes("/evidence/")).map((entry) => entry.path);
   assert.deepEqual(evidencePaths.filter((path) => !(
     path.startsWith("cyberAlchemy-v2/development/agent-reasoning-engine/codex-integration/evidence/")
-    || path.startsWith("cyberAlchemy-v2/implementation/define-cli/generated/define-service/")
     || path.startsWith("cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/test/evidence/")
     || path.startsWith("cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/request-decision-router/generated/route-availability/evidence/")
     || path === "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/coding-agent-runtime/glm-flash-v1/evidence/prompt-overhead-baseline.json"
-    || path === "cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/are-runtime-configuration-v1/evidence/runtime-conformance.json"
-    || path === "cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/semantic-contract-v1/evidence/bundle/app/prelude.mjs"
   )), []);
   assert.equal(replay.files.some((entry) => entry.path.includes("/runs/")), false);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-reasoning-engine/product.json"), true);
@@ -48,10 +45,8 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   assert.equal(replay.files.some((entry) => entry.path.includes("/benchmarks/glm-episodes-v1/")), false);
   assert.equal(replay.files.some((entry) => entry.path.includes("/packages/evolution-runtime/research/")), false);
   assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/index.mjs")), true);
-  assert.equal(replay.files.some((entry) => entry.path.endsWith("/extensions/semantic-contract-v1/consumer-runtime.mjs")), true);
-  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port-governance-binding-rust/src/lib.rs")), true);
-  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port-governance-binding-rust/artifacts/linux-x64/are-module-port-governance-binding")), true);
-  assert.equal(replay.files.some((entry) => entry.path.endsWith("/tools/toolchain/run")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/native-semantic-adapter.mjs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.startsWith("domainspec-core/") || entry.path.includes("/language/capabilities/alchlang/")), false);
   for (const required of [
     "/goals/profile.json",
     "/authority/AUTHORITY-MODEL.md",
@@ -63,15 +58,7 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
     "/define/system-ontology/NODES.json",
     "/define/system-ontology/RELATIONS.json",
     "/define/definitions.json",
-    "/implementation/define-cli/generated/define-service/entries/AlchHandoffReadiness/evidence/function/composition-trace.json",
-    "domainspec-core/projects/secret-management/secret_management/store.py",
-    "domainspec-core/projects/domainspec-v2/impl/cli/package.json",
-    "domainspec-core/projects/domainspec-v2/impl/cli/dist/index.js",
-    "/language/capabilities/alchlang/plans/general-compiler-v1/implementation/node_modules/.bin/tsc",
-    "/language/capabilities/alchlang/plans/general-compiler-v1/implementation/node_modules/@typescript/old/bin/tsc",
-    "/language/capabilities/alchlang/plans/general-compiler-v1/implementation/dist/boundary-runtime.js",
   ]) assert.equal(replay.files.some((entry) => entry.path.endsWith(required)), true, required);
-  assert.equal(replay.files.find((entry) => entry.path.endsWith("/general-compiler-v1/implementation/node_modules/.bin/tsc"))?.kind, "symlink");
   assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/conversation-runtime/index.mjs")), true);
   assert.equal(replay.files.some((entry) => entry.path.includes("/__pycache__/")), false);
   assert.equal(replay.files.some((entry) => entry.path.endsWith(".pyc")), false);
@@ -84,12 +71,9 @@ test("product test plan covers every in-closure nested and native suite", () => 
   assert.deepEqual(plan.unowned_test_files, []);
   assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/glm-flash-v1/test.mjs"))), true);
   assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/continuous-construction-task-loop/test/continuous-construction-adapter.test.mjs"))), true);
-  assert.equal(plan.suites.some((suite) => suite.runner === "cargo-test" && suite.manifest_ref.endsWith("/module-port-governance-binding-rust/Cargo.toml")), true);
+  assert.equal(plan.suites.some((suite) => suite.runner === "cargo-test"), false);
   assert.equal(plan.suites.some((suite) => suite.target_id === "integration:are-product-package" && suite.runner === "python-unittest" && suite.test_refs.some((path) => path.endsWith("/agent-reasoning-engine/tests/test_negative_mutations.py"))), true);
   assert.equal(plan.suites.some((suite) => suite.target_id === "component:conversation-runtime" && suite.test_refs.length === 4), true);
-  for (const integration of ["module-port-cutover-alch", "module-port-packaged-verifier-alch", "module-port-signed-envelope-alch"]) {
-    assert.equal(plan.suites.some((suite) => suite.target_id === `integration:${integration}` && suite.test_refs.some((path) => path.endsWith("/integration.test.mjs"))), true, integration);
-  }
   assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.includes("/evolution-runtime/research/"))), false);
 });
 

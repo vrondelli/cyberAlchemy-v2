@@ -17,7 +17,11 @@ export function verifyFreeze(path){
  if(preflight.status!=='passed-initial-envelope'||preflight.model_calls!==0||preflight.rows.length!==expectedTasks)throw Error('freeze.preflight-invalid');
  const claimByStage={
   development:'development diagnostic only; not benchmark clearance',
-  'reserved-confirmation':'untouched 8K confirmation only; not benchmark clearance'
+  replication:'8K replication diagnostic only; not complete benchmark clearance',
+  'reserved-confirmation':'untouched 8K confirmation only; not benchmark clearance',
+  '10k-development-transfer':'10K development transfer only; not confirmation or benchmark clearance',
+  '10k-confirmation':'fresh 10K confirmation only; not 12K or benchmark clearance',
+  '10k-conditional-development':'fresh 10K conditional development only; not confirmation, 12K, or benchmark clearance'
  };
  const stage=f.evaluation_stage??'development';
  if(!f.continuity_review?.passed||!Object.hasOwn(claimByStage,stage)||f.claim_ceiling!==claimByStage[stage])throw Error('freeze.claim-invalid');

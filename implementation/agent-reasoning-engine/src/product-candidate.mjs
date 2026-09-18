@@ -11,10 +11,10 @@ import {
 import {inspectProduct, materializeProductClosure, productRoot, repositoryRoot} from "./product.mjs";
 import {materializeProductTestPlan} from "./product-test-plan.mjs";
 
-export const PRODUCT_CANDIDATE_ID = "ARE-PRODUCT-CANDIDATE-013";
-export const PRODUCT_CANDIDATE_PATH = resolve(productRoot, "evidence/product-candidate.013.json");
-export const PRODUCT_TEST_RECEIPT_PATH = resolve(productRoot, "evidence/product-test-receipt.013.json");
-export const FAILURE_LEARNING_CANARY_PATH = resolve(productRoot, "evidence/failure-learning-canary.013.json");
+export const PRODUCT_CANDIDATE_ID = "ARE-PRODUCT-CANDIDATE-018";
+export const PRODUCT_CANDIDATE_PATH = resolve(productRoot, "evidence/product-candidate.018.json");
+export const PRODUCT_TEST_RECEIPT_PATH = resolve(productRoot, "evidence/product-test-receipt.018.json");
+export const FAILURE_LEARNING_CANARY_PATH = resolve(productRoot, "evidence/failure-learning-canary.018.json");
 
 function digest(value) {
   return sha256HexText(canonicalJson(value));

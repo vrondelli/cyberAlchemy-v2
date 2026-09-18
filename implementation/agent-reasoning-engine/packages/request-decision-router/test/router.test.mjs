@@ -9,7 +9,7 @@ import {computeDecisionProfileDigest, evaluateContinuation, loadVerifiedDecision
 import {routingSignalJudgment} from "../src/router.mjs";
 import {semanticModulePort} from "./semantic-module-fixture.mjs";
 import {createModulePort, sealModuleManifest} from "../../module-port/index.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 import {createRouteAvailabilityAdapter, routeAvailabilityOutputValidators} from "../../module-port/route-availability.mjs";
 import {
   CONTAINS_PHRASE_CAPABILITY,
@@ -54,7 +54,7 @@ function portWithAvailability({available = true, reason_codes = [], adapter = nu
     routes: [{route_id: "CA2-ROUTE-DEFINE", capability_id: "route.available/define/v1", available, reason_codes}],
   });
   return createModulePort({
-    adapters: [createAlchSemanticAdapter(), availabilityAdapter],
+    adapters: [createNativeSemanticAdapter(), availabilityAdapter],
     output_validators: {...semanticTextOutputValidators, ...routeAvailabilityOutputValidators},
   });
 }

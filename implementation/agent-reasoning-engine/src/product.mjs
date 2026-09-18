@@ -150,43 +150,15 @@ function repositoryProfileFiles(profile) {
 }
 
 function externalTestSupportFiles() {
-  const secretManagementPackage = resolve(repositoryRoot, "domainspec-core/projects/secret-management/secret_management");
-  if (!directory(secretManagementPackage)) throw new Error("product.secret-management-test-support-missing");
   const routeAvailabilityBundle = resolve(productRoot, "packages/request-decision-router/generated/route-availability");
   const codexProtocolEvidence = resolve(projectRoot, "development/agent-reasoning-engine/codex-integration/evidence");
   const systemOntologyRoot = resolve(projectRoot, "define/system-ontology");
   const defineCatalog = resolve(projectRoot, "define/definitions.json");
-  const compiledDefineService = resolve(projectRoot, "implementation/define-cli/generated/define-service");
   return [
-    ...collectFiles(secretManagementPackage, ["/__pycache__/", "/.pytest_cache/"]),
     ...collectFiles(routeAvailabilityBundle, []),
     ...collectFiles(codexProtocolEvidence, []),
     defineCatalog,
-    ...collectFiles(compiledDefineService, []),
     ...["PROFILE.json", "NODES.json", "RELATIONS.json"].map((name) => resolve(systemOntologyRoot, name)),
-  ];
-}
-
-function domainSpecCompilerDistributionFiles() {
-  const packageRoot = resolve(repositoryRoot, "domainspec-core/projects/domainspec-v2/impl/cli");
-  const manifestPath = resolve(packageRoot, "package.json");
-  if (!existsSync(manifestPath)) throw new Error("product.domainspec-compiler-distribution-missing");
-  const manifest = readJson(manifestPath);
-  const distribution = [manifestPath];
-  for (const entry of manifest.files ?? []) {
-    const path = resolve(packageRoot, entry);
-    if (directory(path)) distribution.push(...collectFiles(path, ["/__pycache__/", "/.pytest_cache/"]));
-    else if (existsSync(path)) distribution.push(path);
-  }
-  const alchImplementation = resolve(projectRoot, "language/capabilities/alchlang/plans/general-compiler-v1/implementation");
-  const alchDistRoot = resolve(alchImplementation, "dist");
-  const compilerRoot = resolve(alchImplementation, "node_modules/@typescript/old");
-  const compilerLauncher = resolve(alchImplementation, "node_modules/.bin/tsc");
-  return [
-    ...distribution,
-    ...collectFiles(alchDistRoot, []).filter((path) => extname(path) === ".js"),
-    compilerLauncher,
-    ...collectFiles(compilerRoot, []),
   ];
 }
 
@@ -204,7 +176,6 @@ export function materializeProductClosure() {
     ...packagedVerifierFiles(profile),
     ...repositoryProfileFiles(profile),
     ...externalTestSupportFiles(),
-    ...domainSpecCompilerDistributionFiles(),
   ])];
   const files = expandRelativeModuleClosure(seeds);
   const entries = files.map((path) => {
@@ -218,6 +189,9 @@ export function materializeProductClosure() {
       ...(metadata.isSymbolicLink() ? {kind: "symlink", link_target: readlinkSync(path)} : {}),
     };
   }).sort((a, b) => a.path.localeCompare(b.path));
+  const forbidden = entries.filter((entry) => entry.path.startsWith("domainspec-core/")
+    || entry.path.includes("/language/capabilities/alchlang/"));
+  if (forbidden.length > 0) throw new Error(`product.external-language-dependency:${forbidden.map((entry) => entry.path).slice(0, 20).join(",")}`);
   const material = {schema_version: "are.product-source-closure/v1", product_id: profile.product_id, product_version: profile.version, files: entries, authority_effect: "none"};
   return Object.freeze({...material, closure_digest: sha256(JSON.stringify(material))});
 }

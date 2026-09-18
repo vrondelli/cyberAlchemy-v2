@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {classifyDefineIntake, materializeObjectiveState, verifyObjectiveState, resolveObjectiveTransition, digestIntentMaterial} from "../index.mjs";
 import {createModulePort} from "../../module-port/index.mjs";
 import {createSemanticTextFacade, semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 
 const identity = {consumer_ref: "test-user", scope_ref: "are-project"};
-const semanticText = createSemanticTextFacade(createModulePort({adapters: [createAlchSemanticAdapter()], output_validators: semanticTextOutputValidators}), {consumer_id: "request-intent-runtime"});
+const semanticText = createSemanticTextFacade(createModulePort({adapters: [createNativeSemanticAdapter()], output_validators: semanticTextOutputValidators}), {consumer_id: "request-intent-runtime"});
 const resolve = (request, state = null, extra = {}, provider = null) => resolveObjectiveTransition({
   ...identity, request, request_ref: `request:${request}`,
   ...(state ? {state, expected_state_digest: state.state_digest} : {}), ...extra,

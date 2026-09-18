@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {writeFile} from 'node:fs/promises';
+const require=createRequire(new URL('../../video/package.json',import.meta.url));
+const {chromium}=require('playwright-core');
+const browser=await chromium.launch({executablePath:'/home/vrondelli/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',args:['--no-sandbox']});
+const results=[];
+try {
+ const p=await browser.newPage({viewport:{width:1366,height:768}});
+ const errors=[];p.on('pageerror',e=>errors.push(e.message));
+ await p.goto('http://127.0.0.1:4399/index.html', {waitUntil:'domcontentloaded'});
+ await p.addStyleTag({content:'html{scroll-behavior:auto!important}'});
+ const art=p.locator('.engine-cycles-art');
+ await art.scrollIntoViewIfNeeded();
+ await p.waitForFunction(()=>document.querySelector('.engine-cycles-art').dataset.motionState==='work');
+ await p.waitForTimeout(1400);
+ await art.screenshot({path:'/tmp/are-motion-work.png'});
+ await p.waitForFunction(()=>document.querySelector('.engine-cycles-art').dataset.motionState==='improve');
+ await p.waitForTimeout(1100);
+ await art.screenshot({path:'/tmp/are-motion-improve.png'});
+ await p.waitForFunction(()=>Number(document.querySelector('.engine-cycles-art').dataset.motionLoop)>=1);
+ await p.waitForFunction(()=>document.querySelector('.engine-cycles-art').dataset.motionState==='work');
+ assert.deepEqual(await p.locator('.are-node-label').allTextContents(),['Goal','Action','Results','Evidence','Compare','Refine']);
+ await p.locator('.are-motion-toggle').click();
+ assert.equal(await art.getAttribute('data-motion-state'),'paused');
+ const paused=await p.locator('.are-signal').getAttribute('transform');
+ await p.waitForTimeout(700);
+ assert.equal(await p.locator('.are-signal').getAttribute('transform'),paused,'explicit pause freezes timeline');
+ await art.screenshot({path:'/tmp/are-motion-labels-desktop.png'});
+ await p.locator('.are-motion-toggle').click();
+ await p.waitForTimeout(400);
+ assert.notEqual(await p.locator('.are-signal').getAttribute('transform'),paused,'resume continues timeline');
+ await p.evaluate(()=>scrollTo(0,0));await p.waitForTimeout(400);
+ const before=await p.locator('.are-signal').getAttribute('transform');await p.waitForTimeout(500);
+ assert.equal(await p.locator('.are-signal').getAttribute('transform'),before,'offscreen timeline pauses');
+ await art.scrollIntoViewIfNeeded();
+ await p.emulateMedia({reducedMotion:'reduce'});
+ await p.waitForFunction(()=>document.querySelector('.engine-cycles-art').dataset.motionState==='reduced');
+ assert.equal(await p.locator('.are-signal').evaluate(e=>getComputedStyle(e).opacity),'0');
+ assert.equal(await p.locator('.are-motion-toggle').isDisabled(),true);
+ assert.deepEqual(errors,[]);
+ results.push({viewport:1366,sequence:true,loops:true,pauseResume:true,labels:true,offscreenPause:true,reducedMotion:true,errors});
+ for(const width of [390,320]) {
+  await p.setViewportSize({width,height:844});await art.scrollIntoViewIfNeeded();
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await art.screenshot({path:`/tmp/are-motion-${width}.png`});
+  results.push({viewport:width,overflow:false});
+ }
+ await writeFile(new URL('are-motion-validation.json',import.meta.url),JSON.stringify(results,null,2));
+ console.log(JSON.stringify(results));
+} finally {await browser.close();}

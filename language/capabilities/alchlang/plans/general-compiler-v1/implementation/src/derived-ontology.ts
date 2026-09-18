@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {digest} from './domainspec-profile.js';
 import type {Expression} from './declarative-profile.js';
 
@@ -73,6 +74,8 @@ export function elaborateOntology(source:string){
 
 type Parsed = {ontologySource:ReturnType<typeof elaborateOntology>;contract:any;coreContracts:Record<string,unknown>;model:any;boundaryBindings:{name:string;integration:string;condition?:Expression;input?:{mapping:string;type:string}}[]};
 export function deriveOntology(parsed:Parsed,trace:any,sourcePath:string){
+ // Provenance names the source with its content digest, independently of the build host.
+ sourcePath=path.basename(sourcePath);
  const origin=parsed.ontologySource,decls=new Map(origin.declarations.map(d=>[d.name,d]));
  const source=(line:number)=>({path:sourcePath,line,sha256:origin.source_sha256});
  const references:{source:string;target:string;role:string;evidence:ReturnType<typeof source>}[]=[];

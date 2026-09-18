@@ -4,7 +4,7 @@ import test from "node:test";
 
 import {loadVerifiedDecisionProfile} from "../../request-decision-router/index.mjs";
 import {createModulePort} from "../../module-port/index.mjs";
-import {createAlchSemanticAdapter} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticAdapter} from "../../module-port/native-semantic-adapter.mjs";
 import {semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
 import {createRoutedConversationRuntime} from "../index.mjs";
 
@@ -12,7 +12,7 @@ const repositoryRoot = resolve(import.meta.dirname, "../../../../../..");
 const profilePath = resolve(import.meta.dirname, "../../request-decision-router/profiles/cyberalchemy-v1.json");
 const loaded = loadVerifiedDecisionProfile(profilePath, repositoryRoot);
 assert.equal(loaded.ok, true, (loaded.reason_codes ?? []).join(","));
-const modulePort = createModulePort({adapters: [createAlchSemanticAdapter()], output_validators: semanticTextOutputValidators});
+const modulePort = createModulePort({adapters: [createNativeSemanticAdapter()], output_validators: semanticTextOutputValidators});
 
 function ids() { let sequence = 0; return (kind) => `${kind}-${++sequence}`; }
 

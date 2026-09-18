@@ -1,0 +1,102 @@
+{
+  "schema_version": "are.contextbench-round30-postprocess-recovery/v1",
+  "round": 30,
+  "status": "accepted-for-postprocessing-only",
+  "trigger": "The WSL environment rollover removed ephemeral /tmp dependencies after all executable Round 30 model trajectories had started and completed or been retained.",
+  "original_freeze_ref": "freeze-round30-execution.json",
+  "original_freeze_file_sha256": "2bad05d5c5b0301d252e412cefecf9796e582da70b3bf5bb4ad4af06dc7246a3",
+  "missing_source": {
+    "path": "/tmp/are-contextbench-repositories-v1/inventory.json",
+    "expected_sha256": "a4f0bf20220a4f2fcb45ef0ef52701c083976490e5bd9600ea186d15f688fa3f",
+    "role": "transitive development-round repository inventory",
+    "round30_runtime_dependency": false
+  },
+  "round30_repository_inventory": {
+    "path": "/home/vrondelli/.cache/are/contextbench-confirmation-repositories-v1/inventory.json",
+    "sha256": "22bb12e84bf78bbea3b31eb1b22dbcdd37822de0fefba358a819866b1f980c79",
+    "verified": true
+  },
+  "verification": {
+    "frozen_sources": 1432,
+    "exact_sources_present": 1431,
+    "missing_sources": 1,
+    "mismatched_present_sources": 0,
+    "runner_reads_missing_source": false,
+    "confirmation_scorer_reads_missing_source": false,
+    "finalizer_reads_missing_source": false,
+    "model_calls_permitted": 0
+  },
+  "recovery_rule": "A derived postprocessing freeze may exclude the named missing source and bind audited postprocessing-only scorer amendments recorded here. It retains all experiment, matrix, task, confirmation-inventory, native-scoring, bootstrap, and acceptance fields. It may be used only to seal existing cells, join shard ledgers, and score preserved results; model calls remain forbidden.",
+  "claim_ceiling": "Environment recovery evidence only. It does not repair unknown model usage, convert this run into untouched confirmation, change scores, or clear ContextBench.",
+  "authority_effect": "none",
+  "benchmark_cleared": false,
+  "open_questions_ref": "PLAN-round30.md#open-questions",
+  "postprocess_amendments": [
+    {
+      "trigger": "The first scoring attempt stopped at instrument.no-final-context while deriving a baseline for a valid closure-only treatment selection.",
+      "diagnosis": "A model selection with zero read IDs is an explicit empty baseline. Round 29 already scored this case as zero, while the Round 30 scorer incorrectly sent it to the exporter, whose contract correctly rejects empty final context.",
+      "change": "The Round 30 scorer now derives zero baseline metrics for empty model selections and continues independently reconstructing and natively scoring the non-empty treatment.",
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false,
+      "precedent_ref": "score-round29.mjs#scoreBaseline"
+    },
+    {
+      "trigger": "Emergency storage compaction removed verified reconstructible per-cell source trees after the host reported approximately 1 GB physical capacity remaining.",
+      "diagnosis": "Round 30 retained 1,244 redundant base/work checkouts while the confirmation repository cache already bound every executable instance to an exact commit.",
+      "change": "The scorer reconstructs one missing base checkout from its frozen cache/commit binding, uses it for closure and export verification, and deletes it in a finally boundary before advancing. Work trees are not required for postprocessing.",
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false,
+      "preservation_manifest_ref": "round30-storage-preservation-manifest.json",
+      "cleanup_receipt_ref": "round30-storage-cleanup-receipt.json"
+    },
+    {
+      "trigger": "Sequential native scoring made the storage-safe resumed postprocessing unnecessarily slow.",
+      "diagnosis": "Baseline and treatment predictions within one cell are immutable independent native-scorer inputs.",
+      "change": "Run the baseline and treatment native scorer processes concurrently within the current cell; await both before comparison and checkout deletion.",
+      "maximum_concurrent_native_scorers": 2,
+      "maximum_concurrent_checkouts": 1,
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false
+    },
+    {
+      "trigger": "The first bounded reconstruction used git clone --shared, but shallow caches still invoked index-pack.",
+      "diagnosis": "The frozen shallow caches support detached Git worktrees at every validated commit.",
+      "change": "Use git worktree add/remove for the one ephemeral base checkout, sharing the retained object store without repacking it.",
+      "probe": "Exact-commit add/HEAD verification/remove passed against the retained zstd cache.",
+      "maximum_concurrent_checkouts": 1,
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false
+    },
+    {
+      "trigger": "Native ContextBench full worktrees consumed host-backed WSL storage and scikit-learn checkout failed.",
+      "diagnosis": "Per-instance retrieval metrics read only gold and predicted source paths; the pinned checkout helper supports non-cone sparse paths, but evaluate_instance called it without them.",
+      "change": "The strict native wrapper supplies the exact union of gold files, predicted final files/spans, and trajectory files/spans to the pinned sparse-checkout helper.",
+      "validation": "The formerly failing scikit-learn 4aded39b treatment completed; its file, symbol, span, and line final metrics exactly matched the original valid full-checkout score.",
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false
+    },
+    {
+      "trigger": "A failed native checkout left a JSON diagnostic at a score path.",
+      "diagnosis": "File existence is insufficient completion evidence; native.final is the required score payload.",
+      "change": "Archive invalid native score JSON by content hash, remove it from the score path, and recompute; accept only artifacts containing native.final.",
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false
+    },
+    {
+      "trigger": "Two concurrent native scorers for one cell contended on the same sparse worktree index lock.",
+      "diagnosis": "The pinned helper lock does not cover its existing-worktree fast path, so same-commit sparse-checkout updates are not concurrency safe.",
+      "change": "Run baseline then treatment native scoring sequentially within each cell. Keep one ARE worktree and one native scorer process maximum.",
+      "maximum_concurrent_native_scorers": 1,
+      "maximum_concurrent_checkouts": 1,
+      "model_calls": 0,
+      "provider_data_changed": false,
+      "comparison_semantics_changed": false
+    }
+  ]
+}

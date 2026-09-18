@@ -9,7 +9,8 @@ function argument(name, fallback = null) {
   return index >= 0 ? process.argv[index + 1] : fallback;
 }
 
-const upstream = argument("--upstream", process.env.CODEX_BINARY ?? "/mnt/c/Users/vlad_/.codex/bin/wsl/bf0dd1e87d338bce/codex");
+const upstream = argument("--upstream", process.env.CODEX_BINARY);
+if (typeof upstream !== "string" || !upstream.trim() || upstream.startsWith("--")) throw new Error("Provide --upstream <supported-codex-binary> or set CODEX_BINARY");
 const cwd = resolve(argument("--cwd", process.cwd()));
 const model = argument("--model", null);
 const receipt = argument("--receipt", null);

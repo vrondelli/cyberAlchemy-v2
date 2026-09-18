@@ -1,0 +1,499 @@
+{
+  "version": "0.10.0-self-contained-candidate.7",
+  "documents": [
+    {
+      "id": "concepts",
+      "title": "Understand the engine",
+      "section": "Concepts",
+      "summary": "Learn how requests, context, decisions, and permissions fit together.",
+      "nodes": [
+        "objective",
+        "decision",
+        "boundary",
+        "outcome"
+      ],
+      "file": "CONCEPTS.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "f5e540276c919bfce53290d2babec34cac8226aba44a9cd5bb0b4ac3843da6f0",
+      "markdown": "# Core concepts\n\n## Request and route\n\nA request carries the user's raw text plus explicitly supplied or inferred\nfields. A route selects one repository workflow contract. Route selection says\nwhere work belongs. It does not authorize the work's effects.\n\n## Context basis and Context Envelope\n\nThe context basis is the smallest selected set of source-bound information for\nthe current request. A Context Envelope is its immutable projection for use by\nan agent or host. It records provenance, omissions, contradictions, freshness,\nand a digest so later decisions can identify the exact context they used.\n\n## Reasoning State\n\nReasoning State is the durable, append-only record of reasoning events and\nderived checkpoints. Epochs delimit stable snapshots. Branches, reductions,\ncounterevidence, and transition receipts preserve why state changed. Derived\nindexes can be rebuilt. The append-only evidence remains primary.\n\n## Runtime journal\n\nThe runtime journal records ordered operational events with idempotency and\ndigest chaining. Cuts and replay reconstruct a bounded view. Journal retention\nand Reasoning State retention are related operational concerns but distinct\ncontracts.\n\n## Proposal, effect, and authority\n\nARE can assess an exact proposed effect and identify consequence or owner\ngates. That assessment does not execute the proposal or create permission.\nAuthorization comes from the relevant owner and host policy. Most ARE records\ntherefore carry `authority_effect: \"none\"`.\n\n## Continuation\n\nA continuation decision evaluates whether the current objective is complete\nand which bounded next options exist. It prevents an agent from treating a\nplausible next action as part of an already authorized objective.\n\n## Conversation runtime\n\nThe conversation runtime keeps ordered turns, routes internal work, exposes\npending decisions, and produces bounded improvement handoffs while preserving\none user-facing conversation identity.\n\n## Improvement and learning\n\nFailures become structured Improvement Signals and Research Hypotheses. A\ncandidate change must pass development and disjoint holdout evidence before it\ncan be retained. Learning records can guide later work but do not silently\nactivate behavior.\n\n## Open Questions\n\n- Which concepts should receive stable public API names if ARE leaves the\n  private repository boundary?\n"
+    },
+    {
+      "id": "working-memory",
+      "title": "Keep useful progress",
+      "section": "Guides",
+      "summary": "Understand saved state, context reuse, conversation, and failure learning.",
+      "nodes": [
+        "state",
+        "context",
+        "evidence"
+      ],
+      "file": "STATE-LEARNING-AND-CONVERSATION.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "e45d51f2a4c40f7ba44ae202812e4fffa074113ba5c784f44f5f5942d02cb566",
+      "markdown": "# State, learning, and conversation\n\n## Durable state model\n\nReasoning State uses append-only events and content-bound epochs. The runtime\ncan checkpoint by risk, create branches, record reductions and counterevidence,\nexport portable epochs, compare provenance, and execute verified transition\nplans. File-backed sinks flush durable records. Derived indexes are rebuilt\nfrom verified logs.\n\nThe runtime journal separately records operational event order and supports\ncuts, replay, idempotency, and eviction receipts. Eviction removes eligible\nclosed journal segments under policy. It does not rewrite Reasoning State\nhistory.\n\n## Context refresh and reuse\n\nContext reuse depends on the current request, selected sources, and a Context\nRefresh Assessment. A changed dependency creates a successor projection.\nExact-prefix and cache-affinity signals are optimizations. They never establish\nsemantic correctness or provider cache use without observed provider fields.\n\n## Conversation runtime\n\nThe conversation component owns:\n\n- conversation identity and ordered turns.\n- the current route and route changes.\n- pending decisions that require user or owner input.\n- canonical response records.\n- usability observations.\n- bounded improvement handoffs.\n\nIts routed form supplies the semantic module port to the request router. This\nkeeps one user-visible conversation while internal work moves through route and\ndecision boundaries.\n\n## Failure learning\n\nThe improvement chain starts with a concrete failure and forms an exact\nhypothesis. It implements a bounded variant, evaluates development evidence,\nand checks a disjoint holdout. The chain then produces `KEEP` or `REJECT`.\nCandidate 018's failure-learning\ncanary reduces stale-reuse incidents from five to zero in its deterministic\nfixture and records `KEEP`. It does not observe provider caching or activate a\nruntime change by itself.\n\n## Open Questions\n\n- What retention policy should govern long-lived portable Reasoning State\n  across multiple host products?\n- Which user-facing controls should expose correction, contradiction, and\n  revocation without exposing internal record mechanics?\n"
+    },
+    {
+      "id": "privacy",
+      "title": "Control what stays",
+      "section": "Operations",
+      "summary": "Understand retained data, correction, revocation, and the limits of deletion.",
+      "nodes": [
+        "state",
+        "boundary"
+      ],
+      "file": "PRIVACY-AND-RETENTION.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "777b5b45d2feb8769b753633f43b6cdf09596002a01eaab57a3b9aa0b63be778",
+      "markdown": "# Privacy and retention\n\nARE persists explicit operational and reasoning records so decisions can be\nrecovered and audited. It does not claim to persist hidden model\nchain-of-thought. Operators must decide which user and repository data may enter\neach record before enabling durable use.\n\n## Data classes\n\n| Data class | Examples | Default handling |\n| --- | --- | --- |\n| Request data | Raw user text, target refs, constraints, evidence refs | Bound to request and context records |\n| Context evidence | Selected definitions, ontology records, instructions, source digests | Deterministically projected with provenance |\n| Reasoning State | Explicit events, observations, dispatches, checkpoints, frontiers | Append-only. File-backed in the gateway profile |\n| Runtime journal | Lifecycle events, cuts, replay and eviction receipts | Bounded operational store, distinct from Reasoning State |\n| Gateway continuity | Consumer identity, resume token binding, buffered messages, acknowledgements, tombstones | Bounded local session store |\n| Conversation data | Turn identity, route, pending decisions, canonical responses | Ordered runtime records |\n| Interaction learning | Attributed correction, lesson, scope, application, revision or revocation | Prototype, participant-scoped, default off |\n| Research evidence | Prompts, outputs, scores, token usage, manifests, decisions | Separate research storage and retention rules |\n| Secrets | Provider credentials, encryption material | Supplied through secret-provider boundaries. Excluded from prompts and receipts |\n\n## Current repository profile\n\nThe Candidate 018 repository profile uses these bounded defaults:\n\n| Setting | Value |\n| --- | ---: |\n| Runtime journal maximum events | 4,096 |\n| Runtime journal maximum closed turns | 256 |\n| Gateway maximum clients | 8 |\n| Buffered messages per client | 256 |\n| Detached-session timeout | 5 minutes |\n| Idle-session timeout | 30 minutes |\n| Retained bytes per session | 4 MiB |\n| Reasoning log bytes per session | 64 MiB |\n| Expiration tombstone lifetime | 1 hour |\n| Reasoning State mode | File per consumer, single writer |\n| Gateway session store | Append-only file with fsync, single writer |\n\nThese are development-candidate defaults, not a general retention policy. The\nowning values live in [`repository-v1.json`](../packages/codex-app-server-wrapper/profiles/repository-v1.json).\n\n## Collection and projection rules\n\n- Select request-relative context and record exclusions rather than scanning\n  arbitrary ambient files into a prompt.\n- Preserve source and transformation provenance for included context.\n- Keep credentials and provider reasoning content outside Context Envelopes,\n  ledgers, receipts, examples, and research artifacts.\n- Treat interaction corrections as attributable scoped records, not account-wide\n  truth.\n- Distinguish a projected lesson from proof that it was applied or beneficial.\n- Record provider cache use only from configured observed fields.\n- Do not place raw sensitive content in identifiers, filenames, or diagnostic\n  reason codes.\n\n## Retention, revision, and deletion\n\nRuntime-journal eviction removes eligible closed operational segments under its\npolicy. It does not rewrite the append-only Reasoning State ledger. Interaction\nlessons can be revised or revoked by appending successor records that prevent\nfuture projection while preserving history.\n\nSession expiry, logical revocation, cache compaction, and physical deletion are\ndifferent operations. Candidate 018 has bounded session and journal mechanisms.\nIt does not define a complete physical-erasure policy for every copy, backup,\nfrozen candidate, or research artifact. Deployments that require such a policy\nneed an owner-approved data inventory and erasure procedure first.\n\n## Operator controls\n\nBefore durable operation:\n\n1. Choose private storage paths and restrictive filesystem permissions.\n2. Classify repositories and participants permitted to use the instance.\n3. Set storage, idle, buffer, and retention limits for the environment.\n4. Keep secret-provider material outside persisted ARE records.\n5. Define backup encryption and access ownership.\n6. Define how a participant can inspect, revise, revoke, export, and request\n   deletion of retained interaction data.\n7. Bind research corpora and evidence destinations before live runs.\n8. Verify deletion and compaction receipts without claiming removal from\n   untracked external systems.\n\n## Trust boundaries\n\nThe local gateway authenticates continuity with resume credentials and expects\nprivate Unix-socket and storage paths. Candidate 018 does not establish network\nservice isolation, tenant separation, regulatory compliance, or a production\ndata-processing agreement. The host and provider have their own data handling\nboundaries outside ARE's local records.\n\n## Incident handling\n\nIf sensitive content enters a record unexpectedly, stop projection and new\nwrites. Identify every derived record and external dispatch. Preserve only the\nminimum incident evidence that policy permits. Rotate exposed credentials.\nFollow the owning repository or provider deletion process. Do not edit an\nappend-only log in place and then claim its digest chain remains valid.\n\n## Open Questions\n\n- What retention, export, and physical-erasure policy should govern an accepted\n  deployment?\n- Which fields require structured redaction before a multi-user host is\n  considered?\n- How should frozen research evidence balance reproducibility with later\n  participant deletion requests?\n"
+    },
+    {
+      "id": "configuration",
+      "title": "Configure your integration",
+      "section": "Reference",
+      "summary": "Find the gateway options, profiles, and secret boundaries.",
+      "nodes": [
+        "agent"
+      ],
+      "file": "CONFIGURATION.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "88be6b36b3fa6bca0b1b0d523e6e5d132e097ce49c8c8fcf4933f93289b9b2f2",
+      "markdown": "# Configuration\n\nARE configuration is explicit and source-bound. Candidate 018 does not use one\nglobal mutable configuration file.\n\n## Product profile\n\n`product.json` owns product identity, Node version, closure roots, required\ncomponents, integrations, and entrypoints. Changing it changes the product\nclosure and requires successor evidence.\n\n## Repository profile\n\n`packages/codex-app-server-wrapper/profiles/repository-v1.json` binds the route\nprofile and the definition and ontology sources. It also binds the selected protocol observation, context limits, and semantic\nand evolution toggles. Other bindings cover telemetry, journal limits, Reasoning\nState storage, gateway limits, clients, turn bindings, and effect defaults.\n\nSource paths and digests are checked when the profile loads. Update the profile\nand its evidence deliberately when an owned source changes.\nThe current runtime and host boundaries are summarized in [Compatibility and\nlifecycle](COMPATIBILITY-AND-LIFECYCLE.md). Storage defaults and their limits\nare explained in [Privacy and retention](PRIVACY-AND-RETENTION.md).\n\n## Gateway command options\n\nRequired:\n\n- `--config <profile.json>`\n- `--repository-root <repository>`\n- `--listen <gateway.sock>`\n\nOptional:\n\n- `--backend direct-stdio|daemon-proxy|websocket`\n- `--upstream-socket <app-server.sock>`\n- `--upstream-url <ws://...>`\n- `--reasoning-state-dir <directory>`\n- `--session-store <gateway-sessions.jsonl>`\n\nThe selected backend must match its required upstream option. The default\nrepository profile uses `daemon-proxy` and validates the observed Codex version\nagainst pinned protocol evidence.\n\n## Coding-agent runtime\n\nConfigured runs validate against\n`packages/coding-agent-runtime/schemas/run-config.schema.json`. Provider\ntransports, secret providers, tool policy, budgets, workspace boundaries, and\nverification commands remain separate fields. Therefore, a provider selection\ncannot silently expand tool or effect authority.\n\n## Environment and secrets\n\nUse the secret-provider interfaces rather than embedding credentials in JSON.\nThe `PYTHON` environment variable may select the Python executable for the\nproduct test runner. Use `tools/toolchain/run` for native builds.\n\n## Open Questions\n\n- Should validated profile overlays support host-specific storage paths without\n  changing the semantic repository profile digest?\n"
+    },
+    {
+      "id": "compatibility",
+      "title": "Check supported integrations",
+      "section": "Reference",
+      "summary": "Check support and evidence boundaries before connecting a host or model.",
+      "nodes": [
+        "agent",
+        "outcome"
+      ],
+      "file": "COMPATIBILITY-AND-LIFECYCLE.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "adde9566dc2737bcfcb5d3886dd4ca2bb857d33624204249ad4e1159194bcd01",
+      "markdown": "# Compatibility and lifecycle\n\nCompatibility in ARE has several independent layers. A runtime can parse a\nprovider response while the provider and model remain unqualified for a\nbenchmark. A passing candidate can also remain unapproved for publication or\ndeployment.\n\n## Current support matrix\n\nThe detailed current reader/writer inventory is\n[`compatibility-matrix.json`](compatibility-matrix.json), with verification in\n[`compatibility-matrix-receipt.json`](compatibility-matrix-receipt.json). It\ncovers seven compatibility categories and deliberately contains no\npredecessor/successor pair.\n\n| Layer | Candidate 018 posture | Evidence boundary |\n| --- | --- | --- |\n| Product lifecycle | Stability candidate, private | Frozen closure and release verification |\n| Node.js | Exactly `26.8.1` | `product.json` and `package.json` |\n| Operating environment | Linux or WSL development workspace | Local tests and Unix process behavior |\n| Gateway transport | Local Unix socket. JSON-RPC 2.0 over JSON lines | Gateway suites and loopback canaries |\n| Default host backend | Codex app-server, observed `codex-cli 0.153.0-alpha.5` | Pinned protocol observation and projection |\n| Other agents | Validated JSON-lines process adapter contract | Adapter contract tests. Host translation required |\n| Model transports | OpenAI-compatible, native OpenAI, Anthropic, and Google adapters reach the proposal boundary | Deterministic provider conformance. No general live qualification |\n| Semantic evaluation | Implemented, default disabled | Definition-readiness domain tests |\n| Interaction learning | Prototype, default off | Local lifecycle tests and bounded benchmark |\n| Effect execution | No default authority | Host approval and sandbox remain external boundaries |\n| Durable continuity | File-backed gateway session and Reasoning State paths | Single-writer local profile |\n| Network service | Unsupported | No hosted or multi-tenant boundary |\n\n## Model and context-window qualification\n\nTransport compatibility does not establish useful task performance. Model,\nprovider, effort mode, context window, prompt/runtime profile, task family, and\nscorer version form one qualification identity.\n\n| Research target | Current result |\n| --- | --- |\n| GLM 5.3 Flash 8K chapter | Wrapped with bounded claims and retained evidence |\n| GLM 5.3 Flash 10K | Not qualified by the current reviewed decision |\n| GLM 5.3 Flash 12K | Blocked until a 10K successor passes development and independent confirmation |\n| Other models or domains | No transfer claim without their own evaluation |\n\nThe [Research program](RESEARCH-PROGRAM.md) owns current benchmark interpretation.\nThese rows do not change the product's provider adapter surface.\n\n## Lifecycle states\n\n~~~mermaid\nflowchart LR\n    A[Prototype or research candidate] --> B[Tested product candidate]\n    B --> C[Owner product review]\n    C --> D[Accepted release unit]\n    D --> E[Published artifact]\n    E --> F[Activated deployment]\n~~~\n\nEach transition has a separate owner and evidence requirement. Candidate 018 is\nat the tested product-candidate stage. Its records explicitly leave product\napproval, commit, tag, push, publication, activation, and deployment separate.\n\n## Change compatibility\n\n| Change | Required response |\n| --- | --- |\n| Documentation explanation only | Run documentation verification. Do not change product evidence claims |\n| Package behavior or tested source bytes | Run focused and complete tests. Freeze a successor candidate |\n| Required component, integration, or entrypoint | Update `product.json`, test-plan ownership, and successor evidence |\n| Record schema or profile semantics | Update consumers, negative tests, migration decision, and successor evidence |\n| Host protocol observation | Refresh the pinned observation and selected projection before claiming compatibility |\n| Provider/model/context window | Run a bounded qualification. Do not infer transfer from transport compatibility |\n| Storage representation | Define backup, recovery, compatibility, and rollback before changing persisted data |\n| Public artifact or deployment | Select separate publication and operational routes and owners |\n\n## Version interpretation\n\n`0.10.0-self-contained-candidate.7` identifies the current private product\ncandidate. It is not a public semantic-versioning commitment. The immutable\nCandidate 018 records identify exact bytes more strongly than the human-readable\nversion string.\n\nThe selected [release policy](release-policy.json) begins accepted successor\nversions at `0.10.0-rc.1` under Semantic Versioning and reserves\n`v0.10.0-rc.1` for that separately frozen successor. Candidate 018 keeps its\nexisting identity and remains a private baseline.\n\nHistorical candidate evidence is never rewritten. A successor can supersede a\ncandidate for future use while retaining prior results as history and\ncounterevidence.\n\n## Known unsupported assumptions\n\n- Candidate 018 has a self-contained source closure, but no accepted tag,\n  trusted signature, or public delivery channel exists yet.\n- Windows-native process, socket, and permission behavior is unqualified.\n- A process adapter does not make an arbitrary agent protocol compatible.\n- Provider cache use cannot be inferred when telemetry is absent.\n- Passing a lower or higher context-window experiment does not qualify another\n  window automatically.\n- Local contract tests do not establish hostile multi-tenant security.\n\n## Open Questions\n\n- Which minimal platform matrix is required before a public artifact exists?\n- What compatibility promise should begin with the first externally consumed\n  SDK or gateway protocol?\n- Should host protocol observations have an explicit supported-version range or\n  remain exact-version evidence?\n"
+    },
+    {
+      "id": "gateway",
+      "title": "Connect an agent",
+      "section": "Guides",
+      "summary": "Understand the local gateway, backend adapters, and session boundaries.",
+      "nodes": [
+        "agent",
+        "boundary"
+      ],
+      "file": "GATEWAY-AND-AGENTS.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "2908e8a68e000acd77a479e222eee627ddd11031ae29bce940319f1eea0e90b8",
+      "markdown": "# Gateway and agent integration\n\nThe persistent gateway keeps authenticated agent sessions alive across client\ndisconnects and selected process restarts. It listens on a Unix socket and\nspeaks JSON-RPC 2.0 over JSON lines.\n\n## Backend adapter contract\n\n`are.gateway-backend-adapter/v1` requires:\n\n- a non-empty `adapter_id`.\n- the exact schema version.\n- a `spawn(configuration, dependencies)` function returning a valid process\n  transport with stdin, stdout, stderr, lifecycle events, and `kill`.\n\nCodex is the default backend. `createJsonLineProcessBackendAdapter` connects any\nprocess that implements the same transport. Protocol translation remains the\nadapter's responsibility.\n\n```js\nimport {\n  createJsonLineProcessBackendAdapter,\n  createPersistentGateway,\n} from \"../packages/codex-app-server-wrapper/index.mjs\";\n\nconst backendAdapter = createJsonLineProcessBackendAdapter({\n  adapter_id: \"example-agent/v1\",\n  command: \"/opt/example-agent/bin/server\",\n  args: [\"--json-lines\"],\n});\n\nconst gatewayOptions = {\n  listen_path: \"/run/user/1000/are/example.sock\",\n  backend_adapter: backendAdapter,\n};\n\n// Add a host-specific wrapper_factory before calling\n// createPersistentGateway(gatewayOptions).\n```\n\nThis excerpt shows the boundary, not a complete runnable host. Read\n[`src/backend-adapter.mjs`](../packages/codex-app-server-wrapper/src/backend-adapter.mjs)\nand the gateway tests for the exact contract.\nThe wider package and wire-contract map is in [API and data\ncontracts](API-AND-DATA-CONTRACTS.md).\n\n## Session continuity\n\nThe gateway assigns a runtime epoch, authenticates reconnects with resume\ntokens, retains stable request identities, buffers bounded deliveries, and\ntracks acknowledgements. Completed requests can replay. Requests with unknown\ncrash-time outcomes block instead of being dispatched twice.\n\nThe reusable gateway session client retains credentials and stable request IDs\nacross reconnects. The host must persist or protect credentials according to\nits own threat model.\n\n## Adding another agent\n\n1. Implement or wrap a JSON-lines process backend.\n2. Validate the adapter before starting the gateway.\n3. Map host messages to the wrapper's expected request semantics.\n4. Use stable request IDs and acknowledge deliveries.\n5. Test disconnect, reconnect, duplicate, timeout, and unknown-outcome paths.\n6. Keep effect authorization in the host. The adapter must not infer it.\n\n## Current integration boundary\n\nThere is no hosted endpoint, browser adapter, MCP server, or deployed\nmulti-tenant gateway in Candidate 018. Native Codex canaries are controlled\ncompatibility evidence, not installation.\n\n## Open Questions\n\n- Which non-Codex agent should become the first maintained adapter fixture?\n- Should a future network gateway use mutual TLS or remain behind a local host\n  bridge?\n"
+    },
+    {
+      "id": "workflows",
+      "title": "Follow an ARE workflow",
+      "section": "Guides",
+      "summary": "Follow requests, corrections, and research through their evidence and decisions.",
+      "nodes": [
+        "objective",
+        "decision",
+        "evidence"
+      ],
+      "file": "WORKFLOWS.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "46521c7caee5e80483ac323175a299327b376e8be26199dd801725f8e4bd0508",
+      "markdown": "# End-to-end workflows\n\nThis guide connects ARE's commands and components into complete operator and\ndeveloper journeys. Each workflow names its stopping boundary because a route,\nreceipt, benchmark result, or passing test does not authorize an external\neffect.\n\n## Evaluate one repository request\n\n1. Preserve the user's exact text and assign one caller session ID and one\n   request ID.\n2. Call `decide route` with an `are.cli-request/v1` document.\n3. Read the selected route contract and its `read_first` sources.\n4. Carry the route receipt unchanged into `decide context`.\n5. Perform work within the selected route and existing authorization.\n6. Before a consequential boundary, call `decide effect` with the exact\n   proposal and effect metadata.\n7. At the objective boundary, call `decide continue` with completion evidence\n   and any bounded next options.\n8. Route a selected new objective as a new request.\n\n~~~text\nrequest -> route -> context -> work -> effect boundary -> observed result\n                                      |\n                                      +-> completion -> continue -> stop or new request\n~~~\n\nThe same route receipt binds `context`, `effect`, and `continue` to the original\nrequest and current routing sources. A changed request, session, routing\nprofile, or receipt requires a fresh route decision. See [CLI and\nrouting](CLI.md) and the source-owned [CLI\ncontract](../../../agent-routing/capabilities/are-cli/README.md).\n\n## Connect an agent through the gateway\n\n1. Run `doctor --json` and verify the repository profile.\n2. Place the Unix socket, session store, and Reasoning State directory under a\n   private operator-controlled directory.\n3. Select the Codex backend or provide a validated JSON-lines process adapter.\n4. Start `are gateway` with explicit configuration, repository root, and listen\n   path.\n5. Initialize the host protocol, retain the issued resume credential, and use\n   stable request IDs.\n6. Acknowledge delivered messages. Reconnect with the same consumer identity\n   and resume credential after a transport loss.\n7. Treat an unknown crash-time outcome as blocked. Do not dispatch it again\n   merely because the client did not see a response.\n\nThe gateway provides continuity and bounded replay. The host still owns message\ntranslation, user-visible behavior, effect enforcement, and credential\nprotection. See [Gateway and agents](GATEWAY-AND-AGENTS.md), [API and data\ncontracts](API-AND-DATA-CONTRACTS.md), and [Privacy and\nretention](PRIVACY-AND-RETENTION.md).\n\n## Learn from an interaction correction\n\n1. Complete and identify the original interaction episode.\n2. Accept a correction only with an attributable source, exact target, and\n   explicit participant/product scope.\n3. Record the lesson as a successor record. Do not rewrite the original turn.\n4. Project the lesson only into a later compatible interaction.\n5. Observe literal outcome checks and distinguish delivery, application, and\n   improvement.\n6. Append revisions or revocations and stop projecting superseded lessons.\n7. Send repeated, measured outcomes into the recommend-only research chain.\n\nInteraction learning is a default-off prototype. Its complete capability\ncontract is [Manage interaction context](capabilities/MANAGE-INTERACTION-CONTEXT.md).\n\n## Run a research iteration\n\n1. Start from the [research objective](RESEARCH-PROGRAM.md#research-objective).\n2. State a falsifiable hypothesis, mechanism, control, treatment, metrics,\n   acceptance gates, token accounting, and stopping rule.\n3. Freeze task identities, prompts, scorer, runtime profile, and source hashes\n   before live execution.\n4. Run development evidence, then an independent confirmation or holdout.\n5. Preserve failures and counterevidence.\n6. Close the experiment with `KEEP`, `REJECT`, `INCONCLUSIVE`, or `NOT_RUN`.\n7. Compact reconstructible caches only after retained evidence can reproduce\n   the decision.\n\nResearch evidence can recommend a successor. It does not mutate the serving\nengine or qualify an untested model/context window.\n\n## Change and freeze the product\n\n1. Locate the smallest owning package and its source contract.\n2. Add focused contract tests for changed behavior.\n3. Update `product.json` when a required component, integration, entrypoint, or\n   closure root changes.\n4. Run focused tests, documentation verification, `doctor`, and the complete\n   product suite as applicable.\n5. Freeze a new candidate identity when closure bytes change.\n6. Inspect the frozen candidate and run release verification.\n7. Keep product approval, commit, tag, push, publication, activation, and\n   deployment as separately owned decisions.\n\nSee [Contributing](CONTRIBUTING.md), [Compatibility and\nlifecycle](COMPATIBILITY-AND-LIFECYCLE.md), and [Release and\nevidence](RELEASE-AND-EVIDENCE.md).\n\n## Failure handoff\n\nWhen a workflow blocks, preserve the exact request, reason codes, source or\nreceipt digests, last durable checkpoint, and observed external outcome. Start\nwith [Troubleshooting](TROUBLESHOOTING.md). Create a research hypothesis only\nwhen the failure indicates an uncertain mechanism rather than a known contract\nviolation.\n\n## Open Questions\n\n- Which workflow should become the first fully executable tutorial with a\n  disposable fixture and expected output snapshots?\n- Should gateway and interaction-learning workflows gain operator-facing\n  sequence diagrams generated from their protocol tests?\n"
+    },
+    {
+      "id": "interaction-learning",
+      "title": "Learn from corrections",
+      "section": "Capabilities",
+      "summary": "See how scoped lessons are recorded, reused, and revoked. This prototype is off by default.",
+      "nodes": [
+        "context",
+        "state"
+      ],
+      "file": "capabilities/MANAGE-INTERACTION-CONTEXT.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Prototype · off by default",
+      "sha256": "c64ea0e51b91167e44cdce45247a0acd8ac7fd4b1f6ff13da7791da423944808",
+      "markdown": "# Manage interaction context\n\n**Capability ID:** CA2-CAP-MANAGE-INTERACTION-CONTEXT\n\n**Lifecycle:** Candidate prototype, default off.\n\n**Source contract:** [Product Capability record](../../../../agent-reasoning-engine/capabilities/interaction-context/product-capability.json).\n\n## Outcome\n\nThis child capability learns a scoped lesson from an attributable correction.\nIt measures whether that lesson helps in a later compatible interaction. It\npreserves the correction source, prior episode, changed target, and permitted\nscope. It also preserves revision, revocation, and later outcome information.\n\nThe capability does not treat arbitrary conversation text as durable truth. A\nhost must attest the feedback source, prior episode, target, retention scope,\ncorrection class, and finite outcome checks.\n\n## Inputs\n\n| Input | Purpose |\n| --- | --- |\n| Interaction identity | Binds participant, product, conversation, and turn |\n| Completed episode reference | Identifies the exact prior result being corrected |\n| Attributable correction | Records who corrected what and the correction class |\n| Grounding evidence | Connects the correction to source or literal outcome checks |\n| Retention scope | Limits where the lesson may be projected |\n| Revision or revocation | Changes applicability without deleting history |\n| Later task and outcome | Tests whether a compatible lesson was applied usefully |\n\nAn unattested correction, missing prior episode, wrong product, incompatible\nscope, or missing outcome evidence cannot create a usable lesson.\n\n## Outputs\n\n| Output | Meaning |\n| --- | --- |\n| Interaction learning result | Complete record of correction, scope, application, and measured outcome |\n| Scoped lesson | Explicit or inferred candidate lesson with provenance and applicability |\n| Projection decision | Whether a current interaction may receive the lesson |\n| Application observation | Whether the lesson appeared in a compatible later interaction |\n| Progress signal | Evidence that the correction target improved, repeated, or remained unknown |\n| Research candidate | Recommend-only hypothesis or comparison when repeated evidence warrants study |\n\nThe output remains revisable and revocable. Repeated delivery is not repeated\nlearning, and a lesson that was projected is not necessarily correct or useful.\n\n## Lifecycle\n\n~~~mermaid\nflowchart TD\n    A[Completed interaction] --> B[Attributable correction]\n    B --> C[Validate source target and scope]\n    C --> D[Create scoped lesson]\n    D --> E[Persist through existing state and ledger]\n    E --> F[Match a later interaction]\n    F -->|compatible| G[Project bounded lesson]\n    F -->|incompatible| H[Do not project]\n    G --> I[Observe literal outcome checks]\n    I --> J[Measure progress]\n    J -->|supported pattern| K[Recommend research candidate]\n    J -->|no gain or regression| L[Retain counterevidence]\n    J -->|revision or revocation| M[Close prior applicability]\n~~~\n\n## Scope and projection\n\nThe interaction scope includes one participant, one product, and explicitly\ncontrolled retention. Projection requires a compatible target and scope. A\ngeneric summary, explicit preference, and inferred scoped lesson remain distinct\nvariants because they carry different evidence and generalization risks.\n\n[Request intent runtime](../../packages/request-intent-runtime/README.md) owns\ninteraction state, grounding, preferences, lesson application, and the joined\nlearning loop. [Conversation runtime](../../packages/conversation-runtime/README.md)\nowns ordered interaction and pending human decisions. The\n[Codex wrapper](../../packages/codex-app-server-wrapper/README.md) exposes\ninspection, controls, and lifecycle integration without creating another\ndispatch or continuation authority.\n\n## Learning and research\n\n[Evolution runtime](../../packages/evolution-runtime/README.md) receives measured\ninteraction signals through the existing research chain. It may create a\nhypothesis, experiment, observation, and recommend-only decision. Missing\nproviders, no gain, or a negative comparison remain visible outcomes.\n\nThe capability reuses the parent reasoning-state ledger and gateway continuity.\nIt does not create a separate durable-session authority or overwrite prior\ninteraction records.\n\n## Failure and recovery behavior\n\n| Condition | Required behavior |\n| --- | --- |\n| Feedback source is missing | Reject lesson creation |\n| Prior episode cannot be verified | Reject attribution |\n| Scope does not match | Do not project the lesson |\n| Lesson is revised | Append the revision and stop using the superseded version |\n| Lesson is revoked | Preserve history and prevent future projection |\n| Outcome evidence is missing | Record unknown. Do not claim improvement |\n| Same lesson is delivered repeatedly | Keep one learning identity and record delivery separately |\n| Provider or judge is unavailable | Return NOT_RUN or incomplete without invented measurements |\n| Comparison shows no gain | Preserve counterevidence and avoid activation |\n| Restart occurs | Recover from the existing durable state boundary and verify identity |\n\n## Verification\n\nThe [interaction learning benchmark](../../benchmarks/real-reasoning-v1/interaction-learning/README.md)\ncontains 48 synthetic three-turn episodes in eight families, with development,\nregression, and holdout partitions, four variants, and two replays:\n\n- V0: no retained interaction lesson.\n- V1: generic retained summary.\n- V2: explicit preferences.\n- V3: explicit and inferred scoped lessons.\n\nThe mock mode exercises correction, application, repeated failure, a research\ncycle, negative comparison, restart, and revocation. The live canary is a bounded\ncompatibility and completion smoke test. Neither establishes generalized model\nimprovement.\n\n~~~sh\ncd benchmarks/real-reasoning-v1/interaction-learning\nnode runner.mjs --mode mock\nnode runner.mjs --mode local-benchmark\nnode runner.mjs --mode live-canary\n~~~\n\nRun these commands from implementation/agent-reasoning-engine. Live mode has a\n24-turn ceiling, uses read-only ephemeral scratch threads, and makes no judge\ncalls.\n\n## Authority and privacy boundaries\n\nInteraction retention is explicit, participant-scoped, and default off. The\nprototype does not authorize account-wide memory, infer consent, or establish a\nphysical erasure policy. It stores bounded system records rather than hidden\nchain-of-thought.\n\nSource attribution and literal checks do not establish general semantic truth.\nA passing synthetic benchmark does not approve the capability, activate serving,\npublish, deploy, or authorize an effect.\n\n## Current limitations\n\n- The capability is a local prototype and default off.\n- The corpus is synthetic and its scenario families are correlated.\n- Scripted outputs are not a baseline model-quality comparison.\n- Production feedback and outcome attestation are unresolved.\n- External generalization evidence does not yet exist.\n- Long-term retention and physical erasure policy remain unresolved.\n\n## Open Questions\n\n- Which production host can attest feedback and outcome checks?\n- Which external corpus can test lesson transfer without exposing private history?\n- What retention, expiration, export, and physical erasure rules should apply?\n- How should conflicting lessons from the same participant be ranked or gated?\n- What evidence would justify enabling this capability outside a bounded canary?\n"
+    },
+    {
+      "id": "operations",
+      "title": "Operate and recover safely",
+      "section": "Operations",
+      "summary": "Manage retained state, credentials, recovery, and uncertain tool outcomes.",
+      "nodes": [
+        "boundary",
+        "evidence",
+        "state"
+      ],
+      "file": "OPERATIONS-AND-SECURITY.md",
+      "version": "0.10.0-self-contained-candidate.7",
+      "status": "Development candidate",
+      "sha256": "b94af1b7f25f5951c16c7eb497f0d519618493681c6a18d7d11acd23335af669",
+      "markdown": "# Operations and security\n\n## Operational checklist\n\n1. Use the Node version declared in `product.json`.\n2. Run `doctor --json` before starting a host.\n3. Inspect Candidate 018 and run release verification for a release workspace.\n4. Place gateway sockets and state below a user-private directory.\n5. Set explicit storage, buffer, idle, and retention limits.\n6. Monitor gateway stderr, closed sessions, expiry, replay, and unknown outcomes.\n7. Back up append-only state before migration.\n8. Stop and inspect source drift instead of overwriting candidate evidence.\n\n## Secrets\n\nThe coding runtime supports secret-provider contracts, including a SOPS/age\nprovider. Secrets enter only the tool/provider boundary that needs them. Do not\nplace credentials in prompts, receipts, source closures, examples, or test\nfixtures. Release verification scans the closure for common private-key and\ntoken forms. This supplements rather than replaces proper secret handling.\n\nSee [Privacy and retention](PRIVACY-AND-RETENTION.md) for the stored data\nclasses, current limits, and unresolved physical-erasure boundary.\nSee the [Candidate 018 threat model](THREAT-MODEL.md) for assets, trust\nboundaries, current mitigations, and residual gaps.\n\n## Effects\n\nKeep evaluation and execution separate. An `effect` result identifies\nconsequence, reversibility, and owner gates for one exact proposal. The host\nmust enforce its own approval and sandbox policy and record the observed\nresult. Unknown outcomes must not be retried blindly.\n\n## Storage\n\nIsolated product tests create temporary closures and remove successful runs.\nFailed runs may remain for diagnosis. ContextBench caches are research storage\nand follow their own compaction and retention manifests. Before a large run,\ninspect free disk space and set a bounded cache root.\n\n## Recovery\n\nOn restart, verify state and journal digests before replay. Restore the latest\nvalid checkpoint, replay later verified events, rebuild derived indexes, and\npreserve unknown external outcomes as blocked records. Do not infer success\nfrom a missing process.\n\n## Security claim boundary\n\nCandidate 018 validates local contracts and controlled canaries. It does not\nclaim hostile multi-tenant isolation, network service hardening, complete\ncredential scanning, or a production sandbox.\n\n## Open Questions\n\n- Which operational profile should define default retention and disk limits\n  outside the development workstation?\n- Which threat model should gate any future network-accessible gateway?\n"
+    }
+  ],
+  "inventory": [
+    {
+      "file": "README.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "OVERVIEW.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "GETTING-STARTED.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Requires standalone package prerequisites and validated delivery instructions before public use."
+    },
+    {
+      "file": "CONCEPTS.md",
+      "disposition": "local-preview",
+      "document": "concepts",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "capabilities/README.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "capabilities/REASON-AND-MANAGE-CONTEXT.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "capabilities/MANAGE-INTERACTION-CONTEXT.md",
+      "disposition": "local-preview",
+      "document": "interaction-learning",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "WORKFLOWS.md",
+      "disposition": "local-preview",
+      "document": "workflows",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "ARCHITECTURE.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "COMPONENTS-AND-INTEGRATIONS.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "API-AND-DATA-CONTRACTS.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "CLI.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "CONFIGURATION.md",
+      "disposition": "local-preview",
+      "document": "configuration",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "GATEWAY-AND-AGENTS.md",
+      "disposition": "local-preview",
+      "document": "gateway",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "COMPATIBILITY-AND-LIFECYCLE.md",
+      "disposition": "local-preview",
+      "document": "compatibility",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "STATE-LEARNING-AND-CONVERSATION.md",
+      "disposition": "local-preview",
+      "document": "working-memory",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "PRIVACY-AND-RETENTION.md",
+      "disposition": "local-preview",
+      "document": "privacy",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "OPERATIONS-AND-SECURITY.md",
+      "disposition": "local-preview",
+      "document": "operations",
+      "reason": "Reviewed explanatory content; candidate status retained. Unpublished source links are explicitly unavailable."
+    },
+    {
+      "file": "THREAT-MODEL.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "TROUBLESHOOTING.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "EVALUATION-AND-RESEARCH.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "RESEARCH-PROGRAM.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "RELEASE-AND-EVIDENCE.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "DOCUMENTATION-CONTRACT.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "WRITING-STYLE.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "DEPLOYMENT.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Requires standalone package prerequisites and validated delivery instructions before public use."
+    },
+    {
+      "file": "MIGRATION-AND-UPGRADE.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "reference/API-FIELDS.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "SECURITY-POLICY.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "SERVICE-LEVEL-OBJECTIVES.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "SERVICE-RUNBOOK.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "../CHANGELOG.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "releases/0.10.0-self-contained-candidate.7.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "releases/0.10.0-self-contained-candidate.6.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "releases/0.10.0-self-contained-candidate.4.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "releases/0.10.0-signed-envelope-candidate.2.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "COMPLIANCE.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "CONTRIBUTING.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "GLOSSARY.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "SOURCE-MAP.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    },
+    {
+      "file": "DOCUMENTATION-COVERAGE.md",
+      "disposition": "withheld",
+      "document": null,
+      "reason": "Not included in the reviewed public allowlist; internal references, version claims, or publication suitability need review."
+    }
+  ],
+  "unavailableReferences": [
+    {
+      "document": "privacy",
+      "label": "`repository-v1.json`",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "compatibility",
+      "label": "`compatibility-matrix.json`",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "compatibility",
+      "label": "`compatibility-matrix-receipt.json`",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "compatibility",
+      "label": "Research program",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "compatibility",
+      "label": "release policy",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "gateway",
+      "label": "`src/backend-adapter.mjs`",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "gateway",
+      "label": "API and data\ncontracts",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "CLI and\nrouting",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "CLI\ncontract",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "API and data\ncontracts",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "research objective",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "Contributing",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "Release and\nevidence",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "workflows",
+      "label": "Troubleshooting",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "interaction-learning",
+      "label": "Product Capability record",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "interaction-learning",
+      "label": "Request intent runtime",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "interaction-learning",
+      "label": "Conversation runtime",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "interaction-learning",
+      "label": "Codex wrapper",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "interaction-learning",
+      "label": "Evolution runtime",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "interaction-learning",
+      "label": "interaction learning benchmark",
+      "reason": "Reference outside reviewed public allowlist"
+    },
+    {
+      "document": "operations",
+      "label": "Candidate 018 threat model",
+      "reason": "Reference outside reviewed public allowlist"
+    }
+  ]
+}

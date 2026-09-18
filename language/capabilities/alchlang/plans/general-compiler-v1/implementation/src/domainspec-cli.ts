@@ -12,11 +12,22 @@ export interface DomainSpecGraph {
   project_id: string;
   nodes: Array<{ selector: string; kind: string; meta_type_id: string; body: unknown }>;
   relationships: Array<{ edge_id: string; relationship: string; source: { feature_id: string; node_id: string }; target: { feature_id: string; node_id: string } }>;
-  source_manifest: { manifest_sha256: string };
+  source_manifest: { manifest_sha256: string; sources?: readonly { relative_path: string; sha256: string; size_bytes: number }[] };
   authority_effect: "none";
 }
 export interface DomainSpecIo { stdout(value: string): void; stderr(value: string): void }
 export interface DomainSpecCompiler {
+  composeApplicationArtifacts(plan: any, source: unknown, binding: unknown): { artifacts: readonly { relative_path: string; content: string; sha256: string; size_bytes: number }[]; plan_sha256: string; runtime_guarantees_observed: false; authority_effect: "none" };
+  compileApplicationRuntimeBinding(graph: DomainSpecGraph, source: unknown, providers: unknown, selection: unknown): any;
+  compileProviderRuntimeProfile(input: unknown, requirements: unknown): { selection: { language: "typescript" | "python" | "rust"; [key: string]: unknown }; requirements: Record<string, string>; selection_sha256: string; requirements_sha256: string; runtime_guarantees_observed: false; authority_effect: "none" };
+  compileExternalApiRuntimeBindings(graph: DomainSpecGraph, input: unknown, selection: unknown): any;
+  compileExternalApiComposition(input: unknown): any;
+  compileMessagingRuntimeBindings(graph: DomainSpecGraph, input: unknown, selection: unknown): any;
+  compileMessagingComposition(input: unknown): any;
+  compilePersistenceComposition(input: unknown): any;
+  decodeReconciledCompilationSelection(input: unknown): any;
+  planApplicationRealization(graph: DomainSpecGraph, selection: unknown): { plan: any; view: { artifacts: readonly { relative_path: string; content: string; sha256: string; size_bytes: number }[]; [key: string]: unknown } };
+  compileFormalConditionBindings(graph: DomainSpecGraph, input: unknown, sources: ReadonlyMap<string, Buffer>): unknown;
   loadApplicationOntology(input:unknown,root:string):any;
   checkApplicationOntology(input:unknown,root:string):any;
   buildApplicationOntology(input:unknown,root:string,output:string):any;
@@ -93,7 +104,73 @@ export async function loadDomainSpecCompiler(packageRoot = defaultDomainSpecPack
   if (versionCode !== 0 || version.trim() !== DOMAINSPEC_VERSION) throw new Error("DOMAINSPEC_BUILD_MISMATCH: CLI version does not match public API");
   const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
   const requireLayout=()=>{if(api.APPLICATION_LAYOUT?.id!=="domainspec.application-layout/v1" || !api.APPLICATION_PATHS || typeof api.outputImport!=="function")throw Error("DOMAINSPEC_APPLICATION_LAYOUT_BUILD_REQUIRED");};
+  const decodeExecutionSelection=(input:unknown)=>{
+    const version=input&&typeof input==='object'?Object.getOwnPropertyDescriptor(input,'schema_version'):undefined;
+    const decode=version?.value==='domainspec.reconciled-compilation/v2-candidate'?api.decodeComposedReconciledCompilationSelection:api.decodeReconciledCompilationSelection;
+    if(typeof decode!=='function')throw Error('DOMAINSPEC_REALIZATION_BUILD_REQUIRED');
+    return decode(input);
+  };
   return {
+    composeApplicationArtifacts(plan, source, binding) {
+      if (typeof api.assertReconciledProjectPlan !== "function" || typeof api.planEmbeddedIntegrationContributionV1 !== "function") throw Error("DOMAINSPEC_WHOLE_APPLICATION_BUILD_REQUIRED");
+      api.assertReconciledProjectPlan(plan);
+      const compose = plan.selection.schema_version === "domainspec.reconciled-compilation/v2-candidate"
+        ? api.composeComposedWholeApplicationPlan : api.composeWholeApplicationPlanV1;
+      if (typeof compose !== "function") throw Error("DOMAINSPEC_WHOLE_APPLICATION_BUILD_REQUIRED");
+      const contribution = api.planEmbeddedIntegrationContributionV1(source, plan.selection.language);
+      return compose(plan, contribution, binding);
+    },
+    compileApplicationRuntimeBinding(graph, source, providers, selection) {
+      if (typeof api.compileApplicationRuntimeBindingV1 !== "function") throw Error("DOMAINSPEC_APPLICATION_RUNTIME_BUILD_REQUIRED");
+      const result = api.compileApplicationRuntimeBindingV1(graph, source, providers);
+      const executable = decodeExecutionSelection(selection);
+      if (executable.language !== result.language) throw Error("DOMAINSPEC_APPLICATION_RUNTIME_TARGET");
+      api.validateOperationRequestContracts({ selection: executable }, result.binding.application_graph.operation_requests, result.binding.application_graph.runtime_bindings);
+      return result;
+    },
+    compileProviderRuntimeProfile(input, requirements) {
+      if (typeof api.resolveProviderRuntimeProfileV1 !== "function") throw Error("DOMAINSPEC_RUNTIME_PROFILE_BUILD_REQUIRED");
+      return api.resolveProviderRuntimeProfileV1(input, requirements);
+    },
+    compileExternalApiRuntimeBindings(graph, input, selection) {
+      if (typeof api.compileExternalApiRuntimeBindingsV1 !== "function" || typeof api.validateOperationRequestContracts !== "function") throw Error("DOMAINSPEC_EXTERNAL_API_JOIN_BUILD_REQUIRED");
+      const joined = api.compileExternalApiRuntimeBindingsV1(graph, input);
+      api.validateOperationRequestContracts({ selection: decodeExecutionSelection(selection) }, joined.operation_requests, joined.runtime_bindings);
+      return joined;
+    },
+    compileExternalApiComposition(input) {
+      if (typeof api.compileExternalApiCompositionV2 !== "function") throw Error("DOMAINSPEC_EXTERNAL_API_BUILD_REQUIRED");
+      return api.compileExternalApiCompositionV2(input);
+    },
+    compileMessagingRuntimeBindings(graph, input, selection) {
+      if (typeof api.compileMessagingRuntimeBindingsV1 !== "function" || typeof api.validateOperationRequestContracts !== "function") throw Error("DOMAINSPEC_MESSAGING_JOIN_BUILD_REQUIRED");
+      const joined = api.compileMessagingRuntimeBindingsV1(graph, input);
+      api.validateOperationRequestContracts({ selection: decodeExecutionSelection(selection) }, joined.operation_requests, joined.runtime_bindings);
+      return joined;
+    },
+    compileMessagingComposition(input) {
+      if (typeof api.compileMessagingCompositionV2 !== "function") throw Error("DOMAINSPEC_MESSAGING_BUILD_REQUIRED");
+      return api.compileMessagingCompositionV2(input);
+    },
+    compilePersistenceComposition(input) {
+      if (typeof api.compilePersistenceCompositionV2 !== "function") throw Error("DOMAINSPEC_PERSISTENCE_BUILD_REQUIRED");
+      return api.compilePersistenceCompositionV2(input);
+    },
+    decodeReconciledCompilationSelection(input) {
+      return decodeExecutionSelection(input);
+    },
+    planApplicationRealization(graph, selection) {
+      if (typeof api.planCompiledReconciledProject !== "function" || typeof api.selectReconciledArtifacts !== "function") throw Error("DOMAINSPEC_REALIZATION_BUILD_REQUIRED");
+      const decoded=decodeExecutionSelection(selection);
+      const generate=decoded.schema_version==='domainspec.reconciled-compilation/v2-candidate'?api.planCompiledComposedReconciledProject:api.planCompiledReconciledProject;
+      if(typeof generate!=='function')throw Error('DOMAINSPEC_REALIZATION_BUILD_REQUIRED');
+      const plan = generate(graph, decoded);
+      return { plan, view: api.selectReconciledArtifacts(plan) };
+    },
+    compileFormalConditionBindings(graph, input, sources) {
+      if (typeof api.compileFormalConditionBindings !== "function") throw Error("DOMAINSPEC_FORMAL_BINDING_BUILD_REQUIRED");
+      return api.compileFormalConditionBindings(graph, input, sources);
+    },
     loadApplicationOntology(input,root){if(typeof api.loadApplicationOntology!=="function")throw Error("DOMAINSPEC_APPLICATION_BUILD_REQUIRED");return api.loadApplicationOntology(input,root);},
     checkApplicationOntology(input,root){if(typeof api.checkApplicationOntology!=="function")throw Error("DOMAINSPEC_APPLICATION_BUILD_REQUIRED");return api.checkApplicationOntology(input,root);},
     buildApplicationOntology(input,root,output){if(typeof api.buildApplicationOntology!=="function")throw Error("DOMAINSPEC_APPLICATION_BUILD_REQUIRED");return api.buildApplicationOntology(input,root,output);},

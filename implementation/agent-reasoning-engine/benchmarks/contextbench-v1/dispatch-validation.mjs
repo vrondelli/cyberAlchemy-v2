@@ -3,8 +3,9 @@
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
+import {classifyBoundedIndeterminateModelFailure} from './indeterminate-token-accounting.mjs';
 
-const allowed = new Set(['final_context_selected', 'no_context_selected', 'invalid_final_response', 'token_budget_stopped', 'context_budget_stopped', 'call_budget_exhausted']);
+const allowed = new Set(['shared_prefix_ready', 'final_context_selected', 'no_context_selected', 'invalid_final_response', 'token_budget_stopped', 'context_budget_stopped', 'call_budget_exhausted']);
 const localTokenizerFailures = new Set(['request-failed', 'deadline-exceeded']);
 const localModelOutputFailures = new Map([
   ['message-invalid', null],
@@ -35,6 +36,7 @@ function accountedLocalFailure(result) {
 }
 export function validateDispatchCompletion({cell, root}) {
   const issues = [], add = (path, code) => issues.push({path, code});
+  const scoringRequired=cell?.cell_kind!=='shared-prefix';
   function read(name) {
     let bytes;
     try { bytes = readFileSync(resolve(root, name)); }
@@ -57,7 +59,7 @@ export function validateDispatchCompletion({cell, root}) {
       add('completed.json/result_sha256', 'dispatch.result-integrity');
     if (c.status !== r.status) add('completed.json/status', 'dispatch.status-mismatch');
   }
-  const localFailure = accountedLocalFailure(r);
+  const localFailure = accountedLocalFailure(r) ?? classifyBoundedIndeterminateModelFailure(r);
   if (r) {
     if (r.cell_id !== cell.cell_id) add('result.json/cell_id', 'dispatch.cell-mismatch');
     if (r.instance_id !== cell.instance_id) add('result.json/instance_id', 'dispatch.instance-mismatch');
@@ -73,7 +75,7 @@ export function validateDispatchCompletion({cell, root}) {
       if (!object(r.native_export) && r.export_error == null)
         add('result.json/native_export', 'dispatch.missing-final-export');
     } else if (r.native_export != null) add('result.json/native_export', 'dispatch.export-without-final-selection');
-    if (object(r.native_export)) {
+    if (object(r.native_export) && scoringRequired) {
       const scoring = read('scoring-status.json'), prediction = read('prediction.json'), score = read('native-score.json');
       if (scoring) {
         if (scoring.value.exit_code !== 0) add('scoring-status.json/exit_code', 'dispatch.scoring-failed');

@@ -3,7 +3,7 @@ import {fileURLToPath} from "node:url";
 import {dirname, resolve} from "node:path";
 
 import {evaluateContinuation, loadVerifiedDecisionProfile, routeRequest} from "../index.mjs";
-import {createAlchSemanticModulePort} from "../../module-port/alch-semantic-adapter.mjs";
+import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../../../../..");
@@ -12,7 +12,7 @@ const loaded = loadVerifiedDecisionProfile(resolve(packageRoot, "profiles/cybera
 const profileLoadMs = performance.now() - loadStart;
 if (!loaded.ok) throw new Error(loaded.reason_codes.join(","));
 const profile = loaded.value;
-const modulePort = createAlchSemanticModulePort();
+const modulePort = createNativeSemanticModulePort();
 const context = {schema_version: "are.request-context/v1", request_id: "BENCH", raw_request: "Please clarify intent and define this concept.", objective_kind: null, requested_effects: [], target_refs: [], constraints: [], evidence_refs: ["benchmark"]};
 const continuation = {completion: {completion_id: "BENCH-C", status: "completed", continuation_required: true, evidence_refs: []}, options: [{option_id: "BENCH-O", route_id: "CA2-ROUTE-VALIDATE", effect_classes: ["non-effectful-validate"], reversible: true, owner_gate_ref: null, structurally_admissible: true, rejection_reasons: []}]};
 

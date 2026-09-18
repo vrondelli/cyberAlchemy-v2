@@ -1,5 +1,7 @@
 # ARE Coding-Agent Runtime
 
+Command examples require Node 26.8.1 on PATH and run from this package directory.
+
 This package is an `L2` candidate implementation of one model-driven coding
 turn. It captures an exact read-only observation set, builds a deterministic
 prompt, obtains final bytes through an injected model transport, and passes
@@ -80,7 +82,7 @@ conformance surface exist.
 The configured CLI can now run the bounded iterative loop directly:
 
 ```bash
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/run.mjs \
+node bin/run.mjs \
   --iterative \
   --config /exact/path/agent-config.json \
   --root /exact/path/repository \
@@ -346,7 +348,7 @@ constructing the model request:
 The first command always stops with an immutable `AWAITING_APPROVAL` proposal:
 
 ```bash
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/run.mjs \
+node bin/run.mjs \
   --config /exact/path/agent-config.json \
   --root /exact/repository/root \
   --request "Repair the selected implementation." \
@@ -357,11 +359,11 @@ After inspecting the candidate bytes and target, apply that saved proposal by
 supplying its exact `approval_digest`:
 
 ```bash
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node bin/run.mjs \
+node bin/run.mjs \
   --config /exact/path/agent-config.json \
   --root /exact/repository/root \
   --apply-proposal /tmp/are-proposal.json \
-  --approve-digest <exact-candidate-sha256>
+  --approve-digest 'exact-candidate-sha256'
 ```
 
 Application performs no second model call and retrieves no secret. Candidate,
@@ -424,7 +426,7 @@ postimage.
 For the smallest direct App Server test, run this from the package directory:
 
 ```bash
-/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node ../../bin/are.mjs coding-agent live-demo --codex-command /exact/path/to/codex --approve --keep
+node ../../bin/are.mjs coding-agent live-demo --codex-command /exact/path/to/codex --approve --keep
 ```
 
 Omit `--approve` to prove that a model-produced candidate stops before fixture
