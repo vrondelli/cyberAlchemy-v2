@@ -1,0 +1,79 @@
+{
+  "schema_version": "auth-foundation.trusted-input-business-ontology/v1-candidate",
+  "ontology_id": "AUTH-ONTOLOGY-TRUSTED-AUTHORIZATION-INPUTS",
+  "ontology_type": "capability-local-business-domain",
+  "lifecycle_status": "authored-candidate-awaiting-definition-owner-admission",
+  "capability_ref": "CA2-CAP-RESOLVE-TRUSTED-AUTHORIZATION-INPUTS",
+  "definition_source": {
+    "path": "implementation/trusted-input-definitions.json",
+    "sha256": "611088ee3d4e14c31c8087cff64b3546320391a6036bbcd5d8689ce4e543c925",
+    "admission_state": "pending-owner-review",
+    "definition_ids": [
+      "AUTH-TI-DEF-AUTHENTICATION-EVIDENCE-REPOSITORY",
+      "AUTH-TI-DEF-ROUTE-AUTHORIZATION-REPOSITORY",
+      "AUTH-TI-DEF-CURRENT-AUTHENTICATION-EVIDENCE",
+      "AUTH-TI-DEF-ACTIVE-ROUTE-BINDING",
+      "AUTH-TI-DEF-COMPLETE-RESOLUTION",
+      "AUTH-TI-DEF-RESOLUTION-FAILURE"
+    ]
+  },
+  "construction_state": {
+    "canonical_definitions": "authored-candidate-not-admitted",
+    "product_capability": "authored-candidate-not_evaluable-for-adoption",
+    "business_ontology": "authored-candidate-not_evaluable-for-admission"
+  },
+  "nodes": [
+    {"id":"AUTH-TI-AUTHENTICATION-EVIDENCE","type":"AuthenticationEvidence","meaning":"One server-owned logical authentication-evidence record, independent of persistence technology."},
+    {"id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","type":"RouteAuthorizationBinding","meaning":"One server-owned logical route-authorization binding, independent of persistence technology."},
+    {"id":"AUTH-TI-QUERY","type":"TrustedInputQuery","meaning":"Opaque selectors plus injected decision time."},
+    {"id":"AUTH-TI-SNAPSHOT","type":"TrustedInputSnapshot","meaning":"Complete matching logical record sets with multiplicity preserved."},
+    {"id":"AUTH-TI-RESOLUTION","type":"TrustedInputResolution","meaning":"Resolved snapshot or fail-closed Deny."}
+  ],
+  "properties": [
+    {"property_id":"AUTH-TI-AUTHENTICATION-EVIDENCE#evidence_identity","owner":"AUTH-TI-AUTHENTICATION-EVIDENCE","name":"evidence_identity","type":"UInt64","cardinality":"one","identity":true},
+    {"property_id":"AUTH-TI-AUTHENTICATION-EVIDENCE#evidence_ref","owner":"AUTH-TI-AUTHENTICATION-EVIDENCE","name":"evidence_ref","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-AUTHENTICATION-EVIDENCE#session_id","owner":"AUTH-TI-AUTHENTICATION-EVIDENCE","name":"session_id","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-AUTHENTICATION-EVIDENCE#trusted","owner":"AUTH-TI-AUTHENTICATION-EVIDENCE","name":"trusted","type":"Bool","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-AUTHENTICATION-EVIDENCE#revoked","owner":"AUTH-TI-AUTHENTICATION-EVIDENCE","name":"revoked","type":"Bool","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-AUTHENTICATION-EVIDENCE#expires_at","owner":"AUTH-TI-AUTHENTICATION-EVIDENCE","name":"expires_at","type":"UInt64","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#binding_identity","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"binding_identity","type":"UInt64","cardinality":"one","identity":true},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#route_id","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"route_id","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#resource","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"resource","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#action","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"action","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#scope","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"scope","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#scope_evidence_ref","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"scope_evidence_ref","type":"String","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#complete","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"complete","type":"Bool","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING#enabled","owner":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING","name":"enabled","type":"Bool","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-QUERY#authentication_evidence_ref","owner":"AUTH-TI-QUERY","name":"authentication_evidence_ref","type":"String","cardinality":"one","identity":true},
+    {"property_id":"AUTH-TI-QUERY#route_id","owner":"AUTH-TI-QUERY","name":"route_id","type":"String","cardinality":"one","identity":true},
+    {"property_id":"AUTH-TI-QUERY#decision_time","owner":"AUTH-TI-QUERY","name":"decision_time","type":"UInt64","cardinality":"one","identity":false},
+    {"property_id":"AUTH-TI-SNAPSHOT#authentication_evidence","owner":"AUTH-TI-SNAPSHOT","name":"authentication_evidence","type":"List<AuthenticationEvidence>","cardinality":"many","identity":false},
+    {"property_id":"AUTH-TI-SNAPSHOT#route_bindings","owner":"AUTH-TI-SNAPSHOT","name":"route_bindings","type":"List<RouteAuthorizationBinding>","cardinality":"many","identity":false}
+  ],
+  "variants": [
+    {"variant_id":"AUTH-TI-RESOLUTION#Resolved","owner":"AUTH-TI-RESOLUTION","name":"Resolved","payload_type":"TrustedInputSnapshot"},
+    {"variant_id":"AUTH-TI-RESOLUTION#Deny","owner":"AUTH-TI-RESOLUTION","name":"Deny","payload_type":null}
+  ],
+  "rules": [
+    {"rule_id":"AUTH-TI-RULE-QUERY-VALID","statement":"Authentication-evidence and route selectors are non-empty.","failure_behavior":"Deny without authority."}
+  ],
+  "queries": [
+    {"query_id":"AUTH-TI-QUERY-RESOLVE-TRUSTED-INPUTS","name":"resolve-trusted-inputs","inputs":[{"name":"query","type":"TrustedInputQuery"},{"name":"snapshot","type":"TrustedInputSnapshot"}],"output":"TrustedInputResolution","rule_refs":["AUTH-TI-RULE-QUERY-VALID"],"reads":["AUTH-TI-AUTHENTICATION-EVIDENCE","AUTH-TI-ROUTE-AUTHORIZATION-BINDING"],"writes":[],"effects":[],"failure_continuation":"return-deny-without-authority"}
+  ],
+  "relations": [
+    {"id":"AUTH-TI-REL-READS-AUTH-EVIDENCE","type":"reads","source":"AUTH-TI-QUERY-RESOLVE-TRUSTED-INPUTS","target":"AUTH-TI-AUTHENTICATION-EVIDENCE"},
+    {"id":"AUTH-TI-REL-READS-ROUTE-BINDING","type":"reads","source":"AUTH-TI-QUERY-RESOLVE-TRUSTED-INPUTS","target":"AUTH-TI-ROUTE-AUTHORIZATION-BINDING"},
+    {"id":"AUTH-TI-REL-SUPPLIES-COMMAND-BOUNDARY","type":"supplies","source":"AUTH-TI-SNAPSHOT","target":"AUTH-ONTOLOGY-AUTHORIZATION-COMMAND-BOUNDARY"}
+  ],
+  "policy_decision": {
+    "domainspec_policy_used": false,
+    "reason": "There is one fixed resolution strategy. Selectable policy is deferred until a second legitimate strategy exists."
+  },
+  "predecessor": {
+    "path": "implementation/standard-conformance/command-boundary-evidence.json",
+    "sha256": "9b67cedad9fd9415ed94ac9dbd62ac6a12d5ef110b203fca7ba3d0bd23835635",
+    "role": "admitted command-boundary meaning and bounded local evidence"
+  },
+  "authority_effect": "none",
+  "claim_limit": "Authored capability-local ontology candidate; definitions remain unadmitted, so adoption, semantic admission, and semantic conformance are not claimed."
+}

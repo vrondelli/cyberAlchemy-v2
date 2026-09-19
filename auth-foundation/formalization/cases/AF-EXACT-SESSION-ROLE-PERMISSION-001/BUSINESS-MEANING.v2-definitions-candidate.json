@@ -1,0 +1,1068 @@
+{
+  "schema_version": "domainspec-v2.business-meaning/v2-candidate",
+  "meaning_id": "BusinessMeaning:auth-foundation.exact-session-role-permission",
+  "version": "2-definitions-candidate",
+  "owner": "projects/auth-foundation/formalization",
+  "status": "draft",
+  "supersedes": "BusinessMeaning:auth-foundation.exact-session-role-permission@1-accepted",
+  "supersession_effect": "lineage-only-until-accepted",
+  "base_accepted_meaning_ref": {
+    "path": "projects/auth-foundation/formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/BUSINESS-MEANING.accepted.json",
+    "sha256": "ab34e154170d0bc485dd3634e8a9211a689c1eb922542e3b14d613312a915913",
+    "size_bytes": 6152,
+    "current": true
+  },
+  "definition_source_ref": {
+    "path": "projects/auth-foundation/formalization/ontology/authorization.ontology.json",
+    "sha256": "40f9ffb89116b8c51bec376e3524303fb02474f50623842372b8d38bcb47f3df",
+    "size_bytes": 37994,
+    "current": true
+  },
+  "interpretation_model_ref": {
+    "path": "projects/auth-foundation/formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/INTERPRETATION-MODEL.accepted.json",
+    "sha256": "ffc382f2cf370a0fb02f47cea3d8cd72f5bba3d70571fe89cc78155258d3d465",
+    "size_bytes": 10513,
+    "current": true
+  },
+  "definition_policy": {
+    "canonical_location": "inline-in-this-business-meaning",
+    "normative_voice": "formal",
+    "explanatory_voices": [
+      "plain_language",
+      "domain_context"
+    ],
+    "conflict_rule": "formal-voice-prevails"
+  },
+  "domain_context": "Internal authorization of one protected operation using a server-recognized session, its active roles, and one trusted required permission.",
+  "rule": "An authorization request is ALLOW exactly when its session is admissible and at least one role active in that session grants a permission whose resource, action, and scope exactly equal the required permission. Every other case is DENY.",
+  "applies_when": [
+    "trusted application code has constructed one internal AuthorizationRequest",
+    "the request identifies one server-recognized session",
+    "the authorization evaluator receives a complete authoritative role relation for the session authorization revision",
+    "permissions use exact resource, action, and scope equality"
+  ],
+  "actors": [
+    "authenticated user represented by the session",
+    "trusted application code constructing the authorization request",
+    "authorization evaluator"
+  ],
+  "inputs": [
+    "AuthorizationRequest(session_id, required_permission, scope_evidence_ref)",
+    "Session(session_id, user_id, status, active_role_ids, authorization_revision, expires_at)",
+    "complete authoritative roles for the session authorization revision",
+    "current authorization revision and decision time"
+  ],
+  "outcomes": [
+    "ALLOW when every admissibility condition holds and an active role grants the exact required permission",
+    "DENY when the session is missing, inactive, expired, revoked, stale, or otherwise inadmissible",
+    "DENY when scope evidence is not trusted",
+    "DENY when no active role grants the exact required permission"
+  ],
+  "examples": [
+    {
+      "case_id": "AF-EXACT-ALLOW-001",
+      "given": "A current ACTIVE session activates role billing-reader, trusted scope evidence resolves tenant-7, and billing-reader grants Permission(invoice, read, tenant-7).",
+      "when": "The protected operation requires Permission(invoice, read, tenant-7).",
+      "then": "The authorization decision is ALLOW.",
+      "why": "One active role grants a permission exactly equal to the trusted required permission and every admissibility condition holds."
+    },
+    {
+      "case_id": "AF-WRONG-SCOPE-DENY-001",
+      "given": "The active role grants Permission(invoice, read, tenant-8).",
+      "when": "The protected operation requires Permission(invoice, read, tenant-7).",
+      "then": "The authorization decision is DENY.",
+      "why": "Scope equality is exact; a permission for tenant-8 does not grant access to tenant-7."
+    },
+    {
+      "case_id": "AF-INACTIVE-ROLE-DENY-001",
+      "given": "The user is assigned billing-reader, but the session does not activate that role.",
+      "when": "The protected operation requires a permission granted only by billing-reader.",
+      "then": "The authorization decision is DENY.",
+      "why": "User assignment is not session role activation."
+    },
+    {
+      "case_id": "AF-EXPIRED-SESSION-DENY-001",
+      "given": "An expired session activates a role that grants the exact required permission.",
+      "when": "Authorization is evaluated after expires_at.",
+      "then": "The authorization decision is DENY.",
+      "why": "Permission possession cannot make an inadmissible session current."
+    }
+  ],
+  "counterexamples": [
+    {
+      "case_id": "AF-ALWAYS-ALLOW-REJECT-001",
+      "given": "No active role grants the required permission.",
+      "when": "An implementation returns ALLOW.",
+      "then": "The implementation contradicts the rule.",
+      "why": "The rule is default deny and requires an exact active-role grant."
+    },
+    {
+      "case_id": "AF-ALWAYS-DENY-REJECT-001",
+      "given": "Every admissibility condition holds and an active role grants the exact required permission.",
+      "when": "An implementation returns DENY.",
+      "then": "The implementation contradicts the rule.",
+      "why": "The biconditional includes the positive ALLOW case and therefore rejects a vacuous always-deny implementation."
+    },
+    {
+      "case_id": "AF-WILDCARD-REJECT-001",
+      "given": "A role grants a syntactically similar permission containing a wildcard or broader scope.",
+      "when": "No exact permission equals the required permission.",
+      "then": "The authorization decision is DENY.",
+      "why": "Wildcard and subsumption semantics are excluded from this first rule."
+    },
+    {
+      "case_id": "AF-CALLER-SCOPE-REJECT-001",
+      "given": "The external caller supplies a scope value without trusted scope evidence.",
+      "when": "The supplied value otherwise matches a role permission.",
+      "then": "The authorization decision is DENY.",
+      "why": "Caller input is not authoritative scope."
+    }
+  ],
+  "boundaries": [
+    "exact-match positive permissions only",
+    "role-derived permissions only",
+    "explicit DENY grants and precedence are excluded",
+    "wildcards, hierarchy, ABAC, ReBAC, ownership, and separation-of-duty policies are excluded",
+    "authentication assurance and token protocols are excluded",
+    "the authoritative role relation is assumed complete for this policy claim; its runtime construction requires separate evidence",
+    "scope evidence is required but its runtime contract remains a later artifact"
+  ],
+  "definitions": [
+    {
+      "definition_id": "AF-DEF-AUTHORIZATION-REQUEST",
+      "term": "AuthorizationRequest",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "One internal trusted authorization question identified by a server-recognized session, one required Permission, and one trusted scope-evidence reference.",
+        "expression": "AuthorizationRequest = (session_id, required_permission, scope_evidence_ref)",
+        "notation": [
+          {
+            "symbol": "session_id",
+            "meaning": "Identity used for trusted server-side session resolution."
+          },
+          {
+            "symbol": "required_permission",
+            "meaning": "The exact Permission required by the protected operation."
+          },
+          {
+            "symbol": "scope_evidence_ref",
+            "meaning": "Reference to the trusted server-side construction of the required scope."
+          }
+        ],
+        "operational_interpretation": "Trusted application code constructs one request for one protected operation. The external caller does not supply an authoritative scope."
+      },
+      "plain_language": "The question: may this known session perform this exact action on this exact resource in this exact scope?",
+      "domain_context": "In Auth Foundation this is an internal policy input, not an HTTP payload, token, or caller-authored permission claim.",
+      "depends_on": [
+        "AF-DEF-PERMISSION"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/0",
+        "#/applies_when/1",
+        "#/inputs/0"
+      ],
+      "interpretation_refs": [
+        "#/types/0",
+        "#/predicates/1",
+        "#/predicates/4",
+        "#/predicates/8"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization-request"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse the request into an external API request, identity token, or authorization decision."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-SESSION",
+      "term": "Session",
+      "definition_kind": "entity",
+      "formal": {
+        "definition": "A server-recognized authorization context with stable identity, user identity, status, active role identities, authorization revision, and expiry.",
+        "expression": "Session = (session_id, user_id, status, active_role_ids, authorization_revision, expires_at)",
+        "notation": [
+          {
+            "symbol": "active_role_ids",
+            "meaning": "The role identities active for this session, not every role assigned to the user."
+          },
+          {
+            "symbol": "authorization_revision",
+            "meaning": "The revision against which current authorization facts are resolved."
+          },
+          {
+            "symbol": "expires_at",
+            "meaning": "The instant after which this session is not current."
+          }
+        ],
+        "operational_interpretation": "The evaluator resolves the session on the server and checks its currentness before considering a permission grant."
+      },
+      "plain_language": "A session is the current server-side context that says who the user is and which roles are active now.",
+      "domain_context": "It carries identities and revision context; it does not carry a client-authoritative permission set.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REVISION"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/1",
+        "#/inputs/1",
+        "#/outcomes/1"
+      ],
+      "interpretation_refs": [
+        "#/types/1",
+        "#/predicates/4",
+        "#/predicates/7"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.session"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse session role activation into user role assignment or permission ownership."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-ROLE",
+      "term": "Role",
+      "definition_kind": "entity",
+      "formal": {
+        "definition": "A stable role identity paired with a set of positive exact-match Permission grants.",
+        "expression": "Role = (role_id, permissions: Set<Permission>)",
+        "notation": [
+          {
+            "symbol": "role_id",
+            "meaning": "Stable identity used by a session to activate the role."
+          },
+          {
+            "symbol": "permissions",
+            "meaning": "The complete positive exact-match Permission set for the evaluated authorization revision."
+          }
+        ],
+        "operational_interpretation": "Only authoritative role definitions whose identities are active in the resolved session may contribute permissions."
+      },
+      "plain_language": "A role is a named bundle of exact permissions that can be active in a session.",
+      "domain_context": "The first slice permits only role-derived positive permissions; it does not define direct user grants, inheritance, or explicit DENY grants.",
+      "depends_on": [
+        "AF-DEF-PERMISSION"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/inputs/2",
+        "#/boundaries/1",
+        "#/boundaries/2"
+      ],
+      "interpretation_refs": [
+        "#/types/2",
+        "#/predicates/5",
+        "#/predicates/6"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.role"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse a role definition into user assignment, session activation, or a permission."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-PERMISSION",
+      "term": "Permission",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "A value triple of Resource, Action, and Scope whose equality is exact component equality.",
+        "expression": "Permission = (resource: Resource, action: Action, scope: Scope)",
+        "notation": [
+          {
+            "symbol": "resource",
+            "meaning": "The protected thing kind."
+          },
+          {
+            "symbol": "action",
+            "meaning": "The operation requested for that resource."
+          },
+          {
+            "symbol": "scope",
+            "meaning": "The trusted boundary within which that action applies."
+          }
+        ],
+        "operational_interpretation": "A role grant matches a required permission only when all three components are exactly equal."
+      },
+      "plain_language": "A permission says what action may happen to what kind of thing, and inside which exact boundary.",
+      "domain_context": "No wildcard, hierarchy, coercion, broader-scope implication, or explicit grant effect is part of this first Permission meaning.",
+      "depends_on": [
+        "AF-DEF-RESOURCE",
+        "AF-DEF-ACTION",
+        "AF-DEF-SCOPE"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/inputs/0",
+        "#/boundaries/0",
+        "#/boundaries/3"
+      ],
+      "interpretation_refs": [
+        "#/types/3",
+        "#/predicates/0",
+        "#/equality_rules/0"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.permission"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse Permission into a free-form string, role, scope claim, or authorization result."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-RESOURCE",
+      "term": "Resource",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "A typed identity for the kind of protected thing named by a Permission.",
+        "expression": "Resource : ResourceType",
+        "notation": [
+          {
+            "symbol": "ResourceType",
+            "meaning": "The exact typed domain of protected thing kinds, such as invoice."
+          }
+        ],
+        "operational_interpretation": "The evaluator compares the required and granted resource components with exact typed equality."
+      },
+      "plain_language": "The kind of thing being protected, such as an invoice.",
+      "domain_context": "This candidate names the component but does not yet define a resource identity taxonomy.",
+      "depends_on": [],
+      "business_fact_refs": [
+        "#/rule",
+        "#/inputs/0",
+        "#/boundaries/0"
+      ],
+      "interpretation_refs": [
+        "#/types/3",
+        "#/predicates/0",
+        "#/equality_rules/1"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.permission"
+      ],
+      "forbidden_collapses": [
+        "Do not treat Resource as a concrete object instance, URL, caller string, or Scope."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-ACTION",
+      "term": "Action",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "A typed operation value named by a Permission.",
+        "expression": "Action : ActionType",
+        "notation": [
+          {
+            "symbol": "ActionType",
+            "meaning": "The exact typed domain of protected operations, such as read."
+          }
+        ],
+        "operational_interpretation": "The evaluator compares the required and granted action components with exact typed equality."
+      },
+      "plain_language": "The operation being requested, such as read.",
+      "domain_context": "This candidate does not define action hierarchy, implication, or wildcard behavior.",
+      "depends_on": [],
+      "business_fact_refs": [
+        "#/rule",
+        "#/inputs/0",
+        "#/boundaries/0"
+      ],
+      "interpretation_refs": [
+        "#/types/3",
+        "#/predicates/0",
+        "#/equality_rules/1"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.permission"
+      ],
+      "forbidden_collapses": [
+        "Do not treat Action as a transport verb, handler name, wildcard, or Permission."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-SCOPE",
+      "term": "Scope",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "A typed trusted boundary value named by a Permission and compared only by exact equality.",
+        "expression": "Scope : ScopeType",
+        "notation": [
+          {
+            "symbol": "ScopeType",
+            "meaning": "The exact typed domain of authorization boundaries, such as tenant-7."
+          }
+        ],
+        "operational_interpretation": "Trusted application code resolves the required scope; the evaluator compares it exactly with the granted permission scope."
+      },
+      "plain_language": "The exact boundary inside which the action is allowed, such as one tenant.",
+      "domain_context": "Scope is a value in the Permission. Evidence that the value is trustworthy is a separate predicate.",
+      "depends_on": [],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/3",
+        "#/outcomes/2",
+        "#/boundaries/0",
+        "#/boundaries/6"
+      ],
+      "interpretation_refs": [
+        "#/types/3",
+        "#/predicates/0",
+        "#/predicates/8",
+        "#/equality_rules/1"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.permission",
+        "auth-foundation.trusted-scope-resolution"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse Scope into caller input, scope evidence, tenancy policy, or wildcard matching."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-REQUIRED-PERMISSION",
+      "term": "RequiredPermission",
+      "definition_kind": "function",
+      "formal": {
+        "definition": "A total function selecting the one exact Permission required by the protected operation represented by an AuthorizationRequest.",
+        "expression": "RequiredPermission : AuthorizationRequest -> Permission",
+        "notation": [
+          {
+            "symbol": "RequiredPermission(q)",
+            "meaning": "The required_permission component of request q, constructed by trusted application code."
+          },
+          {
+            "symbol": "q",
+            "meaning": "One AuthorizationRequest."
+          }
+        ],
+        "operational_interpretation": "The protected operation supplies one required permission; the evaluator does not infer a different permission from role grants."
+      },
+      "plain_language": "The exact permission that this operation asks for.",
+      "domain_context": "It is determined by trusted application code and the resolved target, not chosen by the user or discovered from the roles.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REQUEST",
+        "AF-DEF-PERMISSION"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/0",
+        "#/inputs/0"
+      ],
+      "interpretation_refs": [
+        "#/predicates/1",
+        "#/predicates/8"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization-request",
+        "auth-foundation.trusted-scope-resolution"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse the required permission into a granted permission or caller-authored claim."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-DECISION-TIME",
+      "term": "DecisionTime",
+      "definition_kind": "temporal-value",
+      "formal": {
+        "definition": "A total function selecting the explicit Instant at which one AuthorizationRequest is evaluated.",
+        "expression": "DecisionTime : AuthorizationRequest -> Instant",
+        "notation": [
+          {
+            "symbol": "DecisionTime(q)",
+            "meaning": "The one evaluation instant supplied by q's trusted evaluation context."
+          },
+          {
+            "symbol": "Instant",
+            "meaning": "A totally ordered time value."
+          }
+        ],
+        "operational_interpretation": "Session expiry and authorization currentness are evaluated at the same explicit instant."
+      },
+      "plain_language": "The time at which the authorization decision is made.",
+      "domain_context": "The decision time belongs to the trusted evaluation context; it is not a client timestamp.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REQUEST"
+      ],
+      "business_fact_refs": [
+        "#/inputs/3",
+        "#/outcomes/1",
+        "#/examples/3"
+      ],
+      "interpretation_refs": [
+        "#/types/5",
+        "#/predicates/2",
+        "#/time_model"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization",
+        "auth-foundation.session"
+      ],
+      "forbidden_collapses": [
+        "Do not use wall-clock time from different reads or a caller-provided timestamp."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-AUTHORIZATION-REVISION",
+      "term": "CurrentAuthorizationRevision",
+      "definition_kind": "revision-value",
+      "formal": {
+        "definition": "A total function selecting the authoritative AuthorizationRevision against which one request is evaluated.",
+        "expression": "CurrentAuthorizationRevision : AuthorizationRequest -> AuthorizationRevision",
+        "notation": [
+          {
+            "symbol": "CurrentAuthorizationRevision(q)",
+            "meaning": "The current authoritative revision for request q."
+          },
+          {
+            "symbol": "AuthorizationRevision",
+            "meaning": "A comparable identity for one authorization-fact state."
+          }
+        ],
+        "operational_interpretation": "The session revision and authoritative role relation must be evaluated against this same revision."
+      },
+      "plain_language": "The version of authorization facts that counts for this decision.",
+      "domain_context": "A stale session or stale role relation cannot be treated as current merely because its values otherwise match.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REQUEST"
+      ],
+      "business_fact_refs": [
+        "#/applies_when/2",
+        "#/inputs/1",
+        "#/inputs/2",
+        "#/inputs/3",
+        "#/outcomes/1"
+      ],
+      "interpretation_refs": [
+        "#/types/6",
+        "#/predicates/3",
+        "#/predicates/7",
+        "#/predicates/9"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.session",
+        "auth-foundation.authorization"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse revision equality into freshness evidence or silently mix facts from different revisions."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-RESOLVED-SESSION",
+      "term": "ResolvedSession",
+      "definition_kind": "relation",
+      "formal": {
+        "definition": "A trusted server-side relation mapping one AuthorizationRequest session identity to one server-recognized Session.",
+        "expression": "ResolvedSession(q, s)",
+        "notation": [
+          {
+            "symbol": "q",
+            "meaning": "The AuthorizationRequest being evaluated."
+          },
+          {
+            "symbol": "s",
+            "meaning": "The uniquely resolved server-recognized Session."
+          }
+        ],
+        "operational_interpretation": "Authorization admissibility requires exactly one trusted resolution; missing or ambiguous resolution fails admissibility."
+      },
+      "plain_language": "The server finds the one session named by the request.",
+      "domain_context": "This is a trusted lookup relation, not proof that the session is current or authorized.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REQUEST",
+        "AF-DEF-SESSION"
+      ],
+      "business_fact_refs": [
+        "#/applies_when/1",
+        "#/inputs/0",
+        "#/inputs/1",
+        "#/outcomes/1"
+      ],
+      "interpretation_refs": [
+        "#/predicates/4",
+        "#/predicates/10"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authentication",
+        "auth-foundation.session"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse session resolution into authentication assurance, session currentness, or permission."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-RESOLVED-ACTIVE-ROLE",
+      "term": "ResolvedActiveRole",
+      "definition_kind": "relation",
+      "formal": {
+        "definition": "A relation holding when a Role identity is active in a Session and its complete authoritative definition is resolved at the session authorization revision.",
+        "expression": "ResolvedActiveRole(s, r)",
+        "notation": [
+          {
+            "symbol": "s",
+            "meaning": "The resolved Session."
+          },
+          {
+            "symbol": "r",
+            "meaning": "One authoritative Role whose identity is active in s."
+          }
+        ],
+        "operational_interpretation": "Only resolved active roles may contribute permissions to the exact-match decision."
+      },
+      "plain_language": "The server resolves a role that is actually active in this session.",
+      "domain_context": "This relation does not assert that every active role has been resolved; completeness is a separate predicate.",
+      "depends_on": [
+        "AF-DEF-SESSION",
+        "AF-DEF-ROLE"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/inputs/1",
+        "#/inputs/2",
+        "#/counterexamples/2"
+      ],
+      "interpretation_refs": [
+        "#/predicates/5",
+        "#/predicates/6",
+        "#/predicates/9"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.session",
+        "auth-foundation.role"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse an active role into a user-assigned role or complete role resolution."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-TRUSTED-SCOPE-EVIDENCE",
+      "term": "TrustedScopeEvidence",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A predicate holding for q only when trusted application code resolved RequiredPermission(q).scope from the protected operation and target and q.scope_evidence_ref identifies that resolution.",
+        "expression": "TrustedScopeEvidence(q)",
+        "notation": [
+          {
+            "symbol": "q.scope_evidence_ref",
+            "meaning": "Reference to the trusted construction of the required scope."
+          },
+          {
+            "symbol": "RequiredPermission(q).scope",
+            "meaning": "The authoritative Scope used by this request."
+          }
+        ],
+        "operational_interpretation": "If trusted scope evidence is absent or invalid, AuthorizationAdmissible is false and the result is DENY."
+      },
+      "plain_language": "Trusted server code, not the caller, established the scope used by the request.",
+      "domain_context": "This first slice requires the evidence but leaves its runtime schema and producer proof for a later artifact.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REQUEST",
+        "AF-DEF-REQUIRED-PERMISSION",
+        "AF-DEF-SCOPE"
+      ],
+      "business_fact_refs": [
+        "#/applies_when/0",
+        "#/outcomes/2",
+        "#/counterexamples/3",
+        "#/boundaries/6"
+      ],
+      "interpretation_refs": [
+        "#/predicates/8",
+        "#/predicates/10",
+        "#/assumptions/3"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.trusted-scope-resolution",
+        "auth-foundation.authorization-request"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse the scope value, a caller claim, or the existence of a reference into trusted scope evidence."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-COMPLETE-AUTHORITATIVE-ROLE-RELATION",
+      "term": "CompleteAuthoritativeRoleRelation",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A predicate holding for session s and revision v only when ResolvedActiveRole contains every and only role active in s, with each complete authoritative role definition, at v.",
+        "expression": "CompleteAuthoritativeRoleRelation(s, v) := RoleRelationComplete(s, v)",
+        "notation": [
+          {
+            "symbol": "s",
+            "meaning": "The resolved Session."
+          },
+          {
+            "symbol": "v",
+            "meaning": "The CurrentAuthorizationRevision for the request."
+          },
+          {
+            "symbol": "RoleRelationComplete",
+            "meaning": "The accepted InterpretationModel predicate realizing this business definition."
+          }
+        ],
+        "operational_interpretation": "Missing, extra, stale, or partial active-role data makes the predicate false; it must never be treated as an empty current grant set."
+      },
+      "plain_language": "The evaluator has all and only the current active roles, with their full permission sets.",
+      "domain_context": "Completeness is an input assumption of this policy claim. Runtime construction and evidence are separate obligations.",
+      "depends_on": [
+        "AF-DEF-SESSION",
+        "AF-DEF-ROLE",
+        "AF-DEF-RESOLVED-ACTIVE-ROLE",
+        "AF-DEF-AUTHORIZATION-REVISION"
+      ],
+      "business_fact_refs": [
+        "#/applies_when/2",
+        "#/inputs/2",
+        "#/boundaries/5"
+      ],
+      "interpretation_refs": [
+        "#/predicates/5",
+        "#/predicates/9",
+        "#/assumptions/0"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.session",
+        "auth-foundation.role",
+        "auth-foundation.authorization"
+      ],
+      "forbidden_collapses": [
+        "Do not add user-assignment semantics, treat partial data as complete, or confuse the assumption with runtime proof."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-SESSION-CURRENT",
+      "term": "SessionCurrent",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A predicate holding when a Session is ACTIVE, DecisionTime is before expires_at, and the session authorization revision equals CurrentAuthorizationRevision.",
+        "expression": "SessionCurrent(s, t, v) := s.status = ACTIVE and t < s.expires_at and s.authorization_revision = v",
+        "notation": [
+          {
+            "symbol": "s",
+            "meaning": "The resolved Session."
+          },
+          {
+            "symbol": "t",
+            "meaning": "The DecisionTime."
+          },
+          {
+            "symbol": "v",
+            "meaning": "The CurrentAuthorizationRevision."
+          }
+        ],
+        "operational_interpretation": "Any inactive, expired, revoked, or stale-revision session makes SessionCurrent false."
+      },
+      "plain_language": "The session is active, not expired, and using the current authorization facts.",
+      "domain_context": "Permission possession never makes an otherwise non-current session current.",
+      "depends_on": [
+        "AF-DEF-SESSION",
+        "AF-DEF-DECISION-TIME",
+        "AF-DEF-AUTHORIZATION-REVISION"
+      ],
+      "business_fact_refs": [
+        "#/outcomes/1",
+        "#/examples/3",
+        "#/counterexamples/1"
+      ],
+      "interpretation_refs": [
+        "#/predicates/7",
+        "#/time_model",
+        "#/currentness_rules/0"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.session",
+        "auth-foundation.authorization"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse currentness into successful session lookup, authentication, or possession of a matching permission."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-AUTHORIZATION-ADMISSIBLE",
+      "term": "AuthorizationAdmissible",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A predicate holding for q, s, t, and v when s is the unique ResolvedSession for q; t = DecisionTime(q); v = CurrentAuthorizationRevision(q); and SessionCurrent(s,t,v), TrustedScopeEvidence(q), and CompleteAuthoritativeRoleRelation(s,v) all hold.",
+        "expression": "AuthorizationAdmissible(q, s, t, v) := ResolvedSession(q,s) and (forall s2: Session. ResolvedSession(q,s2) -> s2 = s) and t = DecisionTime(q) and v = CurrentAuthorizationRevision(q) and SessionCurrent(s,t,v) and TrustedScopeEvidence(q) and CompleteAuthoritativeRoleRelation(s,v)",
+        "notation": [
+          {
+            "symbol": "q",
+            "meaning": "The AuthorizationRequest."
+          },
+          {
+            "symbol": "s",
+            "meaning": "Its uniquely resolved Session."
+          },
+          {
+            "symbol": "s2",
+            "meaning": "Any Session also resolved for q; uniqueness requires s2 to equal s."
+          },
+          {
+            "symbol": "t",
+            "meaning": "Its DecisionTime."
+          },
+          {
+            "symbol": "v",
+            "meaning": "Its CurrentAuthorizationRevision."
+          }
+        ],
+        "operational_interpretation": "The permission grant is evaluated only after admissibility. Admissibility itself does not include or imply a permission grant."
+      },
+      "plain_language": "The request has all trustworthy, current, and complete context needed before checking whether a role grants the permission.",
+      "domain_context": "This is the gate for evaluating the exact active-role grant. Failure of any prerequisite yields DENY.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-REQUEST",
+        "AF-DEF-RESOLVED-SESSION",
+        "AF-DEF-DECISION-TIME",
+        "AF-DEF-AUTHORIZATION-REVISION",
+        "AF-DEF-SESSION-CURRENT",
+        "AF-DEF-TRUSTED-SCOPE-EVIDENCE",
+        "AF-DEF-COMPLETE-AUTHORITATIVE-ROLE-RELATION"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/0",
+        "#/applies_when/1",
+        "#/applies_when/2",
+        "#/outcomes/0",
+        "#/outcomes/1",
+        "#/outcomes/2"
+      ],
+      "interpretation_refs": [
+        "#/predicates/10",
+        "#/assumptions/0",
+        "#/assumptions/3"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization",
+        "auth-foundation.rule.session-rbac-v1"
+      ],
+      "forbidden_collapses": [
+        "Do not include the matching permission grant, infer admissibility from ALLOW, or treat missing inputs as admissible."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-EXACT-ACTIVE-ROLE-GRANT",
+      "term": "ExactActiveRoleGrant",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A predicate holding when an authoritative Role active in the resolved Session grants a positive Permission exactly equal to RequiredPermission(q).",
+        "expression": "ExactActiveRoleGrant(q, s) := exists r: Role, p: Permission. ResolvedActiveRole(s,r) and Grants(r,p) and PermissionExactEqual(p, RequiredPermission(q))",
+        "notation": [
+          {
+            "symbol": "r",
+            "meaning": "An authoritative active Role."
+          },
+          {
+            "symbol": "p",
+            "meaning": "A positive Permission in r."
+          },
+          {
+            "symbol": "PermissionExactEqual",
+            "meaning": "Exact equality of resource, action, and scope."
+          }
+        ],
+        "operational_interpretation": "The evaluator searches the complete active-role relation for at least one exact positive grant."
+      },
+      "plain_language": "At least one role active in this session contains exactly the permission the operation requires.",
+      "domain_context": "The predicate excludes inactive roles, direct user permissions, wildcard matches, and explicit DENY effects.",
+      "depends_on": [
+        "AF-DEF-RESOLVED-ACTIVE-ROLE",
+        "AF-DEF-PERMISSION",
+        "AF-DEF-REQUIRED-PERMISSION"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/outcomes/0",
+        "#/outcomes/3",
+        "#/examples/0",
+        "#/examples/1",
+        "#/examples/2"
+      ],
+      "interpretation_refs": [
+        "#/predicates/0",
+        "#/predicates/1",
+        "#/predicates/5",
+        "#/predicates/6"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization",
+        "auth-foundation.rule.session-rbac-v1"
+      ],
+      "forbidden_collapses": [
+        "Do not use an inactive or merely assigned role, a non-exact permission, a direct grant, or a wildcard as evidence."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-AUTHORIZATION-DECISION",
+      "term": "AuthorizationDecision",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "The total result of evaluating one in-scope AuthorizationRequest, with codomain exactly {ALLOW, DENY}.",
+        "expression": "AuthorizationDecision = {ALLOW, DENY}",
+        "notation": [
+          {
+            "symbol": "ALLOW",
+            "meaning": "The positive decision value defined by this BusinessMeaning."
+          },
+          {
+            "symbol": "DENY",
+            "meaning": "The default negative decision value defined by this BusinessMeaning."
+          }
+        ],
+        "operational_interpretation": "Every in-scope evaluation returns exactly one of the two values. This definition does not add a normative reason field."
+      },
+      "plain_language": "The answer is exactly allow or deny.",
+      "domain_context": "Reasons, transport errors, audit events, and UI messages may accompany a runtime decision later, but are outside this accepted decision value.",
+      "depends_on": [
+        "AF-DEF-ALLOW",
+        "AF-DEF-DENY"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/outcomes/0",
+        "#/outcomes/1",
+        "#/outcomes/2",
+        "#/outcomes/3"
+      ],
+      "interpretation_refs": [
+        "#/types/4",
+        "#/predicates/11",
+        "#/assumptions/2"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization-decision"
+      ],
+      "forbidden_collapses": [
+        "Do not add a normative reason field, third result, exception, or unknown value to this two-valued policy decision."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-ALLOW",
+      "term": "ALLOW",
+      "definition_kind": "decision-value",
+      "formal": {
+        "definition": "The AuthorizationDecision value produced exactly when an AuthorizationRequest is admissible and has an ExactActiveRoleGrant.",
+        "expression": "Decision(q) = ALLOW <-> exists s,t,v. AuthorizationAdmissible(q,s,t,v) and ExactActiveRoleGrant(q,s)",
+        "notation": [
+          {
+            "symbol": "Decision(q)",
+            "meaning": "The unique AuthorizationDecision for q."
+          },
+          {
+            "symbol": "<->",
+            "meaning": "If and only if; both the positive and negative directions are required."
+          }
+        ],
+        "operational_interpretation": "The evaluator returns ALLOW only for, and for every, admissible request with an exact active-role grant."
+      },
+      "plain_language": "Allow means the context is trustworthy and current, and an active role grants exactly what is required.",
+      "domain_context": "This is not a general security guarantee. It is the positive result for this bounded exact-match policy.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-ADMISSIBLE",
+        "AF-DEF-EXACT-ACTIVE-ROLE-GRANT"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/outcomes/0",
+        "#/examples/0",
+        "#/counterexamples/1"
+      ],
+      "interpretation_refs": [
+        "#/predicates/10",
+        "#/predicates/11",
+        "#/witnesses/0",
+        "#/vacuity_checks/0"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization",
+        "auth-foundation.authorization-decision",
+        "auth-foundation.rule.session-rbac-v1"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse ALLOW into authentication success, role possession, partial admissibility, or general system safety."
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AF-DEF-DENY",
+      "term": "DENY",
+      "definition_kind": "decision-value",
+      "formal": {
+        "definition": "The AuthorizationDecision value produced for every in-scope AuthorizationRequest that does not have both AuthorizationAdmissible context and an ExactActiveRoleGrant.",
+        "expression": "Decision(q) = DENY <-> not exists s,t,v. AuthorizationAdmissible(q,s,t,v) and ExactActiveRoleGrant(q,s)",
+        "notation": [
+          {
+            "symbol": "Decision(q)",
+            "meaning": "The unique AuthorizationDecision for q."
+          },
+          {
+            "symbol": "not exists",
+            "meaning": "No admissible resolved context with an exact active-role grant exists."
+          }
+        ],
+        "operational_interpretation": "Missing, invalid, stale, incomplete, untrusted, or unmatched information produces DENY."
+      },
+      "plain_language": "Deny is the default answer whenever the request is not both admissible and exactly granted.",
+      "domain_context": "This DENY is the absence of a valid positive authorization result. It is not an explicit DENY grant or deny-precedence rule.",
+      "depends_on": [
+        "AF-DEF-AUTHORIZATION-ADMISSIBLE",
+        "AF-DEF-EXACT-ACTIVE-ROLE-GRANT"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/outcomes/1",
+        "#/outcomes/2",
+        "#/outcomes/3",
+        "#/examples/1",
+        "#/examples/2",
+        "#/examples/3"
+      ],
+      "interpretation_refs": [
+        "#/predicates/10",
+        "#/predicates/11",
+        "#/witnesses/1",
+        "#/witnesses/2",
+        "#/vacuity_checks/1",
+        "#/vacuity_checks/2"
+      ],
+      "source_concept_refs": [
+        "auth-foundation.authorization",
+        "auth-foundation.authorization-decision",
+        "auth-foundation.rule.session-rbac-v1"
+      ],
+      "forbidden_collapses": [
+        "Do not collapse DENY into an explicit negative grant, deny precedence, authentication failure, or proof of malicious intent."
+      ],
+      "status": "candidate"
+    }
+  ],
+  "acceptance": {
+    "status": "not-requested",
+    "owner_ref": "projects/auth-foundation/formalization",
+    "acceptance_ref": null,
+    "acceptance_digest": null
+  },
+  "claim_ceiling": "Draft definitions-bearing successor to the accepted v1 BusinessMeaning. It preserves the accepted business facts and adds candidate normative definitions with explanatory voices and exact fact bindings. It does not supersede accepted v1, accept any new meaning, admit or prove a FormalClaim, derive obligations, establish provider or EVF evidence, runtime conformance, security, release, or production readiness.",
+  "authority_effect": "none"
+}

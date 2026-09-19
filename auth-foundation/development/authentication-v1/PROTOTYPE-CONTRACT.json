@@ -1,0 +1,104 @@
+{
+  "schema_version": "auth.prototype-contract/v1",
+  "status": "candidate",
+  "authority_effect": "none",
+  "owner": "Auth Foundation product owner",
+  "definitions": {
+    "principal": "Trusted issuer and subject mapped to an explicit human or service identity; no email-based identity merging.",
+    "service": "Autonomous registered OAuth client, never a delegated human actor in this slice.",
+    "interaction": "One cryptographically verified request projected into predecessor session storage for authorization only.",
+    "grant": "Server-owned current permission in local policy; token roles are not grants.",
+    "revocation": "Local policy removal/disable takes effect on next policy snapshot; issuer token status checked online each request."
+  },
+  "ontology_scaffold": {
+    "nodes": [
+      "issuer",
+      "principal",
+      "credential",
+      "token",
+      "browser_session",
+      "interaction",
+      "policy_revision",
+      "permission",
+      "authorization_decision"
+    ],
+    "edges": [
+      [
+        "issuer",
+        "issues",
+        "token"
+      ],
+      [
+        "credential",
+        "authenticates",
+        "principal"
+      ],
+      [
+        "token",
+        "identifies",
+        "principal"
+      ],
+      [
+        "browser_session",
+        "retains",
+        "token"
+      ],
+      [
+        "interaction",
+        "binds",
+        "principal"
+      ],
+      [
+        "policy_revision",
+        "selects",
+        "permission"
+      ],
+      [
+        "permission",
+        "constrains",
+        "authorization_decision"
+      ]
+    ]
+  },
+  "profiles": {
+    "human": {
+      "client": "prototype-browser",
+      "flow": "authorization_code",
+      "pkce": "S256",
+      "session": "opaque server-side",
+      "refresh": "not used; reauthenticate at access-token expiry"
+    },
+    "service": {
+      "client": "prototype-service",
+      "flow": "client_credentials",
+      "authentication": "private_key_jwt",
+      "delegation": false,
+      "sender_constraint": "not in first local slice; bearer replay remains possible until expiry/revocation"
+    }
+  },
+  "prototype_constraints": {
+    "issuer": "http://localhost:18080/realms/auth-prototype",
+    "application": "http://localhost:13000",
+    "audience": "prototype-api",
+    "algorithm": "RS256",
+    "access_seconds": 300,
+    "clock_skew_seconds": 0,
+    "online_status_check": "every protected request",
+    "loopback_http_exception": "Local test accounts only; cookies are HttpOnly/SameSite=Lax without Secure on loopback HTTP; production requires HTTPS and Secure cookies.",
+    "policy": "one local file snapshot per request; immutable private SQLite projection; later policy mutations affect the next request",
+    "identity_projection": "kind-prefixed principal id stored in legacy user_id; kind retained and checked in successor bridge, no human-assurance assertion for services"
+  },
+  "business_acceptance": [
+    "human can sign in and read permitted document",
+    "service can prove private-key control and read permitted document",
+    "unknown,disabled,wrong-kind or unpermitted principal denied",
+    "caller cannot select trusted evidence or grants"
+  ],
+  "open_questions": [
+    "Production TLS and administration authentication",
+    "Passkey-only enrollment and recovery assurance",
+    "Distributed policy, refresh rotation and revocation latency under partitions",
+    "Sender constraint, workload attestation, delegation and multi-tenancy",
+    "Full DomainSpec compiler and formal correspondence coverage for successor"
+  ]
+}

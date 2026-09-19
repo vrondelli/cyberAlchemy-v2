@@ -1,0 +1,17 @@
+import {randomBytes,createCipheriv,createDecipheriv,createHash,randomUUID} from 'node:crypto';
+import {readFileSync,writeFileSync,existsSync,readdirSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {root,original,runtime,readJson,docker,report,requirePrivate,operationLock,privateFile} from './common.mjs';
+const magic=Buffer.from('AFBACKUP1\n'),aad=Buffer.from('auth-foundation-private-backup/v1');
+export function seal(data,key){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);cipher.setAAD(aad);const bytes=Buffer.concat([cipher.update(data),cipher.final()]);return Buffer.concat([magic,iv,cipher.getAuthTag(),bytes]);}
+export function unseal(data,key){if(!data.subarray(0,magic.length).equals(magic))throw Error('Invalid backup format');const p=magic.length,decipher=createDecipheriv('aes-256-gcm',key,data.subarray(p,p+12));decipher.setAAD(aad);decipher.setAuthTag(data.subarray(p+12,p+28));return Buffer.concat([decipher.update(data.subarray(p+28)),decipher.final()]);}
+export function backupKey(){const path=resolve(runtime,'backup.key');if(!existsSync(path))writeFileSync(path,randomBytes(32),{mode:0o600,flag:'wx'});requirePrivate(path);const key=readFileSync(path);if(key.length!==32)throw Error('Invalid backup key');return key;}
+export function createBackup(){const unlock=operationLock();try{const journal=resolve(runtime,'rotation.json');if(existsSync(journal)&&readJson(journal).status!=='complete')throw Error('Finish interrupted rotation before backup');const c=readJson(resolve(root,'.runtime/config.json')),dbs=[['issuer','auth-foundation-https-postgres-1','keycloak','keycloak'],...Object.entries(c.apps).map(([name,a])=>[name,'auth-durable-postgres-1','auth_durable_admin',a.db])];
+ const databases=dbs.map(([name,container,user,db])=>({name,dump:docker(['exec',container,'pg_dump','-U',user,'-d',db,'-Fc','--no-owner','--no-acl']).toString('base64')}));
+ const files={};function save(base,rel){const path=resolve(base,rel);if(existsSync(path))files[(base===root?'durable/':'issuer/')+rel]=readFileSync(path).toString('base64');}
+ save(root,'.runtime/config.json');save(original,'.runtime/config.json');for(const name of readdirSync(resolve(original,'.runtime/tls')))if(/\.(crt|key)$/.test(name))save(original,'.runtime/tls/'+name);for(const name of Object.keys(c.apps))for(const ext of ['key','crt'])save(root,'.runtime/'+name+'/server.'+ext);save(root,'.runtime/operations/smtp.json');
+ const payload={schema:'auth-backup/v1',created:new Date().toISOString(),consistency:'Individual PostgreSQL consistent snapshots; restore discards all login state',databases,files};
+ const path=resolve(runtime,'backup-'+Date.now()+'-'+randomUUID()+'.afbak'),bytes=seal(Buffer.from(JSON.stringify(payload)),backupKey());privateFile(path,bytes);report('backup',{status:'passed',archive:path,sha256:createHash('sha256').update(bytes).digest('hex'),databases:databases.map(x=>x.name),encryption:'AES-256-GCM',key_in_archive:false});return path;}finally{unlock();}
+}
+export function loadBackup(path){requirePrivate(path);const p=JSON.parse(unseal(readFileSync(path),backupKey()));if(p.schema!=='auth-backup/v1'||!Array.isArray(p.databases)||p.databases.length!==3||new Set(p.databases.map(x=>x.name)).size!==3||p.databases.some(x=>!['issuer','foundation','bodywar'].includes(x.name)))throw Error('Unsupported backup schema');return p;}
+if(process.argv[1]===new URL(import.meta.url).pathname)console.log(createBackup());

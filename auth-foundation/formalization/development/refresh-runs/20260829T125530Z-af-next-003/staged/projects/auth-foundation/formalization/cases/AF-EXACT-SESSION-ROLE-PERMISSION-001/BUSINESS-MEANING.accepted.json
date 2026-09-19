@@ -1,0 +1,110 @@
+{
+  "schema_version": "domainspec-v2.business-meaning/v1-candidate",
+  "meaning_id": "BusinessMeaning:auth-foundation.exact-session-role-permission",
+  "version": "1-accepted",
+  "owner": "projects/auth-foundation/formalization",
+  "status": "accepted",
+  "supersedes": null,
+  "domain_context": "Internal authorization of one protected operation using a server-recognized session, its active roles, and one trusted required permission.",
+  "rule": "An authorization request is ALLOW exactly when its session is admissible and at least one role active in that session grants a permission whose resource, action, and scope exactly equal the required permission. Every other case is DENY.",
+  "applies_when": [
+    "trusted application code has constructed one internal AuthorizationRequest",
+    "the request identifies one server-recognized session",
+    "the authorization evaluator receives a complete authoritative role relation for the session authorization revision",
+    "permissions use exact resource, action, and scope equality"
+  ],
+  "actors": [
+    "authenticated user represented by the session",
+    "trusted application code constructing the authorization request",
+    "authorization evaluator"
+  ],
+  "inputs": [
+    "AuthorizationRequest(session_id, required_permission, scope_evidence_ref)",
+    "Session(session_id, user_id, status, active_role_ids, authorization_revision, expires_at)",
+    "complete authoritative roles for the session authorization revision",
+    "current authorization revision and decision time"
+  ],
+  "outcomes": [
+    "ALLOW when every admissibility condition holds and an active role grants the exact required permission",
+    "DENY when the session is missing, inactive, expired, revoked, stale, or otherwise inadmissible",
+    "DENY when scope evidence is not trusted",
+    "DENY when no active role grants the exact required permission"
+  ],
+  "examples": [
+    {
+      "case_id": "AF-EXACT-ALLOW-001",
+      "given": "A current ACTIVE session activates role billing-reader, trusted scope evidence resolves tenant-7, and billing-reader grants Permission(invoice, read, tenant-7).",
+      "when": "The protected operation requires Permission(invoice, read, tenant-7).",
+      "then": "The authorization decision is ALLOW.",
+      "why": "One active role grants a permission exactly equal to the trusted required permission and every admissibility condition holds."
+    },
+    {
+      "case_id": "AF-WRONG-SCOPE-DENY-001",
+      "given": "The active role grants Permission(invoice, read, tenant-8).",
+      "when": "The protected operation requires Permission(invoice, read, tenant-7).",
+      "then": "The authorization decision is DENY.",
+      "why": "Scope equality is exact; a permission for tenant-8 does not grant access to tenant-7."
+    },
+    {
+      "case_id": "AF-INACTIVE-ROLE-DENY-001",
+      "given": "The user is assigned billing-reader, but the session does not activate that role.",
+      "when": "The protected operation requires a permission granted only by billing-reader.",
+      "then": "The authorization decision is DENY.",
+      "why": "User assignment is not session role activation."
+    },
+    {
+      "case_id": "AF-EXPIRED-SESSION-DENY-001",
+      "given": "An expired session activates a role that grants the exact required permission.",
+      "when": "Authorization is evaluated after expires_at.",
+      "then": "The authorization decision is DENY.",
+      "why": "Permission possession cannot make an inadmissible session current."
+    }
+  ],
+  "counterexamples": [
+    {
+      "case_id": "AF-ALWAYS-ALLOW-REJECT-001",
+      "given": "No active role grants the required permission.",
+      "when": "An implementation returns ALLOW.",
+      "then": "The implementation contradicts the rule.",
+      "why": "The rule is default deny and requires an exact active-role grant."
+    },
+    {
+      "case_id": "AF-ALWAYS-DENY-REJECT-001",
+      "given": "Every admissibility condition holds and an active role grants the exact required permission.",
+      "when": "An implementation returns DENY.",
+      "then": "The implementation contradicts the rule.",
+      "why": "The biconditional includes the positive ALLOW case and therefore rejects a vacuous always-deny implementation."
+    },
+    {
+      "case_id": "AF-WILDCARD-REJECT-001",
+      "given": "A role grants a syntactically similar permission containing a wildcard or broader scope.",
+      "when": "No exact permission equals the required permission.",
+      "then": "The authorization decision is DENY.",
+      "why": "Wildcard and subsumption semantics are excluded from this first rule."
+    },
+    {
+      "case_id": "AF-CALLER-SCOPE-REJECT-001",
+      "given": "The external caller supplies a scope value without trusted scope evidence.",
+      "when": "The supplied value otherwise matches a role permission.",
+      "then": "The authorization decision is DENY.",
+      "why": "Caller input is not authoritative scope."
+    }
+  ],
+  "boundaries": [
+    "exact-match positive permissions only",
+    "role-derived permissions only",
+    "explicit DENY grants and precedence are excluded",
+    "wildcards, hierarchy, ABAC, ReBAC, ownership, and separation-of-duty policies are excluded",
+    "authentication assurance and token protocols are excluded",
+    "the authoritative role relation is assumed complete for this policy claim; its runtime construction requires separate evidence",
+    "scope evidence is required but its runtime contract remains a later artifact"
+  ],
+  "acceptance": {
+    "status": "accepted",
+    "owner_ref": "projects/auth-foundation/formalization",
+    "acceptance_ref": "projects/auth-foundation/formalization/decisions/AF-EXACT-SESSION-ROLE-PERMISSION-001/owner-semantic-decision.json",
+    "acceptance_digest": "fb3b0cc6c23b3b1c7cfc9c7efbcabc6cf39810a16a6b1bb95c4381ab4a087ed5"
+  },
+  "claim_ceiling": "Owner-accepted business meaning for one exact-match session-role authorization rule. It establishes no FormalClaim admission, role-resolution completeness, implementation behavior, provider evidence, security, release, or production readiness.",
+  "authority_effect": "none"
+}

@@ -1,0 +1,289 @@
+{
+  "schema_version": "auth-service-definition-pack/v1-candidate",
+  "pack_id": "DEFINE-PACK-AUTH-SERVICE-BOUNDARY-001",
+  "status": "prototype-candidate",
+  "d65_stage": "definition_prototypes",
+  "construction_ref": "CA2-CONSTRUCTION-AUTH-SERVICE-001",
+  "project_ref": "CA2-PROJECT-AUTH-FOUNDATION",
+  "goal_ref": "CA2-GOAL-AUTH-SERVICE-FIRST-PRODUCT-CANDIDATE",
+  "subject": "complete in-process Auth Service",
+  "intent": "Define the smallest service-level vocabulary that connects trusted-input resolution, trusted command construction, authorization-state resolution, the existing exact session-role-permission decision candidate, and binary fail-closed output.",
+  "scope": [
+    "in-process service behavior only",
+    "server-resolved authentication-evidence and route references",
+    "SQLite-backed trusted-input and authorization-state snapshots",
+    "exact session-role-permission decision semantics referenced from the existing kernel Definition Pack",
+    "binary ALLOW or DENY output"
+  ],
+  "exclusions": [
+    "credential verification or login",
+    "token creation, validation, refresh, or revocation transport",
+    "HTTP or other remote transport",
+    "administrative mutation APIs",
+    "audit transport, multi-node operation, deployment, or production-security claims"
+  ],
+  "source_snapshot": [
+    {
+      "source_id": "SRC-AUTH-PROJECT-CANDIDATE",
+      "path": "cyberAlchemy-v2/goals/projects/auth-foundation/project.json",
+      "sha256": "5fb3da47efec93881d611d0d09b91d60190df38414e2f3d3cc6aac1d81ad913e",
+      "selector": "purpose and scope",
+      "posture": "proposed-project"
+    },
+    {
+      "source_id": "SRC-AUTH-GOAL-CANDIDATE",
+      "path": "cyberAlchemy-v2/goals/projects/auth-foundation/goals/auth-service-first-product-candidate.goal.json",
+      "sha256": "de8a2c0ae997064b62f7375389f15e71b4d76e74eef6be01c4b24e38484667b2",
+      "selector": "outcome, scope, and success conditions",
+      "posture": "draft-goal"
+    },
+    {
+      "source_id": "SRC-AUTH-D65-DAG-CANDIDATE",
+      "path": "projects/auth-foundation/development/auth-service-d65-r2-plan/PLAN-DAG.md",
+      "sha256": "f54053862932a52a75fdbc177eaaa85374aed2d7f0bcab599c155b7e7e8a1c43",
+      "selector": "Outcome, Product boundary, D0, Q0, P1, P2, T0, V0",
+      "posture": "planning-candidate"
+    },
+    {
+      "source_id": "SRC-AUTH-KERNEL-DEFINITION-PACK",
+      "path": "cyberAlchemy-v2/define/AUTH-FOUNDATION-DEFINITION-PACK.v1-candidate.json",
+      "sha256": "07f7b3e1036b87bf600d789bf59b355719b983b17d9ad6839586f7566de40920",
+      "selector": "auth-foundation.authorization-decision, auth-foundation.allow, auth-foundation.deny",
+      "posture": "candidate-definition-pack"
+    },
+    {
+      "source_id": "SRC-CAV2-D65-CURRENT",
+      "path": "cyberAlchemy-v2/authority/definitions/DEFINITIONS.md",
+      "sha256": "94ece1b66668b0345b317f18b74dd81c42919028030bc3ef790f0dd6cf43e12e",
+      "selector": "## CAV2-D65: DomainSpec-Governed Construction Invariant",
+      "posture": "canonical-definition-authority"
+    }
+  ],
+  "external_candidate_dependencies": [
+    {
+      "concept_id": "auth-foundation.authorization-decision",
+      "term": "AuthorizationDecision",
+      "definition_pack_ref": "DEFINE-PACK-AUTH-EXACT-SESSION-ROLE-PERMISSION-001",
+      "handling": "reference-existing-candidate",
+      "meaning": "The two-valued result whose only values are ALLOW and DENY.",
+      "boundary": "This reference neither promotes the existing proposal nor creates a second definition."
+    }
+  ],
+  "definitions": [
+    {
+      "definition_id": "AUTH-SVC-DEF-INBOUND-AUTHORIZATION-REQUEST",
+      "concept_id": "auth-service.inbound-authorization-request",
+      "term": "InboundAuthorizationRequest",
+      "disposition": "propose",
+      "formal_voice": "InboundAuthorizationRequest = (request_id: RequestCorrelationId, authentication_evidence_ref: AuthenticationEvidenceReference, route_id: RouteReference).",
+      "normative_voice": "The bounded untrusted service input containing a correlation identifier, a reference to prior authentication evidence, and an identifier for the requested server-owned route binding.",
+      "plain_language_voice": "The caller labels the attempt and says which login evidence and route it belongs to; none of those values lets it write its own permission.",
+      "domain_context_voice": "For the Auth Service this is an in-process input, not an HTTP payload, token, session, permission, or authorization decision.",
+      "boundary": "request_id is correlation-only. The request must not contain caller-authoritative roles, permissions, scope, authorization revision, or a precomputed result; every identifier is non-empty, at most 256 UTF-8 bytes, and contains no control character.",
+      "owner_route": "Auth Foundation Project owner plus Auth Service product owner",
+      "source_refs": ["SRC-AUTH-D65-DAG-CANDIDATE"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-AUTHENTICATION-EVIDENCE-REFERENCE",
+      "concept_id": "auth-service.authentication-evidence-reference",
+      "term": "AuthenticationEvidenceReference",
+      "disposition": "propose",
+      "formal_voice": "AuthenticationEvidenceReference : OpaqueServerResolvableId.",
+      "normative_voice": "An opaque identifier that the trusted-input provider resolves to current server-held authentication evidence or to a typed resolution failure.",
+      "plain_language_voice": "It is a lookup handle for evidence the server already trusts enough to inspect; it is not the evidence itself.",
+      "domain_context_voice": "The Auth Service resolves this reference from SQLite and rejects missing, duplicate, stale, revoked, or incomplete evidence.",
+      "boundary": "Possession or syntactic validity of the reference does not authenticate a person and does not authorize an action.",
+      "owner_route": "Auth Service product owner plus authentication-evidence owner",
+      "source_refs": ["SRC-AUTH-D65-DAG-CANDIDATE"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-ROUTE-REFERENCE",
+      "concept_id": "auth-service.route-reference",
+      "term": "RouteReference",
+      "disposition": "propose",
+      "formal_voice": "RouteReference : OpaqueServerResolvableId.",
+      "normative_voice": "An opaque identifier for one server-owned route binding that resolves to the exact required resource, action, and scope interpretation for the request.",
+      "plain_language_voice": "It points to the server's rule for what this route requires.",
+      "domain_context_voice": "The trusted-input provider resolves the reference from SQLite; the caller cannot replace the resolved required permission or scope.",
+      "boundary": "A route reference is not a transport route, permission, wildcard, or proof that the route is enabled or complete.",
+      "owner_route": "Auth Service product owner plus route-binding owner",
+      "source_refs": ["SRC-AUTH-D65-DAG-CANDIDATE"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-TRUSTED-INPUT-SNAPSHOT",
+      "concept_id": "auth-service.trusted-input-snapshot",
+      "term": "TrustedInputSnapshot",
+      "disposition": "propose",
+      "formal_voice": "TrustedInputSnapshot = (evaluation_epoch_id, decision_time, authentication_evidence_ref, authentication_evidence_revision, authenticated_subject_id, session_id, authentication_expires_at, route_id, route_binding_revision, required_permission, scope_evidence_ref). It exists only when both input references resolve exactly once inside the AuthorizationEvaluationEpoch and their status, expiry, revocation, enablement, and completeness predicates all hold.",
+      "normative_voice": "An immutable result, valid only inside one AuthorizationEvaluationEpoch, of resolving exactly one current authentication-evidence row and exactly one enabled complete route-binding row into their exact identities, revisions, resolved session and subject, required permission, trusted scope reference, and decision time.",
+      "plain_language_voice": "This is the server-checked version of the caller's two references, frozen for one decision.",
+      "domain_context_voice": "The Auth Service obtains it through the generated trusted-input query and SQLite provider before command construction.",
+      "boundary": "It is not authoritative authorization state, an authorization decision, or proof that the session currently has the required permission. Authentication-evidence revision, route-binding revision, and authorization revision are distinct revision domains and must not be equated.",
+      "field_contract": [
+        {"field": "evaluation_epoch_id", "type": "AuthorizationEvaluationEpochId", "source": "service-owned epoch", "constraint": "equal across TrustedInputSnapshot, TrustedAuthorizationCommand, and AuthorizationStateSnapshot"},
+        {"field": "decision_time", "type": "UtcInstant", "source": "service clock captured once before the first database read", "constraint": "used unchanged for all expiry and currentness predicates"},
+        {"field": "authentication_evidence_ref", "type": "AuthenticationEvidenceReference", "source": "InboundAuthorizationRequest", "constraint": "equals the unique resolved evidence-row identity"},
+        {"field": "authentication_evidence_revision", "type": "AuthenticationEvidenceRevision", "source": "authentication-evidence row", "constraint": "present and exact; not compared numerically with other revision domains"},
+        {"field": "authenticated_subject_id", "type": "SubjectId", "source": "authentication-evidence row", "constraint": "equals the subject bound to the resolved session during the same epoch"},
+        {"field": "session_id", "type": "SessionId", "source": "authentication-evidence row", "constraint": "equals TrustedAuthorizationCommand.session_id and AuthorizationStateSnapshot.resolved_session.session_id"},
+        {"field": "authentication_expires_at", "type": "UtcInstant", "source": "authentication-evidence row", "constraint": "decision_time is strictly earlier and the evidence is neither revoked nor disabled"},
+        {"field": "route_id", "type": "RouteReference", "source": "InboundAuthorizationRequest", "constraint": "equals the unique resolved route-binding identity"},
+        {"field": "route_binding_revision", "type": "RouteBindingRevision", "source": "route-binding row", "constraint": "present and exact; identifies the required-permission mapping used for this decision"},
+        {"field": "required_permission", "type": "Permission", "source": "route-binding row", "constraint": "resource, action, and scope are all present and copied unchanged into TrustedAuthorizationCommand"},
+        {"field": "scope_evidence_ref", "type": "TrustedScopeEvidenceReference", "source": "authentication evidence joined under the route scope requirement", "constraint": "copied unchanged into TrustedAuthorizationCommand and resolved exactly once in AuthorizationStateSnapshot"}
+      ],
+      "owner_route": "Auth Service product owner plus trusted-input provider owner",
+      "source_refs": ["SRC-AUTH-GOAL-CANDIDATE", "SRC-AUTH-D65-DAG-CANDIDATE"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-TRUSTED-AUTHORIZATION-COMMAND",
+      "concept_id": "auth-service.trusted-authorization-command",
+      "term": "TrustedAuthorizationCommand",
+      "disposition": "propose",
+      "formal_voice": "TrustedAuthorizationCommand = (evaluation_epoch_id, decision_time, session_id, authenticated_subject_id, required_permission, scope_evidence_ref, authentication_evidence_revision, route_binding_revision), constructed field-for-field from one valid TrustedInputSnapshot. Construction is total only while that snapshot's AuthorizationEvaluationEpoch is open; otherwise it yields no command.",
+      "normative_voice": "The internal command constructed solely from a valid TrustedInputSnapshot at the trusted boundary and carrying the exact kernel inputs that the service is permitted to evaluate.",
+      "plain_language_voice": "It is the server-built authorization question, after untrusted caller claims have been replaced by resolved facts.",
+      "domain_context_voice": "The Auth Service constructs this command before loading authorization state; callers cannot construct or amend it.",
+      "boundary": "It is not an external request, a database row, a grant, a decision, or authority to bypass later state resolution.",
+      "owner_route": "Auth Service product owner plus trusted-command-boundary owner",
+      "source_refs": ["SRC-AUTH-GOAL-CANDIDATE", "SRC-AUTH-D65-DAG-CANDIDATE", "SRC-AUTH-KERNEL-DEFINITION-PACK"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-AUTHORIZATION-STATE-SNAPSHOT",
+      "concept_id": "auth-service.authorization-state-snapshot",
+      "term": "AuthorizationStateSnapshot",
+      "disposition": "propose",
+      "formal_voice": "AuthorizationStateSnapshot = (evaluation_epoch_id, resolved_session, resolved_active_roles, complete_role_relation, exact_permission_grants, current_authorization_revision, trusted_scope_evidence). It is admissible only when command.session_id = resolved_session.session_id, command.authenticated_subject_id = resolved_session.user_id, resolved_session.authorization_revision = complete_role_relation.authorization_revision = current_authorization_revision, every returned role and grant belongs to the complete relation at that revision, and command.scope_evidence_ref = trusted_scope_evidence.ref.",
+      "normative_voice": "An immutable result, valid only inside the same AuthorizationEvaluationEpoch as its command, containing the complete current session, active-role relation, exact grants, authorization revision, and trusted-scope evidence required for one evaluation.",
+      "plain_language_voice": "It is the complete server-side authorization picture used for this one decision.",
+      "domain_context_voice": "The SQLite authorization-state provider must make incompleteness, ambiguity, staleness, and provider failure observable so the service can deny.",
+      "boundary": "It is not canonical policy source, mutable application state, a caller claim, or an authorization result. Its authorization revision closes only the session-role-grant state domain; it does not equal authentication-evidence or route-binding revision.",
+      "owner_route": "Auth Service product owner plus authorization-state provider owner",
+      "source_refs": ["SRC-AUTH-GOAL-CANDIDATE", "SRC-AUTH-D65-DAG-CANDIDATE", "SRC-AUTH-KERNEL-DEFINITION-PACK"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-AUTHORIZATION-EVALUATION-EPOCH",
+      "concept_id": "auth-service.authorization-evaluation-epoch",
+      "term": "AuthorizationEvaluationEpoch",
+      "disposition": "propose",
+      "formal_voice": "AuthorizationEvaluationEpoch = opaque(evaluation_epoch_id, sqlite_connection_identity, read_transaction_capability, decision_time). For one authorize call: begin_event < first_read_event < all trusted-input and authorization-state reads < kernel_evaluation < rollback_event; all reads use the same query-only connection and transaction. The identifier is unique within one live service instance, is never reused, and exhaustion yields DENY.",
+      "normative_voice": "The lifetime of one Auth Service authorization call from a service-owned read-only SQLite transaction beginning before the first trusted read until that transaction ends after the binary decision is fixed. Every trusted-input and authorization-state read must use the same database, connection, and transaction, and every derived snapshot or command is invalid outside that lifetime.",
+      "plain_language_voice": "The service opens one frozen database view, reads everything needed for one answer, decides, and then closes that view. It never mixes facts from two moments.",
+      "domain_context_voice": "SqliteAuthService owns the connection and transaction capability. Providers receive that capability; they may not open another connection, restart the transaction, consult a cache from another epoch, or perform a post-transaction read.",
+      "boundary": "The evaluation_epoch_id is a correlation identity, not proof by itself. Epoch proof is the unforgeable lifetime-bound transaction capability plus the observed single-connection query-only transaction sequence and successful field and revision joins. The normal service opens only an existing migrated database; migration is a separate explicit operation. This rule does not specify write serialization, distributed snapshots, or non-SQLite providers.",
+      "transaction_rule": {
+        "begin": "Validate bounded identifiers, capture decision_time once, allocate a checked nonzero evaluation_epoch_id, and begin one deferred transaction on the service-owned SQLite connection before the first provider read; require PRAGMA query_only = 1.",
+        "pin": "The first read pins the transaction snapshot. Trusted-input and authorization-state providers must execute every query through the same transaction capability.",
+        "resolve": "Resolve the authentication-evidence row and route-binding row, construct TrustedInputSnapshot and TrustedAuthorizationCommand, then resolve the complete authorization state without ending or replacing the transaction.",
+        "join": "Require identical evaluation_epoch_id; exact session and subject equality; exact required-permission and scope-reference copying; and equality of resolved-session, complete-role-relation, grant, and current authorization revisions inside the authorization-state revision domain.",
+        "decide": "Evaluate the generated exact session-role-permission kernel while the transaction remains open and fix exactly one AuthorizationDecision.",
+        "end": "Roll back the query-only transaction only after the decision is fixed. Opaque lifetime-bound snapshots and commands cannot be constructed by callers, reused by another call, or survive transaction end.",
+        "failure": "Any validation, clock, identifier allocation, begin, query-only check, read, cardinality, construction, join, kernel, or rollback uncertainty produces DENY; retry requires a new evaluation_epoch_id, decision_time, transaction, and complete reread. Identifier exhaustion produces DENY and never wraps or reuses an identity."
+      },
+      "proof_obligations": [
+        "one valid authorize attempt allocates at most one evaluation_epoch_id and no identifier is reused within the live service instance",
+        "exactly one database identity, connection identity, and read-transaction identity are observed for all provider reads",
+        "decision_time is captured once and copied unchanged",
+        "no provider opens an independent connection or transaction",
+        "no snapshot or command crosses transaction end",
+        "a retry creates a new epoch and re-resolves every input",
+        "all required identity, field, cardinality, and revision joins pass before ALLOW is possible"
+      ],
+      "owner_route": "Auth Service product owner plus authorization-state provider owner plus Auth Service product-test owner",
+      "source_refs": ["SRC-AUTH-PROJECT-CANDIDATE", "SRC-AUTH-GOAL-CANDIDATE", "SRC-AUTH-D65-DAG-CANDIDATE", "SRC-AUTH-KERNEL-DEFINITION-PACK"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-AUTH-SERVICE",
+      "concept_id": "auth-service.auth-service",
+      "term": "AuthService",
+      "disposition": "propose",
+      "formal_voice": "authorize : InboundAuthorizationRequest x TrustedInputProvider x AuthorizationStateProvider -> AuthorizationDecision, evaluated inside exactly one AuthorizationEvaluationEpoch. ALLOW is possible only after successful trusted-input resolution, trusted command construction, complete current authorization-state resolution, exact identity and revision joins, and exact kernel satisfaction inside that epoch.",
+      "normative_voice": "The in-process product boundary that coordinates trusted-input resolution, trusted command construction, authorization-state resolution, exact session-role-permission evaluation, and binary fail-closed output for one inbound request.",
+      "plain_language_voice": "The service turns two untrusted lookup references into one server-checked yes-or-no authorization answer.",
+      "domain_context_voice": "The first Auth Service product uses SQLite providers and generated DomainSpec-derived query and decision components without including HTTP, credentials, tokens, administration, or deployment.",
+      "boundary": "AuthService does not authenticate a person, mint or validate tokens, administer policy, transport requests remotely, or grant operational authority.",
+      "owner_route": "Auth Service product owner",
+      "source_refs": ["SRC-AUTH-PROJECT-CANDIDATE", "SRC-AUTH-GOAL-CANDIDATE", "SRC-AUTH-D65-DAG-CANDIDATE", "SRC-CAV2-D65-CURRENT"],
+      "authority_effect": "none"
+    },
+    {
+      "definition_id": "AUTH-SVC-DEF-FAIL-CLOSED-AUTHORIZATION",
+      "concept_id": "auth-service.fail-closed-authorization",
+      "term": "FailClosedAuthorization",
+      "disposition": "propose",
+      "formal_voice": "Decision = ALLOW iff one_epoch and trusted_input_resolved_exactly_once and command_constructed and authorization_state_complete_current and identity_joins_hold and revision_joins_hold and exact_kernel_grant; otherwise Decision = DENY.",
+      "normative_voice": "The service invariant that every missing, duplicate, ambiguous, stale, revoked, disabled, incomplete, mismatched, invalid, conversion-failed, query-failed, or provider-failed prerequisite produces DENY and no other externally visible decision value.",
+      "plain_language_voice": "If the service cannot prove the exact safe path for this request, it says no.",
+      "domain_context_voice": "All failures in the trusted-input provider, command boundary, authorization-state provider, adapter, or generated decision kernel converge on DENY.",
+      "boundary": "Fail-closed behavior is not proof of complete threat coverage, production security, availability, or correct upstream authentication.",
+      "owner_route": "Auth Service product owner plus Auth Service product-test owner",
+      "source_refs": ["SRC-AUTH-PROJECT-CANDIDATE", "SRC-AUTH-GOAL-CANDIDATE", "SRC-AUTH-D65-DAG-CANDIDATE", "SRC-AUTH-KERNEL-DEFINITION-PACK"],
+      "authority_effect": "none"
+    }
+  ],
+  "concept_index": [
+    {"term": "AuthService", "concept_id": "auth-service.auth-service", "definition_id": "AUTH-SVC-DEF-AUTH-SERVICE"},
+    {"term": "AuthenticationEvidenceReference", "concept_id": "auth-service.authentication-evidence-reference", "definition_id": "AUTH-SVC-DEF-AUTHENTICATION-EVIDENCE-REFERENCE"},
+    {"term": "AuthorizationDecision", "concept_id": "auth-foundation.authorization-decision", "definition_id": "external:DEFINE-PACK-AUTH-EXACT-SESSION-ROLE-PERMISSION-001"},
+    {"term": "AuthorizationEvaluationEpoch", "concept_id": "auth-service.authorization-evaluation-epoch", "definition_id": "AUTH-SVC-DEF-AUTHORIZATION-EVALUATION-EPOCH"},
+    {"term": "AuthorizationStateSnapshot", "concept_id": "auth-service.authorization-state-snapshot", "definition_id": "AUTH-SVC-DEF-AUTHORIZATION-STATE-SNAPSHOT"},
+    {"term": "FailClosedAuthorization", "concept_id": "auth-service.fail-closed-authorization", "definition_id": "AUTH-SVC-DEF-FAIL-CLOSED-AUTHORIZATION"},
+    {"term": "InboundAuthorizationRequest", "concept_id": "auth-service.inbound-authorization-request", "definition_id": "AUTH-SVC-DEF-INBOUND-AUTHORIZATION-REQUEST"},
+    {"term": "RouteReference", "concept_id": "auth-service.route-reference", "definition_id": "AUTH-SVC-DEF-ROUTE-REFERENCE"},
+    {"term": "TrustedAuthorizationCommand", "concept_id": "auth-service.trusted-authorization-command", "definition_id": "AUTH-SVC-DEF-TRUSTED-AUTHORIZATION-COMMAND"},
+    {"term": "TrustedInputSnapshot", "concept_id": "auth-service.trusted-input-snapshot", "definition_id": "AUTH-SVC-DEF-TRUSTED-INPUT-SNAPSHOT"}
+  ],
+  "relationships": [
+    {"source": "auth-service.inbound-authorization-request", "type": "references", "target": "auth-service.authentication-evidence-reference"},
+    {"source": "auth-service.inbound-authorization-request", "type": "references", "target": "auth-service.route-reference"},
+    {"source": "auth-service.authentication-evidence-reference", "type": "resolves_into", "target": "auth-service.trusted-input-snapshot"},
+    {"source": "auth-service.route-reference", "type": "resolves_into", "target": "auth-service.trusted-input-snapshot"},
+    {"source": "auth-service.trusted-input-snapshot", "type": "constructs", "target": "auth-service.trusted-authorization-command"},
+    {"source": "auth-service.authorization-evaluation-epoch", "type": "contains", "target": "auth-service.trusted-input-snapshot"},
+    {"source": "auth-service.authorization-evaluation-epoch", "type": "contains", "target": "auth-service.trusted-authorization-command"},
+    {"source": "auth-service.authorization-evaluation-epoch", "type": "contains", "target": "auth-service.authorization-state-snapshot"},
+    {"source": "auth-service.trusted-authorization-command", "type": "selects_state_for", "target": "auth-service.authorization-state-snapshot"},
+    {"source": "auth-service.auth-service", "type": "coordinates", "target": "auth-service.trusted-input-snapshot"},
+    {"source": "auth-service.auth-service", "type": "coordinates", "target": "auth-service.trusted-authorization-command"},
+    {"source": "auth-service.auth-service", "type": "coordinates", "target": "auth-service.authorization-state-snapshot"},
+    {"source": "auth-service.auth-service", "type": "returns", "target": "auth-foundation.authorization-decision"},
+    {"source": "auth-service.fail-closed-authorization", "type": "constrains", "target": "auth-service.auth-service"}
+  ],
+  "open_questions_and_residue": [
+    {
+      "id": "AUTH-SVC-OPEN-DEFINE-REGISTRATION",
+      "question": "How should the current single-pack Define package evolve to register this second Auth Definition Pack without invalidating the kernel pack boundary?",
+      "effect": "This project-local candidate is not registered in cyberAlchemy-v2/define/handled-definitions.json and is not a validated Define package member.",
+      "owner_route": "CyberAlchemy v2 Define product owner plus definitions-governance owner"
+    }
+  ],
+  "resolved_definition_decisions": [
+    {
+      "decision_id": "AUTH-SVC-DEF-DECISION-TRUSTED-INPUT-SNAPSHOT-001",
+      "resolves": "AUTH-SVC-OPEN-TRUSTED-INPUT-SNAPSHOT-SHAPE",
+      "result": "TrustedInputSnapshot has the eleven fields declared by AUTH-SVC-DEF-TRUSTED-INPUT-SNAPSHOT and preserves three distinct revision domains with explicit copy and equality joins; request_id remains correlation-only outside the snapshot.",
+      "effect": "The field vocabulary is closed for the candidate service Design; implementation and conformance remain unproven.",
+      "owner_route": "Auth Service product owner plus DomainSpec v2 owner",
+      "authority_effect": "none"
+    },
+    {
+      "decision_id": "AUTH-SVC-DEF-DECISION-EVALUATION-EPOCH-001",
+      "resolves": "AUTH-SVC-OPEN-STATE-EPOCH",
+      "result": "One authorize call owns one query-only SQLite transaction on one connection; all trusted-input and authorization-state reads, joins, command construction, and kernel evaluation occur before rollback. Opaque lifetime-bound values make the transaction capability, not the numeric identifier, the construction proof; checked exhaustion denies without reuse.",
+      "effect": "The candidate transaction and snapshot rule is implemented and locally testable; product approval and operational conformance remain unproven.",
+      "owner_route": "Auth Service product owner plus authorization-state provider owner",
+      "authority_effect": "none"
+    }
+  ],
+  "claim_ceiling": "Nine service-level definition proposals and one explicit dependency on the existing candidate AuthorizationDecision meaning. The TrustedInputSnapshot field contract and single-transaction AuthorizationEvaluationEpoch rule are resolved as testable candidate meanings. This pack is project-local, prototype-only, unregistered in the central Define handled-definition registry, and not owner-reviewed. It does not create canonical definitions, an admitted Design, DomainSpec source authority, implementation authority, product evidence, product approval, or any operational effect.",
+  "authority_effect": "none",
+  "implementation_effect": "none",
+  "promotion_effect": "none"
+}

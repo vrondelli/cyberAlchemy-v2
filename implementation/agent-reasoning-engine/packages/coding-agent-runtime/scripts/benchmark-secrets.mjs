@@ -20,8 +20,8 @@ const CONSUMER_ID = "benchmark.consumer";
 const MATERIAL = "synthetic-benchmark-material-never-log";
 const ENV_LOCATOR = "ARE_SYNTHETIC_BENCHMARK_SECRET";
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
-const repositoryRoot = resolve(packageRoot, "../../../../..");
-const secretProjectRoot = resolve(repositoryRoot, "projects/secret-management");
+const repositoryRoot = resolve(packageRoot, "../../../..");
+const secretProjectRoot = resolve(repositoryRoot, "secret-management");
 
 function positiveInteger(value, option) {
   const parsed = Number(value);

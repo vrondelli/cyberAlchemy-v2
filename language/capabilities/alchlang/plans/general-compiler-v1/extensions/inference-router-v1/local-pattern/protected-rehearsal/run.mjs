@@ -10,6 +10,6 @@ const sha=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
 if(sha(join(ds,'package.json'))!==binding.package_sha256)throw Error('COMPILER_PACKAGE_DRIFT');
 for(const [p,h]of Object.entries(binding.dist_files))if(sha(join(ds,p))!==h)throw Error('COMPILER_INPUT_DRIFT: '+p);
 const env={...process.env,ALCHLANG_TYPESCRIPT_COMPILER:process.env.ALCHLANG_TYPESCRIPT_COMPILER??resolve(root,binding.typescript_compiler),ALCHLANG_DOMAINSPEC_PACKAGE_ROOT:ds};
-for(const [cmd,args]of [['cargo',['build','--locked','--manifest-path',resolve(root,'../domainspec-core/projects/auth-foundation/implementation/tenant-bridge/Cargo.toml')]],[process.execPath,['--test',join(here,'rehearsal.test.mjs')]]]){
+for(const [cmd,args]of [['cargo',['build','--locked','--manifest-path',resolve(root,'auth-foundation/implementation/tenant-bridge/Cargo.toml')]],[process.execPath,['--test',join(here,'rehearsal.test.mjs')]]]){
  const result=spawnSync(cmd,args,{env,stdio:'inherit'});if(result.error)throw result.error;if(result.status!==0){process.exitCode=result.status??1;break;}
 }

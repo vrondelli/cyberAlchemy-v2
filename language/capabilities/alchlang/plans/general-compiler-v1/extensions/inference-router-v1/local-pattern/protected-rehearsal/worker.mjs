@@ -1,8 +1,8 @@
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {once} from 'node:events';
-import {importJWK} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/node_modules/jose/dist/webapi/index.js';
-import {verifier} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/src/identity.mjs';
+import {importJWK} from '../../../../../../../../../auth-foundation/implementation/authentication-https/node_modules/jose/dist/webapi/index.js';
+import {verifier} from '../../../../../../../../../auth-foundation/implementation/authentication-https/src/identity.mjs';
 import {createTenantSecurityPort,createTenantAuthorizer} from '../../security/auth-foundation.mjs';
 import {createProtectedServer} from '../../security/host.mjs';
 // Disposable rehearsal worker. IPC is trusted test input, not a public interface.

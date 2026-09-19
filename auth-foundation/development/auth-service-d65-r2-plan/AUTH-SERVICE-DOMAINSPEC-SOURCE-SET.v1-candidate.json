@@ -1,0 +1,28 @@
+{
+  "schema_version": "auth-service-domainspec-source-set/v1-candidate",
+  "source_set_id": "AUTH-SERVICE-DOMAINSPEC-SOURCE-001",
+  "status": "prototype-candidate",
+  "service_operation": "SqliteAuthService::authorize",
+  "component_sources": [
+    "../../implementation/operation-source/project.json",
+    "../../implementation/command-boundary-source/project.json",
+    "../../implementation/trusted-input-source/project.json"
+  ],
+  "service_owned_contract": {
+    "operation":"authorize",
+    "input":"InboundAuthorizationRequest",
+    "output":"AuthorizationDecision",
+    "reads":["authentication evidence","route binding","session","active-role relation","permission grants","authorization revision","scope evidence"],
+    "request_metadata":"request_id is bounded correlation-only metadata; authentication_evidence_ref and route_id are non-authoritative selectors",
+    "transaction":"one SQLite query-only transaction beginning before the first read and rolling back after the decision is fixed",
+    "schema_lifecycle":"normal open validates unified schema v2 only; explicit migration installs v2 or atomically upgrades v1 and rejects newer versions",
+    "failure_continuation":"return DENY"
+  },
+  "compiled_scaffold": {
+    "nodes":["InboundAuthorizationRequest","TrustedInputSnapshot","TrustedAuthorizationCommand","AuthorizationStateSnapshot","AuthorizationEvaluationEpoch","AuthorizationDecision","AuthService.authorize"],
+    "edges":["authorize resolves trusted inputs","authorize constructs trusted command","authorize resolves authorization state","authorize evaluates exact permission","evaluation epoch contains all reads and evaluation"]
+  },
+  "implementation_ref":"../../implementation/authorization-service/src/lib.rs",
+  "authority_effect":"none",
+  "claim_limit":"DomainSpec composition source-set scaffold over existing generated components. Deterministic generated-runtime replay may provide local technical evidence only; system-ontology admission, product approval, and operational authority are not claimed."
+}

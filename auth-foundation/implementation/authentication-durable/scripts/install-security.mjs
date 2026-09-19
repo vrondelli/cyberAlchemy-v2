@@ -1,0 +1,6 @@
+import {execFileSync} from 'node:child_process';import {readFileSync} from 'node:fs';import {resolve} from 'node:path';import https from 'node:https';
+const root=resolve(new URL('..',import.meta.url).pathname),original=resolve(root,'../authentication-https');
+const compose=['compose','--env-file',resolve(original,'.runtime/compose.env'),'-f',resolve(original,'compose.yaml'),'-f',resolve(root,'issuer.override.yml')];
+execFileSync('docker',[...compose,'up','-d','--wait','--force-recreate','--no-deps','keycloak'],{stdio:'inherit'});execFileSync('docker',[...compose,'up','-d','--wait','mailpit','proxy'],{stdio:'inherit'});execFileSync('docker',['exec','auth-foundation-https-proxy-1','nginx','-s','reload'],{stdio:'pipe'});
+const ready=()=>new Promise(done=>{const req=https.get('https://localhost:18443/realms/auth-https/.well-known/openid-configuration',{ca:readFileSync(resolve(original,'.runtime/tls/ca.crt')),timeout:5000},res=>{res.resume();done(res.statusCode===200)});req.on('error',()=>done(false));req.on('timeout',()=>req.destroy());});
+for(const deadline=Date.now()+180000;!await ready();){if(Date.now()>=deadline)throw Error('Issuer failed readiness');await new Promise(r=>setTimeout(r,500));}execFileSync(process.execPath,['scripts/setup-security.mjs'],{cwd:root,stdio:'inherit'});

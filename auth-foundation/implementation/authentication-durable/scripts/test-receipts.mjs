@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {requireCurrentReceipt,suites} from './receipt-policy.mjs';
+const input={suite:'lifecycle',digest:'current',logHash:'log',artifacts:{'repairs/lifecycle.json':'result'}};
+const receipt={schema_version:'auth-source-test-receipt/v1',suite:'lifecycle',status:'passed',exit_code:0,source_digest:'current',after_source_digest:'current',output_sha256:'log',command:suites.lifecycle.command,artifacts:input.artifacts};
+test('current exact command, source and outputs are admitted',()=>assert.doesNotThrow(()=>requireCurrentReceipt(receipt,input)));
+for(const [name,patch] of Object.entries({'stale source':{source_digest:'old'},'mutation during test':{after_source_digest:'changed'},'failed command':{exit_code:1},'failed status':{status:'failed'},'changed output':{output_sha256:'changed'},'different command':{command:['node','-e','process.exit(0)']},'missing result':{artifacts:{}},'changed result':{artifacts:{'repairs/lifecycle.json':'changed'}}}))test(name+' is rejected',()=>assert.throws(()=>requireCurrentReceipt({...receipt,...patch},input)));

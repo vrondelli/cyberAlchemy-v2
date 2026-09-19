@@ -1,0 +1,152 @@
+{
+  "schema_version": "auth-foundation.sqlite-provider-contract/v1-candidate",
+  "contract_id": "AUTH-SQLITE-PROVIDER-001",
+  "runtime_contract": {
+    "contract_id": "AUTH-RUNTIME-BINARY-DECISION-001",
+    "path": "implementation/runtime-contract.json",
+    "sha256": "def5b86f01bce91d7cd1d41d9f31a2a3259a30d27d69d9b095b296cc028b6940"
+  },
+  "ontology_dependency_closure": {
+    "path": "implementation/business-ontology.json",
+    "sha256": "7672a2c8910f7eb6f11b36faec1cece190ac3853e773c11b2fd3d79f909849b9",
+    "record_properties": [
+      "AUTH-PERMISSION#resource",
+      "AUTH-PERMISSION#action",
+      "AUTH-PERMISSION#scope",
+      "AUTH-SESSION#session_id",
+      "AUTH-SESSION#user_id",
+      "AUTH-SESSION#status",
+      "AUTH-SESSION#active_role_ids",
+      "AUTH-SESSION#authorization_revision",
+      "AUTH-SESSION#expires_at",
+      "AUTH-ROLE#role_id",
+      "AUTH-ROLE#permissions",
+      "AUTH-AUTHORIZATION-REQUEST#request_id",
+      "AUTH-AUTHORIZATION-REQUEST#session_id",
+      "AUTH-AUTHORIZATION-REQUEST#required_permission",
+      "AUTH-AUTHORIZATION-REQUEST#scope_evidence_ref",
+      "AUTH-AUTHORIZATION-REQUEST#decision_time",
+      "AUTH-AUTHORIZATION-REQUEST#current_authorization_revision",
+      "AUTH-EVALUATION-CONTEXT#request",
+      "AUTH-EVALUATION-CONTEXT#resolved_sessions",
+      "AUTH-EVALUATION-CONTEXT#resolved_roles",
+      "AUTH-EVALUATION-CONTEXT#trusted_scope_evidence",
+      "AUTH-EVALUATION-CONTEXT#role_relation_complete"
+    ],
+    "closure_rule": "inherit the complete L0 executable property denominator; port bindings identify the concrete evidence origins while the L4 adapter preserves request and context assembly"
+  },
+  "storage": {
+    "engine": "SQLite",
+    "crate": "rusqlite",
+    "crate_version": "0.40.2",
+    "feature_profile": [
+      "bundled"
+    ],
+    "migration": {
+      "version": 1,
+      "path": "implementation/sqlite-provider/migrations/0001_auth_state.sql",
+      "sha256": "9cfadd66088d39d8f106eea700eb27ae3a9140bb9afb7bbfb64e7c6451728e37"
+    },
+    "read_consistency": "all database-backed authorization evidence is resolved inside one deferred SQLite transaction",
+    "foreign_keys": "required"
+  },
+  "port_bindings": [
+    {
+      "port_id": "AUTH-PORT-SESSION-RESOLVER",
+      "tables": [
+        "auth_sessions",
+        "auth_session_active_roles"
+      ],
+      "ontology_properties": [
+        "AUTH-SESSION#session_id",
+        "AUTH-SESSION#user_id",
+        "AUTH-SESSION#status",
+        "AUTH-SESSION#active_role_ids",
+        "AUTH-SESSION#authorization_revision",
+        "AUTH-SESSION#expires_at",
+        "AUTH-AUTHORIZATION-REQUEST#session_id",
+        "AUTH-EVALUATION-CONTEXT#resolved_sessions"
+      ],
+      "completeness": "preserve every matching row and do not collapse duplicate session identities"
+    },
+    {
+      "port_id": "AUTH-PORT-ROLE-RESOLVER",
+      "tables": [
+        "auth_roles",
+        "auth_session_active_roles",
+        "auth_role_permissions"
+      ],
+      "ontology_properties": [
+        "AUTH-ROLE#role_id",
+        "AUTH-ROLE#permissions",
+        "AUTH-PERMISSION#resource",
+        "AUTH-PERMISSION#action",
+        "AUTH-PERMISSION#scope",
+        "AUTH-EVALUATION-CONTEXT#resolved_roles",
+        "AUTH-EVALUATION-CONTEXT#role_relation_complete"
+      ],
+      "completeness": "return complete=true only when the authoritative role identities exactly equal the session active-role set and every role row resolves"
+    },
+    {
+      "port_id": "AUTH-PORT-SCOPE-EVIDENCE",
+      "tables": [
+        "auth_scope_evidence"
+      ],
+      "ontology_properties": [
+        "AUTH-AUTHORIZATION-REQUEST#scope_evidence_ref",
+        "AUTH-AUTHORIZATION-REQUEST#required_permission",
+        "AUTH-EVALUATION-CONTEXT#trusted_scope_evidence"
+      ],
+      "completeness": "trust only one exact evidence-ref, resource, action, and scope match whose trusted flag is true"
+    },
+    {
+      "port_id": "AUTH-PORT-AUTHORIZATION-REVISION",
+      "tables": [
+        "auth_authorization_revisions"
+      ],
+      "ontology_properties": [
+        "AUTH-AUTHORIZATION-REQUEST#current_authorization_revision"
+      ],
+      "completeness": "missing authoritative revision is provider failure"
+    },
+    {
+      "port_id": "AUTH-PORT-DECISION-CLOCK",
+      "tables": [],
+      "ontology_properties": [
+        "AUTH-AUTHORIZATION-REQUEST#decision_time"
+      ],
+      "completeness": "clock remains injected and its failure is provider failure"
+    }
+  ],
+  "public_entrypoint": "SqliteAuthorizationService::authorize",
+  "public_decision": [
+    "Allow",
+    "Deny"
+  ],
+  "failure_policy": {
+    "open_or_migration_failure": "construction returns PortFailure",
+    "newer_schema_version": "construction returns PortFailure",
+    "transaction_start_failure": "invoke the L4 adapter with failed ports and return Deny",
+    "query_or_conversion_failure": "port failure becomes Deny through the L4 adapter",
+    "transaction_commit_failure": "Deny",
+    "missing_or_ambiguous_evidence": "Deny",
+    "internal_deny_reason_exposure": "forbidden"
+  },
+  "effects": [
+    "open a caller-selected local SQLite database",
+    "apply idempotent schema migration version 1",
+    "read authorization evidence"
+  ],
+  "deferred": [
+    "credential and token issuance",
+    "HTTP or RPC transport",
+    "administrative write API",
+    "multi-node concurrency",
+    "encryption and key management",
+    "audit transport",
+    "deployment and production-security claims"
+  ],
+  "authority_effect": "none",
+  "external_effect": "local-filesystem-only-when-caller-selects-a-file-path",
+  "claim_limit": "Candidate concrete provider for local SQLite evidence only; no transport, token, deployment, or production-security claim."
+}

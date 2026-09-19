@@ -6,7 +6,7 @@ import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-AUTH = ROOT.parents[2] / "domainspec-core/projects/auth-foundation/implementation/session-core"
+AUTH = ROOT.parents[1] / "auth-foundation/implementation/session-core"
 WEB = ROOT.parent / "web" / "dist"
 
 

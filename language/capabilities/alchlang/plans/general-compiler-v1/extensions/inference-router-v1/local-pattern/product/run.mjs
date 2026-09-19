@@ -22,7 +22,7 @@ if(mode==='help'){
   else if(mode==='rehearse')await run([join(base,'local-pattern/protected-rehearsal/run.mjs')]);
   else{
    if(!process.argv[3])throw Error('VALIDATION_OUTPUT_REQUIRED');const output=resolve(process.argv[3]);if(existsSync(output))throw Error('VALIDATION_OUTPUT_EXISTS');mkdirSync(output,{recursive:true});
-   const impl=resolve(base,'../../implementation'),af=resolve(root,'../domainspec-core/projects/auth-foundation/implementation/inference-browser');
+   const impl=resolve(base,'../../implementation'),af=resolve(root,'auth-foundation/implementation/inference-browser');
    const suites=[
     ['vllm',['--test',join(base,'local-pattern/vllm/vllm.test.mjs')],11],
     ['package',['--test',join(here,'package.test.mjs'),join(here,'operator.test.mjs')],6],

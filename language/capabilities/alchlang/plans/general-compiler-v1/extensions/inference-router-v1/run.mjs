@@ -23,7 +23,7 @@ else if(mode==='build-invocation'&&process.argv[3])args=[resolve(base,'../../imp
 else if(mode==='build-service'&&process.argv[3])args=[resolve(base,'../../implementation/dist/cli.js'),'build',join(base,'protected-service.alch'),'--out',resolve(process.argv[3])];
 else if(mode==='serve'&&process.argv[3])args=[join(base,'serve.mjs'),resolve(process.argv[3]),process.argv[4]??'3000'];
 else throw Error('Usage: node run.mjs test | audit | build /absolute/new/bundle | build-service /absolute/new/bundle | build-invocation /absolute/new/bundle | build-stream /absolute/new/bundle | build-custody /absolute/new/bundle | serve /absolute/operator-config.mjs [port]');
-if(mode==='test'){const build=spawnSync('cargo',['build','--locked','--manifest-path',resolve(repository,'../domainspec-core/projects/auth-foundation/implementation/tenant-bridge/Cargo.toml')],{env,stdio:'inherit'});if(build.error)throw build.error;if(build.status!==0)throw Error('AUTH_FOUNDATION_BRIDGE_BUILD');}
+if(mode==='test'){const build=spawnSync('cargo',['build','--locked','--manifest-path',resolve(repository,'auth-foundation/implementation/tenant-bridge/Cargo.toml')],{env,stdio:'inherit'});if(build.error)throw build.error;if(build.status!==0)throw Error('AUTH_FOUNDATION_BRIDGE_BUILD');}
 const result=spawnSync(process.execPath,args,{env,stdio:'inherit'});
 if(result.error)throw result.error;
 process.exitCode=result.status??1;

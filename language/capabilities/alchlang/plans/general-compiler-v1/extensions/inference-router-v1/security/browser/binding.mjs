@@ -1,12 +1,12 @@
 import {open,mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createEnrollment} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/enrollment.mjs';
-import {createBrowserOAuth} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/oauth.mjs';
-import {createBrowserGateway} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/gateway.mjs';
+import {createEnrollment} from '../../../../../../../../../auth-foundation/implementation/inference-browser/enrollment.mjs';
+import {createBrowserOAuth} from '../../../../../../../../../auth-foundation/implementation/inference-browser/oauth.mjs';
+import {createBrowserGateway} from '../../../../../../../../../auth-foundation/implementation/inference-browser/gateway.mjs';
 import {createTenantSecurityPort,createTenantAuthorizer} from '../auth-foundation.mjs';
 import {createProtectedHandler} from '../host.mjs';
-import {verifier,active,configuration} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/src/identity.mjs';
+import {verifier,active,configuration} from '../../../../../../../../../auth-foundation/implementation/authentication-https/src/identity.mjs';
 // Trusted native composition, no issuer or tenant authority in caller JSON. Open Questions: PLAN.md.
 export async function createBrowserInference({profile,origin=profile.origin,policyPath,binary,state,...config}){
  profile=structuredClone(profile);
@@ -21,7 +21,7 @@ export async function createBrowserInference({profile,origin=profile.origin,poli
 
 // Explicit durable entry point: opening/configuration failures never choose memory.
 export async function createDurableBrowserInference({statePath,stateKey,...config}){
- const {openSqliteState}=await import('../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/state.mjs');
+ const {openSqliteState}=await import('../../../../../../../../../auth-foundation/implementation/inference-browser/state.mjs');
  const state=openSqliteState({path:statePath,key:stateKey});
  try{const app=await createBrowserInference({...config,state});return {...app,close:()=>{try{app.close();}finally{state.close();}}};}
  catch(error){state.close();throw error;}

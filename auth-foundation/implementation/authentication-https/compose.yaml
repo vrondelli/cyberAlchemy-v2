@@ -1,0 +1,81 @@
+name: ${AUTH_COMPOSE_PROJECT:?Run setup}
+services:
+  postgres:
+    image: postgres@sha256:67f41722b7a8cbdb868a44a4995c846eddfdc2973bccb291ce937dce88ad5675
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Run setup}
+    volumes:
+      - https-db:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U keycloak]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  keycloak:
+    image: quay.io/keycloak/keycloak@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
+    command: [start, --import-realm]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${AUTH_DB_PASSWORD:?Run setup}
+      KC_HOSTNAME: ${AUTH_ISSUER_ORIGIN:?Run setup}
+      KC_HOSTNAME_STRICT: 'true'
+      KC_HTTP_ENABLED: 'false'
+      KC_HTTPS_CERTIFICATE_FILE: /tls/keycloak.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /tls/keycloak.key
+      KC_HTTPS_PROTOCOLS: TLSv1.3,TLSv1.2
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: ${AUTH_PROXY_IP:?Run setup}
+      KC_HTTP_MAX_QUEUED_REQUESTS: '32'
+      KC_HEALTH_ENABLED: 'true'
+    volumes:
+      - ./.runtime/realm.json:/opt/keycloak/data/import/auth-https.json:ro
+      - ./.runtime/tls/keycloak.crt:/tls/keycloak.crt:ro
+      - ./.runtime/tls/keycloak.key:/tls/keycloak.key:ro
+      - ./themes/auth-foundation:/opt/keycloak/themes/auth-foundation:ro
+    networks: [identity, database]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  proxy:
+    image: nginx@sha256:dc5069ad14f19660b141b21236140b91656bf89bbc3e2417c70ae650cd66104c
+    # Nginx needs its image UID for owner-only temp paths. The host app socket
+    # and TLS material are group-readable by the exact host service GID.
+    user: 101:${AUTH_LOCAL_GID:?Run setup}
+    entrypoint: [nginx, -g, 'daemon off;']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:uid=101,gid=${AUTH_LOCAL_GID},mode=0700
+    volumes:
+      - ./.runtime/proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.runtime/proxy/upstream.conf:/etc/nginx/upstream.conf:ro
+      - ./.runtime/tls/frontend.crt:/tls/frontend.crt:ro
+      - ./.runtime/tls/frontend.key:/tls/frontend.key:ro
+      - ./.runtime/tls/ca.crt:/tls/ca.crt:ro
+      - ./.runtime/socket:/appsocket:ro
+    ports:
+      - 127.0.0.1:${AUTH_APP_PORT:?Run setup}:${AUTH_APP_PORT:?Run setup}
+      - 127.0.0.1:${AUTH_ISSUER_PORT:?Run setup}:${AUTH_ISSUER_PORT:?Run setup}
+      - 127.0.0.1:${AUTH_OPERATOR_PORT:?Run setup}:${AUTH_OPERATOR_PORT:?Run setup}
+    networks:
+      edge: {}
+      identity:
+        ipv4_address: ${AUTH_PROXY_IP:?Run setup}
+    depends_on: [keycloak]
+networks:
+  edge: {}
+  identity:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${AUTH_SUBNET:?Run setup}
+  database:
+    internal: true
+volumes:
+  https-db:

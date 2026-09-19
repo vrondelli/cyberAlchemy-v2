@@ -1,0 +1,545 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.dev/auth-foundation/schemas/interpretation-model-independent-review/v1",
+  "title": "Auth Foundation InterpretationModel Independent Review Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "review_id",
+    "reviewed_at",
+    "reviewer_route",
+    "candidate_author_route",
+    "review_contract_ref",
+    "candidate_exact_ref",
+    "source_exact_refs",
+    "definition_results",
+    "mandatory_check_results",
+    "predecessor_delta_results",
+    "findings",
+    "verdict",
+    "next_route",
+    "authority_effect",
+    "claim_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "auth-foundation.interpretation-model-independent-review/v1"
+    },
+    "review_id": {
+      "$ref": "#/$defs/text"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reviewer_route": {
+      "$ref": "#/$defs/text"
+    },
+    "candidate_author_route": {
+      "$ref": "#/$defs/text"
+    },
+    "review_contract_ref": {
+      "$ref": "#/$defs/exactRef"
+    },
+    "candidate_exact_ref": {
+      "$ref": "#/$defs/availableOrUnavailableRef"
+    },
+    "source_exact_refs": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "$ref": "#/$defs/roleRef"
+      }
+    },
+    "definition_results": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/definitionResult"
+      }
+    },
+    "mandatory_check_results": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "items": {
+        "$ref": "#/$defs/checkResult"
+      }
+    },
+    "predecessor_delta_results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/predecessorDeltaResult"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "verdict": {
+      "$ref": "#/$defs/verdict"
+    },
+    "next_route": {
+      "enum": [
+        "owner-decision-gate",
+        "editorial-repair",
+        "interpretation-model-revision",
+        "restore-exact-source-closure"
+      ]
+    },
+    "authority_effect": {
+      "const": "none"
+    },
+    "claim_ceiling": {
+      "const": "Independent evidence about whether one frozen InterpretationModel candidate faithfully interprets the exact accepted BusinessMeaning v2. It does not accept the candidate, admit or identify a FormalClaim, derive obligations, execute providers, join EVF evidence, or establish runtime conformance, security, release, or production readiness."
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FLAG",
+        "BLOCK",
+        "NOT_EVALUABLE"
+      ]
+    },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes",
+        "current"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "current": {
+          "const": true
+        }
+      }
+    },
+    "unavailableRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "current",
+        "failure_kind",
+        "detail"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/text"
+        },
+        "current": {
+          "const": false
+        },
+        "failure_kind": {
+          "enum": [
+            "missing",
+            "unreadable",
+            "unhashable"
+          ]
+        },
+        "detail": {
+          "$ref": "#/$defs/text"
+        },
+        "expected_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "expected_size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "availableOrUnavailableRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/exactRef"
+        },
+        {
+          "$ref": "#/$defs/unavailableRef"
+        }
+      ]
+    },
+    "roleRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "ref"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "normative-business-meaning",
+            "business-meaning-owner-decision",
+            "stale-predecessor-comparison-only",
+            "interpretation-model-schema",
+            "business-meaning-acceptance-review",
+            "business-meaning-validation",
+            "current-case-package",
+            "review-contract-schema",
+            "review-result-schema"
+          ]
+        },
+        "ref": {
+          "$ref": "#/$defs/availableOrUnavailableRef"
+        }
+      }
+    },
+    "definitionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "definition_id",
+        "term",
+        "accepted_pointer_results",
+        "successor_locations",
+        "status",
+        "detail",
+        "finding_ids",
+        "causal_blockers"
+      ],
+      "properties": {
+        "definition_id": {
+          "enum": [
+            "AF-DEF-AUTHORIZATION-REQUEST",
+            "AF-DEF-SESSION",
+            "AF-DEF-ROLE",
+            "AF-DEF-PERMISSION",
+            "AF-DEF-RESOURCE",
+            "AF-DEF-ACTION",
+            "AF-DEF-SCOPE",
+            "AF-DEF-REQUIRED-PERMISSION",
+            "AF-DEF-DECISION-TIME",
+            "AF-DEF-AUTHORIZATION-REVISION",
+            "AF-DEF-RESOLVED-SESSION",
+            "AF-DEF-RESOLVED-ACTIVE-ROLE",
+            "AF-DEF-TRUSTED-SCOPE-EVIDENCE",
+            "AF-DEF-COMPLETE-AUTHORITATIVE-ROLE-RELATION",
+            "AF-DEF-SESSION-CURRENT",
+            "AF-DEF-AUTHORIZATION-ADMISSIBLE",
+            "AF-DEF-EXACT-ACTIVE-ROLE-GRANT",
+            "AF-DEF-AUTHORIZATION-DECISION",
+            "AF-DEF-ALLOW",
+            "AF-DEF-DENY"
+          ]
+        },
+        "term": {
+          "$ref": "#/$defs/text"
+        },
+        "accepted_pointer_results": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_pointer",
+              "successor_pointer",
+              "status",
+              "detail",
+              "finding_ids"
+            ],
+            "properties": {
+              "source_pointer": {
+                "type": "string",
+                "pattern": "^#/"
+              },
+              "successor_pointer": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^#/"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "status": {
+                "$ref": "#/$defs/itemStatus"
+              },
+              "detail": {
+                "$ref": "#/$defs/text"
+              },
+              "finding_ids": {
+                "$ref": "#/$defs/textSet"
+              }
+            }
+          }
+        },
+        "successor_locations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^#/"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/itemStatus"
+        },
+        "detail": {
+          "$ref": "#/$defs/text"
+        },
+        "finding_ids": {
+          "$ref": "#/$defs/textSet"
+        },
+        "causal_blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_EVALUABLE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "causal_blockers": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "checkResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_id",
+        "status",
+        "detail",
+        "evidence_locations",
+        "finding_ids",
+        "causal_blockers"
+      ],
+      "properties": {
+        "check_id": {
+          "pattern": "^AF-IMR-0(0[1-9]|1[0-7])$"
+        },
+        "status": {
+          "$ref": "#/$defs/itemStatus"
+        },
+        "detail": {
+          "$ref": "#/$defs/text"
+        },
+        "evidence_locations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "finding_ids": {
+          "$ref": "#/$defs/textSet"
+        },
+        "causal_blockers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_EVALUABLE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "causal_blockers": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "predecessorDeltaResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "delta_id",
+        "predecessor_pointer",
+        "successor_pointer",
+        "change_kind",
+        "classification",
+        "rationale",
+        "status",
+        "finding_ids",
+        "causal_blockers"
+      ],
+      "properties": {
+        "delta_id": {
+          "$ref": "#/$defs/text"
+        },
+        "predecessor_pointer": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^#/"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "successor_pointer": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^#/"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "change_kind": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "classification": {
+          "enum": [
+            "required-lifecycle-change",
+            "v2-definition-alignment",
+            "pointer-replacement"
+          ]
+        },
+        "rationale": {
+          "$ref": "#/$defs/text"
+        },
+        "status": {
+          "$ref": "#/$defs/itemStatus"
+        },
+        "finding_ids": {
+          "$ref": "#/$defs/textSet"
+        },
+        "causal_blockers": {
+          "$ref": "#/$defs/textSet"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_EVALUABLE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "causal_blockers": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "severity",
+        "locator",
+        "detail",
+        "status"
+      ],
+      "properties": {
+        "finding_id": {
+          "$ref": "#/$defs/text"
+        },
+        "severity": {
+          "enum": [
+            "editorial",
+            "material",
+            "causal-blocker"
+          ]
+        },
+        "locator": {
+          "$ref": "#/$defs/text"
+        },
+        "detail": {
+          "$ref": "#/$defs/text"
+        },
+        "status": {
+          "enum": [
+            "open",
+            "resolved"
+          ]
+        }
+      }
+    },
+    "itemStatus": {
+      "enum": [
+        "PASS",
+        "BLOCK",
+        "NOT_EVALUABLE"
+      ]
+    },
+    "textSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    }
+  }
+}

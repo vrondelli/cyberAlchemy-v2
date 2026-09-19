@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {validateSmtpProfile,publicSmtp} from './smtp.mjs';
+const valid={host:'smtp.example.test',port:'587',from:'auth@example.test',user:'test',password:'synthetic-not-a-real-password',ssl:'false',starttls:'true'};
+test('external SMTP requires authenticated TLS and evidence excludes credentials',()=>{const p=validateSmtpProfile(valid);assert.equal(p.auth,'true');assert.equal(publicSmtp(p).external_delivery_verified,false);assert.equal(JSON.stringify(publicSmtp(p)).includes(valid.password),false);});
+for(const [name,patch] of Object.entries({plaintext:{starttls:'false'},'conflicting TLS':{ssl:'true'},'missing sender':{from:''},'missing password':{password:''},'invalid port':{port:'65536'},'invalid hostname':{host:'https://smtp.example.test'}}))test(name+' SMTP configuration fails closed',()=>assert.throws(()=>validateSmtpProfile({...valid,...patch})));

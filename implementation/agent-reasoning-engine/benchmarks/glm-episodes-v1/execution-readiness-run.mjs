@@ -13,7 +13,7 @@ const hash=x=>createHash('sha256').update(x).digest('hex'),here=dirname(fileURLT
 const [credentialFile,outputArg]=process.argv.slice(2);if(!outputArg||process.argv.length!==4)throw Error('usage: credential-reference output-directory');
 const output=resolve(outputArg);mkdirSync(output,{mode:0o700});
 const save=(name,value)=>writeFileSync(join(output,name),JSON.stringify(value,null,2)+'\n',{flag:'wx',mode:0o600});
-const c=parseCredential(JSON.parse(readFileSync(credentialFile,'utf8'))),project='/home/vrondelli/projects/domainspec-core/projects/secret-management';
+const c=parseCredential(JSON.parse(readFileSync(credentialFile,'utf8'))),project=fileURLToPath(new URL('../../../../secret-management',import.meta.url));
 const provider=createSopsAgeProcessSecretProvider({...c,python_command:'/usr/bin/python3',project_root:project,timeout_ms:5000});
 const registry=createSecretProviderRegistry({providers:[provider]}),ref=createSecretReference({provider_id:c.provider_id,locator:c.locator});
 function files(root){return readdirSync(root,{withFileTypes:true}).flatMap(x=>x.isDirectory()&&x.name!=='__pycache__'?files(join(root,x.name)):x.isFile()&&x.name.endsWith('.py')?[join(root,x.name)]:[]);}

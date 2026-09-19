@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {verifier,active,configuration,validateProfile} from '../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/src/identity.mjs';
+import {verifier,active,configuration,validateProfile} from '../../../../../../../../auth-foundation/implementation/authentication-https/src/identity.mjs';
 // Trusted adapter, no network authorization input. Open Questions: PLAN.md.
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const valid=s=>typeof s==='string'&&s.length>0&&Buffer.byteLength(s)<=256&&!/[\x00-\x1f\x7f]/.test(s);

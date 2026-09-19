@@ -6,9 +6,9 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {buildPublicPolicy} from '../../build-public-policy.mjs';
 import {createBrowserInference} from './binding.mjs';
-import {launchBrowser} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/scripts/browser.mjs';
+import {launchBrowser} from '../../../../../../../../../auth-foundation/implementation/authentication-https/scripts/browser.mjs';
 // Browser-only application interception; actual Keycloak HTTPS/OIDC. Open Questions: PLAN.md.
-const af=new URL('../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/',import.meta.url),dir=await mkdtemp(join(tmpdir(),'browser-inference-'));let browser;let attempts=0;const checks=[];let stage="build",page;const trace=[];let acceptCallback;const callbackReady=new Promise(r=>acceptCallback=r);
+const af=new URL('../../../../../../../../../auth-foundation/implementation/authentication-https/',import.meta.url),dir=await mkdtemp(join(tmpdir(),'browser-inference-'));let browser;let attempts=0;const checks=[];let stage="build",page;const trace=[];let acceptCallback;const callbackReady=new Promise(r=>acceptCallback=r);
 try{
  const generated=await buildPublicPolicy(dir,{protectedService:true});
  const profile=JSON.parse(await readFile(new URL('.runtime/config.json',af),'utf8'));

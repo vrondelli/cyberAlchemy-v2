@@ -1,0 +1,32 @@
+{
+  "schema_version": "auth-service.authorization-api-definitions/v1-candidate",
+  "definition_pack_id": "AUTHORIZATION-API-V1-DEFINITIONS-001",
+  "status": "prototype-candidate",
+  "d65_stage": "definition_prototypes",
+  "historical_predecessor": {
+    "candidate_digest": "916e5c949a0bfc00e97516b30c3d90cf710ab5f7cd39d7a95b37ba0a68343f26",
+    "path": "../non-evf-candidate-v1/AUTH-SERVICE-NON-EVF-CANDIDATE.v1.json",
+    "posture": "historical-only; current service bytes are rebound by the node-13 candidate"
+  },
+  "definitions": [
+    {"term": "AuthorizationApiV1Request", "meaning": "Exact bounded JSON(request_id, authentication_evidence_ref, route_id); every value remains untrusted and non-authoritative."},
+    {"term": "AuthorizationApiV1Response", "meaning": "Exact JSON(decision: ALLOW | DENY), with no internal diagnostic or authorization fact."},
+    {"term": "BoundedAuthorizationRuntime", "meaning": "A fixed-size pool of independent authorization engines, a matching semaphore, bounded acquisition and evaluation waits, and blocking-worker isolation."},
+    {"term": "AuthorizationEvaluationEpoch", "meaning": "One globally unique, non-reused epoch identifier allocated for one authorization attempt and consumed inside that attempt's SQLite transaction snapshot."},
+    {"term": "SqlBindingInvariant", "meaning": "Untrusted request values reach SQLite only as bound parameters; runtime SQL structure is static and never assembled from request bytes."},
+    {"term": "AuthorizationRuntimeMetrics", "meaning": "Aggregate counters and concurrency gauges only: requests, binary outcomes, saturation, timeout, worker failure, current in-flight, and maximum in-flight."}
+  ],
+  "failure_contract": [
+    {"condition": "completed service evaluation", "status": 200, "body": "binary service decision"},
+    {"condition": "malformed or non-exact request", "status": 400, "body": "DENY"},
+    {"condition": "unsupported content type", "status": 415, "body": "DENY"},
+    {"condition": "body exceeds 1024 bytes", "status": 413, "body": "DENY"},
+    {"condition": "unknown path", "status": 404, "body": "DENY"},
+    {"condition": "unsupported method", "status": 405, "body": "DENY"},
+    {"condition": "pool saturated or worker unavailable", "status": 503, "body": "DENY"},
+    {"condition": "evaluation deadline exceeded", "status": 504, "body": "DENY"}
+  ],
+  "caller_security_boundary": "The intended caller is a future authenticated internal service through an owner-selected mTLS or trusted-edge boundary. This candidate binds no listener, authenticates no client, and cannot be activated until that separate security product is implemented and approved.",
+  "authority_effect": "none",
+  "claim_limit": "Prototype meanings only; no evidence join, product approval, admission, listener activation, publication, release, deployment, or production-security claim."
+}

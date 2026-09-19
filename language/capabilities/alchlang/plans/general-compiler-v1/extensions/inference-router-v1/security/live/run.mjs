@@ -9,9 +9,9 @@ import {createHash} from 'node:crypto';
 import {buildPublicPolicy} from '../../build-public-policy.mjs';
 import {createProtectedServer} from '../host.mjs';
 import {createAuthFoundation} from '../auth-foundation.mjs';
-import {serviceToken,verifier,configuration,active} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/src/identity.mjs';
+import {serviceToken,verifier,configuration,active} from '../../../../../../../../../auth-foundation/implementation/authentication-https/src/identity.mjs';
 // Explicit live runner; never included in the offline suite. Open Questions: PLAN.md.
-const af=new URL('../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/',import.meta.url);
+const af=new URL('../../../../../../../../../auth-foundation/implementation/authentication-https/',import.meta.url);
 const directory=await mkdtemp(join(tmpdir(),'inference-live-'));await chmod(directory,0o700);
 const passed=[];let provider,server;let attempts=0;
 const sha=x=>createHash('sha256').update(x).digest('hex');

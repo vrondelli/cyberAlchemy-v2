@@ -1,0 +1,31 @@
+{
+  "schema_version": "auth-service.authorization-api-product-contract/v1-candidate",
+  "capability_id": "CA2-CAP-AUTHORIZATION-API-V1",
+  "status": "prototype-candidate",
+  "outcome": "Map one exact bounded HTTP JSON request to one snapshot-consistent Auth Service evaluation and return only its binary decision.",
+  "endpoint": {"method": "POST", "path": "/v1/authorize", "content_type": "application/json", "maximum_body_bytes": 1024, "request_fields": ["request_id", "authentication_evidence_ref", "route_id"], "response_fields": ["decision"], "response_values": ["ALLOW", "DENY"], "cache_policy": "no-store"},
+  "concurrency": {
+    "model": "bounded pool of independent read-only SQLite engine connections",
+    "admission": "one semaphore permit per pool slot with a bounded acquisition timeout",
+    "execution": "synchronous evaluation runs on a blocking worker outside the async executor",
+    "epoch": "all pool members share one atomic non-reusing epoch allocator",
+    "timeout_safety": "an elapsed caller deadline does not return the engine or permit until the worker exits"
+  },
+  "storage_security": "Every untrusted request value is passed through SQLite parameter binding; no request value is interpolated into SQL. API startup neither migrates nor writes schema.",
+  "observability": "Readiness plus aggregate counters and gauges; request identifiers, evidence references, routes, subjects, and policy facts are absent.",
+  "caller_security": "Deferred product boundary: future authenticated internal caller through owner-selected mTLS or trusted edge. No listener or client-authentication implementation is in this candidate.",
+  "required_product_tests": [
+    "exact ALLOW and DENY response projection",
+    "all malformed, oversized, unsupported, and unknown requests fail closed",
+    "distinct pool engines evaluate concurrently",
+    "saturation returns bounded 503 DENY",
+    "evaluation timeout returns 504 DENY and retains the engine until safe completion",
+    "database pool uses existing schema, system clock, independent connections, and shared epochs",
+    "SQL injection strings remain data and cannot change schema",
+    "zero capacities and deadlines are rejected",
+    "strict format, compile, lint, deterministic generation, and test checks pass"
+  ],
+  "exclusions": ["network listener and socket binding", "TLS and client authentication", "credential and token processing", "distributed rate limiting", "schema migration during API startup", "publication, deployment, and production operation"],
+  "authority_effect": "none",
+  "claim_limit": "Local product candidate contract only; no evidence join, approval, activation, publication, release, deployment, or production use."
+}

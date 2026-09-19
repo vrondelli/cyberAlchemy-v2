@@ -1,0 +1,47 @@
+{
+  "schema_version": "auth-service-product-contracts/v1-candidate",
+  "capability_ref": "CA2-CAP-AUTHORIZE-THROUGH-TRUSTED-SNAPSHOT",
+  "status": "prototype-candidate",
+  "contracts": [
+    {"contract_id":"CA2-CAP-CONTRACT-AUTH-SERVICE-INBOUND-REFERENCES","direction":"input","items":["request_id","authentication_evidence_ref","route_id"],"caller_authority":"correlation-and-selection-only","bounds":"each value is non-empty, at most 256 UTF-8 bytes, and contains no control character"},
+    {"contract_id":"CA2-CAP-CONTRACT-AUTH-SERVICE-TRUSTED-PROVIDERS","direction":"input","items":["one already-migrated SQLite database","one service-owned connection","one query-only deferred transaction","one captured decision time","one checked nonzero epoch identifier"],"failure":"DENY"},
+    {"contract_id":"CA2-CAP-CONTRACT-AUTH-SERVICE-BINARY-DECISION","direction":"output","items":["ALLOW","DENY"],"diagnostic_exposure":"none"}
+  ],
+  "context_policies": [
+    {"policy_id":"CA2-CAP-POLICY-AUTH-SERVICE-SINGLE-EVALUATION-EPOCH","rule":"Opaque snapshots, commands, and authorization-state values are valid only inside their creating query-only transaction; rollback ends the epoch, retry creates a new identifier and complete reread, and identifier exhaustion denies without reuse."},
+    {"policy_id":"CA2-CAP-POLICY-AUTH-SERVICE-SEPARATE-MIGRATION","rule":"Normal service open neither creates nor migrates a database; schema creation and v1-to-v2 upgrade occur only through the explicit migration operation."},
+    {"policy_id":"CA2-CAP-POLICY-AUTH-SERVICE-FAIL-CLOSED","rule":"ALLOW is possible only after every identity, cardinality, field, revision, currentness, scope, and permission predicate passes."}
+  ],
+  "obligation_registry": {
+    "registry_id": "CA2-CAP-OBLIGATIONS-AUTH-SERVICE",
+    "implementation_ready": [
+      "single service-owned connection",
+      "single captured decision time",
+      "single query-only transaction across all reads and evaluation followed by rollback",
+      "eleven-field trusted-input snapshot wrapper",
+      "one typed resolved authorization-state snapshot",
+      "opaque lifetime-bound epoch values with checked non-reusing identifiers",
+      "unified schema v2 with explicit idempotent migration and newer-version rejection",
+      "bounded inbound identifiers and cardinality-limited singleton queries",
+      "private typed diagnostics with binary-only public output",
+      "subject and session equality",
+      "authorization-state revision closure",
+      "binary fail-closed result"
+    ],
+    "reserved_for_product_test": [
+      "permitted end-to-end path",
+      "missing and duplicate input denial",
+      "expiry and revocation denial",
+      "subject mismatch denial",
+      "each revision mismatch denial",
+      "permission mismatch denial",
+      "query-only and rollback failure denial",
+      "normal startup cannot create or migrate schema",
+      "concurrent-writer snapshot consistency and fresh-retry behavior",
+      "deterministic DomainSpec runtime replay and whole-service validation",
+      "deterministic non-EVF candidate freeze"
+    ]
+  },
+  "authority_effect": "none",
+  "claim_limit": "Prototype contracts aligned to a locally executed implementation candidate. Local tests and deterministic checks do not approve the product or grant admission, activation, publication, release, deployment, or any external authority."
+}

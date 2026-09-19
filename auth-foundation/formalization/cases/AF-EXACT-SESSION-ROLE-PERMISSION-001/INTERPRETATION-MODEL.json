@@ -1,0 +1,174 @@
+{
+  "schema_version": "domainspec-v2.interpretation-model/v1-candidate",
+  "model_id": "InterpretationModel:auth-foundation.exact-session-role-permission",
+  "version": "2-candidate",
+  "owner": "projects/auth-foundation/formalization",
+  "status": "reviewed",
+  "business_meaning_ref": {
+    "path": "projects/auth-foundation/formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/BUSINESS-MEANING.json",
+    "sha256": "09a6fff9f4b61b48c3a0407570dad57c8d7da8379feeef8963f97f23f4d36a00",
+    "size_bytes": 6081
+  },
+  "types": [
+    {
+      "name": "AuthorizationRequest",
+      "meaning": "One internal trusted request containing a session identity, one required Permission, and a scope-evidence reference.",
+      "domain": "Auth Foundation protected operations in this exact-match slice."
+    },
+    {
+      "name": "Session",
+      "meaning": "A server-recognized session with status, expiry, active role identities, and authorization revision.",
+      "domain": "Sessions resolvable by the authorization evaluator at one decision time."
+    },
+    {
+      "name": "Role",
+      "meaning": "A role identity with a set of positive exact-match Permission grants.",
+      "domain": "Roles returned by the complete authoritative resolver for the session authorization revision."
+    },
+    {
+      "name": "Permission",
+      "meaning": "A value triple of resource, action, and scope.",
+      "domain": "Exact-match positive permissions; no wildcard, hierarchy, or explicit DENY effect."
+    },
+    {
+      "name": "AuthorizationDecision",
+      "meaning": "Exactly one result in the closed set {ALLOW, DENY}.",
+      "domain": "The result of evaluating one AuthorizationRequest."
+    },
+    {
+      "name": "Instant",
+      "meaning": "A totally ordered decision time used for session expiry.",
+      "domain": "One authorization evaluation instant."
+    },
+    {
+      "name": "AuthorizationRevision",
+      "meaning": "A comparable identity for the authorization facts used by the session and authoritative resolver.",
+      "domain": "The session and current authorization state for its user."
+    }
+  ],
+  "predicates": [
+    {
+      "name": "PermissionExactEqual(p1, p2)",
+      "meaning": "p1.resource = p2.resource and p1.action = p2.action and p1.scope = p2.scope.",
+      "domain": "Permission x Permission."
+    },
+    {
+      "name": "RequiredPermission(q)",
+      "meaning": "The one exact Permission required by the protected operation represented by q.",
+      "domain": "AuthorizationRequest -> Permission."
+    },
+    {
+      "name": "DecisionTime(q)",
+      "meaning": "The one explicit authorization evaluation instant carried by q's trusted evaluation context.",
+      "domain": "AuthorizationRequest -> Instant."
+    },
+    {
+      "name": "CurrentAuthorizationRevision(q)",
+      "meaning": "The one current authoritative revision against which q is evaluated.",
+      "domain": "AuthorizationRequest -> AuthorizationRevision."
+    },
+    {
+      "name": "ResolvedSession(q, s)",
+      "meaning": "Trusted server-side resolution maps q's session identity to server-recognized Session s.",
+      "domain": "AuthorizationRequest x Session."
+    },
+    {
+      "name": "ResolvedActiveRole(s, r)",
+      "meaning": "r.role_id is active in s and r is the authoritative role definition for s.authorization_revision.",
+      "domain": "Session x Role at the authorization decision revision."
+    },
+    {
+      "name": "Grants(r, p)",
+      "meaning": "Permission p is a positive exact permission in role r's permission set.",
+      "domain": "Role x Permission."
+    },
+    {
+      "name": "SessionCurrent(s, decision_time, current_revision)",
+      "meaning": "s.status = ACTIVE, decision_time is before s.expires_at, and s.authorization_revision = current_revision.",
+      "domain": "Session x Instant x AuthorizationRevision."
+    },
+    {
+      "name": "TrustedScopeEvidence(q)",
+      "meaning": "Trusted application code resolved q.required_permission.scope from the protected operation and target, and q.scope_evidence_ref identifies that resolution.",
+      "domain": "AuthorizationRequest."
+    },
+    {
+      "name": "RoleRelationComplete(s, current_revision)",
+      "meaning": "ResolvedActiveRole contains every and only role active in s, with each complete authoritative role definition, at current_revision.",
+      "domain": "Session x AuthorizationRevision."
+    },
+    {
+      "name": "AuthorizationAdmissible(q, s, decision_time, current_revision)",
+      "meaning": "ResolvedSession(q, s) holds and is unique for q; decision_time = DecisionTime(q); current_revision = CurrentAuthorizationRevision(q); SessionCurrent(s, decision_time, current_revision), TrustedScopeEvidence(q), and RoleRelationComplete(s, current_revision) all hold.",
+      "domain": "AuthorizationRequest x Session x Instant x AuthorizationRevision."
+    },
+    {
+      "name": "Decision(q)",
+      "meaning": "The unique AuthorizationDecision produced for q.",
+      "domain": "AuthorizationRequest -> {ALLOW, DENY}."
+    }
+  ],
+  "equality_rules": [
+    "Permission equality is exact component equality over resource, action, and scope.",
+    "Resource, Action, Scope, SessionId, RoleId, UserId, and AuthorizationRevision use their declared exact typed equality; no coercion or wildcard expansion is permitted.",
+    "Two role or session records with different stable identities are not equal even if their other fields match."
+  ],
+  "quantifiers": [
+    "The outer rule quantifies over every AuthorizationRequest in this bounded Auth Foundation model.",
+    "Each authorization branch existentially quantifies over exactly resolved Session values and authoritative Role and Permission values for the request revision.",
+    "Three identity-bearing existence constraints require an admissible exact-match request, an admissible no-match request, and an inadmissible request in the potential request model.",
+    "No closed-world claim is made about users, sessions, roles, or permissions outside the supplied interpretation environment."
+  ],
+  "time_model": "Authorization is evaluated at one explicit decision_time. SessionCurrent is false when status is not ACTIVE, decision_time is not before expires_at, or the session authorization revision differs from the current authoritative revision.",
+  "currentness_rules": [
+    "The session record, current authorization revision, authoritative role relation, and trusted scope evidence are evaluated for the same decision time.",
+    "A missing or stale role definition makes RoleRelationComplete and therefore AuthorizationAdmissible false; it is never treated as an empty-but-current grant set.",
+    "Changing the meaning, interpretation, proposition, assumptions, selected profile, or claim ceiling creates a new FormalClaim identity."
+  ],
+  "applicability": [
+    "internal authorization after authentication has produced or resolved a server-recognized session",
+    "role-derived positive permissions with exact resource, action, and scope equality",
+    "trusted application construction of the required permission and scope evidence",
+    "two-valued default-deny authorization decisions"
+  ],
+  "assumptions": [
+    "RoleRelationComplete is true only when the interpretation environment supplies every and only active authoritative role definition for the session authorization revision.",
+    "Role permission sets contain only positive grants; explicit DENY effects are absent from this claim.",
+    "The authorization decision codomain is exactly {ALLOW, DENY}, and evaluation is total for every in-scope request.",
+    "TrustedScopeEvidence is independently established before the authorization policy evaluates the permission match.",
+    "The formal claim models policy meaning, not how sessions, roles, revisions, or scope evidence are stored or transported."
+  ],
+  "excluded_cases": [
+    "explicit DENY grants and deny precedence",
+    "wildcard, prefix, hierarchical, or subsumption permission matching",
+    "direct user permissions and role inheritance",
+    "ABAC, ReBAC, ownership, tenant fallback, and separation-of-duty policies",
+    "credential verification, token protocols, and authentication assurance",
+    "runtime completeness or correctness of the role resolver and scope-evidence producer"
+  ],
+  "witnesses": [
+    "A current ACTIVE session activates role billing-reader; that role grants Permission(invoice, read, tenant-7); the trusted request requires exactly that permission; Decision = ALLOW.",
+    "The same current session and role grant Permission(invoice, read, tenant-8) while the request requires tenant-7; Decision = DENY.",
+    "An expired or unresolved session makes AuthorizationAdmissible false even when some role definition would otherwise grant the required permission; Decision = DENY."
+  ],
+  "counterexamples": [
+    "An always-ALLOW decision violates every no-match, stale-session, or untrusted-scope case.",
+    "An always-DENY decision violates the exact current active-role grant witness.",
+    "Treating a user-assigned but session-inactive role as active changes ResolvedActiveRole and violates the interpretation.",
+    "Treating a broader or wildcard scope as equal changes PermissionExactEqual and violates the interpretation."
+  ],
+  "vacuity_checks": [
+    "At least one admissible exact-match ALLOW witness is required so the proposition cannot pass through an empty request or role universe.",
+    "At least one admissible no-match DENY witness is required so the proposition cannot be implemented as always ALLOW.",
+    "At least one inadmissible-session DENY witness is required so permission possession cannot bypass session currentness.",
+    "The interpretation must distinguish role assignment, session activation, permission grant, permission requirement, and decision."
+  ],
+  "acceptance": {
+    "status": "requested",
+    "owner_ref": "projects/auth-foundation/formalization",
+    "acceptance_ref": "projects/auth-foundation/formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/INTERPRETATION-MODEL.json#acceptance",
+    "acceptance_digest": null
+  },
+  "claim_ceiling": "Candidate interpretation for one exact-match authorization policy. It assumes, but does not prove, complete authoritative role resolution and trusted scope evidence, and establishes no provider result, runtime conformance, security, release, or production readiness.",
+  "authority_effect": "none"
+}

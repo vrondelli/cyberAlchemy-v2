@@ -1,0 +1,30 @@
+# Applied with authentication-https/compose.yaml; relative paths use that base directory.
+services:
+  postgres:
+    restart: unless-stopped
+  keycloak:
+    restart: unless-stopped
+    mem_limit: 2g
+    environment:
+      JAVA_OPTS_KC_HEAP: "-Xms256m -Xmx1024m"
+    volumes:
+      - ../authentication-durable/.runtime/security/auth-foundation-security.jar:/opt/keycloak/providers/auth-foundation-security.jar:ro
+      - ../authentication-durable/security/themes/auth-foundation-security:/opt/keycloak/themes/auth-foundation-security:ro
+  proxy:
+    restart: unless-stopped
+    volumes:
+      - ../authentication-durable/security/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../authentication-durable/security/upstream.conf:/etc/nginx/upstream.conf:ro
+  mailpit:
+    restart: unless-stopped
+    image: axllent/mailpit@sha256:b1f1be18af530d939a11ee8820b379e0c88eeec204d904bfad68862adced3a5a
+    networks: [identity, edge]
+    ports: ["127.0.0.1:18025:8025"]
+    environment:
+      MP_MAX_MESSAGES: '100'
+      MP_SMTP_BIND_ADDR: '0.0.0.0:1025'
+      MP_UI_BIND_ADDR: '0.0.0.0:8025'
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

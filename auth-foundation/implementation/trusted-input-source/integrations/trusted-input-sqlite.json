@@ -1,0 +1,69 @@
+{
+  "schema_version": "domainspec.system-integration-binding-set/v1",
+  "binding_set_id": "trusted-input-sqlite",
+  "profile_id": "domainspec.system-integration-profile/provider-neutral-v1",
+  "subject_ref": "trusted-input-resolution:resolve-trusted-inputs",
+  "dependency_contracts": [
+    {
+      "contract_id": "authentication-evidence-repository",
+      "concern": "authentication-evidence-repository",
+      "consumer_roles": ["trusted-input-query"],
+      "operation_signatures": ["find-all-by-evidence-ref"],
+      "failure_surface": ["unavailable", "invalid-record"],
+      "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+      "domain_interface_ref": null
+    },
+    {
+      "contract_id": "route-authorization-binding-repository",
+      "concern": "route-authorization-binding-repository",
+      "consumer_roles": ["trusted-input-query"],
+      "operation_signatures": ["find-all-by-route-id"],
+      "failure_surface": ["unavailable", "invalid-record"],
+      "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+      "domain_interface_ref": null
+    }
+  ],
+  "persistence_bindings": [
+    {
+      "binding_id": "authentication-evidence-sqlite-persistence",
+      "logical_subject_refs": ["trusted-input-resolution:authentication-evidence"],
+      "dependency_contract_ref": "authentication-evidence-repository",
+      "adapter_ref": "rust:sqlite-authentication-evidence-resolver",
+      "resource_ref": "sqlite:trusted-input-registry-v1",
+      "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+      "logical_physical_mapping_ref": "auth:authentication-evidence-sqlite-mapping-v1",
+      "evidence_boundary": "binding-formation-only-runtime-evidence-separate"
+    },
+    {
+      "binding_id": "route-authorization-binding-sqlite-persistence",
+      "logical_subject_refs": ["trusted-input-resolution:route-authorization-binding"],
+      "dependency_contract_ref": "route-authorization-binding-repository",
+      "adapter_ref": "rust:sqlite-route-authorization-binding-resolver",
+      "resource_ref": "sqlite:trusted-input-registry-v1",
+      "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+      "logical_physical_mapping_ref": "auth:route-authorization-binding-sqlite-mapping-v1",
+      "evidence_boundary": "binding-formation-only-runtime-evidence-separate"
+    }
+  ],
+  "transaction_guarantee_bindings": [],
+  "failure_outcome_bindings": [
+    {
+      "binding_id": "authentication-evidence-provider-failure",
+      "concern_ref": "authentication-evidence-repository",
+      "provider_outcome_ref": "rust:port-failure",
+      "outcome_class": "unknown",
+      "evidence_refs": ["auth:trusted-input-provider-tests"],
+      "continuation_owner_ref": "query:return-deny-without-authority"
+    },
+    {
+      "binding_id": "route-authorization-binding-provider-failure",
+      "concern_ref": "route-authorization-binding-repository",
+      "provider_outcome_ref": "rust:port-failure",
+      "outcome_class": "unknown",
+      "evidence_refs": ["auth:trusted-input-provider-tests"],
+      "continuation_owner_ref": "query:return-deny-without-authority"
+    }
+  ],
+  "durable_workflow_runtime_bindings": [],
+  "authority_effect": "none"
+}

@@ -1,0 +1,238 @@
+{
+  "schema_version": "auth-evf-definitions/v1-candidate",
+  "definition_set_id": "AUTH-EVF-DEFINITIONS-001",
+  "epoch_id": "AUTH-EVF-EPOCH-002",
+  "dag_node_id": "AUTH-EVF-00",
+  "status": "frozen-prototype-definitions",
+  "d65_stage": "auth-prototype-definitions",
+  "subject": "one in-process SQLite-backed Auth Service authorization evaluation",
+  "purpose": "Freeze the exact Auth semantic boundary that a successor S0-S12 EVF profile may test without treating the historical seven-seam campaign as production evidence.",
+  "trusted_input_snapshot": {
+    "semantic_term": "TrustedInputSnapshot",
+    "runtime_type": "ExactTrustedInputSnapshot",
+    "cardinality_rule": "The snapshot exists only after exactly one current authentication-evidence row and exactly one enabled complete route-binding row resolve for the two inbound references inside the same evaluation transaction.",
+    "fields": [
+      {
+        "ordinal": 1,
+        "field": "evaluation_epoch_id",
+        "type": "u64",
+        "source": "service-owned AuthorizationEvaluationEpoch",
+        "join": "equals ExactTrustedAuthorizationCommand.evaluation_epoch_id and the enclosing epoch id"
+      },
+      {
+        "ordinal": 2,
+        "field": "decision_time",
+        "type": "u64",
+        "source": "DecisionClock captured once before the transaction begins",
+        "join": "equals the query, command, downstream adapter, and enclosing epoch decision_time"
+      },
+      {
+        "ordinal": 3,
+        "field": "authentication_evidence_ref",
+        "type": "String",
+        "source": "resolved authentication-evidence row",
+        "join": "equals InboundAuthorizationRequest.authentication_evidence_ref and the resolved row evidence_ref; it is not the numeric evidence row identity"
+      },
+      {
+        "ordinal": 4,
+        "field": "authentication_evidence_revision",
+        "type": "u64",
+        "source": "resolved authentication-evidence row selected by evidence_identity",
+        "join": "captured from the same row and transaction; it is not numerically compared with route or authorization revisions"
+      },
+      {
+        "ordinal": 5,
+        "field": "authenticated_subject_id",
+        "type": "String",
+        "source": "resolved authentication-evidence row selected by evidence_identity",
+        "join": "equals the unique resolved auth_sessions.user_id for session_id"
+      },
+      {
+        "ordinal": 6,
+        "field": "session_id",
+        "type": "String",
+        "source": "resolved authentication-evidence row",
+        "join": "equals ExactTrustedAuthorizationCommand.session_id and the unique resolved auth_sessions.session_id"
+      },
+      {
+        "ordinal": 7,
+        "field": "authentication_expires_at",
+        "type": "u64",
+        "source": "resolved authentication-evidence row",
+        "join": "decision_time is strictly less than authentication_expires_at while trusted is true and revoked is false"
+      },
+      {
+        "ordinal": 8,
+        "field": "route_ref",
+        "type": "String",
+        "source": "resolved route-binding row",
+        "join": "equals InboundAuthorizationRequest.route_id and the resolved row route_id; it is not the numeric binding row identity"
+      },
+      {
+        "ordinal": 9,
+        "field": "route_binding_revision",
+        "type": "u64",
+        "source": "resolved route-binding row selected by binding_identity",
+        "join": "captured from the same row and transaction; it identifies the permission mapping and is not numerically compared with other revision domains"
+      },
+      {
+        "ordinal": 10,
+        "field": "required_permission",
+        "type": "Permission(resource: String, action: String, scope: String)",
+        "source": "resolved route-binding row",
+        "join": "resource, action, and scope are copied unchanged into the internal authorization command and exact permission evaluation"
+      },
+      {
+        "ordinal": 11,
+        "field": "scope_evidence_ref",
+        "type": "String",
+        "source": "resolved route-binding row",
+        "join": "copied unchanged into the internal authorization command and resolves exactly once to trusted scope evidence matching resource, action, and scope"
+      }
+    ]
+  },
+  "revision_domains": [
+    {
+      "revision_domain": "authentication-evidence",
+      "field": "authentication_evidence_revision",
+      "closure": "same selected authentication-evidence row and same SQLite transaction",
+      "cross_domain_equality": "forbidden"
+    },
+    {
+      "revision_domain": "route-binding",
+      "field": "route_binding_revision",
+      "closure": "same selected route-binding row and same SQLite transaction",
+      "cross_domain_equality": "forbidden"
+    },
+    {
+      "revision_domain": "authorization-state",
+      "field": "authorization_revision",
+      "closure": "auth_sessions.authorization_revision equals auth_authorization_revisions.revision; every active-role relation and every grant for an active role carries that same revision",
+      "cross_domain_equality": "forbidden"
+    }
+  ],
+  "required_identity_and_field_joins": [
+    "request.authentication_evidence_ref = authentication_evidence.evidence_ref",
+    "request.route_id = route_binding.route_id",
+    "authentication_evidence.session_id = auth_sessions.session_id",
+    "authentication_evidence.authenticated_subject_id = auth_sessions.user_id",
+    "route_binding.(resource, action, scope) = command.required_permission.(resource, action, scope)",
+    "route_binding.scope_evidence_ref = command.scope_evidence_ref",
+    "scope_evidence.(resource, action, scope) = command.required_permission.(resource, action, scope)",
+    "scope_evidence.evidence_ref = command.scope_evidence_ref",
+    "scope_evidence.trusted = true"
+  ],
+  "authorization_evaluation_epoch": {
+    "rule_id": "AUTH-EVF-RULE-ONE-SQLITE-EVALUATION-EPOCH",
+    "rule": "One authorize call captures decision_time once, allocates one service-local evaluation_epoch_id, begins one SQLite Deferred transaction on the service-owned connection before the first trusted read, performs every trusted-input and authorization-state read, join, command construction, and kernel evaluation through that transaction, fixes one binary decision, and ends the transaction only afterward.",
+    "ordered_events": [
+      "capture-decision-time-once",
+      "allocate-service-local-epoch-id",
+      "begin-one-deferred-transaction",
+      "resolve-trusted-input-query-in-caller-owned-transaction",
+      "construct-exact-trusted-input-snapshot",
+      "construct-exact-trusted-authorization-command",
+      "check-identity-field-and-revision-joins",
+      "resolve-authorization-state-in-same-transaction",
+      "evaluate-generated-exact-permission-kernel",
+      "fix-ALLOW-or-DENY",
+      "commit-or-return-DENY-on-commit-failure"
+    ],
+    "retry_rule": "A retry must recapture time, allocate a new usable service-local epoch identity, begin a new transaction, and reread every input.",
+    "proof_limit": "The correlation id is not epoch proof. Proof requires observed use of one connection and transaction capability for every selected read plus the exact joins above."
+  },
+  "scope_boundary": {
+    "inbound_fields": [
+      "request_id",
+      "authentication_evidence_ref",
+      "route_id"
+    ],
+    "forbidden_caller_authority": [
+      "permission",
+      "scope",
+      "role",
+      "revision",
+      "authorization decision"
+    ],
+    "server_owned_scope_inputs": [
+      "route_binding.resource",
+      "route_binding.action",
+      "route_binding.scope",
+      "route_binding.scope_evidence_ref",
+      "trusted_scope_evidence"
+    ],
+    "output_values": [
+      "ALLOW",
+      "DENY"
+    ]
+  },
+  "fail_closed_rule": {
+    "allow_iff": "all exact cardinality, trust, currentness, expiry, enablement, completeness, identity, field, revision, scope-evidence, role-grant, permission, transaction, and kernel predicates hold inside one evaluation epoch",
+    "deny_on": [
+      "missing or duplicate trusted input",
+      "untrusted revoked or expired authentication evidence",
+      "disabled or incomplete route binding",
+      "empty or invalid converted identity or revision",
+      "subject or session mismatch",
+      "stale session role or grant revision",
+      "missing duplicate untrusted or mismatched scope evidence",
+      "missing or mismatched exact role permission",
+      "clock provider query transaction or commit failure",
+      "any other uncertainty"
+    ]
+  },
+  "lineage_order": [
+    "Auth definitions",
+    "Auth Product Capability",
+    "Auth business ontology and product contracts",
+    "DomainSpec source graph",
+    "generated Query Operation and bindings",
+    "trusted boundary and SQLite providers",
+    "composed Auth Service implementation",
+    "direct tests",
+    "future Auth S0-S12 EVF profile",
+    "future Auth-specific theorem instance",
+    "future immutable candidate and product-test evidence"
+  ],
+  "successor_requirements": {
+    "AUTH-EVF-01": "Author the exact S0-S12 profile, denominator, typed derivation and ordered-lineage contracts, and select exact runtime and theorem routes from this epoch.",
+    "AUTH-EVF-02": "Implement executable provider, scope, semantic, and other declared mutations with cause-specific oracles and content-addressed observations.",
+    "AUTH-EVF-03": "Generate an Auth-specific theorem instance and FormalClaimLeanBinding against the exact Auth graph and Rust projection; the existing foundation fixture is not admissible Auth theorem evidence."
+  },
+  "historical_campaign_boundary": {
+    "path": "projects/auth-foundation/development/auth-service-d65-r2-plan/evf-campaign-v1",
+    "status": "historical-prototype-only",
+    "reuse": "forbidden-as-production-profile-or-current-observation-evidence",
+    "mutation": "forbidden-by-AUTH-EVF-00"
+  },
+  "known_implementation_residue": [
+    {
+      "id": "AUTH-EVF-RES-READ-ONLY-CAPABILITY",
+      "finding": "The implementation executes only reads inside a Deferred SQLite transaction but does not establish a database-enforced read-only transaction capability.",
+      "effect": "The stronger read-only wording remains a product requirement to test or revise; current source shape alone cannot prove it."
+    },
+    {
+      "id": "AUTH-EVF-RES-EPOCH-ID-SATURATION",
+      "finding": "next_epoch_id uses saturating_add, so distinct retry identities are not proven after u64::MAX.",
+      "effect": "A successor profile must either constrain the service lifetime, change the implementation, or keep distinct-id behavior non-pass."
+    },
+    {
+      "id": "AUTH-EVF-RES-THEOREM-ABSENT",
+      "finding": "No Auth-specific theorem instance or exact Rust projection correspondence exists in this epoch.",
+      "effect": "The theorem branch is not_evaluable until AUTH-EVF-03."
+    },
+    {
+      "id": "AUTH-EVF-RES-PROFILE-ABSENT",
+      "finding": "No Auth S0-S12 generic enforcement profile exists in this epoch.",
+      "effect": "EVF conformance and enforcement are not_evaluable until successor nodes close."
+    }
+  ],
+  "workflow_exclusions": [
+    "Task Session is not an Auth EVF dependency or execution authority.",
+    "Invoke is not an Auth EVF dependency or execution authority."
+  ],
+  "claim_ceiling": "AUTH-EVF-00 freezes prototype definitions and an exact candidate-input epoch only. It proves neither Auth EVF conformance nor implementation correspondence, theorem truth, product approval, adoption, activation, publication, release, deployment, security, or any external effect.",
+  "authority_effect": "none",
+  "implementation_effect": "none",
+  "promotion_effect": "none"
+}

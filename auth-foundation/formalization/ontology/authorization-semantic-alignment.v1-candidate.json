@@ -1,0 +1,70 @@
+{
+  "schema_version": "auth-foundation.ontology-semantic-alignment/v1-candidate",
+  "alignment_id": "AF-ONTOLOGY-ALIGNMENT-EXACT-SESSION-RBAC-001",
+  "status": "candidate",
+  "base_ontology_ref": {
+    "path": "projects/auth-foundation/formalization/ontology/authorization.ontology.json",
+    "sha256": "40f9ffb89116b8c51bec376e3524303fb02474f50623842372b8d38bcb47f3df",
+    "size_bytes": 37994,
+    "current": true
+  },
+  "semantic_authority_ref": {
+    "path": "projects/auth-foundation/formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/BUSINESS-MEANING.v2-definitions-accepted.json",
+    "sha256": "bab511055fb200f26255bef7d2b020b7d8890ada898fc62dd80b846769c8f6e0",
+    "size_bytes": 43629,
+    "current": true
+  },
+  "overrides": [
+    {
+      "target_ref": "auth-foundation.authorization-decision",
+      "authority_definition_refs": ["AF-DEF-AUTHORIZATION-DECISION", "AF-DEF-ALLOW", "AF-DEF-DENY"],
+      "replacement_formal": "AuthorizationDecision = {ALLOW, DENY}",
+      "replacement_plain_language": "The policy answer is exactly allow or deny.",
+      "boundary": "A reason, transport error, audit event, exception, or third value is outside this accepted decision value."
+    },
+    {
+      "target_ref": "auth-foundation.authorization",
+      "authority_definition_refs": ["AF-DEF-AUTHORIZATION", "AF-DEF-AUTHORIZATION-ADMISSIBLE", "AF-DEF-EXACT-ACTIVE-ROLE-GRANT", "AF-DEF-ALLOW", "AF-DEF-DENY"],
+      "replacement_formal": "forall q. (Decision(q)=ALLOW <-> exists s,t,v. AuthorizationAdmissible(q,s,t,v) and ExactActiveRoleGrant(q,s)) and (Decision(q)=DENY <-> not exists s,t,v. AuthorizationAdmissible(q,s,t,v) and ExactActiveRoleGrant(q,s))",
+      "replacement_plain_language": "Allow only an admissible request with an exact grant from a role active in its resolved session; deny every other in-scope request.",
+      "boundary": "This rule does not infer active roles from user assignment and does not prove resolver completeness, trusted scope production, runtime conformance, or system security."
+    },
+    {
+      "target_ref": "auth-foundation.rule.session-rbac-v1",
+      "authority_definition_refs": ["AF-DEF-AUTHORIZATION", "AF-DEF-RESOLVED-SESSION", "AF-DEF-RESOLVED-ACTIVE-ROLE", "AF-DEF-GRANTS", "AF-DEF-PERMISSION-EXACT-EQUAL"],
+      "replacement_formal": "ExactActiveRoleGrant(q,s) <-> exists r,p. ResolvedActiveRole(s,r) and Grants(r,p) and PermissionExactEqual(p,RequiredPermission(q))",
+      "replacement_plain_language": "A session authorizes only through a role that is active in that session and grants the exact permission required by the request.",
+      "boundary": "AssignedRole does not imply ResolvedActiveRole; wildcard, hierarchy, direct user permission, explicit deny, and role inheritance are excluded."
+    },
+    {
+      "target_ref": "auth-foundation.invariant.AF-I03",
+      "authority_definition_refs": ["AF-DEF-RESOLVED-ACTIVE-ROLE"],
+      "replacement_formal": "AssignedRole(u,r) does not imply ResolvedActiveRole(s,r)",
+      "replacement_plain_language": "A role assigned to a user is not automatically active in every session.",
+      "boundary": "Role-assignment consistency is a broader model concern, not a premise added to the bounded authorization FormalClaim."
+    },
+    {
+      "target_ref": "auth-foundation.residue.formalization-status",
+      "authority_definition_refs": ["AF-DEF-AUTHORIZATION", "AF-DEF-AUTHORIZATION-DECISION"],
+      "replacement_formal": "FormalClaim(v4)=draft and FormalClaimAdmission=missing and ProviderEvidence=missing",
+      "replacement_plain_language": "The business meaning is accepted and the v4 claim is drafted, but no claim admission, obligation, provider execution, or evidence result exists.",
+      "boundary": "Do not describe the current candidate as proof, runtime conformance, security, resilience, release, or production readiness."
+    }
+  ],
+  "deprecated_expressions": [
+    "AuthorizationDecision = (result in {ALLOW, DENY}, reason)",
+    "ActiveRoles(Session(q)) subset_of AssignedRoles",
+    "NotRevoked(Session(q))",
+    "RequiredPermission(q) in Permissions(r)",
+    "no FormalClaim exists yet",
+    "FormalClaim interpretation environment"
+  ],
+  "application_policy": {
+    "base_bytes_immutable": true,
+    "authority_source": "semantic_authority_ref",
+    "consumer_rule": "apply-all-overrides-before-current-semantic-use",
+    "name_inference": "forbidden"
+  },
+  "authority_effect": "none",
+  "claim_ceiling": "Candidate compatibility overlay that aligns the preserved base ontology with owner-accepted BusinessMeaning v2. It does not edit accepted source bytes, redefine accepted terms, admit FormalClaim v4, create obligations, prove the rule, execute a provider, or establish runtime or production evidence."
+}

@@ -1,0 +1,3 @@
+import {readFileSync} from 'node:fs';import {X509Certificate} from 'node:crypto';import {resolve} from 'node:path';import {execFileSync} from 'node:child_process';import {root,original} from './common.mjs';import {createBackup} from './backup.mjs';
+createBackup();const files=[resolve(original,'.runtime/tls/frontend.crt'),resolve(original,'.runtime/tls/keycloak.crt'),resolve(original,'.runtime/tls/operator.crt'),...['foundation','bodywar'].map(n=>resolve(root,'.runtime/'+n+'/server.crt'))];
+if(files.some(p=>Date.parse(new X509Certificate(readFileSync(p)).validTo)-Date.now()<30*86400000))execFileSync('systemctl',['--user','restart','auth-foundation.service'],{stdio:'inherit'});

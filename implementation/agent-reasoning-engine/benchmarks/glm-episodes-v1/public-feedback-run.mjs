@@ -33,7 +33,7 @@ if(![0,1].includes(correctionRetries))throw Error('feedback-retry-budget-invalid
 const maximum_model_attempts=maximum_correction_requests*(1+correctionRetries);
 save('manifest.json',{policy:shared?SHARED_CORRECTION_POLICY:'public-feedback-v3',sources,schedule,maximum_correction_requests,maximum_model_attempts,maximum_tokenizer_attempts:maximum_correction_requests*2,context_limit:16384,effective_soft_limit:7744,output_cap:2048,token_margin:512,...(correctionRetries?{maximum_model_retries:correctionRetries}:{automatic_retries:0}),authority_effect:'none',open_questions_ref:'../README.md#open-questions'});
 const c=parseCredential(JSON.parse(readFileSync(credentialPath,'utf8')));
-const provider=createSopsAgeProcessSecretProvider({...c,python_command:'/usr/bin/python3',project_root:'/home/vrondelli/projects/domainspec-core/projects/secret-management'});
+const provider=createSopsAgeProcessSecretProvider({...c,python_command:'/usr/bin/python3',project_root:fileURLToPath(new URL('../../../../secret-management',import.meta.url))});
 const registry=createSecretProviderRegistry({providers:[provider]}),ref=createSecretReference({provider_id:c.provider_id,locator:c.locator});
 const results=[];let calls=0;
 for(const t of schedule) {

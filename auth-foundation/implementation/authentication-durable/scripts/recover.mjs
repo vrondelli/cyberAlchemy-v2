@@ -1,0 +1,10 @@
+import {execFileSync} from 'node:child_process';import https from 'node:https';import {readFileSync,existsSync} from 'node:fs';import {resolve} from 'node:path';import {root,original} from './cluster.mjs';
+const rotation=resolve(root,'.runtime/operations/rotation.json');if(existsSync(rotation)&&JSON.parse(readFileSync(rotation)).status!=='complete')throw Error('Interrupted secret rotation; resume operations/rotate.mjs before startup');
+if(!existsSync(resolve(root,'.runtime/security/auth-foundation-security.jar')))throw Error('Build and install the security provider first: npm run build:security then npm run setup:security');
+for(const deadline=Date.now()+180000;;){try{execFileSync('docker',['info','--format','{{.ServerVersion}}'],{stdio:'pipe',timeout:5000});break;}catch{if(Date.now()>=deadline)throw Error('Docker did not become ready; start Docker and restart auth-foundation.service');await new Promise(r=>setTimeout(r,1000));}}
+execFileSync(process.execPath,['operations/tls.mjs'],{cwd:root,stdio:'inherit'});
+execFileSync('docker',['compose','--env-file','.runtime/compose.env','-f','compose.yaml','-f',resolve(root,'issuer.override.yml'),'up','-d','--wait'],{cwd:original,stdio:'inherit'});
+execFileSync('docker',['exec','auth-foundation-https-proxy-1','nginx','-s','reload'],{stdio:'pipe'});
+const ready=()=>new Promise(resolveReady=>{const r=https.get('https://localhost:18443/realms/auth-https/.well-known/openid-configuration',{ca:readFileSync(resolve(original,'.runtime/tls/ca.crt')),timeout:5000},response=>{response.resume();resolveReady(response.statusCode===200)});r.on('error',()=>resolveReady(false));r.on('timeout',()=>r.destroy());});
+for(const deadline=Date.now()+180000;!await ready();){if(Date.now()>=deadline)throw Error('Issuer did not become ready');await new Promise(r=>setTimeout(r,500));}
+execFileSync(process.execPath,['scripts/setup.mjs'],{cwd:root,stdio:'inherit'});execFileSync(process.execPath,['scripts/setup-security.mjs'],{cwd:root,stdio:'inherit'});await import('./launch.mjs');

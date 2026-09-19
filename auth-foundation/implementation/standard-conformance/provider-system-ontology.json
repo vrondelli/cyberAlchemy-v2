@@ -1,0 +1,116 @@
+{
+  "schema_version": "auth-foundation.sqlite-provider-system-ontology/v1-candidate",
+  "ontology_id": "auth-foundation.system.sqlite-authorization-provider",
+  "predecessor_runtime_system_ontology": {
+    "path": "implementation/standard-conformance/runtime-system-ontology.json",
+    "sha256": "d686b21a56d0c9e2cfa69b6730dc86f3aea1cd0b44bbf2dcc23b375bbeb087e3",
+    "ontology_id": "auth-foundation.system.binary-runtime-adapter"
+  },
+  "provider_construction_binding": {
+    "path": "implementation/provider-construction-binding.json",
+    "sha256": "8f4ac02f00cb6264657bb03144c3d127292d2690c64a904c65279cbaa59eb43a",
+    "binding_id": "AUTH-D65-SQLITE-PROVIDER-001"
+  },
+  "provider_contract": {
+    "path": "implementation/provider-contract.json",
+    "sha256": "834e1e7e04ac5d461bd0ba046be52d2086c480cec3f073bbb4305b7056e079b8",
+    "contract_id": "AUTH-SQLITE-PROVIDER-001"
+  },
+  "operation_ref": "AUTH-OP-AUTHORIZE",
+  "storage": {
+    "engine": "SQLite",
+    "schema_version": 1,
+    "migration_path": "implementation/sqlite-provider/migrations/0001_auth_state.sql",
+    "migration_sha256": "9cfadd66088d39d8f106eea700eb27ae3a9140bb9afb7bbfb64e7c6451728e37",
+    "read_consistency": "all database-backed authorization evidence is resolved inside one deferred SQLite transaction"
+  },
+  "port_bindings": [
+    {
+      "port_id": "AUTH-PORT-SESSION-RESOLVER",
+      "tables": [
+        "auth_sessions",
+        "auth_session_active_roles"
+      ],
+      "ontology_properties": [
+        "AUTH-SESSION#session_id",
+        "AUTH-SESSION#user_id",
+        "AUTH-SESSION#status",
+        "AUTH-SESSION#active_role_ids",
+        "AUTH-SESSION#authorization_revision",
+        "AUTH-SESSION#expires_at",
+        "AUTH-AUTHORIZATION-REQUEST#session_id",
+        "AUTH-EVALUATION-CONTEXT#resolved_sessions"
+      ],
+      "completeness": "preserve every matching row and do not collapse duplicate session identities"
+    },
+    {
+      "port_id": "AUTH-PORT-ROLE-RESOLVER",
+      "tables": [
+        "auth_roles",
+        "auth_session_active_roles",
+        "auth_role_permissions"
+      ],
+      "ontology_properties": [
+        "AUTH-ROLE#role_id",
+        "AUTH-ROLE#permissions",
+        "AUTH-PERMISSION#resource",
+        "AUTH-PERMISSION#action",
+        "AUTH-PERMISSION#scope",
+        "AUTH-EVALUATION-CONTEXT#resolved_roles",
+        "AUTH-EVALUATION-CONTEXT#role_relation_complete"
+      ],
+      "completeness": "return complete=true only when the authoritative role identities exactly equal the session active-role set and every role row resolves"
+    },
+    {
+      "port_id": "AUTH-PORT-SCOPE-EVIDENCE",
+      "tables": [
+        "auth_scope_evidence"
+      ],
+      "ontology_properties": [
+        "AUTH-AUTHORIZATION-REQUEST#scope_evidence_ref",
+        "AUTH-AUTHORIZATION-REQUEST#required_permission",
+        "AUTH-EVALUATION-CONTEXT#trusted_scope_evidence"
+      ],
+      "completeness": "trust only one exact evidence-ref, resource, action, and scope match whose trusted flag is true"
+    },
+    {
+      "port_id": "AUTH-PORT-AUTHORIZATION-REVISION",
+      "tables": [
+        "auth_authorization_revisions"
+      ],
+      "ontology_properties": [
+        "AUTH-AUTHORIZATION-REQUEST#current_authorization_revision"
+      ],
+      "completeness": "missing authoritative revision is provider failure"
+    },
+    {
+      "port_id": "AUTH-PORT-DECISION-CLOCK",
+      "tables": [],
+      "ontology_properties": [
+        "AUTH-AUTHORIZATION-REQUEST#decision_time"
+      ],
+      "completeness": "clock remains injected and its failure is provider failure"
+    }
+  ],
+  "public_decision": {
+    "variants": [
+      "Allow",
+      "Deny"
+    ],
+    "deny_payload": null,
+    "internal_deny_reason_exposure": "forbidden"
+  },
+  "failure_policy": {
+    "open_or_migration_failure": "construction returns PortFailure",
+    "newer_schema_version": "construction returns PortFailure",
+    "transaction_start_failure": "invoke the L4 adapter with failed ports and return Deny",
+    "query_or_conversion_failure": "port failure becomes Deny through the L4 adapter",
+    "transaction_commit_failure": "Deny",
+    "missing_or_ambiguous_evidence": "Deny",
+    "internal_deny_reason_exposure": "forbidden"
+  },
+  "lifecycle_status": "validated-local-candidate",
+  "authority_effect": "none",
+  "external_effect": "local-filesystem-only-when-caller-selects-a-file-path",
+  "claim_limit": "Successor system-ontology candidate for one transaction-scoped SQLite provider; no transport, token, deployment, or production authority."
+}

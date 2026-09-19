@@ -1,0 +1,37 @@
+{
+  "schema_version": "auth-service-business-ontology/v1-candidate",
+  "ontology_id": "AUTH-ONTOLOGY-AUTH-SERVICE",
+  "status": "prototype-candidate",
+  "definition_pack_ref": "AUTH-SERVICE-DEFINITION-PACK.v1-candidate.json",
+  "product_capability_ref": "AUTH-SERVICE-PRODUCT-CAPABILITY.v1-candidate.json",
+  "concepts": [
+    "InboundAuthorizationRequest",
+    "TrustedInputSnapshot",
+    "TrustedAuthorizationCommand",
+    "AuthorizationStateSnapshot",
+    "AuthorizationEvaluationEpoch",
+    "AuthorizationDecision"
+  ],
+  "revision_domains": [
+    {"id":"authentication-evidence","field":"authentication_evidence_revision","join":"identity-and-copy-only"},
+    {"id":"route-binding","field":"route_binding_revision","join":"identity-and-copy-only"},
+    {"id":"authorization-state","field":"current_authorization_revision","join":"session = active-role-relation = grants = current"}
+  ],
+  "inbound_fields": [
+    {"field":"request_id","meaning":"bounded correlation only","authority_effect":"none"},
+    {"field":"authentication_evidence_ref","meaning":"selector for unique current server-held evidence","authority_effect":"none"},
+    {"field":"route_id","meaning":"selector for one enabled complete server-owned route binding","authority_effect":"none"}
+  ],
+  "invariants": [
+    {"id":"AUTH-SVC-INV-ONE-EPOCH","rule":"One authorize call captures one decision time and performs every trusted-input and authorization-state read plus kernel evaluation through one SQLite connection and one query-only transaction that is rolled back after the decision."},
+    {"id":"AUTH-SVC-INV-EPOCH-CAPABILITY","rule":"Opaque lifetime-bound values derive from the transaction capability; the numeric epoch identifier is unique only within the live service instance, never wraps, and is not authority."},
+    {"id":"AUTH-SVC-INV-SUBJECT-SESSION-JOIN","rule":"The authenticated subject and session copied from the unique evidence row equal the unique authorization-state session subject and identity."},
+    {"id":"AUTH-SVC-INV-REVISION-SEPARATION","rule":"Evidence and route revisions are preserved but never numerically equated with the authorization-state revision."},
+    {"id":"AUTH-SVC-INV-DEFAULT-DENY","rule":"Any input, clock, identifier allocation, transaction, query-only, query, cardinality, field, revision, boundary, kernel, or rollback uncertainty returns DENY."},
+    {"id":"AUTH-SVC-INV-SCHEMA-LIFECYCLE","rule":"Normal startup validates an already-migrated unified schema; an explicit separate migration operation owns schema creation and v1-to-v2 upgrade."}
+  ],
+  "exclusions": ["credentials","tokens","HTTP","administrative writes","deployment","production-security claims"],
+  "owner_route": "Auth Service product owner",
+  "authority_effect": "none",
+  "claim_limit": "Agent-facing business-ontology prototype; no ontology admission, product approval, or operational authority."
+}

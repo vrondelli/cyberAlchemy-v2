@@ -1,0 +1,8 @@
+module AuthExactJoin
+sig Tenant, Scope, Permission {}
+sig Role { tenant: one Tenant }
+sig Grant { role: one Role, scope: one Scope, permission: one Permission }
+sig Request { trustedTenant: one Tenant, trustedScope: one Scope, requiredPermission: one Permission, resolvedRoles: set Role }
+pred allow[r: Request] { some g: Grant | g.role in r.resolvedRoles and g.role.tenant = r.trustedTenant and g.scope = r.trustedScope and g.permission = r.requiredPermission }
+assert NoUnintendedJoin { all r: Request | allow[r] implies some g: Grant | g.role in r.resolvedRoles and g.role.tenant = r.trustedTenant and g.scope = r.trustedScope and g.permission = r.requiredPermission }
+check NoUnintendedJoin for 5 but exactly 2 Request, exactly 2 Tenant

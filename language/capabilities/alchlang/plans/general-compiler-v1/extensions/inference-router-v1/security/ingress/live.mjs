@@ -7,12 +7,12 @@ import {createHash} from 'node:crypto';
 import {once} from 'node:events';
 import https from 'node:https';
 import {createHttpsIngress} from './server.mjs';
-import {operatorRequest,operatorHeaders} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/scripts/operator.mjs';
+import {operatorRequest,operatorHeaders} from '../../../../../../../../../auth-foundation/implementation/authentication-https/scripts/operator.mjs';
 import {buildPublicPolicy} from '../../build-public-policy.mjs';
 import {createBrowserInference} from '../browser/binding.mjs';
-import {launchBrowser} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/scripts/browser.mjs';
+import {launchBrowser} from '../../../../../../../../../auth-foundation/implementation/authentication-https/scripts/browser.mjs';
 // Direct TLS application and actual Keycloak HTTPS/OIDC. Open Questions: PLAN.md.
-const af=new URL('../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/',import.meta.url),dir=await mkdtemp(join(tmpdir(),'browser-inference-'));let browser,server,profile,clientPath,originalUris,changed=false,report;let attempts=0;const checks=[];let stage='build',page;const trace=[];const origin='https://localhost:14443',callback=origin+'/callback';
+const af=new URL('../../../../../../../../../auth-foundation/implementation/authentication-https/',import.meta.url),dir=await mkdtemp(join(tmpdir(),'browser-inference-'));let browser,server,profile,clientPath,originalUris,changed=false,report;let attempts=0;const checks=[];let stage='build',page;const trace=[];const origin='https://localhost:14443',callback=origin+'/callback';
 try{
  const generated=await buildPublicPolicy(dir,{protectedService:true});
  profile=JSON.parse(await readFile(new URL('.runtime/config.json',af),'utf8'));

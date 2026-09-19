@@ -3,13 +3,13 @@ import {readFile,mkdtemp,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomBytes} from 'node:crypto';
-import {openSqliteState} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/state.mjs';
-import {createBrowserOAuth} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/oauth.mjs';
-import {createBrowserGateway} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/gateway.mjs';
-import {createEnrollment} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/inference-browser/enrollment.mjs';
-import {launchBrowser} from '../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/scripts/browser.mjs';
+import {openSqliteState} from '../../../../../../../../../auth-foundation/implementation/inference-browser/state.mjs';
+import {createBrowserOAuth} from '../../../../../../../../../auth-foundation/implementation/inference-browser/oauth.mjs';
+import {createBrowserGateway} from '../../../../../../../../../auth-foundation/implementation/inference-browser/gateway.mjs';
+import {createEnrollment} from '../../../../../../../../../auth-foundation/implementation/inference-browser/enrollment.mjs';
+import {launchBrowser} from '../../../../../../../../../auth-foundation/implementation/authentication-https/scripts/browser.mjs';
 // Real issuer, browser and SQLite; browser-local application interception. Open Questions: PLAN.md.
-const af=new URL('../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/',import.meta.url),dir=await mkdtemp(join(tmpdir(),'renewal-live-'));let browser,state,stage='setup',report;const checks=[],trace=[];
+const af=new URL('../../../../../../../../../auth-foundation/implementation/authentication-https/',import.meta.url),dir=await mkdtemp(join(tmpdir(),'renewal-live-'));let browser,state,stage='setup',report;const checks=[],trace=[];
 try{
  const profile=JSON.parse(await readFile(new URL('.runtime/config.json',af),'utf8')),existing=JSON.parse(await readFile(new URL('.runtime/policy.json',af),'utf8'));
  const human=existing.principals.find(p=>p.kind==='human'&&p.enabled);assert.ok(human);

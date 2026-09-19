@@ -4,7 +4,7 @@ import https from 'node:https';
 import {readFile} from 'node:fs/promises';
 import {once} from 'node:events';
 import {createHttpsIngress} from './server.mjs';
-const tls=new URL('../../../../../../../../../../domainspec-core/projects/auth-foundation/implementation/authentication-https/.runtime/tls/',import.meta.url);
+const tls=new URL('../../../../../../../../../auth-foundation/implementation/authentication-https/.runtime/tls/',import.meta.url);
 const [key,cert,ca]=await Promise.all(['frontend.key','frontend.crt','ca.crt'].map(name=>readFile(new URL(name,tls))));
 const origin='https://localhost:14444';
 test('TLS ingress rejects unsafe configuration',()=>{for(const value of ['http://localhost:14444','https://localhost:14444/path','https://remote.invalid:14444'])assert.throws(()=>createHttpsIngress({origin:value,key,cert,handler:async()=>new Response()}));});

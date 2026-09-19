@@ -1,0 +1,34 @@
+{
+  "schema_version": "auth-service.authorization-api-ontology/v1-candidate",
+  "ontology_id": "AUTH-ONTOLOGY-AUTHORIZATION-API-V1",
+  "status": "agent-facing-prototype-scaffold",
+  "definition_pack_ref": "AUTHORIZATION-API-DEFINITIONS.v1-candidate.json",
+  "nodes": [
+    {"id": "API.REQUEST", "meaning": "exact bounded untrusted JSON request"},
+    {"id": "API.ROUTER", "meaning": "versioned fail-closed HTTP transport adapter"},
+    {"id": "API.RUNTIME", "meaning": "bounded admission, timeout, worker, and aggregate-metrics coordinator"},
+    {"id": "AUTH.ENGINE_POOL", "meaning": "fixed independent engine set; checkout lock does not cover evaluation"},
+    {"id": "AUTH.EPOCH_ALLOCATOR", "meaning": "shared atomic unique non-reusing evaluation epoch allocator"},
+    {"id": "AUTH.TRANSACTION_SNAPSHOT", "meaning": "one engine connection and one SQLite transaction snapshot for one evaluation"},
+    {"id": "API.RESPONSE", "meaning": "binary JSON decision without diagnostics"}
+  ],
+  "edges": [
+    {"source": "API.REQUEST", "relation": "parsed_by", "target": "API.ROUTER"},
+    {"source": "API.ROUTER", "relation": "admitted_by", "target": "API.RUNTIME"},
+    {"source": "API.RUNTIME", "relation": "checks_out", "target": "AUTH.ENGINE_POOL"},
+    {"source": "AUTH.ENGINE_POOL", "relation": "allocates_from", "target": "AUTH.EPOCH_ALLOCATOR"},
+    {"source": "AUTH.ENGINE_POOL", "relation": "evaluates_within", "target": "AUTH.TRANSACTION_SNAPSHOT"},
+    {"source": "AUTH.TRANSACTION_SNAPSHOT", "relation": "projects_binary_decision_to", "target": "API.RESPONSE"}
+  ],
+  "invariants": [
+    "transport fields never become authorization facts",
+    "untrusted values are SQLite bound parameters, never SQL structure",
+    "each admitted request uses exactly one engine and one transaction-scoped snapshot",
+    "concurrent requests may evaluate on different connections while epoch identifiers remain globally unique",
+    "timeouts do not release an in-progress engine or permit until its blocking evaluation exits",
+    "transport rejection and runtime failure are fail-closed",
+    "metrics contain aggregate counts only"
+  ],
+  "authority_effect": "none",
+  "claim_limit": "Navigation scaffold only; not an admitted ontology or enforcement source."
+}

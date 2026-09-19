@@ -1,0 +1,142 @@
+{
+  "schema_version": "auth-foundation.business-ontology/v2-candidate",
+  "ontology_id": "AUTH-ONTOLOGY-EXACT-SESSION-ROLE-PERMISSION",
+  "ontology_type": "business-domain",
+  "lifecycle_status": "candidate-merge-proposal",
+  "capability_ref": "CA2-CAP-DECIDE-EXACT-SESSION-ROLE-PERMISSION",
+  "definition_source": {
+    "path": "formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/BUSINESS-MEANING.v2-definitions-accepted.json",
+    "sha256": "bab511055fb200f26255bef7d2b020b7d8890ada898fc62dd80b846769c8f6e0",
+    "definition_ids": [
+      "AF-DEF-ACTION", "AF-DEF-ALLOW", "AF-DEF-AUTHORIZATION-ADMISSIBLE", "AF-DEF-AUTHORIZATION-DECISION",
+      "AF-DEF-AUTHORIZATION-REQUEST", "AF-DEF-AUTHORIZATION-REVISION", "AF-DEF-COMPLETE-AUTHORITATIVE-ROLE-RELATION",
+      "AF-DEF-DECISION-TIME", "AF-DEF-DENY", "AF-DEF-EXACT-ACTIVE-ROLE-GRANT", "AF-DEF-PERMISSION",
+      "AF-DEF-REQUIRED-PERMISSION", "AF-DEF-RESOLVED-ACTIVE-ROLE", "AF-DEF-RESOLVED-SESSION",
+      "AF-DEF-RESOURCE", "AF-DEF-ROLE", "AF-DEF-SCOPE", "AF-DEF-SESSION", "AF-DEF-SESSION-CURRENT",
+      "AF-DEF-TRUSTED-SCOPE-EVIDENCE"
+    ]
+  },
+  "language_context_ref": "auth-foundation.exact-session-role-permission.rust-context/v1",
+  "construction_state": {
+    "canonical_definitions": "accepted-local-source",
+    "product_capability": "candidate-merge-proposal",
+    "business_ontology": "candidate-merge-proposal"
+  },
+  "property_contract": {
+    "schema_version": "auth-foundation.property-contract/v1-candidate",
+    "denominator_ref": "property-denominator.json",
+    "type_algebra": {
+      "scalars": ["String", "Bool", "UInt64"],
+      "constructors": ["Named", "Set", "List", "Optional", "Sum"],
+      "collection_semantics": "Set values are unique and order-independent; List values preserve multiplicity and order",
+      "unsupported_behavior": "reject-before-generation"
+    },
+    "rule_expression_algebra": [
+      "literal", "path", "all", "any", "not", "eq", "lt",
+      "exactly_one", "unique", "set_equal", "contains", "exists", "rule_ref"
+    ],
+    "property_selector_format": "<ontology-node-id>#<property-name>",
+    "authority_effect": "none"
+  },
+  "nodes": [
+    {"id":"AUTH-TRUSTED-APPLICATION","type":"Actor","meaning":"Server-side code that constructs the required permission, scope evidence, decision time, and authorization revision."},
+    {"id":"AUTH-AUTHORIZATION-REQUEST","type":"AuthorizationRequest","meaning":"One trusted internal question naming a session and exact required permission."},
+    {"id":"AUTH-SESSION","type":"Session","meaning":"One server-recognized session with status, expiry, authorization revision, and active role identities."},
+    {"id":"AUTH-ROLE","type":"Role","meaning":"One authoritative role definition containing positive exact-match permission grants."},
+    {"id":"AUTH-PERMISSION","type":"Permission","meaning":"One exact resource, action, and scope triple."},
+    {"id":"AUTH-SCOPE-EVIDENCE","type":"TrustedScopeEvidence","meaning":"Evidence that trusted application code constructed the required scope."},
+    {"id":"AUTH-AUTHORIZATION-REVISION","type":"AuthorizationRevision","meaning":"The authoritative revision shared by the request, session, and role relation."},
+    {"id":"AUTH-AUTHORIZATION-DECISION","type":"AuthorizationDecision","meaning":"Exactly ALLOW or DENY; diagnostic denial reasons are non-normative."},
+    {"id":"AUTH-EVALUATION-CONTEXT","type":"EvaluationContext","meaning":"The complete trusted, already-resolved input presented to the pure authorization decision."},
+    {"id":"AUTH-SESSION-STATUS","type":"SessionStatus","meaning":"The current server-side lifecycle state of a resolved session."},
+    {"id":"AUTH-DENY-REASON","type":"DenyReason","meaning":"A non-normative diagnostic classification for a DENY result."}
+  ],
+  "properties": [
+    {"property_id":"AUTH-PERMISSION#resource","owner":"AUTH-PERMISSION","name":"resource","type":"String","cardinality":"one","identity":true,"meaning":"Exact protected resource identifier."},
+    {"property_id":"AUTH-PERMISSION#action","owner":"AUTH-PERMISSION","name":"action","type":"String","cardinality":"one","identity":true,"meaning":"Exact action identifier."},
+    {"property_id":"AUTH-PERMISSION#scope","owner":"AUTH-PERMISSION","name":"scope","type":"String","cardinality":"one","identity":true,"meaning":"Exact trusted scope identifier."},
+    {"property_id":"AUTH-SESSION#session_id","owner":"AUTH-SESSION","name":"session_id","type":"String","cardinality":"one","identity":true,"meaning":"Server-recognized session identity."},
+    {"property_id":"AUTH-SESSION#user_id","owner":"AUTH-SESSION","name":"user_id","type":"String","cardinality":"one","identity":false,"meaning":"Authenticated subject identity bound to the session."},
+    {"property_id":"AUTH-SESSION#status","owner":"AUTH-SESSION","name":"status","type":"SessionStatus","cardinality":"one","identity":false,"meaning":"Current session lifecycle state."},
+    {"property_id":"AUTH-SESSION#active_role_ids","owner":"AUTH-SESSION","name":"active_role_ids","type":"Set<String>","cardinality":"many-unique","identity":false,"meaning":"Complete set of active role identities."},
+    {"property_id":"AUTH-SESSION#authorization_revision","owner":"AUTH-SESSION","name":"authorization_revision","type":"UInt64","cardinality":"one","identity":false,"meaning":"Authorization revision observed by the session."},
+    {"property_id":"AUTH-SESSION#expires_at","owner":"AUTH-SESSION","name":"expires_at","type":"UInt64","cardinality":"one","identity":false,"meaning":"Exclusive session expiry boundary."},
+    {"property_id":"AUTH-ROLE#role_id","owner":"AUTH-ROLE","name":"role_id","type":"String","cardinality":"one","identity":true,"meaning":"Authoritative role identity."},
+    {"property_id":"AUTH-ROLE#permissions","owner":"AUTH-ROLE","name":"permissions","type":"Set<Permission>","cardinality":"many-unique","identity":false,"meaning":"Positive exact-match permission grants."},
+    {"property_id":"AUTH-AUTHORIZATION-REQUEST#request_id","owner":"AUTH-AUTHORIZATION-REQUEST","name":"request_id","type":"String","cardinality":"one","identity":true,"meaning":"Authorization request identity."},
+    {"property_id":"AUTH-AUTHORIZATION-REQUEST#session_id","owner":"AUTH-AUTHORIZATION-REQUEST","name":"session_id","type":"String","cardinality":"one","identity":false,"meaning":"Requested server-side session identity."},
+    {"property_id":"AUTH-AUTHORIZATION-REQUEST#required_permission","owner":"AUTH-AUTHORIZATION-REQUEST","name":"required_permission","type":"Permission","cardinality":"one","identity":false,"meaning":"Exact permission required by trusted application code."},
+    {"property_id":"AUTH-AUTHORIZATION-REQUEST#scope_evidence_ref","owner":"AUTH-AUTHORIZATION-REQUEST","name":"scope_evidence_ref","type":"String","cardinality":"one","identity":false,"meaning":"Non-empty reference to trusted scope-construction evidence."},
+    {"property_id":"AUTH-AUTHORIZATION-REQUEST#decision_time","owner":"AUTH-AUTHORIZATION-REQUEST","name":"decision_time","type":"UInt64","cardinality":"one","identity":false,"meaning":"Trusted decision time compared with the exclusive expiry boundary."},
+    {"property_id":"AUTH-AUTHORIZATION-REQUEST#current_authorization_revision","owner":"AUTH-AUTHORIZATION-REQUEST","name":"current_authorization_revision","type":"UInt64","cardinality":"one","identity":false,"meaning":"Current authoritative revision required of the resolved session."},
+    {"property_id":"AUTH-EVALUATION-CONTEXT#request","owner":"AUTH-EVALUATION-CONTEXT","name":"request","type":"AuthorizationRequest","cardinality":"one","identity":false,"meaning":"Trusted authorization request."},
+    {"property_id":"AUTH-EVALUATION-CONTEXT#resolved_sessions","owner":"AUTH-EVALUATION-CONTEXT","name":"resolved_sessions","type":"List<Session>","cardinality":"many","identity":false,"meaning":"Server-recognized session rows matching the resolution input, preserving multiplicity so ambiguity cannot collapse."},
+    {"property_id":"AUTH-EVALUATION-CONTEXT#resolved_roles","owner":"AUTH-EVALUATION-CONTEXT","name":"resolved_roles","type":"List<Role>","cardinality":"many","identity":false,"meaning":"Complete authoritative role rows for the active relation, preserving multiplicity so duplicate role identities remain detectable."},
+    {"property_id":"AUTH-EVALUATION-CONTEXT#trusted_scope_evidence","owner":"AUTH-EVALUATION-CONTEXT","name":"trusted_scope_evidence","type":"Bool","cardinality":"one","identity":false,"meaning":"Whether trusted application scope evidence was supplied."},
+    {"property_id":"AUTH-EVALUATION-CONTEXT#role_relation_complete","owner":"AUTH-EVALUATION-CONTEXT","name":"role_relation_complete","type":"Bool","cardinality":"one","identity":false,"meaning":"Whether resolved roles are the complete active-role relation."}
+  ],
+  "variants": [
+    {"variant_id":"AUTH-SESSION-STATUS#Active","owner":"AUTH-SESSION-STATUS","name":"Active","payload_type":null},
+    {"variant_id":"AUTH-SESSION-STATUS#Inactive","owner":"AUTH-SESSION-STATUS","name":"Inactive","payload_type":null},
+    {"variant_id":"AUTH-SESSION-STATUS#Revoked","owner":"AUTH-SESSION-STATUS","name":"Revoked","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#MissingSession","owner":"AUTH-DENY-REASON","name":"MissingSession","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#AmbiguousSession","owner":"AUTH-DENY-REASON","name":"AmbiguousSession","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#InactiveSession","owner":"AUTH-DENY-REASON","name":"InactiveSession","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#ExpiredSession","owner":"AUTH-DENY-REASON","name":"ExpiredSession","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#StaleAuthorizationRevision","owner":"AUTH-DENY-REASON","name":"StaleAuthorizationRevision","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#UntrustedScopeEvidence","owner":"AUTH-DENY-REASON","name":"UntrustedScopeEvidence","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#IncompleteRoleRelation","owner":"AUTH-DENY-REASON","name":"IncompleteRoleRelation","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#DuplicateResolvedRole","owner":"AUTH-DENY-REASON","name":"DuplicateResolvedRole","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#RoleRelationMismatch","owner":"AUTH-DENY-REASON","name":"RoleRelationMismatch","payload_type":null},
+    {"variant_id":"AUTH-DENY-REASON#NoExactActiveRoleGrant","owner":"AUTH-DENY-REASON","name":"NoExactActiveRoleGrant","payload_type":null},
+    {"variant_id":"AUTH-AUTHORIZATION-DECISION#Allow","owner":"AUTH-AUTHORIZATION-DECISION","name":"Allow","payload_type":null},
+    {"variant_id":"AUTH-AUTHORIZATION-DECISION#Deny","owner":"AUTH-AUTHORIZATION-DECISION","name":"Deny","payload_type":"DenyReason"}
+  ],
+  "operations": [
+    {
+      "operation_id":"AUTH-OP-AUTHORIZE",
+      "name":"authorize",
+      "inputs":[{"name":"context","type":"EvaluationContext"}],
+      "output":"AuthorizationDecision",
+      "rule_refs":["AF-RULE-UNIQUE-RESOLVED-SESSION","AF-RULE-SESSION-CURRENT","AF-RULE-TRUSTED-SCOPE","AF-RULE-COMPLETE-ACTIVE-ROLES","AF-RULE-AUTHORIZATION-ADMISSIBLE","AF-RULE-EXACT-ACTIVE-ROLE-GRANT","AF-RULE-ALLOW-IFF","AF-RULE-DEFAULT-DENY"],
+      "writes":[],
+      "effects":[],
+      "failure_continuation":"return-deny-without-state-change"
+    }
+  ],
+  "relations": [
+    {"id":"AUTH-REL-APPLICATION-CONSTRUCTS-REQUEST","type":"constructs","source":"AUTH-TRUSTED-APPLICATION","target":"AUTH-AUTHORIZATION-REQUEST"},
+    {"id":"AUTH-REL-REQUEST-RESOLVES-SESSION","type":"resolves","source":"AUTH-AUTHORIZATION-REQUEST","target":"AUTH-SESSION"},
+    {"id":"AUTH-REL-SESSION-ACTIVATES-ROLE","type":"activates","source":"AUTH-SESSION","target":"AUTH-ROLE"},
+    {"id":"AUTH-REL-ROLE-GRANTS-PERMISSION","type":"grants","source":"AUTH-ROLE","target":"AUTH-PERMISSION"},
+    {"id":"AUTH-REL-REQUEST-REQUIRES-PERMISSION","type":"requires","source":"AUTH-AUTHORIZATION-REQUEST","target":"AUTH-PERMISSION"},
+    {"id":"AUTH-REL-REQUEST-BINDS-SCOPE-EVIDENCE","type":"binds","source":"AUTH-AUTHORIZATION-REQUEST","target":"AUTH-SCOPE-EVIDENCE"},
+    {"id":"AUTH-REL-REQUEST-USES-REVISION","type":"evaluated_against","source":"AUTH-AUTHORIZATION-REQUEST","target":"AUTH-AUTHORIZATION-REVISION"},
+    {"id":"AUTH-REL-REQUEST-PRODUCES-DECISION","type":"produces","source":"AUTH-AUTHORIZATION-REQUEST","target":"AUTH-AUTHORIZATION-DECISION"}
+  ],
+  "rules": [
+    {"rule_id":"AF-RULE-UNIQUE-RESOLVED-SESSION","statement":"The request must resolve to exactly one server-recognized session.","failure_behavior":"DENY with missing or ambiguous session diagnostics."},
+    {"rule_id":"AF-RULE-SESSION-CURRENT","statement":"The session is ACTIVE, decision time is strictly before expiry, and its authorization revision equals the current request revision.","failure_behavior":"DENY."},
+    {"rule_id":"AF-RULE-TRUSTED-SCOPE","statement":"Trusted application code, not the external caller, constructed the required scope and supplied evidence of that construction.","failure_behavior":"DENY."},
+    {"rule_id":"AF-RULE-COMPLETE-ACTIVE-ROLES","statement":"Resolved roles contain every and only active role identity exactly once at the current authorization revision.","failure_behavior":"DENY; incomplete role data is never interpreted as an empty current grant set."},
+    {"rule_id":"AF-RULE-AUTHORIZATION-ADMISSIBLE","statement":"Authorization is admissible only when unique resolution, currentness, trusted scope evidence, and complete active-role resolution all hold.","failure_behavior":"DENY."},
+    {"rule_id":"AF-RULE-EXACT-ACTIVE-ROLE-GRANT","statement":"At least one resolved active role grants a permission whose resource, action, and scope exactly equal the required permission.","failure_behavior":"No positive grant exists."},
+    {"rule_id":"AF-RULE-ALLOW-IFF","statement":"Return ALLOW if and only if authorization is admissible and an exact active-role grant exists.","failure_behavior":"Never return ALLOW."},
+    {"rule_id":"AF-RULE-DEFAULT-DENY","statement":"Every other in-scope result is DENY.","failure_behavior":"Return DENY without state change."}
+  ],
+  "proof_requirements": [
+    {"proof_id":"AF-PROOF-LEAN-CHARACTERIZATION","statement":"The binary decision is characterized by authorization evidence in both directions.","evidence_ref":"../formalization/cases/AF-EXACT-SESSION-ROLE-PERMISSION-001/THEOREM-OBLIGATION-RECEIPT.v2.json"},
+    {"proof_id":"AF-PROOF-PERMITTED-CASE","statement":"An admissible request with an exact active-role grant is allowed.","evidence_ref":"ExactSessionRolePermission.v2.lean#referenceModelSatisfies"},
+    {"proof_id":"AF-PROOF-ADMISSIBLE-WITHOUT-GRANT","statement":"An admissible request without an exact active-role grant is denied.","evidence_ref":"ExactSessionRolePermission.v2.lean#referenceAuthorizationLaws"},
+    {"proof_id":"AF-PROOF-INADMISSIBLE","statement":"A request without an admissible session context is denied.","evidence_ref":"ExactSessionRolePermission.v2.lean#referenceAuthorizationLaws"},
+    {"proof_id":"AF-PROOF-EXACT-MISMATCH-DENY","statement":"A mismatch in resource, action, or scope is denied.","evidence_state":"implementation-test-required"},
+    {"proof_id":"AF-PROOF-IMPLEMENTATION-EQUIVALENCE","statement":"The Rust kernel returns ALLOW exactly for the ontology authorization-evidence predicate and DENY otherwise.","evidence_state":"implementation-test-required"}
+  ],
+  "residue": [
+    {"residue_id":"CAP-RES-AUTH-EXTERNAL-RESOLVERS","status":"open","description":"Production session, role, revision, and scope-evidence resolvers remain external."},
+    {"residue_id":"CAP-RES-AUTH-SERVICE-ADAPTERS","status":"deferred","description":"HTTP, persistence, tokens, and audit transport are outside the pure kernel."},
+    {"residue_id":"CAP-RES-AUTH-SECURITY-REVIEW","status":"open","description":"The integrated service requires independent threat modeling and security review."}
+  ],
+  "authority_effect": "none",
+  "claim_limit": "Proposed capability-local ontology for the exact accepted Auth rule; no runtime, deployment, or production-security authority."
+}
