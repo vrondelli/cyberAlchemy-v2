@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ui-repair://contracts/orchestration-index-entry/v1",
+  "title": "UI repair append-only orchestration index entry v1",
+  "type": "object",
+  "required": ["schema_version", "branch_id", "predecessor_generation_id", "invalidation", "record_handles", "replay", "owner_inputs", "authority_boundary"],
+  "properties": {
+    "schema_version": {"const": "ui-repair.orchestration-index-entry.v1"},
+    "branch_id": {"type": "string", "minLength": 1},
+    "predecessor_generation_id": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/generation"}]},
+    "invalidation": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["invalidated_generation_id", "reason"], "properties": {"invalidated_generation_id": {"$ref": "#/$defs/generation"}, "reason": {"type": "string", "minLength": 1}}, "additionalProperties": false}]},
+    "record_handles": {
+      "type": "object",
+      "required": ["mutation", "reroute", "corpus", "relationship_packet", "dossier"],
+      "properties": {
+        "mutation": {"$ref": "#/$defs/handle"},
+        "reroute": {"$ref": "#/$defs/handle"},
+        "corpus": {"$ref": "#/$defs/handle"},
+        "relationship_packet": {"$ref": "#/$defs/handle"},
+        "dossier": {"$ref": "#/$defs/handle"}
+      },
+      "additionalProperties": false
+    },
+    "replay": {
+      "type": "object",
+      "required": ["status", "checks"],
+      "properties": {
+        "status": {"enum": ["identical", "invalidated"]},
+        "checks": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/check"}}
+      },
+      "additionalProperties": false
+    },
+    "owner_inputs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/generation"}},
+    "authority_boundary": {"const": "mechanical-index-is-not-authority-or-owner-adjudication"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "record": {"type": "string", "pattern": "^record:sha256:[a-f0-9]{64}$"},
+    "generation": {"type": "string", "pattern": "^generation:sha256:[a-f0-9]{64}$"},
+    "handle": {
+      "type": "object",
+      "required": ["record_id", "content_digest", "generation_id"],
+      "properties": {"record_id": {"$ref": "#/$defs/record"}, "content_digest": {"$ref": "#/$defs/digest"}, "generation_id": {"$ref": "#/$defs/generation"}},
+      "additionalProperties": false
+    },
+    "check": {
+      "type": "object",
+      "required": ["plane", "expected_content_digest", "observed_content_digest", "expected_generation_id", "observed_generation_id", "match"],
+      "properties": {
+        "plane": {"enum": ["mutation", "reroute", "corpus", "relationship_packet", "dossier"]},
+        "expected_content_digest": {"$ref": "#/$defs/digest"},
+        "observed_content_digest": {"$ref": "#/$defs/digest"},
+        "expected_generation_id": {"$ref": "#/$defs/generation"},
+        "observed_generation_id": {"$ref": "#/$defs/generation"},
+        "match": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

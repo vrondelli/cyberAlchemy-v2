@@ -1,0 +1,2 @@
+Product construction: include omitted guarded-binding test, validate expanded CLI and default compatibility, collect all independent phase results. Existing EXACT-UINT64.md and composition sources supply candidate contracts/scaffolds; no new feature semantics selected.
+Operational support: local tool availability affects individual test phases; hosted verification and publication configuration remain release-owner residue. No commit, release or approval. Build output under cli/dist is generated verification output. BTE and UI stay deferred.

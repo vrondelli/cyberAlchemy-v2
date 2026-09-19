@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/evf/lean-theorem-receipt.v1.schema.json",
+  "title": "EVF Lean Theorem Provider Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "receipt_id", "request_id", "request_ref", "input_refs",
+    "provider", "source_analysis", "execution", "native_outcome",
+    "normalized_outcome", "proof_status", "residue", "authority_effect",
+    "release_admission", "claim_ceiling", "receipt_payload_digest"
+  ],
+  "properties": {
+    "schema_version": {"const": "evf.lean-theorem-receipt/v1"},
+    "receipt_id": {"$ref": "#/$defs/id"},
+    "request_id": {"$ref": "#/$defs/id"},
+    "request_ref": {"$ref": "#/$defs/exactRef"},
+    "input_refs": {"type": "array", "minItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/exactRef"}},
+    "provider": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider_id", "provider_version", "executable_ref", "network_control"],
+      "properties": {
+        "provider_id": {"const": "lean4-core-typechecker"},
+        "provider_version": {"type": "string", "minLength": 1},
+        "executable_ref": {"$ref": "#/$defs/exactRef"},
+        "network_control": {"const": "declared-forbidden-closed-command-no-kernel-isolation"}
+      }
+    },
+    "source_analysis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["theorem_declaration_count", "declaration_names", "forbidden_constructs"],
+      "properties": {
+        "theorem_declaration_count": {"type": "integer", "minimum": 0},
+        "declaration_names": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "expected_declarations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "missing_expected_declarations": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "forbidden_constructs": {"type": "array", "uniqueItems": true, "items": {"enum": ["sorry", "unsafe", "axiom"]}}
+      }
+    },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["working_directory", "environment_allowlist", "memory_ceiling_bytes", "memory_control", "repetition_count", "runs", "deterministic"],
+      "properties": {
+        "working_directory": {"const": "."},
+        "environment_allowlist": {"type": "array", "maxItems": 0},
+        "memory_ceiling_bytes": {"type": "integer", "minimum": 1},
+        "memory_control": {"const": "declared-not-os-enforced"},
+        "repetition_count": {"type": "integer", "minimum": 0},
+        "runs": {"type": "array", "items": {"$ref": "#/$defs/run"}},
+        "deterministic": {"type": "boolean"}
+      }
+    },
+    "native_outcome": {"enum": ["checked", "rejected", "unsupported", "indeterminate", "timeout", "stale", "failed"]},
+    "normalized_outcome": {"enum": ["theorem-checked", "elaboration-checked", "unresolved"]},
+    "proof_status": {"enum": ["lean-theorem-declarations-checked", "not-established-no-theorem-declaration", "not-established-no-bound-theorem-declaration", "not-established"]},
+    "residue": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "authority_effect": {"const": "none"},
+    "release_admission": {"const": "not-granted"},
+    "claim_ceiling": {"enum": ["exact-lean-theorem-declarations-checked-only", "lean-elaboration-only-no-theorem-proof", "no-proof-claim"]},
+    "receipt_payload_digest": {"$ref": "#/$defs/sha256"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"normalized_outcome": {"const": "theorem-checked"}}},
+      "then": {
+        "properties": {
+          "native_outcome": {"const": "checked"},
+          "proof_status": {"const": "lean-theorem-declarations-checked"},
+          "claim_ceiling": {"const": "exact-lean-theorem-declarations-checked-only"},
+          "source_analysis": {
+            "required": ["expected_declarations", "missing_expected_declarations"],
+            "properties": {
+              "theorem_declaration_count": {"minimum": 1},
+              "expected_declarations": {"minItems": 1},
+              "missing_expected_declarations": {"maxItems": 0}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"normalized_outcome": {"const": "elaboration-checked"}}},
+      "then": {
+        "properties": {
+          "native_outcome": {"const": "checked"},
+          "proof_status": {"enum": ["not-established-no-theorem-declaration", "not-established-no-bound-theorem-declaration"]},
+          "claim_ceiling": {"const": "lean-elaboration-only-no-theorem-proof"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 260, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "exactRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["run_id", "exit_code", "timed_out", "stdout_sha256", "stderr_sha256", "output_bytes"],
+      "properties": {
+        "run_id": {"$ref": "#/$defs/id"},
+        "exit_code": {"type": ["integer", "null"]},
+        "timed_out": {"type": "boolean"},
+        "stdout_sha256": {"$ref": "#/$defs/sha256"},
+        "stderr_sha256": {"$ref": "#/$defs/sha256"},
+        "output_bytes": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

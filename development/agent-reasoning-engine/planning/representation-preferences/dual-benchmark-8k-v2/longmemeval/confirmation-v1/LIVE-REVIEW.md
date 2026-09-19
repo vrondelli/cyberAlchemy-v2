@@ -1,0 +1,15 @@
+# Full-S generation live readiness review
+
+Approved for `full-s-generation-live` at the exact source bindings in [LIVE-REVIEW.json](LIVE-REVIEW.json). This is implementation readiness for four fixed full-S histories, not a result or full-benchmark clearance. Campaign goal remains false. **Dispatch is on hold:** the coordinator reports only about 4.5MiB above the host reserve. Before launch, require a fresh host measurement of at least 12GiB + 32MiB for durable evidence growth; retain the existing 12GiB host and 8GiB guest runtime floors. The repeated source/call/result journals can exceed the current headroom. Guest free space does not establish host capacity. Freeze preparation may proceed while this hold remains.
+
+The actual `reference-s-v3` projection is now verified: 277,383,467 bytes, 500 records, pinned full-source SHA and four matching source question/type/date identity hashes. Independent review checked source-only identities and raw reference file hashes without parsing or emitting reference values. Hash-only evaluator binding SHA-256: `8fd927af334e113434760d2d939153e401dd895ff9073461822111f8589b3ced`.
+
+Generation preserves all eight slots, two workers, query-free complete-history control ingestion, 384-token note carry, the same final-answer policy, fresh actual-wire admission at 8,000 tokens, serialized tokenizer limits and no retries. Maximum reservations remain 1,131,200 generation plus 64,000 judge tokens. Shared health, explicit dispatch proof, failure accounting, cancellation, bounded settlement and durable seals preserve known cost and unknown reservations.
+
+Evaluation is isolated until the global generation seal. It uses the pinned native rubric, exact reference identity, blinded labels and metered judge usage. The final conjunction requires clean generation, all eight completed/validly judged slots, four correct treatment answers, nonregression, at least 15% savings including judges, complete known accounting and 8K admission. The reviewed correction prevents a wrapper-failed generation seal from confirming otherwise perfect metrics.
+
+Validation: 48 current synthetic tests pass across runner, provider, live wrapper, evaluator and scoring wrapper (47-test run followed by the updated six-test scorer suite). Native continuity and all three prospective records validate. No real tokenizer/model/network calls occurred in this review. Exact code, tests, protocol, native records, qualification and actual reference metadata hashes are listed in the JSON companion. The immutable freeze must be generated from those unchanged bindings before execution.
+
+## Open Questions
+
+Runtime storage admission still requires 12GiB host and 8GiB guest reserves; this approval does not bypass it. Empirical correctness, full model cost, real two-worker overlap and source integrity require post-run audit. Four-task confirmation cannot establish full LongMemEval perfection, ContextBench success or broader generalization. [LIVE-PROTOCOL.md](LIVE-PROTOCOL.md) owns the remaining research questions.

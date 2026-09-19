@@ -17,7 +17,7 @@ const profile={issuer:'https://issuer.localhost/realms/keld',origin,callback:'/a
 const digest=createHash('sha256').update('ARE sandbox fixture').digest('hex');
 const request=(handle='alice',csrf='csrf-alice')=>({headers:{host:'keld.localhost:17443',cookie:'__Host-keld_session='+handle,origin,'x-csrf-token':csrf}});
 
-async function fixture(t) {
+async function fixture(t,paymentOverrides={}) {
   const root=await mkdtemp(join(tmpdir(),'keld-sdk-test-'));await writeFile(join(root,'fixture.bin'),'ARE sandbox fixture');
   t.after(async()=>{nock.cleanAll();await rm(root,{recursive:true,force:true});});
   const repository=createRepository({database:join(root,'ledger.db'),releaseDigest:digest,delivery:{root,artifacts:[{sha256:digest,bytes:19,relative_path:'fixture.bin'}]}});
@@ -25,7 +25,7 @@ async function fixture(t) {
   // This fixture replaces only the external OIDC/PG session runtime, not the KELD consumer.
   const core={async touch(){},async authenticate(handle){if(!state.active||!['alice','bob'].includes(handle))throw Error('revoked');return {subject:handle,csrf:'csrf-'+handle};}};
   const auth=bindKeldAuth(core,profile);
-  const adapters=createPaymentAdapters(config);
+  const adapters=createPaymentAdapters({...config,...paymentOverrides});
   const service=createCheckoutService({auth,repository,adapters,origin,clock:()=>state.now,
     quoteBrl:async amount=>({currency:'BRL',amountCents:amount*5,reference:'fixture-rate-not-for-sale'})});
   return {service,state,repository,auth,adapters,root};
@@ -77,7 +77,7 @@ test('Mercado Pago SDK preserves BRL quote and verifies approved payment before 
   assert.equal((await service.confirm(request(),orderId)).status,'paid');assert.equal((await service.download(request(),orderId)).sha256,digest);assert.ok(nock.isDone());
 });
 
-function paypalOrder(orderId,extra={}) {return {id:'ORDER123',intent:'CAPTURE',status:'PAYER_ACTION_REQUIRED',purchase_units:[{reference_id:orderId,custom_id:digest,payee:{merchant_id:'MERCHANT123'},amount:{currency_code:'USD',value:'200.00'}}],links:[{rel:'payer-action',href:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER123',method:'GET'}],...extra};}
+function paypalOrder(orderId,extra={},currency='USD',value='200.00') {return {id:'ORDER123',intent:'CAPTURE',status:'PAYER_ACTION_REQUIRED',purchase_units:[{reference_id:orderId,custom_id:digest,payee:{merchant_id:'MERCHANT123'},amount:{currency_code:currency,value}}],links:[{rel:'payer-action',href:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER123',method:'GET'}],...extra};}
 test('PayPal SDK creates, captures approved order and verifies capture with merchant/amount binding',async t=>{
   const {service}=await fixture(t);let orderId;
   nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,{access_token:'fixture-access',token_type:'Bearer',expires_in:3600});
@@ -90,6 +90,19 @@ test('PayPal SDK creates, captures approved order and verifies capture with merc
   nock('https://api-m.sandbox.paypal.com').post('/v2/checkout/orders/ORDER123/capture').matchHeader('paypal-request-id',v=>/^[a-f0-9]{64}$/.test(v)).reply(201,completed);
   nock('https://api-m.sandbox.paypal.com').get('/v2/payments/captures/CAPTURE123').reply(200,{id:'CAPTURE123',status:'COMPLETED',amount:{currency_code:'USD',value:'200.00'},supplementary_data:{related_ids:{order_id:'ORDER123'}}});
   assert.equal((await service.confirm(request(),result.orderId)).status,'paid');assert.equal((await service.download(request(),result.orderId)).sha256,digest);assert.ok(nock.isDone());
+});
+
+test('PayPal BRL presentment freezes the shared quote while preserving the USD commercial input',async t=>{
+  const {service}=await fixture(t,{paypal:{...config.paypal,currency:'BRL'}});let orderId;
+  nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,{access_token:'fixture-access',token_type:'Bearer',expires_in:3600});
+  nock('https://api-m.sandbox.paypal.com').post('/v2/checkout/orders',body=>{
+    orderId=body.purchase_units[0].reference_id;
+    assert.deepEqual(body.purchase_units[0].amount,{currency_code:'BRL',value:'1000.00'});
+    return true;
+  }).reply(()=>[201,paypalOrder(orderId,{},'BRL','1000.00')]);
+  const result=await service.create(request(),{provider:'paypal',amountCents:20000,requestKey:'paypal-brl'});
+  assert.equal(result.currency,'BRL');assert.equal(result.amountCents,100000);assert.equal(result.usdAmountCents,20000);
+  assert.equal(result.quoteReference,'fixture-rate-not-for-sale');assert.ok(nock.isDone());
 });
 
 test('reject live credentials and invalid amounts without issuing requests',async t=>{
@@ -145,7 +158,7 @@ test('HTTP handler mounts shared login/callback and gates checkout with the sess
   const consumer=bindKeldAuth(core,profile);
   const authHandler=createHandler({auth:consumer,checkout:service,origin});
   await assert.rejects(()=>consumer.handle({method:'POST',url:'/auth/logout',headers:{origin:'https://attacker.invalid'}},{}),e=>e.status===403);
-  for(const [url,expected] of [['/auth/login','https://issuer.localhost/login'],['/auth/callback?code=test','/']]){
+  for(const [url,expected] of [['/auth/login','https://issuer.localhost/login'],['/auth/register','https://issuer.localhost/login?prompt=create'],['/auth/callback?code=test','/']]){
     const req={method:'GET',url,headers:{host:'keld.localhost:17443'}};
     const res={writeHead(status,h){this.status=status;this.h=h;},end(){}};await authHandler(req,res);
     assert.equal(res.status,303);assert.equal(res.h.location,expected);assert.match(res.h['set-cookie'][0],/Secure; HttpOnly; SameSite=Lax/);

@@ -1,0 +1,161 @@
+dsh: reasoning:
+This is the Svelte repo. Issue #12333: hydration of `@html` and `<img src>`. This likely refers to hydration mismatch: server renders `src` attribute with special chars? Actually known Svelte issue: when hydrating `@html` content or `<img src>` where the server-rendered HTML differs — the client claims elements that shouldn't be claimed. Let me look at hydration.js to understand. Also check documentation files about hydration, and search for src attribute hydration docs.
+
+Issue 12333 in svelte: "Hydration breaks with @html inside ..." Actually the real PR: "chore: document `@html` and `<img src>` hydration change" — this corresponds to Svelte PR #12364? The change: in Svelte 5.x, hydration now doesn't claim `@html` content / `src`? Hmm. Actually there was a change where `src` attribute values were previously claimed during hydration and now aren't, causing img reload. The docs change likely in packages/svelte/src/internal/client/dom/hydration.js or documentation/ docs about hydration.
+
+Let me check the repo docs and any existing changesets mentioning this, plus get_patch for current state.
+dsh: reasoning:
+Base commit is before the change. I need to find the relevant runtime change: probably in `set_attribute`/`assign_tokens` or in html.js handling of `@html` during hydration, and img src. Let me search for "src" handling and html.js hydration code.
+dsh: reasoning:
+So the base already has the hash check for `@html` (that was the earlier fix). Issue #12333 in svelte: "Hydration: `<img src>` reloads page" — actually sveltejs/svelte#12333: "Hydration with `@html` and `<img src>`" causes img to re-fetch. The fix (PR #12342? "chore: document @html and <img src> hydration change") — this is the actual Svelte PR #12369 maybe. Let me recall: Svelte PR titled "chore: document `@html` and `<img src>` hydration change" — I believe it's PR #12386 by Rich Harris? The change: in `src/__compiler or hydration docs`. It added documentation to `documentation/docs/98-reference...`? Actually likely added to changeset + docs in `documentation/` about hydration mismatch warnings, plus a hydration test sample like `html-src-reassignment` or `img-src`.
+
+The underlying change (already in base?) Let me check: the change was that during hydration, `<img src>` and `{@html}` don't get their attributes/content diffed — instead, if they differ, the server HTML is kept and a warning emitted? Hmm. Actually svelte 5.35ish: "fix: don't overwrite `src` on hydration"? Let me search attributes.js for src handling and set_attribute.
+dsh: reasoning:
+So the base already contains the runtime changes (check_hash, check_src_in_dev_hydration). This PR is the "chore: document" follow-up, matching the actual Svelte PR #12417 or so. The actual PR "chore: document `@html` and `<img src>` hydration change" (sveltejs/svelte#12479? Issue #12333 = "svelte 5 hydration warning in dev for src attributes"). The actual PR (Rich Harris, ~May 2025) modified:
+
+- `documentation/docs/...` — probably `src/runtime`? It added docs to `packages/svelte/messages/...`? And it added a hydration test sample: `packages/svelte/tests/hydration/samples/html-src-reassignment` or "attribute-src-changed". Let me recall the actual PR content. I believe it added a test `hydration/samples/html-and-src` and added docs to `documentation/docs/03-advanced...`? Actually there is a hydration section in docs: `documentation/docs/08-conditionals...`? There's `documentation/docs/06-special-elements`? Hmm.
+
+Actually I recall PR #12417 "chore: document `@html` and `<img src>` hydration change" changed `packages/svelte/tests/hydration/samples/html-src/...` and `documentation/docs/04-...`? Not sure. Let me search docs for hydration mismatch warnings.
+dsh: reasoning:
+Docs about hydration mismatch warnings live in svelte docs under `documentation/docs/` — like `99-reference/...` warnings? There is a doc listing dev warnings: `packages/svelte/messages/warnings`? Actually Svelte docs have "Debugging hydration" section? Let me look for where `hydration_html_changed` warning message is defined and whether docs list warnings. Also look for existing tests for the src warning to model new test. Search tests for check_src / hydration samples with src.
+dsh: reasoning:
+Now, the "documentation" part: the actual PR "chore: document `@html` and `<img src>` hydration change" (sveltejs/svelte PR #12383?) — I believe it added a section to `documentation/docs/03-svelte/...`? Actually there's a doc `documentation/docs/05-special-tags/02-html.md`? Let me check docs structure for @html doc and hydration docs.
+dsh: reasoning:
+Now, the actual upstream PR (sveltejs/svelte#12375, "chore: document `@html` and `<img src>` hydration change", closes #12333): I recall it modified `packages/svelte/tests/hydration/samples/html-src/` — hmm. Let me think about what upstream actually did. I believe the actual PR added a test `packages/svelte/tests/hydration/samples/html-src` and a docs paragraph in `documentation/docs/02-template-syntax/02-basic-markup.md` about `@html` and img src during hydration: something like:
+
+"During hydration, if the value of an `{@html ...}` block or `src`/`srcset`/`href` attribute differs between server and client, Svelte will use the server value and warn in dev."
+
+Let me check the existing tests directory for a similar recent sample (the check_hash test) to model the new test. Search for hydration_html_changed in tests.
+dsh: reasoning:
+No tests for those warnings yet. Let me look at hydration test infra to know how to write a sample test — read one existing _config.js and the hydration test runner expectations.
+dsh: reasoning:
+Now write: (1) docs additions in `documentation/docs/02-template-syntax/02-basic-markup.md` near `{@html}` section documenting hydration behavior, and probably also mention img src — maybe in that same doc. (2) a test sample `html-and-src` with a warning. The upstream PR also added a changeset? "chore" changesets aren't required. 
+
+Let me read the @html section of basic-markup.md.
+dsh: reasoning:
+Now the upstream PR content (sveltejs/svelte PR #12386? titled "chore: document `@html` and `<img src>` hydration change"): I believe it added to basic-markup.md after the `{@html}` section a block like:
+
+"During hydration, Svelte will use the server-rendered value for `{@html ...}` and `src`/`srcset`/`href` attributes — i.e. values that differ between server and client are ignored on the client, avoiding e.g. duplicate image loads. In dev, a warning is emitted."
+
+And added test sample `packages/svelte/tests/hydration/samples/html-src/` maybe named `html-img-src`. I'll add a sample `html-src-mismatch` with img src differing between server and client producing `hydration_html_changed`? No — for src the warning code... check_src_in_dev_hydration — let me read it to see which warning it emits.
+dsh: reasoning:
+Good. Now implement:
+
+1. Docs: add paragraph in basic-markup.md after the XSS note documenting hydration behavior for `{@html}` and `src`/`srcset`/`href` attributes. Also maybe in bindings? Keep to basic-markup.
+
+Upstream wording (I recall from svelte docs now):
+
+"> [!NOTE] During hydration, `src`/`srcset`/`href` attributes and `{@html ...}` blocks are not updated — the values rendered on the server are used. This prevents e.g. images being reloaded. In development a warning is logged if there is a mismatch."
+
+2. Test: add sample `packages/svelte/tests/hydration/samples/html-and-src/`? Upstream test likely `hydration/samples/html-src`. I'll create `html-img-src` with main.svelte:
+
+```svelte
+<script>
+	let { browser } = $props();
+	const src = browser ? '/client.png' : '/server.png';
+</script>
+
+<img {src} />
+{@html browser ? '<p>client</p>' : '<p>server</p>'}
+```
+
+_config.js with dev:true and errors array containing both warnings. But errors match exact strings including location and outerHTML — hard to predict for attribute warning (includes element.outerHTML). Warnings format: "%attribute% attribute on %html% changed its value between server and client renders. The client value, %value%, will be ignored in favour of the server value". outerHTML would be `<img src="/server.png">` (after parsing, maybe `<img src="/server.png">` in happy-dom? test uses jsdom/puppeteer? hydration tests run with... let's check test.ts to see env (vitest browser?). Also src_url_equal uses `document.baseURI` — client '/client.png' vs server '/server.png' differ, good.
+
+But wait: attribute rendering — the compiled code for `<img {src}>` uses set_attribute? With `dev: true` and hydration, `set_attribute` calls check_src_in_dev_hydration at line 95-96. But does the client attribute assignment happen during hydration for src? Line 276 area is another path. The warning element.outerHTML: in the hydration test environment the img element HTML would be exactly `<img src="/server.png">`. Risky. To be safe, I can give the img a static server/client differing src via props like the html-tag-hydration-2 sample.
+
+Alternative safer test: only test `{@html}` mismatch (mirroring existing html-tag-hydration-2) plus img src, and assert errors loosely? Check the test harness: does `errors` do exact matching? Let's read tests/hydration/test.ts.
+dsh: reasoning:
+Errors are deepEqual-exact. The attribute warning includes element.outerHTML — deterministic in jsdom: SSR html for `<img src={...}>` would be `<img src="/server.png">` — jsdom parse keeps it as `<img src="/server.png">`. outerHTML with no innerHTML: `<img src="/server.png">`. Warning message: `The src attribute on <img src="/server.png"> changed its value between server and client renders. The client value, /client.png, will be ignored in favour of the server value`. But there's also the hydration start comment before the img in SSR output — outerHTML unaffected.
+
+Ordering: img comes first in markup → img warning first, then html warning with location `in packages/svelte/tests/hydration/samples/html-and-src/main.svelte` (filename path with slashes replaced by zero-width? No — location uses file path from sourcemap; existing test html-tag-hydration-2 shows slashes replaced with `/​` (zero-width space) — the warning function in html.js does `location?.replace(/\//g, '/\u200b')`. The expected error string in that config has "packages/​svelte/..." with zero-width spaces. I'll mirror that. Actually in check_hash, location = `in ${filename}` then replaced. Filename = full path `packages/svelte/tests/hydration/samples/html-and-src/main.svelte`? In existing test, yes, path relative to repo root apparently (compile-time cwd? it shows `packages/svelte/tests/...`). Good, mirror it.
+
+But careful: srcset check also fires for `src`? check fires for 'src' with src_url_equal. Also — for `<img>` the compiler might set src via `element.src = ...` path (line 276, set_dynamic_element_attributes?) which also calls the check. Fine.
+
+Risk: does the client even attempt to set src during hydration? In template.claim, attributes are restored? The check is in set_attribute which is called when hydrating templates to re-add attributes not claimed. The `src` attribute is claimed? Hmm — in hydration, static attributes are claimed by element claim; dynamic src is set via set_attribute during hydration (template.js calls set_attribute for dynamic attributes? Actually compiled code does `template_effect(() => set_attribute(img, 'src', src))` and during hydration effects run once, and set_attribute checks `if (hydrating && ...)` at line 95). So yes, warning fires. Good — same as upstream tests presumably.
+
+Hmm, but also `src_url_equal('/server.png', '/client.png')` → false in jsdom (document.baseURI = about:blank? new URL('/server.png', 'http://localhost/...')). jsdom default url is 'http://localhost/'. Fine, they differ.
+
+Also the html block: value differs → check_hash warns with location from `element.__svelte_meta?.loc` — dev compile includes __svelte_meta? Only if compileOptions include `dev` and... loc is included with `dev: true`? In html-tag-hydration-2 the location was "in packages/..." meaning no loc. OK.
+
+Now for the expected html equality: `_expected.html` defaults to rendered.html. After hydration, server value kept, so target.innerHTML should equal rendered html trimmed? There are extra hydration comments in client? SSR output includes `<!--[-->` etc. After hydration the client target contains those comments; assert.equal(target.innerHTML.trim(), rendered.html.trim()). Does SSR output include hydration comments in html? Yes (that's how hydration works). Should match like other tests. The `errors` array: exact ordering: img warn then html warn.
+
+But wait: attribute warning message uses outerHTML which includes children replaced with '...' — img has none. `<img src="/server.png">`. But SSR might render `src="/server.png">` with other attrs? Only src. Good.
+
+Also for `{@html}`: with `server_props browser:false`, props browser:true.
+
+main.svelte:
+
+```svelte
+<script lang="ts">
+	let { browser } = $props();
+
+	const src = browser ? '/client.png' : '/server.png';
+</script>
+
+<img {src} />
+
+{@html browser ? '<p>client</p>' : '<p>server</p>'}
+```
+
+Hmm, but the `{@html}` value contains tags; hydration claiming fine.
+
+Expected errors:
+
+1. `The src attribute on <img src="/server.png"> changed its value between server and client renders. The client value, /client.png, will be ignored in favour of the server value`
+
+Wait — message from warnings.md: "The %attribute% attribute on %html% changed..." — with quotes? warning.js formatting: let me not guess; check hydration_attribute_changed in warnings.js.
+dsh: reasoning:
+Message: `The \`src\` attribute on \`<img src="/server.png">\` changed its value between server and client renders. The client value, \`/client.png\`, will be ignored in favour of the server value`.
+
+Note: the existing sample expects the html warning with location "in packages/​svelte/..." — includes zero-width space after slash. I'll write the expected string with the location "in packages/\u200bsvelte/\u200stests..." — actual replacement: `'/\u200b'` i.e., slash followed by U+200B. In html-tag-hydration-2 config it's `packages/​svelte/​tests/​hydration/​samples/​html-tag-hydration-2/​main.svelte` — those are slash+ZWSP. I'll construct via JS string in _config.js to be safe: use '\u200b'? The existing config just embeds literal ZWSP characters. I can embed with template: `` `in packages/\u200bsvelte/...` `` — but in the errors array, exact string. I'll use JS escape in a template literal to avoid invisible char issues... but the existing file has literal ZWSP. To be safe I'll write the config with a template literal using \u200b escapes. That's fine JS.
+
+Actually simpler: build path programmatically? Keep explicit escapes.
+
+Also does html check get filename? dev_current_component_function.filename — set when compiled with dev:true. In existing test it produced the path; good.
+
+Also the img src warning: attribute check occurs during hydration — but wait, is set_attribute called during hydration for src? In compiled client template: `<img {...attributes}>` with dynamic src compiles to `template_effect(() => set_attribute(img, "src", src))` — but the template_effect runs in a branch during hydration, yes. But there's a subtlety: html.js hydration — I put img before @html, so img processed first. But actually the template_effect might run after hydration of whole component (effects flush after). Order of warnings: template effects run during mounting... In hydration, effects run inside `branch` immediately? Whatever the order, deepEqual needs exact order. Risky. To reduce risk, maybe skip img and only test @html? But PR title says document both; a test covering src would be valuable. Alternative: use `config.test` to check img.src attribute stays '/server.png' — behavioral assertion, order-independent, and just assert warnings include? No, errors deepEqual still runs if config.errors set. I could avoid config.errors entirely and instead in `test:` capture? console.warn already restored by then; can't capture.
+
+Compromise: set errors to both messages but ordering uncertain. Hmm. Can I determine order? During hydration, `mount`/`_mount` compiles: `hydratable`... The client component's top-level code: creates template, claims nodes, then `template_effect(...)` — effects created via `render_effect` are queued but during hydration the initial run happens synchronously in `branch`? In Svelte 5, effects created during hydration have `effect.f |= EFFECT` and are scheduled; hydration sets `flush: 'sync'`? I recall hydration mount uses `flush: 'pre'`... In legacy createClassComponent mount, effects run after mount function returns, before console.warn restored (console.warn is restored after createClassComponent returns). So both warnings captured regardless. Order: html block's effect is also a template_effect-ish. DOM order likely: img effect runs before html? Both scheduled; execution order = creation order = source order. img first. Also, the html() block's hydration branch runs inside block() immediately during mount (block function calls the callback synchronously I think). So html warning may fire during mount, before img's scheduled effect runs. So order could be: html warning first, then src warning. Uncertain!
+
+Mitigation: use `errors: any[]` — deepEqual exact. Alternatively don't include errors and let `assert.ok(!got_hydration_error)` pass but warnings would trigger `Unexpected errors` throw. Hmm.
+
+Alternative: put the @html first in the markup and img second? Same problem reversed.
+
+Safer: test only src behavior without warnings assertion? Warnings will be emitted → test fails with "Unexpected errors". So must include them.
+
+Option: use server_props/props such that only one warning exists: use two separate samples? Test 1: html (mirrors existing). Test for img src only:
+
+main.svelte: `<img src={browser ? '/client.png' : '/server.png'} />` with a `test:` callback asserting `target.querySelector('img').src` ends with '/server.png'. errors: [attribute warning]. Single warning, no ordering issue.
+
+I'll create two samples: `html-tag-hydration-3` (client html differs — but that duplicates existing html-tag-hydration-2)... The task says "add a test for it". I'll add one sample `hydration/samples/html-src/`... I'll do the img-src sample named `src-attribute-hydration` plus keep docs. And to cover @html, the existing html-tag-hydration-2 already covers it. Good enough — one new test sample.
+
+Also the img element: with jsdom, setting innerHTML with `<img src="/server.png">` — element.outerHTML = `<img src="/server.png">`. But SSR renders `<img src="/server.png">` exactly. However hydration comments: the img is inside a start/end comment? For root-level element, claim via element; the hydrate_node before it. outerHTML only includes element. OK.
+
+One more check: does check for `src` fire? In set_attribute line ~90: only if `hydrating && DEV`. Yes. But wait — is src set via set_attribute or via `img.src = ...`? Compiler for `<img src={expr}>`: dynamic attribute → set_attribute. Good.
+
+But there's a subtlety: attributes not present on server would be removed... src present.
+
+Also `src_url_equal('/server.png', '/client.png')` — new URL('/server.png', document.baseURI): jsdom baseURI = "http://localhost:3000/" or "http://localhost/". Fine, differ.
+
+Now compile concern: `let { browser } = $props(); const src = browser ? ... : ...` — non-reactive const fine.
+
+Write the docs addition. Draft (matching upstream style):
+
+After the XSS note in basic-markup.md, add:
+
+```
+> [!NOTE]
+> During hydration, the value of a `{@html ...}` block — and of `src`/`srcset`/`href` attributes — is not updated if it changed between server and client. The server-rendered value is kept, to avoid e.g. `<img>` elements being reloaded. In development, a warning is logged when this happens.
+```
+
+Also add changeset? chore docs — upstream added none. Skip.
+
+Now apply edits. Need current file hashes (base == current since patch empty). Use hashes: basic-markup.md sha 757e91ba25f70269ef65abc66d221e4bfce99c73d6a4ce30bebb7492a388b7b6. For new files, apply_edits requires old_text of existing file? For creating new files — tool applies replacements to tracked files; new files might not be supported. Hmm, apply_edits needs old_text matching. Maybe creating a new file works with empty old_text? Spec says old_text minLength 1. Can't create new files then? Try anyway? Alternatively, put the test edits into existing sample files? Could add a new sample by... not possible without file creation. Try apply_edits with old_text being a single line? New files aren't tracked; likely fails. Let me try with new file path and old_text matching nothing... must fail validation. Alternatively check if tool allows new file creation when source_sha256 is all zeros? Unknown. Just attempt; if fails, report.
+
+Test: docs edit + attempt new files.
+
+Actually maybe I can piggyback: add the test into an existing sample dir by modifying existing files? E.g., extend html-tag-hydration-2's main.svelte with an img? That changes existing test expectations (add img warning). That's a legitimate "add a test for it" — augment existing sample. But modifying an existing test file is acceptable: it tests img src too. But server html equality: target.innerHTML compared to rendered.html — fine since no override.
+
+Plan: edit html-tag-hydration-2/main.svelte to also include `<img src={browser ? '/client.png' : '/server.png'} />` before the @html, and update _config.js errors to include attribute warning. Ordering issue again: with @html first... put img first? Order of warnings unknown.
+
+Hmm. Let me try to determine order definitively. In html.js, block(() => {...}) — `block` creates an effect and runs it synchronously? In Svelte 5 internal, `block` creates effect with... `branch` etc. html's hydration branch executes during effect run. And template_effect for src also an effect. Both created during mount in source order; effect execution: root mount calls flush? Effects created during hydration with `hydrate: true` are... In mount, `set_hydrating(true)`, then instantiate component synchronously — effects created with render_effect are pushed and `schedule`? For hydration, they run immediately via `effect.run`? I recall in effects.js: `if (hydrating) { effect.f |= ...; run effect immediately }`? Yes! There's logic: during hydration, effects are

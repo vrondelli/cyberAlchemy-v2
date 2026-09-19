@@ -1,0 +1,129 @@
+dsh: reasoning:
+This is zstd. Issue #1241: "Ensure that first input position is valid for a match even during first usage of context by starting reference at 1 (avoiding the problematic 0)." This relates to ZSTD_compressBlock_fast / hash chains... Actually the known zstd fix: in `ZSTD_insertBlock` / ZSTD_compressBlock_fast... The known fix (PR #1245?) is in lib/compress/zstd_compress.c or zstd_lazy.c — the issue "ZSTD_compressBlock_fast error with dictionary"... The actual fix: in zstd_compress.c, `ZSTD_reduceIndex`? Hmm.
+
+Search for "hc3" or "minChainOffset"... The known fix commit: "fixed #1241 : invalid dictionary, loaded into aCCtx reused" — actually the fix was in ZSTD_resetCCtx_byCopying / ZSTD_resetCCtx_usingCDict: setting `cctx->nextSrc` vs dict... The known issue #1241 "raw content dictionary gives wrong output when reusing context" — fix added `if (params->cParams.windowLog > ...)`? Actually I recall the fix: "Fix #1241: cdict load mode by reference when window is too large" hmm.
+
+Better to search code: "tooLargeWindow"? Let's search ZSTD_resetCCtx_byAttachingCDict and ZSTD_compress_insertDictionary. The relevant fix (zstd commit 1bab5f4?) — in ZSTD_compress_insertDictionary they added:
+
+```
+/* dict restricted modes */
+if (ZSTD_dictMode == ZSTD_dictDefault)...
+```
+
+Actually known fix in zstd_lazy / fast: `ZSTD_compressBlock_fast` reading `ms->window.dictBase` ... The issue #1241 title: "Invalid output when compressing with dictionary and reused context (single segment?)" The fix commit: "fix #1241: ZSTD_compressContinue with dict attached by reference and first block"? The fix introduced in ZSTD_resetCCtx_byAttachingCDict:
+
+```
+/* Check whether the dictionary is too big... */
+```
+
+Actually I remember the actual fix (commit c30fa04 "fix #1241: wrong decompression of frame compressed with advanced API reuse of context with dictionary") added to `ZSTD_compressBegin_internal` / `ZSTD_compressContinue_internal`:
+
+```
+if (src != (cctx->nextSrc ... )) 
+```
+
+Hmm. The real fix is likely the addition of `ZSTD_window_init` change: `zcs->lowLimit = (U32)-1` ... Let me just search the code for "window_init" and read zstd_compress_internal.h ZSTD_window_update.
+dsh: reasoning:
+The actual fix in upstream zstd for issue #1241 (commit "fix #1241 : invalid matches at position 0 on first block with context reuse") — actually the upstream fix (commit 8d5a4e5? PR #1244 by terrelln: "Fix #1241: Ensure that first input position is valid for a match, even during first usage") changed `ZSTD_window_update`... Actually I recall the upstream commit "fixed #1241" modified `ZSTD_reset_matchState` or `ZSTD_compressBegin_internal` by initializing `window->base = ... + 1`? The known fix: in `ZSTD_window_update`, `window->base = ip - distanceFromBase;` became ... hmm.
+
+Actually the real upstream fix for #1241 (commit 2f1b5f0? "fix #1241: invalid dictionary...") — Let me recall: upstream zstd commit "Fix Bug in ZSTD_compressBlock_fast : position 0" — The fix added in `ZSTD_compressContinue_internal`:
+
+Actually I now remember: the fix is in `lib/compress/zstd_compress.c` in `ZSTD_compressBegin_internal` / `ZSTD_compress_insertDictionary`, adding to `ZSTD_resetCCtx_internal`:
+
+```
+cctx->blockState.nextCBlock->rep ...
+```
+
+No. Let me look at upstream: PR #1245 "Fix #1241" by terrelln, commit message "Ensure that first input position is valid for a match, even during first usage" — the change was in `ZSTD_ldm_blockCommit`? Hmm.
+
+Actually I believe it's this: in `zstd_compress.c`, function `ZSTD_compressContinue_internal`, or in `ZSTD_compressBlock_internal` / `ZSTD_buildSeqStore`, there's a check:
+
+```
+if (ms->window.dictLimit < ms->window.lowLimit) ...
+```
+
+Alternatively, in `ZSTD_resetCCtx_internal` for first usage, `ZSTD_window_init` didn't exist yet in this version. In upstream today:
+
+```
+MEM_STATIC void ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;    /* start from 1, so that 1st position is valid */
+    window->lowLimit = 1;     /* it ensures first and later CCtx usages compare from a non-null prefix */
+    window->nextSrc = window->base + 1;   /* see issue #1241 */
+}
+```
+
+Yes! That's the upstream fix. So the patch: add ZSTD_window_init and call it where window is reset (ZSTD_resetCCtx_internal, ZSTD_reset_matchState, ZSTD_compressBegin_internal / ldm, zstdmt serial state, etc.).
+
+In this base version, where is the window zeroed/reset? Search for "memset" with matchState / window in zstd_compress.c.
+dsh: reasoning:
+Upstream fix (commit "fix #1241" / PR by terrelln, in zstd 1.4.0 era? Actually commit 8d1a8f3 "Ensure that first input position is valid for a match even during first usage of context by starting reference at 1 avoiding the problematic 0") added `ZSTD_window_init()` in zstd_compress_internal.h and replaced `memset(&ms->window, 0, sizeof(ms->window))` with `ZSTD_window_init(&ms->window);`.
+
+Note: the memset is before ZSTD_invalidateMatchState in base; upstream later order was invalidate then init. I'll keep order but replace memset with ZSTD_window_init.
+
+Also upstream called ZSTD_window_init in zstdmt? In the upstream fix (commit 1e1046e? let's recall actual commit: "Fix #1241" = commit 76f1c47 by terrelln "fix race..."?) The upstream commit for this is 8e6f5a1? I'll just do the canonical change:
+
+zstd_compress_internal.h: add ZSTD_window_init before ZSTD_window_update:
+
+```
+/**
+ * ZSTD_window_init():
+ * Initialize a window to the signal values which will indicate that the window is empty.
+ */
+MEM_STATIC void ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;    /* start from 1, so that 1st position is valid */
+    window->lowLimit = 1;     /* it ensures first and later CCtx usages compare from a non-null prefix */
+    window->nextSrc = window->base + 1;   /* see issue #1241 */
+}
+```
+
+Base uses memset not ZSTD_memset (that rename came later). Use memset. Also this base version has ZSTD_invalidateMatchState — check its content; it probably sets loadedDictEnd etc. Also check whether other places reset window (zstd_ldm init, zstdmt serialState). Search for "window, 0" already found only one. But zstdmt's serialState window: initialized via memset? Search "ldmState.window" memset quickly? The upstream fix touched only these two files I believe. Also ZSTD_window_update's first-call path: with base="" and nextSrc=base+1, non-contiguity triggers but distanceFromBase=1... Actually for first usage src != nextSrc, dictLimit becomes 1, lowLimit=1, base = ip - 1. Good.
+
+Also should I worry about `window->dictBase + window->lowLimit` when dictBase="" ? Fine.
+
+Check ZSTD_invalidateMatchState to ensure ordering. Let me view it.
+dsh: reasoning:
+ZSTD_window_clear exists too. The upstream fix (#1241, commit 8d5a4c6? actual upstream commit: "fix #1241: ZSTD_compress with dictionary... " I believe it's commit `96c1447` "Ensure that first input position is valid for a match" which changed ZSTD_window_init and ZSTD_window_clear). Upstream today:
+
+```
+MEM_STATIC void ZSTD_window_clear(ZSTD_window_t* window)
+{
+    size_t const endT = (size_t)(window->nextSrc - window->base);
+    U32 const end = (U32)(endT & 0xFFFFFFFF);
+    window->lowLimit = end;
+    window->dictLimit = end;
+}
+
+MEM_STATIC void ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;
+    window->lowLimit = 1;
+    window->nextSrc = window->base + 1;
+}
+```
+
+But window->base = "" while nextSrc = base+1 — base points to a "" string; writing never happens to base[0]? base[0] is the null terminator of "" — fine, never written since indices start at dictLimit=1 offset... Actually base+1 = ""+1 which is past the null terminator; only pointer arithmetic used. OK, this is what upstream does.
+
+Check current ZSTD_window_clear in base.
+dsh: reasoning:
+Now apply edits. Two edits:
+
+1. Add ZSTD_window_init after ZSTD_window_clear (or before). Place it after window_clear with comment referencing issue #1241.
+2. In zstd_compress.c replace `memset(&ms->window, 0, sizeof(ms->window));` with `ZSTD_window_init(&ms->window);`.
+
+Also should I check zstdmt/ldm initializations of window that memset directly? Search for "window = memset" — earlier search for "->window, 0, sizeof" found only one occurrence in lib. Also check decompress not relevant. Also `ZSTD_resetCCtx_byCopying` etc. use ZSTD_invalidateMatchState? That's fine — invalidate keeps existing window (continue mode), which already went through window_init at first reset.
+
+Wait: in reset_matchState, memset then invalidate. With crp continue, tables preserved but window re-inited — that matches upstream behavior (upstream: ZSTD_invalidateMatchState then ZSTD_window_init). Order here: memset first then invalidate; replacing memset with init keeps semantics equivalent to upstream since invalidate only calls window_clear which sets lowLimit=dictLimit=nextSrc-base=1. Fine.
+
+Also check whether anything reads window->base[0] expecting 0? Unlikely.
+
+Apply edits.
+dsh: reasoning:
+Verify patch and maybe check no other direct window memsets (decompress side irrelevant; also zstd_ldm uses window from ms). Done.

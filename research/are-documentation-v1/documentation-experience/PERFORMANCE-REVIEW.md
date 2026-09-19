@@ -37,7 +37,7 @@ Frame-time and navigation latency observations remain in the JSON. The shared ho
 
 ## Architecture coverage and remaining work
 
-The [architecture and performance contract](../../../workspace/experiments/are-documentation/PERFORMANCE.md) contains the data-flow diagram, per-layer findings, sources, commands, and budgets. The review covers the app shell, routes, canvas projection and focus, card interaction, Markdown, search, persistence, content projection, animation lifecycles, and test methodology. The engine runtime, benchmark datasets, live model traffic, and server security are outside this client review.
+The [architecture and performance contract](../../../keld-project/are-documentation/PERFORMANCE.md) contains the data-flow diagram, per-layer findings, sources, commands, and budgets. The review covers the app shell, routes, canvas projection and focus, card interaction, Markdown, search, persistence, content projection, animation lifecycles, and test methodology. The engine runtime, benchmark datasets, live model traffic, and server security are outside this client review.
 
 Remaining work, in priority order:
 
@@ -50,14 +50,14 @@ These findings are recorded gaps, not hidden passes. The current repair preserve
 
 ## Evidence and reproducibility
 
-- [Baseline results](../../../workspace/experiments/are-documentation/evidence/performance/before.json): expected FAIL against the new performance contract.
-- [Fixed results](../../../workspace/experiments/are-documentation/evidence/performance/after.json): PASS, 12 scenarios, including article/drag phases.
-- [Normal-motion results](../../../workspace/experiments/are-documentation/evidence/performance/after-motion.json): PASS, 4 additional scenarios.
-- [Source receipt](../../../workspace/experiments/are-documentation/evidence/performance/source-receipt.json).
-- [Functional browser results](../../../workspace/experiments/are-documentation/evidence/canvas-docs/results.json).
-- [Baseline canvas bundle](../../../workspace/experiments/are-documentation/evidence/performance/baseline-canvas-dist.tar.gz): original instrumented HTML, JS, CSS, and favicon. Unused introduction images are omitted; this is sufficient for the declared canvas workload, not a full historical site distribution.
-- [Benchmark script](../../../workspace/experiments/are-documentation/scripts/benchmark-canvas.mjs).
-- [Persistence tests](../../../workspace/experiments/are-documentation/scripts/workspace-persistence.test.mjs).
+- [Baseline results](../../../keld-project/are-documentation/evidence/performance/before.json): expected FAIL against the new performance contract.
+- [Fixed results](../../../keld-project/are-documentation/evidence/performance/after.json): PASS, 12 scenarios, including article/drag phases.
+- [Normal-motion results](../../../keld-project/are-documentation/evidence/performance/after-motion.json): PASS, 4 additional scenarios.
+- [Source receipt](../../../keld-project/are-documentation/evidence/performance/source-receipt.json).
+- [Functional browser results](../../../keld-project/are-documentation/evidence/canvas-docs/results.json).
+- [Baseline canvas bundle](../../../keld-project/are-documentation/evidence/performance/baseline-canvas-dist.tar.gz): original instrumented HTML, JS, CSS, and favicon. Unused introduction images are omitted; this is sufficient for the declared canvas workload, not a full historical site distribution.
+- [Benchmark script](../../../keld-project/are-documentation/scripts/benchmark-canvas.mjs).
+- [Persistence tests](../../../keld-project/are-documentation/scripts/workspace-persistence.test.mjs).
 
 Run `npm run benchmark:canvas` and `npm run test:canvas` from the site directory. The benchmark verifies instrumentation before measuring and records ERROR if its harness fails. An exploratory attempt to include article/drag interactions in the old baseline timed out on a non-visible reader action; it was not counted as a successful baseline comparison. The retained baseline rerun uses the same scroll workload with `--scroll-only`, while the fixed build additionally passes the new interactions.
 
@@ -69,4 +69,4 @@ Current product frontier: the scrolling defect, dedicated persistence controller
 
 ## Open Questions
 
-The unresolved performance budgets, field telemetry policy, and loading/search architecture decisions are owned by [PERFORMANCE.md](../../../workspace/experiments/are-documentation/PERFORMANCE.md#open-questions). Full public-manual coverage remains tracked in [IMPLEMENTATION.md](IMPLEMENTATION.md).
+The unresolved performance budgets, field telemetry policy, and loading/search architecture decisions are owned by [PERFORMANCE.md](../../../keld-project/are-documentation/PERFORMANCE.md#open-questions). Full public-manual coverage remains tracked in [IMPLEMENTATION.md](IMPLEMENTATION.md).

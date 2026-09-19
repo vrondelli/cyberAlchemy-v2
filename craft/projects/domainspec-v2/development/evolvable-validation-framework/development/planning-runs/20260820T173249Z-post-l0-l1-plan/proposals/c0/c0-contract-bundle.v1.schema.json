@@ -1,0 +1,1580 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/evf/c0-contract-bundle.v1.schema.json",
+  "title": "EVF C0 provider-neutral graph-law contract bundle",
+  "description": "Proposal-only schemas for four provider-neutral L2 envelopes. Cross-document digest, mapping, and join invariants are enforced by the companion proposal validator.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/graphFactManifest"
+    },
+    {
+      "$ref": "#/$defs/graphLawRequest"
+    },
+    {
+      "$ref": "#/$defs/graphLawProviderReceipt"
+    },
+    {
+      "$ref": "#/$defs/graphLawJoinReceipt"
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "registryDigests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "kinds",
+        "relationships"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/digest"
+        },
+        "kinds": {
+          "$ref": "#/$defs/digest"
+        },
+        "relationships": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "residue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "residue_id",
+        "class",
+        "severity",
+        "message",
+        "source_refs",
+        "claim_effect"
+      ],
+      "properties": {
+        "residue_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "class": {
+          "enum": [
+            "bounded-scope-only",
+            "counterexample-not-minimal",
+            "witness-projection-incomplete",
+            "provider-disagreement",
+            "domain-not-comparable",
+            "property-owner-open",
+            "l1-prerequisite-open",
+            "datalog-runtime-acquisition-open",
+            "formal-tower-claim-surface-drift",
+            "unsupported-property",
+            "stale-input",
+            "coverage-gap"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "blocking",
+            "nonblocking"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/exactRef"
+          },
+          "uniqueItems": true
+        },
+        "claim_effect": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "factNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "feature_id",
+        "kind"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "feature_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "factEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edge_id",
+        "predicate",
+        "from",
+        "to"
+      ],
+      "properties": {
+        "edge_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "graphFactManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "manifest_id",
+        "source",
+        "extractor",
+        "projection",
+        "facts",
+        "counts",
+        "validation",
+        "facts_digest",
+        "authority",
+        "claim_ceiling",
+        "residue"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "GraphFactManifest/v1"
+        },
+        "manifest_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "graph_ref",
+            "graph_schema_ref",
+            "source_manifest_ref",
+            "graph_authority_expected",
+            "project_id",
+            "source_set_digest",
+            "registry_digests"
+          ],
+          "properties": {
+            "graph_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "graph_schema_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "source_manifest_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "graph_authority_expected": {
+              "const": "generated-semantic-read-model"
+            },
+            "project_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_set_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "registry_digests": {
+              "$ref": "#/$defs/registryDigests"
+            }
+          }
+        },
+        "extractor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "extractor_id",
+            "extractor_version",
+            "extractor_ref",
+            "configuration_ref",
+            "canonicalization_profile"
+          ],
+          "properties": {
+            "extractor_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "extractor_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "extractor_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "configuration_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "canonicalization_profile": {
+              "const": "evf-canonical-json/v1"
+            }
+          }
+        },
+        "projection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_fields",
+            "edge_fields",
+            "graph_edge_type_maps_to",
+            "body_omitted",
+            "no_inference",
+            "no_inverse_generation",
+            "no_case_folding",
+            "no_unicode_normalization"
+          ],
+          "properties": {
+            "node_fields": {
+              "const": [
+                "node_id",
+                "feature_id",
+                "kind"
+              ]
+            },
+            "edge_fields": {
+              "const": [
+                "edge_id",
+                "predicate",
+                "from",
+                "to"
+              ]
+            },
+            "graph_edge_type_maps_to": {
+              "const": "predicate"
+            },
+            "body_omitted": {
+              "const": true
+            },
+            "no_inference": {
+              "const": true
+            },
+            "no_inverse_generation": {
+              "const": true
+            },
+            "no_case_folding": {
+              "const": true
+            },
+            "no_unicode_normalization": {
+              "const": true
+            }
+          }
+        },
+        "facts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nodes",
+            "edges"
+          ],
+          "properties": {
+            "nodes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/factNode"
+              }
+            },
+            "edges": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/factEdge"
+              }
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nodes",
+            "edges"
+          ],
+          "properties": {
+            "nodes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "edges": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_ids_unique",
+            "edge_ids_unique",
+            "endpoints_total",
+            "registry_digests_matched",
+            "source_set_digest_matched"
+          ],
+          "properties": {
+            "node_ids_unique": {
+              "const": true
+            },
+            "edge_ids_unique": {
+              "const": true
+            },
+            "endpoints_total": {
+              "const": true
+            },
+            "registry_digests_matched": {
+              "const": true
+            },
+            "source_set_digest_matched": {
+              "const": true
+            }
+          }
+        },
+        "facts_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "authority": {
+          "const": "derived-non-authoritative-read-model"
+        },
+        "claim_ceiling": {
+          "const": "deterministic-structural-projection-only"
+        },
+        "residue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/residue"
+          }
+        }
+      }
+    },
+    "datalogRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_kind",
+        "evaluator_id",
+        "evaluator_version",
+        "runtime_ref",
+        "adapter_ref",
+        "query_or_model_ref",
+        "invocation_contract_ref",
+        "evaluation_domain"
+      ],
+      "properties": {
+        "provider_kind": {
+          "const": "datalog"
+        },
+        "evaluator_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evaluator_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "adapter_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "query_or_model_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "invocation_contract_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "evaluation_domain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "complete_relation_evaluation"
+          ],
+          "properties": {
+            "kind": {
+              "const": "exact-closed-world-fact-set"
+            },
+            "complete_relation_evaluation": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "alloyRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_kind",
+        "evaluator_id",
+        "evaluator_version",
+        "runtime_ref",
+        "adapter_ref",
+        "query_or_model_ref",
+        "invocation_contract_ref",
+        "evaluation_domain"
+      ],
+      "properties": {
+        "provider_kind": {
+          "const": "alloy"
+        },
+        "evaluator_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evaluator_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "adapter_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "query_or_model_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "invocation_contract_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "evaluation_domain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "scope_contract_ref"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "exact-closed-world-fact-set",
+                "bounded-model-space"
+              ]
+            },
+            "scope_contract_ref": {
+              "$ref": "#/$defs/exactRef"
+            }
+          }
+        }
+      }
+    },
+    "graphLawRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "request_id",
+        "request_kind",
+        "request_state",
+        "decision_ref",
+        "admission",
+        "subject",
+        "property",
+        "comparison_contract_ref",
+        "providers",
+        "execution_policy",
+        "claim_ceiling",
+        "residue"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "GraphLawRequest/v1"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_kind": {
+          "const": "graph-law-evaluation"
+        },
+        "request_state": {
+          "enum": [
+            "draft-blocked",
+            "execution-ready"
+          ]
+        },
+        "decision_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "layer",
+            "prerequisite_receipts",
+            "authority_effect",
+            "release_admission"
+          ],
+          "properties": {
+            "layer": {
+              "const": "L2"
+            },
+            "prerequisite_receipts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/exactRef"
+              },
+              "uniqueItems": true
+            },
+            "authority_effect": {
+              "const": "none"
+            },
+            "release_admission": {
+              "const": "not-granted"
+            }
+          }
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fact_manifest_ref",
+            "facts_digest",
+            "project_id",
+            "source_set_digest",
+            "registry_digests"
+          ],
+          "properties": {
+            "fact_manifest_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "facts_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "project_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source_set_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "registry_digests": {
+              "$ref": "#/$defs/registryDigests"
+            }
+          }
+        },
+        "property": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "property_id",
+            "property_version",
+            "definition_ref",
+            "property_class",
+            "result_semantics"
+          ],
+          "properties": {
+            "property_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "property_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "definition_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "property_class": {
+              "enum": [
+                "reachability",
+                "acyclicity",
+                "closure"
+              ]
+            },
+            "result_semantics": {
+              "const": "universal-via-violation-query"
+            }
+          }
+        },
+        "comparison_contract_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "providers": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/datalogRequest"
+            },
+            {
+              "$ref": "#/$defs/alloyRequest"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "execution_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timeout_ms",
+            "max_output_bytes",
+            "network",
+            "working_directory",
+            "environment_allowlist",
+            "deterministic_seed"
+          ],
+          "properties": {
+            "timeout_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "max_output_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "network": {
+              "const": "forbidden"
+            },
+            "working_directory": {
+              "$ref": "#/$defs/repositoryPath"
+            },
+            "environment_allowlist": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
+              },
+              "uniqueItems": true
+            },
+            "deterministic_seed": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "claim_ceiling": {
+          "const": "request-only-no-evaluation-claim"
+        },
+        "residue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/residue"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "request_state": {
+                "const": "execution-ready"
+              }
+            },
+            "required": [
+              "request_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "admission": {
+                "properties": {
+                  "prerequisite_receipts": {
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "providerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "runtime_ref",
+        "adapter_ref",
+        "query_or_model_ref",
+        "invocation_contract_ref",
+        "options_digest"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "datalog",
+            "alloy"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "adapter_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "query_or_model_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "invocation_contract_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "solver_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "solver_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "options_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "executionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "status",
+        "exit_code",
+        "timed_out",
+        "raw_output_ref"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "blocked",
+            "failed",
+            "stale"
+          ]
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "timed_out": {
+          "type": "boolean"
+        },
+        "stdout_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "stderr_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "raw_output_ref": {
+          "$ref": "#/$defs/exactRef"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exit_code": {
+                "const": 0
+              },
+              "timed_out": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "datalogNativeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "relation_name",
+        "row_schema_digest",
+        "row_count",
+        "rows_digest",
+        "rows_ref"
+      ],
+      "properties": {
+        "kind": {
+          "const": "violation-relation"
+        },
+        "relation_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "row_schema_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "row_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rows_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "rows_ref": {
+          "$ref": "#/$defs/exactRef"
+        }
+      }
+    },
+    "alloyScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical",
+        "overall_bound",
+        "exact_signatures"
+      ],
+      "properties": {
+        "canonical": {
+          "type": "string",
+          "minLength": 1
+        },
+        "overall_bound": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "bitwidth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sequence_bound": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "exact_signatures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "alloyNativeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "command_kind",
+        "command_label",
+        "scope",
+        "scope_digest",
+        "outcome"
+      ],
+      "properties": {
+        "kind": {
+          "const": "alloy-command"
+        },
+        "command_kind": {
+          "enum": [
+            "check",
+            "run"
+          ]
+        },
+        "command_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/alloyScope"
+        },
+        "scope_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "outcome": {
+          "enum": [
+            "sat",
+            "unsat",
+            "unknown"
+          ]
+        },
+        "instance_or_counterexample_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "solution_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "sat"
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          },
+          "then": {
+            "required": [
+              "instance_or_counterexample_ref",
+              "solution_count"
+            ],
+            "properties": {
+              "solution_count": {
+                "minimum": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "normalizedResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "domain_kind",
+        "evidence_refs",
+        "result_payload_digest"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "counterexample",
+            "no-counterexample",
+            "witness",
+            "no-witness",
+            "unresolved"
+          ]
+        },
+        "domain_kind": {
+          "enum": [
+            "exact-closed-world-fact-set",
+            "bounded-model-space"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/exactRef"
+          },
+          "uniqueItems": true
+        },
+        "result_payload_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "graphLawProviderReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "receipt_id",
+        "receipt_family",
+        "request_ref",
+        "fact_manifest_ref",
+        "property_definition_ref",
+        "comparison_contract_ref",
+        "request_id",
+        "facts_digest",
+        "property_id",
+        "property_version",
+        "provider",
+        "translation",
+        "execution",
+        "native_result",
+        "normalized_result",
+        "semantic_result_digest",
+        "residue",
+        "authority_effect",
+        "release_admission",
+        "claim_ceiling"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "GraphLawProviderReceipt/v1"
+        },
+        "receipt_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receipt_family": {
+          "enum": [
+            "graph-relation",
+            "formal-static"
+          ]
+        },
+        "request_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "fact_manifest_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "property_definition_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "comparison_contract_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "facts_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "property_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "property_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "$ref": "#/$defs/providerIdentity"
+        },
+        "translation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider_input_ref",
+            "source_facts_digest",
+            "projection_receipt_ref",
+            "omitted_fact_count",
+            "invented_fact_count"
+          ],
+          "properties": {
+            "provider_input_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "source_facts_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "projection_receipt_ref": {
+              "$ref": "#/$defs/exactRef"
+            },
+            "omitted_fact_count": {
+              "const": 0
+            },
+            "invented_fact_count": {
+              "const": 0
+            }
+          }
+        },
+        "execution": {
+          "$ref": "#/$defs/executionRecord"
+        },
+        "native_result": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/datalogNativeResult"
+            },
+            {
+              "$ref": "#/$defs/alloyNativeResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "normalized_result": {
+          "$ref": "#/$defs/normalizedResult"
+        },
+        "semantic_result_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "residue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/residue"
+          }
+        },
+        "authority_effect": {
+          "const": "none"
+        },
+        "release_admission": {
+          "const": "not-granted"
+        },
+        "claim_ceiling": {
+          "enum": [
+            "exact-finite-corpus-relation-result-only",
+            "bounded-static-model-result-only",
+            "no-property-claim"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "properties": {
+                  "kind": {
+                    "const": "datalog"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "receipt_family": {
+                "const": "graph-relation"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "properties": {
+                  "kind": {
+                    "const": "alloy"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "receipt_family": {
+                "const": "formal-static"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "blocked",
+                      "failed",
+                      "stale"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "normalized_result": {
+                "properties": {
+                  "outcome": {
+                    "const": "unresolved"
+                  }
+                }
+              },
+              "native_result": {
+                "const": null
+              },
+              "claim_ceiling": {
+                "const": "no-property-claim"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "properties": {
+                  "status": {
+                    "const": "completed"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "provider": {
+                "properties": {
+                  "kind": {
+                    "const": "datalog"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "execution",
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "native_result": {
+                "$ref": "#/$defs/datalogNativeResult"
+              },
+              "claim_ceiling": {
+                "const": "exact-finite-corpus-relation-result-only"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "properties": {
+                  "status": {
+                    "const": "completed"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              },
+              "provider": {
+                "properties": {
+                  "kind": {
+                    "const": "alloy"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "execution",
+              "provider"
+            ]
+          },
+          "then": {
+            "properties": {
+              "native_result": {
+                "$ref": "#/$defs/alloyNativeResult"
+              },
+              "claim_ceiling": {
+                "const": "bounded-static-model-result-only"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mappedResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "domain_kind"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "counterexample",
+            "no-counterexample",
+            "witness",
+            "no-witness",
+            "unresolved"
+          ]
+        },
+        "domain_kind": {
+          "enum": [
+            "exact-closed-world-fact-set",
+            "bounded-model-space"
+          ]
+        }
+      }
+    },
+    "providerReceiptJoinRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_ref",
+        "semantic_result_digest"
+      ],
+      "properties": {
+        "receipt_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "semantic_result_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "graphLawJoinReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "join_receipt_id",
+        "request_ref",
+        "fact_manifest_ref",
+        "property_definition_ref",
+        "comparison_contract_ref",
+        "request_id",
+        "facts_digest",
+        "property_id",
+        "property_version",
+        "provider_receipts",
+        "preflight",
+        "mapped_results",
+        "join_status",
+        "consistency_class",
+        "evidence_refs",
+        "residue",
+        "authority_effect",
+        "release_admission",
+        "claim_ceiling"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "GraphLawJoinReceipt/v1"
+        },
+        "join_receipt_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "fact_manifest_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "property_definition_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "comparison_contract_ref": {
+          "$ref": "#/$defs/exactRef"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "facts_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "property_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "property_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_receipts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "datalog",
+            "alloy"
+          ],
+          "properties": {
+            "datalog": {
+              "$ref": "#/$defs/providerReceiptJoinRef"
+            },
+            "alloy": {
+              "$ref": "#/$defs/providerReceiptJoinRef"
+            }
+          }
+        },
+        "preflight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "same_request",
+            "same_facts",
+            "same_property",
+            "same_mapping",
+            "provider_kinds_exact",
+            "receipts_valid",
+            "domains_comparable"
+          ],
+          "properties": {
+            "same_request": {
+              "const": true
+            },
+            "same_facts": {
+              "const": true
+            },
+            "same_property": {
+              "const": true
+            },
+            "same_mapping": {
+              "const": true
+            },
+            "provider_kinds_exact": {
+              "const": true
+            },
+            "receipts_valid": {
+              "const": true
+            },
+            "domains_comparable": {
+              "type": "boolean"
+            }
+          }
+        },
+        "mapped_results": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "datalog",
+            "alloy"
+          ],
+          "properties": {
+            "datalog": {
+              "$ref": "#/$defs/mappedResult"
+            },
+            "alloy": {
+              "$ref": "#/$defs/mappedResult"
+            }
+          }
+        },
+        "join_status": {
+          "enum": [
+            "consistent",
+            "complementary",
+            "unresolved",
+            "blocked"
+          ]
+        },
+        "consistency_class": {
+          "enum": [
+            "counterexample-consistent",
+            "no-counterexample-consistent-under-declared-bounds",
+            "exact-clean-bounded-model-counterexample",
+            "provider-disagreement",
+            "not-comparable"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/exactRef"
+          },
+          "uniqueItems": true
+        },
+        "residue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/residue"
+          }
+        },
+        "authority_effect": {
+          "const": "none"
+        },
+        "release_admission": {
+          "const": "not-granted"
+        },
+        "claim_ceiling": {
+          "const": "property-specific-consistency-over-shared-facts-only"
+        }
+      }
+    }
+  }
+}

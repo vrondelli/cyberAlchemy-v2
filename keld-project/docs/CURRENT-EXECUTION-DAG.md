@@ -8,7 +8,7 @@ Route receipt: `keld-review-dag-124`. No publication or merchant effects.
 2026-09-18 migration prerequisite: Mercado Pago Pix must move to Orders before
 its real staging journey. The [researched Orders DAG](MERCADO-PAGO-ORDERS-PLAN.md)
 owns this work and supersedes prior Payments-specific token/webhook guidance.
-Local Orders implementation and SDK/ledger verification are complete; [implementation evidence](MERCADO-PAGO-ORDERS-IMPLEMENTATION.md) owns the test results and unresolved provider contract gates. Merchant credentials and genuine sandbox acceptance remain outstanding.
+Local Orders implementation and SDK/ledger verification are complete; [implementation evidence](MERCADO-PAGO-ORDERS-IMPLEMENTATION.md) owns the original test results and unresolved provider contract gates. The [review repair DAG](MERCADO-PAGO-ORDERS-REPAIR-DAG.md) owns the current repairs and validation. Merchant credentials and genuine sandbox acceptance remain outstanding.
 
 An authenticated buyer can purchase ARE through Stripe cards, Mercado Pago Pix,
 or PayPal, and receive the correct approved release exactly under their entitlement.

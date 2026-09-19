@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/evf/graph-law-join-receipt.v1.schema.json",
+  "title": "GraphLawJoinReceipt/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","join_receipt_id","request_ref","fact_manifest_ref","property_definition_ref","comparison_contract_ref","scope_contract_ref","request_id","facts_digest","universe_digest","selected_relation_digest","scope_digest","property_id","property_version","provider_receipts","provider_semantic_result_digests","preflight","mapped_results","join_status","consistency_class","evidence_refs","residue","authority_effect","release_admission","claim_ceiling","join_payload_digest"],
+  "properties": {
+    "schema_version":{"const":"evf.graph-law-join-receipt/v1"},
+    "join_receipt_id":{"$ref":"#/$defs/id"},
+    "request_ref":{"$ref":"#/$defs/exactRef"},
+    "fact_manifest_ref":{"$ref":"#/$defs/exactRef"},
+    "property_definition_ref":{"$ref":"#/$defs/exactRef"},
+    "comparison_contract_ref":{"$ref":"#/$defs/exactRef"},
+    "scope_contract_ref":{"$ref":"#/$defs/exactRef"},
+    "request_id":{"$ref":"#/$defs/id"},
+    "facts_digest":{"$ref":"#/$defs/digest"},
+    "universe_digest":{"$ref":"#/$defs/digest"},
+    "selected_relation_digest":{"$ref":"#/$defs/digest"},
+    "scope_digest":{"$ref":"#/$defs/digest"},
+    "property_id":{"$ref":"#/$defs/id"},
+    "property_version":{"type":"string","minLength":1},
+    "provider_receipts":{"type":"object","additionalProperties":false,"required":["datalog","alloy"],"properties":{"datalog":{"$ref":"#/$defs/exactRef"},"alloy":{"$ref":"#/$defs/exactRef"}}},
+    "provider_semantic_result_digests":{"type":"object","additionalProperties":false,"required":["datalog","alloy"],"properties":{"datalog":{"$ref":"#/$defs/digest"},"alloy":{"$ref":"#/$defs/digest"}}},
+    "preflight":{"type":"object","additionalProperties":false,"required":["same_request","same_facts","same_universe","same_property","same_mapping","provider_kinds_exact","receipts_valid","domains_comparable"],"properties":{"same_request":{"type":"boolean"},"same_facts":{"type":"boolean"},"same_universe":{"type":"boolean"},"same_property":{"type":"boolean"},"same_mapping":{"type":"boolean"},"provider_kinds_exact":{"type":"boolean"},"receipts_valid":{"type":"boolean"},"domains_comparable":{"type":"boolean"}}},
+    "mapped_results":{"type":"object","additionalProperties":false,"required":["datalog","alloy"],"properties":{"datalog":{"$ref":"#/$defs/mapped"},"alloy":{"$ref":"#/$defs/mapped"}}},
+    "join_status":{"enum":["consistent","unresolved","blocked"]},
+    "consistency_class":{"enum":["counterexample-consistent","no-counterexample-consistent-under-declared-bounds","provider-disagreement","not-comparable"]},
+    "evidence_refs":{"type":"array","minItems":2,"items":{"$ref":"#/$defs/exactRef"}},
+    "residue":{"type":"array","items":{"$ref":"#/$defs/residue"}},
+    "authority_effect":{"const":"none"},
+    "release_admission":{"const":"not-granted"},
+    "claim_ceiling":{"const":"property-specific-consistency-over-shared-facts-only"},
+    "join_payload_digest":{"$ref":"#/$defs/digest"}
+  },
+  "allOf": [
+    {
+      "if":{"properties":{"join_status":{"const":"consistent"}},"required":["join_status"]},
+      "then":{
+        "properties":{"preflight":{"const":{"same_request":true,"same_facts":true,"same_universe":true,"same_property":true,"same_mapping":true,"provider_kinds_exact":true,"receipts_valid":true,"domains_comparable":true}}},
+        "oneOf":[
+          {"properties":{"mapped_results":{"properties":{"datalog":{"properties":{"outcome":{"const":"counterexample"}}},"alloy":{"properties":{"outcome":{"const":"counterexample"}}}}},"consistency_class":{"const":"counterexample-consistent"}}},
+          {"properties":{"mapped_results":{"properties":{"datalog":{"properties":{"outcome":{"const":"no-counterexample"}}},"alloy":{"properties":{"outcome":{"const":"no-counterexample"}}}}},"consistency_class":{"const":"no-counterexample-consistent-under-declared-bounds"}}}
+        ]
+      }
+    },
+    {
+      "if":{"properties":{"join_status":{"const":"unresolved"}},"required":["join_status"]},
+      "then":{
+        "properties":{
+          "preflight":{"const":{"same_request":true,"same_facts":true,"same_universe":true,"same_property":true,"same_mapping":true,"provider_kinds_exact":true,"receipts_valid":true,"domains_comparable":true}},
+          "consistency_class":{"const":"provider-disagreement"}
+        },
+        "not":{"anyOf":[
+          {"properties":{"mapped_results":{"properties":{"datalog":{"properties":{"outcome":{"const":"counterexample"}}},"alloy":{"properties":{"outcome":{"const":"counterexample"}}}}}}},
+          {"properties":{"mapped_results":{"properties":{"datalog":{"properties":{"outcome":{"const":"no-counterexample"}}},"alloy":{"properties":{"outcome":{"const":"no-counterexample"}}}}}}}
+        ]}
+      }
+    },
+    {
+      "if":{"properties":{"join_status":{"const":"blocked"}},"required":["join_status"]},
+      "then":{
+        "properties":{"consistency_class":{"const":"not-comparable"}},
+        "not":{"properties":{"preflight":{"const":{"same_request":true,"same_facts":true,"same_universe":true,"same_property":true,"same_mapping":true,"provider_kinds_exact":true,"receipts_valid":true,"domains_comparable":true}}}}
+      }
+    },
+    {
+      "if":{"properties":{"consistency_class":{"const":"provider-disagreement"}},"required":["consistency_class"]},
+      "then":{"properties":{"join_status":{"const":"unresolved"}}}
+    },
+    {
+      "if":{"properties":{"consistency_class":{"const":"not-comparable"}},"required":["consistency_class"]},
+      "then":{"properties":{"join_status":{"const":"blocked"}}}
+    }
+  ],
+  "$defs": {
+    "id":{"type":"string","minLength":1,"pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "digest":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "path":{"type":"string","minLength":1,"pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+    "exactRef":{"type":"object","additionalProperties":false,"required":["path","sha256","size_bytes"],"properties":{"path":{"$ref":"#/$defs/path"},"sha256":{"$ref":"#/$defs/digest"},"size_bytes":{"type":"integer","minimum":0}}},
+    "mapped":{"type":"object","additionalProperties":false,"required":["outcome","domain_kind","evaluation_mode","result_payload_digest"],"properties":{"outcome":{"enum":["counterexample","no-counterexample","unresolved"]},"domain_kind":{"const":"exact-closed-world-fact-set"},"evaluation_mode":{"const":"exact-instance"},"result_payload_digest":{"$ref":"#/$defs/digest"}}},
+    "residue":{"type":"object","additionalProperties":false,"required":["residue_id","class","severity","message","source_refs","claim_effect"],"properties":{"residue_id":{"$ref":"#/$defs/id"},"class":{"type":"string","minLength":1},"severity":{"enum":["blocking","nonblocking"]},"message":{"type":"string","minLength":1},"source_refs":{"type":"array","items":{"$ref":"#/$defs/exactRef"}},"claim_effect":{"type":"string","minLength":1}}}
+  }
+}

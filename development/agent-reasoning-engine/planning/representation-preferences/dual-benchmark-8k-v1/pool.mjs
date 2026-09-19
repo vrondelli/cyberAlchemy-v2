@@ -25,7 +25,8 @@ export async function runPools({manifest,directory,executePair,minimum_free_byte
   const pairDir=join(directory,'pairs',job.id);mkdirSync(pairDir,{recursive:true});
   const config={...job.config,benchmark:job.benchmark,directory:join(pairDir,'run'),token_budget:job.reservation_tokens};
   const result=executePair?await executePair(config,ctx):await childPair(config,pairDir);
-  const capacity=result.provider_error_code??([429,503].includes(result.provider_status)?String(result.provider_status):result.rate_limited?'1302':undefined);
+  const rawCapacity=result.provider_error_code??([429,503].includes(result.provider_status)?String(result.provider_status):result.rate_limited?'1302':undefined);
+  const capacity=String(rawCapacity)==='503'?'1305':rawCapacity;
   if(result.unknown_usage||result.unknown_usage_calls>0||!validUsage(result.usage)){const e=Error('pair has unknown model usage');e.receipt={error_code:capacity};throw e;}
   if(capacity){const e=Error('pair provider failure: '+capacity);e.receipt={usage:result.usage,error_code:capacity==='503'?'1305':capacity};throw e;}
   return {usage:result.usage,output:{benchmark:job.benchmark,result_path:join(pairDir,'run','result.json'),status:result.status},pair_result:result};

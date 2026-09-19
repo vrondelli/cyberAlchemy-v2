@@ -1,0 +1,17 @@
+# Independent tokenizer preflight review
+
+Disposition: **ready for tokenizer-only execution**, with the setup-failure lifecycle correction below recommended before invocation. This approval does not authorize or review live generation. Reviewed only `preflight.mjs` plus the named native APIs needed to check its calls. No tokenizer, provider, network, source restoration or scorer was executed. Read-only `preparationBindings()` followed by `verifyPreparationBindings()` succeeded for817 bindings.
+
+Reviewed preflight SHA256: `f036fb714882999765b099658dacaf2b332fea20872538211e341beb635a8af9`.
+
+The fixed manifest loads all eight donors and creates one fresh donor directory per identity. Global monotonically increasing wire numbers prevent state-directory reuse even during paired backoff. Both state and complete-wire measurement use the donor's exact no-retry profile. The wire path calls `measureNativeWire`, which overrides model_dispatch_enabled=false and denies native dispatch after actual tokenizer admission. It additionally asserts zero model attempts. Index measurement calls only the dedicated tokenizer; no model generate call is reachable through that callback. The result's zero model count is therefore supported by these code paths, rather than being an unconstrained label.
+
+Meter accounting caps callback invocations at256 before tokenization; cached measurements consume this allowance too, so this is conservative for actual tokenizer HTTP attempts under the enforced one-attempt profile. The15-minute AbortController is propagated through the factory and wire calls; pre-measurement checks stop future work. This is an asynchronous deadline, not forcible interruption of synchronous Git/filesystem work. Existing source restoration byte limits bound that synchronous work. Storage requires a measurable /mnt/c plus8GiB output and12GiB host free space and checks before restoration writes and measurements.
+
+The original freeze verifier checks804 bindings and native continuity/review, then local modules/protocol records are added. Before/after hashes cover the executable dependency set; preparation failures do not claim source integrity. All eight completed rows and unchanged bindings are required for admitted=true. The preflight is explicitly not a live freeze. Failed wire receipts remain in each owned request directory; failed index events remain in index-tokenizer.jsonl even if that donor has no completed summary row. No automatic cleanup or retry erases them.
+
+One bounded defect: the timer starts before mkdir/save and liveClientFactory construction, which occur outside try/finally. A setup/credential exception leaves the timer active for15minutes and omits RESULTS.json, although it makes no provider call. Move factory creation inside try with a separately declared variable, and create the timer after initial output/source-binding writes, or wrap all post-timer setup in the existing finally. This is an error-lifecycle issue rather than a generation-admission escape. No additional synthetic test was needed to establish this direct control-flow fact; the native denial path already has an in-memory transport regression in run.test.mjs.
+
+## Open questions
+
+Actual pinned blob availability and real tokenizer fit remain empirical preflight outputs. Independent runner/live wrapper review, immutable prospective continuity and generation freeze remain parent-owned gates. Source changes after this hash require a review delta.

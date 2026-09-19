@@ -42,6 +42,13 @@ is rejected. Existing repository and native scoring caches are reused. The
 adapter creates at most two native clones per active arm and never fetches an
 entire new upstream dataset or runs repository tests.
 
+Each arm's `model-timing.jsonl` records absolute local request intervals, observed
+when the native client appends a dispatched model receipt. End time is the local
+observer clock; start time subtracts the native receipt's latency. The observer
+preserves receipt objects and request bytes. These intervals cover credential
+callbacks and transport, and provide evidence of overlapping local model requests;
+they do not establish simultaneous execution inside the provider backend.
+
 ## Open Questions
 
 - Can compact repeated representation reduce complete trajectory tokens by at

@@ -1,0 +1,46 @@
+dsh: reasoning:
+Let's explore the repo for issue context. Search for relevant code, e.g. "match" position. Let's list files.
+dsh: reasoning:
+Zstd repo. Issue 1241 relates to ZSTD_resetCCtx / windowLog? The hint: "Ensure that first input position is valid for a match even during first usage of context by starting reference at 1 (avoiding the problematic 0)." This is about ZSTD_compressBegin_internal / loading dictionary: lowLimit etc. In zstd_compress.c, `ZSTD_resetCCtx_internal` sets `window` lowLimit. The known fix (PR for issue #1241) is in ZSTD_compressBegin_internal: setting `zc->window.dictLimit = zc->window.lowLimit = ...`? Actually the actual fix commit: "fix #1241: ensure that first input position is valid for a match" changed `zc->window.dictLimit` init... Let me search code.
+dsh: reasoning:
+The actual upstream fix (commit "fix #1241") in zstd_compress.c ZSTD_compressBegin_internal: after loading dict/CCtx params, sets
+
+```
+/* dictionary is loaded, set the window to it */
+...
+```
+
+Actually issue #1241: "Corruption when using ZSTD_compressContinue on first block with windowLog..."? The real upstream fix was in ZSTD_resetCCtx_internal:
+
+```
+ms->window.dictLimit = 1; /* start from 1, so that 1st position is valid */
+ms->window.lowLimit = 1; /* ensures baseline and prefix are valid */
+```
+
+Actually the upstream commit 687f6149d1a2 "fix #1241: window size after init" — I recall the fix was:
+
+In ZSTD_resetCCtx_internal:
+```
+    ms->window.dictLimit += (U32)windowSize;   ...
+```
+Hmm. Let me look at the reset code around line 984.
+dsh: reasoning:
+Now find ZSTD_window_clear and window init. Search for "ZSTD_window_clear" definition in zstd_compress_internal.h.
+dsh: reasoning:
+Need ZSTD_window_init and where window is first initialized (ZSTD_reset_matchState in zstd_compress.c). Let's search for "ZSTD_window_init" and "window.base =".
+dsh: reasoning:
+Find where matchState window is initialized on reset — in zstd_compress.c `ZSTD_reset_matchState`. Search for "window.lowLimit" or "ms->window".
+dsh: reasoning:
+Where does window get initialized on first reset? `ZSTD_window_clear` sets lowLimit=0, dictLimit=0 on first use. Then position 0 in the prefix is the "invalid" entry. Upstream fix (zstd commit for #1241, PR #1242?) added in ZSTD_invalidateMatchState: actually upstream fix was in `ZSTD_window_clear`? Let me recall: upstream zstd issue "Index 0 of matchState prefix is invalid" — fix added in ZSTD_invalidateMatchState:
+
+```
+ms->window.lowLimit = 1;
+ms->window.dictLimit = 1;
+```
+
+Actually the upstream commit (PR #1242 "Fix first position") modified ZSTD_window_clear? Let me not guess; implement per summary: clamp to 1 after ZSTD_window_clear in ZSTD_invalidateMatchState. Read current lines 960-990 to get hash.
+dsh: reasoning:
+Check MAX exists; verify edit. Read updated lines.
+dsh: reasoning:
+Verify MAX macro exists in this header context. Search.
+dsh: RATE_LIMIT: 429 "transport-unavailable"

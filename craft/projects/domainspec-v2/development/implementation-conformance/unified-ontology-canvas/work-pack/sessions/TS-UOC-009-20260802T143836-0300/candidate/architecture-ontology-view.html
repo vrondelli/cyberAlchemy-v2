@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unified Architecture Ontology Canvas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f4f1e8;
+      --muted: #a2a9b7;
+      --surface: #111722;
+      --surface-raised: #182130;
+      --line: #344156;
+      --meaning: #61d4df;
+      --realization: #9caeff;
+      --expectation: #c5a7ff;
+      --observation: #aadf72;
+      --explanation: #ff9d78;
+      --focus: #ffd166;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body { overflow: hidden; color: var(--ink); background: #080c12; }
+    button { font: inherit; color: inherit; }
+    .app { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 72px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(10, 14, 21, 0.96);
+    }
+    .brand { min-width: 250px; }
+    .eyebrow { color: var(--meaning); font-size: 10px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 3px 0 0; font-size: 17px; }
+    .pipeline { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    .pipeline span { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; }
+    .metrics { display: flex; gap: 7px; margin-left: auto; }
+    .metric, .status { padding: 6px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 11px; }
+    .metric strong { color: var(--ink); }
+    .status.ready { color: var(--observation); }
+    .status.error { color: #ff8585; }
+    .workspace { position: relative; min-height: 0; overflow: hidden; }
+    .toolbar { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 4; }
+    .toolbar button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(17, 23, 34, .94); cursor: pointer; }
+    .toolbar button:hover, .toolbar button:focus-visible { border-color: var(--meaning); outline: none; }
+    .viewport-controls { display: flex; gap: 5px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: rgba(10, 14, 21, .94); }
+    .viewport-controls button { min-width: 34px; padding: 4px 8px; }
+    .viewport-status { align-self: center; color: var(--muted); font-size: 10px; }
+    .filters {
+      position: absolute;
+      top: 56px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 8px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(17, 23, 34, .96);
+      z-index: 4;
+    }
+    .filters label { display: grid; gap: 3px; color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+    .filters select, .filters input, .filters button { min-height: 30px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: #0c121c; font: inherit; font-size: 11px; }
+    .filters select, .filters input { min-width: 112px; padding: 4px 26px 4px 7px; }
+    .filters button { padding: 4px 10px; cursor: pointer; }
+    .filter-summary { margin-left: auto; align-self: center; max-width: 300px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+    .canvas-wrap { width: 100%; height: 100%; overflow: auto; background: radial-gradient(circle at 20% 0%, rgba(97,212,223,.08), transparent 30%), #090e16; }
+    #ontology-canvas { display: block; width: max(100%, 1800px); height: max(100%, 1120px); min-width: 1800px; min-height: 1120px; }
+    .band-backdrop { fill: rgba(17, 23, 34, .7); stroke: var(--line); stroke-width: 2; rx: 18; }
+    .band-title { fill: var(--ink); font-size: 20px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .band-subtitle { fill: var(--muted); font-size: 13px; }
+    .graph-edge { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; opacity: .74; }
+    .graph-edge.structural { stroke: #8190a8; }
+    .graph-edge.semantic { stroke: var(--meaning); stroke-dasharray: 10 7; }
+    .graph-edge.evidence { stroke: var(--observation); stroke-dasharray: 2 7; }
+    .graph-edge.is-dimmed { opacity: .08; }
+    .graph-edge.is-emphasized { opacity: 1; stroke-width: 3.4; }
+    .graph-edge.is-filter-dimmed { opacity: .06; }
+    .graph-edge.is-filter-hidden { display: none; }
+    .graph-edge.is-focus-dimmed { opacity: .035; }
+    .graph-edge.is-focus-emphasized { opacity: 1; stroke-width: 4; }
+    .graph-node { cursor: pointer; transition: opacity 120ms ease; }
+    .graph-node .node-card { fill: var(--surface-raised); stroke: var(--line); stroke-width: 2; rx: 13; }
+    .graph-node[data-band="meaning"] .node-card { stroke: var(--meaning); }
+    .graph-node[data-band="realization"] .node-card { stroke: var(--realization); }
+    .graph-node[data-band="expectation"] .node-card { stroke: var(--expectation); }
+    .graph-node[data-band="observation"] .node-card { stroke: var(--observation); }
+    .graph-node[data-band="explanation"] .node-card { stroke: var(--explanation); }
+    .graph-node.is-dimmed { opacity: .23; }
+    .graph-node.is-emphasized .node-card { stroke: var(--focus); stroke-width: 4; filter: drop-shadow(0 0 9px rgba(255,209,102,.38)); }
+    .graph-node.is-filter-dimmed { opacity: .09; }
+    .graph-node.is-filter-hidden { display: none; }
+    .graph-node.is-filter-emphasized .node-card { stroke-width: 4; filter: drop-shadow(0 0 7px rgba(97,212,223,.38)); }
+    .graph-node.is-focus-dimmed { opacity: .06; }
+    .graph-node.is-focus-emphasized .node-card { stroke: var(--focus); stroke-width: 4.5; filter: drop-shadow(0 0 10px rgba(255,209,102,.45)); }
+    .focus-summary { flex-basis: 100%; color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .focus-gaps { display: flex; flex-basis: 100%; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+    .focus-gaps li { padding: 5px 7px; border: 1px solid #715f33; border-radius: 7px; color: #f2d999; background: #241f13; font-size: 10px; }
+    .node-label { fill: var(--ink); font-size: 13px; font-weight: 760; }
+    .node-plain { fill: var(--muted); font-size: 10px; }
+    .node-meta { fill: #7f8999; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+    .drawer {
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      left: 12px;
+      width: min(540px, calc(100vw - 24px));
+      padding: 20px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 20, 30, .98);
+      box-shadow: 0 24px 70px rgba(0,0,0,.48);
+      transform: translateX(calc(-100% - 30px));
+      opacity: 0;
+      pointer-events: none;
+      transition: 160ms ease;
+      z-index: 6;
+    }
+    .drawer.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+    .drawer-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+    .drawer h2 { margin: 3px 0 0; font-size: 19px; }
+    .drawer p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .drawer button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); cursor: pointer; }
+    .band-guide { display: grid; gap: 9px; margin-top: 18px; }
+    .band-guide div { padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .band-guide strong { display: block; margin-bottom: 3px; font-size: 12px; }
+    .band-guide span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .navigator { display: grid; gap: 9px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .navigator label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 750; }
+    .navigator input { min-height: 36px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: #090e16; font: inherit; }
+    .navigator-count { color: var(--muted); font-size: 10px; }
+    .navigator-tree { display: grid; gap: 8px; }
+    .navigator-row { padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: #0b111a; }
+    .navigator-row[aria-selected="true"] { border-color: var(--focus); box-shadow: inset 3px 0 var(--focus); }
+    .navigator-row button { width: 100%; height: auto; padding: 0; border: 0; color: var(--ink); background: transparent; text-align: left; }
+    .navigator-row button:focus-visible { outline: 2px solid var(--meaning); outline-offset: 4px; }
+    .navigator-id { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; overflow-wrap: anywhere; }
+    .navigator-meta { margin: 6px 0; color: #c8cfdd; font-size: 10px; overflow-wrap: anywhere; }
+    .navigator-relations { display: grid; gap: 3px; margin: 0; padding-left: 18px; color: var(--muted); font-size: 9px; }
+    .boundary { margin-top: 18px; padding: 12px; border: 1px solid #715f33; border-radius: 10px; color: #f2d999; background: #241f13; font-size: 11px; line-height: 1.5; }
+    .details-dialog { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: #0e141e; box-shadow: 0 28px 90px rgba(0,0,0,.65); }
+    .details-dialog::backdrop { background: rgba(4, 7, 11, .78); }
+    .details-scroll { max-height: calc(100vh - 34px); padding: 20px; overflow: auto; }
+    .details-head { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+    .details-head h2 { margin: 3px 0 0; font-size: 19px; }
+    .details-head button { min-width: 74px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface); cursor: pointer; }
+    .details-grid { display: grid; grid-template-columns: minmax(130px, .4fr) minmax(0, 1fr); gap: 7px 14px; margin: 18px 0; font-size: 12px; }
+    .details-grid dt { color: var(--muted); font-weight: 750; }
+    .details-grid dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+    .details-dialog h3 { margin: 18px 0 8px; font-size: 13px; }
+    .details-relations { display: grid; gap: 5px; margin: 0; padding-left: 20px; color: var(--muted); font-size: 11px; }
+    .details-raw { max-height: 220px; margin: 0; padding: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 9px; color: #d5dbea; background: #090e16; font-size: 10px; white-space: pre-wrap; }
+    .loading { display: grid; place-items: center; width: 100%; height: 100%; color: var(--muted); }
+    @media (max-width: 900px) {
+      .pipeline { display: none; }
+      .metric { display: none; }
+      .brand { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="eyebrow">One graph · five evidence bands</div>
+        <h1>Architecture Ontology Canvas</h1>
+      </div>
+      <div class="pipeline" aria-label="Meaning to explanation pipeline">
+        <span>Meaning</span><b>→</b><span>Realization</span><b>→</b><span>Expectation</span><b>→</b><span>Observation</span><b>→</b><span>Explanation</span>
+      </div>
+      <div class="metrics" aria-label="Graph metrics">
+        <span class="metric"><strong id="node-count">0</strong> objects</span>
+        <span class="metric"><strong id="edge-count">0</strong> relations</span>
+        <span id="app-status" class="status">Loading exact bundle…</span>
+      </div>
+    </header>
+    <main class="workspace">
+      <div class="toolbar">
+        <button id="open-explore" type="button" aria-expanded="false" aria-controls="explore-drawer">☰ Understand this graph</button>
+        <div class="viewport-controls" role="group" aria-label="Canvas viewport controls">
+          <button id="pan-left" type="button" aria-label="Pan left">←</button>
+          <button id="pan-up" type="button" aria-label="Pan up">↑</button>
+          <button id="pan-down" type="button" aria-label="Pan down">↓</button>
+          <button id="pan-right" type="button" aria-label="Pan right">→</button>
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="fit-all" type="button">Fit all</button>
+          <button id="fit-selection" type="button">Fit selection</button>
+          <button id="reset-viewport" type="button">Reset</button>
+        </div>
+        <output id="viewport-status" class="viewport-status" aria-live="polite">Viewport loading…</output>
+      </div>
+      <section id="visibility-controls" class="filters" aria-label="Graph visibility filters">
+        <label>Family<select id="filter-family"><option value="all">All families</option><option value="meta-type">Meta-types</option><option value="architecture-type">Architecture types</option><option value="profile">Profiles</option><option value="constraint">Constraints</option><option value="property">Properties</option><option value="fact-element">Fact elements</option><option value="fact-relation">Fact relations</option><option value="finding">Findings</option></select></label>
+        <label>Maturity<select id="filter-maturity"><option value="all">All maturities</option><option value="active">Active</option><option value="candidate">Candidate</option><option value="deferred">Deferred</option><option value="superseded">Superseded</option></select></label>
+        <label>Coverage<select id="filter-coverage"><option value="all">All coverage</option><option value="unsupported">Unsupported</option><option value="candidate-mapped">Candidate mapped</option><option value="profiled-unmapped">Profiled unmapped</option><option value="not-admitted">Not admitted</option><option value="superseded">Superseded</option></select></label>
+        <label>Profile<select id="filter-profile"><option value="all">All profiles</option><option value="architecture.base-domain">Base portable</option><option value="architecture.typescript-strict">TypeScript</option><option value="architecture.python-strict">Python</option><option value="architecture.rust-strict">Rust</option></select></label>
+        <label>Relation<select id="filter-relation"><option value="all">All relations</option></select></label>
+        <label>Non-match<select id="filter-mode"><option value="dim">Dim</option><option value="hide">Hide</option></select></label>
+        <button id="clear-filters" type="button">Clear filters</button>
+        <label>Find object<input id="focus-search" type="search" list="focus-options" placeholder="ID, label, family…"><datalist id="focus-options"></datalist></label>
+        <button id="apply-focus" type="button">Focus trace</button>
+        <button id="clear-focus" type="button">Clear focus</button>
+        <output id="filter-summary" class="filter-summary" aria-live="polite">All graph identities are visible.</output>
+        <output id="focus-summary" class="focus-summary" aria-live="polite">Rule trace is emphasized by default. Select any object to derive its explicit trace.</output>
+        <ul id="focus-gaps" class="focus-gaps" aria-label="Named missing trace hops"></ul>
+      </section>
+      <div id="canvas-wrap" class="canvas-wrap" tabindex="0" aria-label="Interactive ontology canvas viewport. Focus to enable wheel zoom; drag to pan.">
+        <div id="loading" class="loading">Building one immutable graph…</div>
+        <svg id="ontology-canvas" data-testid="ontology-canvas" role="graphics-document" aria-label="Unified ontology graph: Meaning, Realization, Expectation, Observation, and Explanation" hidden>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa7ba"/></marker>
+          </defs>
+          <g id="band-layer" data-layer="bands"></g>
+          <g id="edge-layer" data-layer="edges"></g>
+          <g id="node-layer" data-layer="nodes"></g>
+        </svg>
+      </div>
+      <aside id="explore-drawer" class="drawer" aria-hidden="true" aria-labelledby="explore-title">
+        <div class="drawer-head">
+          <div><div class="eyebrow">Plain-language guide</div><h2 id="explore-title">What am I looking at?</h2></div>
+          <button id="close-explore" type="button" aria-label="Close guide">×</button>
+        </div>
+        <p>This is one graph, not five replacement views. Every object remains present while the highlighted Rule story shows one exact path through the supplied evidence.</p>
+        <div class="band-guide">
+          <div><strong>Meaning</strong><span>The DomainSpec meta-types: what each domain concept means and its maturity.</span></div>
+          <div><strong>Realization</strong><span>Candidate architecture types that describe how code can realize those meanings.</span></div>
+          <div><strong>Expectation</strong><span>Portable and language-specific profiles, constraints, and inspectable properties.</span></div>
+          <div><strong>Observation</strong><span>Supplied TypeScript example facts. No source adapter ran to create them here.</span></div>
+          <div><strong>Explanation</strong><span>Expected findings that explain mismatches in that supplied TypeScript example.</span></div>
+        </div>
+        <section class="navigator" aria-labelledby="navigator-title">
+          <div><div class="eyebrow">Equivalent HTML representation</div><h3 id="navigator-title">Graph object navigator</h3></div>
+          <label>Search every graph object<input id="navigator-search" type="search" placeholder="Exact ID, label, family, status…"></label>
+          <output id="navigator-count" class="navigator-count" aria-live="polite">Navigator loading…</output>
+          <div id="navigator-tree" class="navigator-tree" role="tree" aria-label="All ontology graph nodes and their typed relationships"></div>
+        </section>
+        <div class="boundary">Candidate presentation only. Proximity and rendering never create ontology meaning, admission, source truth, release authority, or production evidence.</div>
+      </aside>
+      <dialog id="details-dialog" class="details-dialog" aria-labelledby="details-title">
+        <div class="details-scroll">
+          <div class="details-head">
+            <div><div class="eyebrow">Exact supplied contract</div><h2 id="details-title">Object details</h2></div>
+            <button id="close-details" type="button">Close</button>
+          </div>
+          <dl class="details-grid">
+            <dt>Identity</dt><dd id="details-id" data-field="id"></dd>
+            <dt>Kind / family</dt><dd id="details-kind" data-field="kind"></dd>
+            <dt>Plain language</dt><dd id="details-plain" data-field="plain_language"></dd>
+            <dt>Source / derivation</dt><dd id="details-source" data-field="source_ref"></dd>
+            <dt>Statuses</dt><dd id="details-statuses" data-field="statuses"></dd>
+            <dt>Fixture profile</dt><dd id="details-fixture-profile" data-field="fixture_profile_id"></dd>
+            <dt>Evaluation profile</dt><dd id="details-evaluation-profile" data-field="evaluation_profile_id"></dd>
+            <dt>Constraint origin</dt><dd id="details-constraint-origin" data-field="constraint_origin_profile_id"></dd>
+            <dt>Direction</dt><dd id="details-direction" data-field="direction"></dd>
+            <dt>Owner route</dt><dd id="details-owner" data-field="owner_route"></dd>
+            <dt>Claim ceiling</dt><dd id="details-claim" data-field="claim_ceiling"></dd>
+          </dl>
+          <h3>Exact incident relationships</h3>
+          <ul id="details-relations" class="details-relations"></ul>
+          <h3>Raw supplied record</h3>
+          <pre id="details-raw" class="details-raw" data-field="raw"></pre>
+        </div>
+      </dialog>
+    </main>
+  </div>
+  <script type="module">
+    import {BuildUnifiedCanvasProjection} from "./unified-canvas-model.mjs";
+    import {ComputeDeterministicCanvasLayout} from "./unified-canvas-layout.mjs";
+
+    const NS = "http://www.w3.org/2000/svg";
+    const sources = Object.freeze({
+      meta_types: "domain-meta-types.projection.json",
+      ontology: "ontology.json",
+      profiles: [
+        "profiles/base-domain.profile.json",
+        "profiles/typescript-strict.profile.json",
+        "profiles/python-strict.profile.json",
+        "profiles/rust-strict.profile.json",
+      ],
+      facts: "examples/typescript-observed-facts.json",
+      evaluation: "examples/typescript-evaluation.expected.json",
+    });
+    const dom = {
+      status: document.querySelector("#app-status"),
+      loading: document.querySelector("#loading"),
+      canvas: document.querySelector("#ontology-canvas"),
+      bands: document.querySelector("#band-layer"),
+      edges: document.querySelector("#edge-layer"),
+      nodes: document.querySelector("#node-layer"),
+      nodeCount: document.querySelector("#node-count"),
+      edgeCount: document.querySelector("#edge-count"),
+      drawer: document.querySelector("#explore-drawer"),
+      openDrawer: document.querySelector("#open-explore"),
+      closeDrawer: document.querySelector("#close-explore"),
+      navigatorSearch: document.querySelector("#navigator-search"),
+      navigatorCount: document.querySelector("#navigator-count"),
+      navigatorTree: document.querySelector("#navigator-tree"),
+      filterFamily: document.querySelector("#filter-family"),
+      filterMaturity: document.querySelector("#filter-maturity"),
+      filterCoverage: document.querySelector("#filter-coverage"),
+      filterProfile: document.querySelector("#filter-profile"),
+      filterRelation: document.querySelector("#filter-relation"),
+      filterMode: document.querySelector("#filter-mode"),
+      clearFilters: document.querySelector("#clear-filters"),
+      filterSummary: document.querySelector("#filter-summary"),
+      focusSearch: document.querySelector("#focus-search"),
+      focusOptions: document.querySelector("#focus-options"),
+      applyFocus: document.querySelector("#apply-focus"),
+      clearFocus: document.querySelector("#clear-focus"),
+      focusSummary: document.querySelector("#focus-summary"),
+      focusGaps: document.querySelector("#focus-gaps"),
+      details: document.querySelector("#details-dialog"),
+      closeDetails: document.querySelector("#close-details"),
+      canvasWrap: document.querySelector("#canvas-wrap"),
+      viewportStatus: document.querySelector("#viewport-status"),
+      panLeft: document.querySelector("#pan-left"),
+      panUp: document.querySelector("#pan-up"),
+      panDown: document.querySelector("#pan-down"),
+      panRight: document.querySelector("#pan-right"),
+      zoomOut: document.querySelector("#zoom-out"),
+      zoomIn: document.querySelector("#zoom-in"),
+      fitAll: document.querySelector("#fit-all"),
+      fitSelection: document.querySelector("#fit-selection"),
+      resetViewport: document.querySelector("#reset-viewport"),
+      detailsId: document.querySelector("#details-id"),
+      detailsKind: document.querySelector("#details-kind"),
+      detailsPlain: document.querySelector("#details-plain"),
+      detailsSource: document.querySelector("#details-source"),
+      detailsStatuses: document.querySelector("#details-statuses"),
+      detailsFixtureProfile: document.querySelector("#details-fixture-profile"),
+      detailsEvaluationProfile: document.querySelector("#details-evaluation-profile"),
+      detailsConstraintOrigin: document.querySelector("#details-constraint-origin"),
+      detailsDirection: document.querySelector("#details-direction"),
+      detailsOwner: document.querySelector("#details-owner"),
+      detailsClaim: document.querySelector("#details-claim"),
+      detailsRelations: document.querySelector("#details-relations"),
+      detailsRaw: document.querySelector("#details-raw"),
+    };
+    const defaultFilterInput = Object.freeze({family: "all", maturity: "all", coverage: "all", profile_id: "all", relation: "all", non_match: "dim"});
+    let activeGraph = null;
+    let activeLayout = null;
+    let focusRestore = null;
+    let inspectorOpener = null;
+    const state = {
+      gesture: {active: false, dragging: false, pointer_id: null, client_x: 0, client_y: 0, start_transform: null},
+      transform: null,
+    };
+    const fetchSource = async (sourceRef) => {
+      const response = await fetch(sourceRef, {cache: "no-store"});
+      if (!response.ok) throw new Error(`${sourceRef}: HTTP ${response.status}`);
+      return {source_ref: sourceRef, value: await response.json()};
+    };
+    const svg = (name, attributes = {}) => {
+      const element = document.createElementNS(NS, name);
+      for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+      return element;
+    };
+    const short = (value, limit) => {
+      const text = String(value ?? "");
+      return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+    };
+    const lineChunks = (value) => {
+      const words = String(value ?? "").split(/\s+/);
+      const lines = [""];
+      for (const word of words) {
+        const current = lines.at(-1);
+        if (`${current} ${word}`.trim().length > 34 && lines.length < 2) lines.push(word);
+        else lines[lines.length - 1] = `${current} ${word}`.trim();
+      }
+      return lines.map((line) => short(line, 37));
+    };
+    const finite = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+    const roundViewport = (value) => Math.round(value * 1000) / 1000;
+    const viewportLimits = () => {
+      const width = finite(activeLayout?.bounds.width, 1800);
+      const height = finite(activeLayout?.bounds.height, 1120);
+      return Object.freeze({width, height, min_scale: .5, max_scale: 4, margin_x: width * .1, margin_y: height * .1});
+    };
+    const clampOrigin = (origin, size, extent, margin) => {
+      const minimum = -margin;
+      const maximum = extent - size + margin;
+      if (maximum < minimum) return (extent - size) / 2;
+      return Math.min(maximum, Math.max(minimum, origin));
+    };
+    const normalizeTransform = (candidate) => {
+      const limits = viewportLimits();
+      const requestedScale = finite(candidate?.scale, 1);
+      const scale = Math.min(limits.max_scale, Math.max(limits.min_scale, requestedScale));
+      const width = limits.width / scale;
+      const height = limits.height / scale;
+      const x = clampOrigin(finite(candidate?.x, 0), width, limits.width, limits.margin_x);
+      const y = clampOrigin(finite(candidate?.y, 0), height, limits.height, limits.margin_y);
+      return Object.freeze({x: roundViewport(x), y: roundViewport(y), width: roundViewport(width), height: roundViewport(height), scale: roundViewport(scale)});
+    };
+    const reduceViewportTransform = (current, action) => {
+      const limits = viewportLimits();
+      if (action.type === "reset" || action.type === "fit-all") return normalizeTransform({x: 0, y: 0, scale: 1});
+      if (action.type === "fit-selection") {
+        const box = action.bounds;
+        if (!box) return normalizeTransform(current);
+        const paddedWidth = Math.max(1, box.width + 80);
+        const paddedHeight = Math.max(1, box.height + 80);
+        const scale = Math.min(limits.max_scale, limits.width / paddedWidth, limits.height / paddedHeight);
+        const width = limits.width / scale;
+        const height = limits.height / scale;
+        return normalizeTransform({x: box.x + box.width / 2 - width / 2, y: box.y + box.height / 2 - height / 2, scale});
+      }
+      const base = normalizeTransform(current ?? {x: 0, y: 0, scale: 1});
+      if (action.type === "zoom") {
+        const scale = base.scale * finite(action.factor, 1);
+        const nextWidth = limits.width / Math.min(limits.max_scale, Math.max(limits.min_scale, scale));
+        const nextHeight = limits.height / Math.min(limits.max_scale, Math.max(limits.min_scale, scale));
+        return normalizeTransform({x: base.x + (base.width - nextWidth) / 2, y: base.y + (base.height - nextHeight) / 2, scale});
+      }
+      if (action.type === "pan") return normalizeTransform({x: base.x + finite(action.dx, 0), y: base.y + finite(action.dy, 0), scale: base.scale});
+      return base;
+    };
+    const selectedNodeIds = () => window.__UOC_FOCUS_RECEIPT__?.selected_node_id ? window.__UOC_FOCUS_RECEIPT__.node_ids : [];
+    const selectionBounds = () => {
+      const positions = selectedNodeIds().map((id) => activeLayout?.positions[id]).filter(Boolean);
+      if (!positions.length) return null;
+      const minX = Math.min(...positions.map((item) => item.x));
+      const minY = Math.min(...positions.map((item) => item.y));
+      const maxX = Math.max(...positions.map((item) => item.x + item.width));
+      const maxY = Math.max(...positions.map((item) => item.y + item.height));
+      return Object.freeze({x: minX, y: minY, width: maxX - minX, height: maxY - minY});
+    };
+    const emitViewportReceipt = (reason) => {
+      const limits = viewportLimits();
+      const transform = state.transform;
+      const finiteTransform = Object.values(transform ?? {}).every(Number.isFinite);
+      dom.viewportStatus.textContent = transform ? `${reason} · ${transform.scale.toFixed(2)}×` : "Viewport unavailable";
+      window.__UOC_VIEWPORT_RECEIPT__ = Object.freeze({
+        ready: Boolean(transform),
+        graph_id: activeGraph?.graph_id ?? null,
+        reason,
+        transform,
+        limits,
+        finite: finiteTransform,
+        bounded: Boolean(transform) && transform.scale >= limits.min_scale && transform.scale <= limits.max_scale,
+        selected_node_id: window.__UOC_FOCUS_RECEIPT__?.selected_node_id ?? null,
+        canvas_intent_active: state.gesture.active,
+        view_box: dom.canvas.getAttribute("viewBox"),
+      });
+      return window.__UOC_VIEWPORT_RECEIPT__;
+    };
+    const applyTransform = (transform, reason = "apply") => {
+      state.transform = normalizeTransform(transform);
+      dom.canvas.setAttribute("viewBox", `${state.transform.x} ${state.transform.y} ${state.transform.width} ${state.transform.height}`);
+      return emitViewportReceipt(reason);
+    };
+    const fitGraph = (scope = "all") => applyTransform(reduceViewportTransform(state.transform, scope === "selection" ? {type: "fit-selection", bounds: selectionBounds()} : {type: "fit-all"}), scope === "selection" ? "fit-selection" : "fit-all");
+    const zoomBy = (factor) => applyTransform(reduceViewportTransform(state.transform, {type: "zoom", factor}), factor > 1 ? "zoom-in" : "zoom-out");
+    const panBy = (dx, dy, reason = "pan") => applyTransform(reduceViewportTransform(state.transform, {type: "pan", dx, dy}), reason);
+    const findCanvasTrace = (graph, startId) => {
+      const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+      const edgeById = new Map(graph.edges.map((edge) => [edge.id, edge]));
+      if (!nodeById.has(startId)) return Object.freeze({graph_id: graph.graph_id, selected_node_id: null, node_ids: Object.freeze([]), edge_ids: Object.freeze([]), missing_hops: Object.freeze([]), relation_kinds: Object.freeze([]), name_only_links: Object.freeze([])});
+      const nodes = new Set([startId]);
+      const edges = new Set();
+      const types = new Set();
+      const constraints = new Set();
+      const properties = new Set();
+      const facts = new Set();
+      const addEdge = (edge) => {
+        edges.add(edge.id);
+        nodes.add(edge.from);
+        nodes.add(edge.to);
+      };
+      const incident = (nodeId, kinds) => (graph.indexes.incident_edges[nodeId] ?? [])
+        .map((edgeId) => edgeById.get(edgeId))
+        .filter((edge) => edge && kinds.includes(edge.kind));
+      const selected = nodeById.get(startId);
+      if (selected.family === "architecture-type") types.add(startId);
+      for (const edge of incident(startId, ["candidate-aligns-to", "instance-of", "applies-to"])) {
+        addEdge(edge);
+        for (const endpoint of [edge.from, edge.to]) if (nodeById.get(endpoint)?.family === "architecture-type") types.add(endpoint);
+      }
+      if (selected.family === "constraint") {
+        constraints.add(startId);
+        for (const edge of incident(startId, ["applies-to"])) {
+          addEdge(edge);
+          const typeId = [edge.from, edge.to].find((id) => nodeById.get(id)?.family === "architecture-type");
+          if (typeId) types.add(typeId);
+        }
+      }
+      if (selected.family === "property") {
+        properties.add(startId);
+        for (const edge of incident(startId, ["constrains"])) constraints.add([edge.from, edge.to].find((id) => nodeById.get(id)?.family === "constraint"));
+      }
+      if (selected.family === "finding") {
+        for (const edge of incident(startId, ["checks", "explains"])) {
+          addEdge(edge);
+          for (const endpoint of [edge.from, edge.to]) {
+            const family = nodeById.get(endpoint)?.family;
+            if (family === "constraint") constraints.add(endpoint);
+            if (family === "property") properties.add(endpoint);
+            if (family === "fact-element" || family === "fact-relation") facts.add(endpoint);
+          }
+        }
+      }
+      for (const factId of [...facts, ...(selected.family === "fact-element" ? [startId] : [])]) {
+        for (const edge of incident(factId, ["instance-of"])) {
+          addEdge(edge);
+          const typeId = [edge.from, edge.to].find((id) => nodeById.get(id)?.family === "architecture-type");
+          if (typeId) types.add(typeId);
+        }
+      }
+      const evaluationProfileIds = Object.entries(graph.indexes.by_profile)
+        .filter(([, profile]) => profile.supplied_evaluation)
+        .map(([profileId]) => profileId);
+      const admittedConstraintIds = new Set(evaluationProfileIds.flatMap((profileId) => graph.indexes.by_profile[profileId].constraint_ids));
+      for (const typeId of types) {
+        for (const edge of incident(typeId, ["candidate-aligns-to", "applies-to", "instance-of"])) {
+          const otherId = edge.from === typeId ? edge.to : edge.from;
+          const family = nodeById.get(otherId)?.family;
+          if (edge.kind === "applies-to" && family === "constraint" && !admittedConstraintIds.has(otherId)) continue;
+          addEdge(edge);
+          if (family === "constraint") constraints.add(otherId);
+          if (family === "property") properties.add(otherId);
+          if (family === "fact-element") facts.add(otherId);
+        }
+      }
+      for (const constraintId of constraints) {
+        for (const edge of incident(constraintId, ["applies-to", "constrains"])) {
+          addEdge(edge);
+          const propertyId = [edge.from, edge.to].find((id) => nodeById.get(id)?.family === "property");
+          if (propertyId) properties.add(propertyId);
+        }
+      }
+      for (const finding of graph.nodes.filter((node) => node.family === "finding")) {
+        const findingEdges = incident(finding.id, ["checks", "explains"]);
+        const exactConstraint = findingEdges.some((edge) => [edge.from, edge.to].some((id) => constraints.has(id)));
+        const matchingFact = findingEdges.some((edge) => [edge.from, edge.to].some((id) => facts.has(id)));
+        if (!exactConstraint && !matchingFact) continue;
+        for (const edge of findingEdges) {
+          const endpointsRelevant = [edge.from, edge.to].some((id) => constraints.has(id) || properties.has(id) || facts.has(id) || id === finding.id);
+          if (endpointsRelevant) addEdge(edge);
+        }
+      }
+      const missingHops = graph.gaps
+        .filter((gap) => nodes.has(gap.from))
+        .map((gap) => Object.freeze({id: gap.id, kind: gap.kind, from: gap.from, reason: gap.reason, owner_route: gap.owner_route}));
+      const nodeIds = [...nodes].sort();
+      const edgeIds = [...edges].sort();
+      const relationKinds = [...new Set(edgeIds.map((id) => edgeById.get(id).kind))].sort();
+      return Object.freeze({
+        graph_id: graph.graph_id,
+        selected_node_id: startId,
+        node_ids: Object.freeze(nodeIds),
+        edge_ids: Object.freeze(edgeIds),
+        missing_hops: Object.freeze(missingHops),
+        relation_kinds: Object.freeze(relationKinds),
+        name_only_links: Object.freeze([]),
+      });
+    };
+    const navigatorRowContract = (graph, nodeId) => {
+      const node = graph.nodes.find((item) => item.id === nodeId);
+      if (!node) return null;
+      const relationships = (graph.indexes.incident_edges[nodeId] ?? [])
+        .map((edgeId) => graph.edges.find((edge) => edge.id === edgeId))
+        .filter(Boolean)
+        .map((edge) => Object.freeze({id: edge.id, kind: edge.kind, direction: edge.from === nodeId ? "outgoing" : "incoming", from: edge.from, to: edge.to, other_id: edge.from === nodeId ? edge.to : edge.from}))
+        .sort((left, right) => `${left.direction}:${left.kind}:${left.id}`.localeCompare(`${right.direction}:${right.kind}:${right.id}`));
+      return Object.freeze({id: node.id, family: node.family, label: node.label, plain_language: node.plain_language, statuses: node.statuses ?? Object.freeze({}), relationships: Object.freeze(relationships)});
+    };
+    const setNavigatorSelection = (nodeId) => {
+      for (const row of dom.navigatorTree.querySelectorAll("[data-navigator-id]")) {
+        const selected = Boolean(nodeId) && row.dataset.navigatorId === nodeId;
+        row.setAttribute("aria-selected", String(selected));
+        row.dataset.selection = selected ? "selected" : "unselected";
+      }
+      return nodeId ?? null;
+    };
+    const searchNavigator = (query = dom.navigatorSearch.value) => {
+      if (!activeGraph) return Object.freeze([]);
+      const normalized = String(query).trim().toLocaleLowerCase();
+      const exact = activeGraph.nodes.find((node) => node.id.toLocaleLowerCase() === normalized);
+      const matchingIds = exact ? [exact.id] : activeGraph.nodes
+        .filter((node) => !normalized || [node.id, node.label, node.plain_language, node.family, JSON.stringify(node.statuses)].some((value) => String(value).toLocaleLowerCase().includes(normalized)))
+        .map((node) => node.id);
+      const matches = new Set(matchingIds);
+      for (const row of dom.navigatorTree.querySelectorAll("[data-navigator-id]")) row.hidden = !matches.has(row.dataset.navigatorId);
+      dom.navigatorCount.textContent = `${matchingIds.length} of ${activeGraph.nodes.length} graph objects reachable.`;
+      window.__UOC_NAVIGATOR_RECEIPT__ = Object.freeze({...window.__UOC_NAVIGATOR_RECEIPT__, ready: true, query: String(query), matching_ids: Object.freeze([...matchingIds]), selected_node_id: window.__UOC_FOCUS_RECEIPT__?.selected_node_id ?? null});
+      return Object.freeze(matchingIds);
+    };
+    const selectNavigatorObject = (nodeId) => {
+      const result = focusNode(nodeId);
+      setNavigatorSelection(result?.selected_node_id ?? null);
+      window.__UOC_NAVIGATOR_RECEIPT__ = Object.freeze({...window.__UOC_NAVIGATOR_RECEIPT__, selected_node_id: result?.selected_node_id ?? null, selection_source: "navigator"});
+      return result;
+    };
+    const renderNavigator = (graph) => {
+      const contracts = graph.nodes.map((node) => navigatorRowContract(graph, node.id)).sort((left, right) => `${left.family}:${left.id}`.localeCompare(`${right.family}:${right.id}`));
+      const rows = contracts.map((contract) => {
+        const row = document.createElement("article");
+        row.className = "navigator-row";
+        row.setAttribute("role", "treeitem");
+        row.setAttribute("aria-selected", "false");
+        row.dataset.navigatorId = contract.id;
+        row.dataset.family = contract.family;
+        row.dataset.statuses = JSON.stringify(contract.statuses);
+        row.dataset.selection = "unselected";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.navigatorSelectId = contract.id;
+        const label = document.createElement("strong");
+        label.textContent = contract.label;
+        const identity = document.createElement("span");
+        identity.className = "navigator-id";
+        identity.textContent = contract.id;
+        button.append(label, identity);
+        button.addEventListener("click", () => selectNavigatorObject(contract.id));
+        const meta = document.createElement("p");
+        meta.className = "navigator-meta";
+        meta.textContent = `Family: ${contract.family}. Statuses: ${JSON.stringify(contract.statuses)}.`;
+        const relations = document.createElement("ul");
+        relations.className = "navigator-relations";
+        relations.setAttribute("aria-label", `Typed relationships for ${contract.id}`);
+        relations.replaceChildren(...contract.relationships.map((relationship) => {
+          const item = document.createElement("li");
+          item.dataset.relationId = relationship.id;
+          item.dataset.relationKind = relationship.kind;
+          item.dataset.relationDirection = relationship.direction;
+          item.textContent = `${relationship.direction}: ${relationship.from} —${relationship.kind}→ ${relationship.to}`;
+          return item;
+        }));
+        row.append(button, meta, relations);
+        return row;
+      });
+      dom.navigatorTree.replaceChildren(...rows);
+      const idSet = contracts.map((contract) => contract.id).sort();
+      window.__UOC_NAVIGATOR_RECEIPT__ = Object.freeze({ready: true, graph_id: graph.graph_id, navigator_ids: Object.freeze(idSet), relation_occurrences: contracts.reduce((total, contract) => total + contract.relationships.length, 0), query: "", matching_ids: Object.freeze(idSet), selected_node_id: null, selection_source: null});
+      searchNavigator("");
+      return window.__UOC_NAVIGATOR_RECEIPT__;
+    };
+    const nodeProfileMatch = (node, profileId) => {
+      if (profileId === "all") return "neutral";
+      if (node.fixture_profile_id) return node.fixture_profile_id === profileId ? "match" : "mismatch";
+      if (node.evaluation_profile_id) return node.evaluation_profile_id === profileId ? "match" : "mismatch";
+      if (node.family === "profile") return node.source_id === profileId ? "match" : "mismatch";
+      if (node.statuses?.owner_profile_id) return node.statuses.owner_profile_id === profileId ? "match" : "mismatch";
+      if (node.constraint_origin_profile_id) return node.constraint_origin_profile_id === profileId ? "match" : "mismatch";
+      return "neutral";
+    };
+    const deriveVisibility = (graph, filterInput) => {
+      const nodeVisibility = {};
+      const nodeProfileMatches = {};
+      for (const node of graph.nodes) {
+        const coverage = node.statuses?.mapping_status ?? node.statuses?.candidate_status ?? "none";
+        const profileMatch = nodeProfileMatch(node, filterInput.profile_id);
+        nodeProfileMatches[node.id] = profileMatch;
+        const matches = (filterInput.family === "all" || node.family === filterInput.family)
+          && (filterInput.maturity === "all" || node.statuses?.maturity === filterInput.maturity)
+          && (filterInput.coverage === "all" || coverage === filterInput.coverage)
+          && profileMatch !== "mismatch";
+        nodeVisibility[node.id] = matches ? "visible" : filterInput.non_match === "hide" ? "hidden" : "dimmed";
+      }
+      const edgeVisibility = {};
+      for (const edge of graph.edges) {
+        const endpoints = [nodeVisibility[edge.from], nodeVisibility[edge.to]];
+        const relationMatches = filterInput.relation === "all" || edge.kind === filterInput.relation;
+        edgeVisibility[edge.id] = relationMatches && endpoints.every((value) => value === "visible")
+          ? "visible"
+          : filterInput.non_match === "hide" || endpoints.includes("hidden") ? "hidden" : "dimmed";
+      }
+      const noEvaluation = ["architecture.python-strict", "architecture.rust-strict"].includes(filterInput.profile_id)
+        ? `No supplied observation/evaluation for ${filterInput.profile_id.replace("architecture.", "").replace("-strict", "")}.`
+        : null;
+      return Object.freeze({graph_id: graph.graph_id, node_visibility: Object.freeze(nodeVisibility), edge_visibility: Object.freeze(edgeVisibility), node_profile_matches: Object.freeze(nodeProfileMatches), profile_notice: noEvaluation});
+    };
+    const currentFilterInput = () => Object.freeze({
+      family: dom.filterFamily.value,
+      maturity: dom.filterMaturity.value,
+      coverage: dom.filterCoverage.value,
+      profile_id: dom.filterProfile.value,
+      relation: dom.filterRelation.value,
+      non_match: dom.filterMode.value,
+    });
+    const applyVisibility = (filterInput = currentFilterInput()) => {
+      if (!activeGraph) return null;
+      const result = deriveVisibility(activeGraph, filterInput);
+      for (const element of dom.nodes.querySelectorAll("[data-node-id]")) {
+        const visibility = result.node_visibility[element.dataset.nodeId];
+        const profileMatch = result.node_profile_matches[element.dataset.nodeId];
+        element.dataset.visibility = visibility;
+        element.dataset.profileMatch = profileMatch;
+        element.classList.toggle("is-filter-hidden", visibility === "hidden");
+        element.classList.toggle("is-filter-dimmed", visibility === "dimmed");
+        element.classList.toggle("is-filter-emphasized", profileMatch === "match");
+      }
+      for (const element of dom.edges.querySelectorAll("[data-edge-id]")) {
+        const visibility = result.edge_visibility[element.dataset.edgeId];
+        element.dataset.visibility = visibility;
+        element.classList.toggle("is-filter-hidden", visibility === "hidden");
+        element.classList.toggle("is-filter-dimmed", visibility === "dimmed");
+      }
+      const nodeCounts = Object.values(result.node_visibility).reduce((counts, value) => ({...counts, [value]: (counts[value] ?? 0) + 1}), {});
+      const edgeCounts = Object.values(result.edge_visibility).reduce((counts, value) => ({...counts, [value]: (counts[value] ?? 0) + 1}), {});
+      dom.filterSummary.textContent = result.profile_notice ?? `${nodeCounts.visible ?? 0} visible, ${nodeCounts.dimmed ?? 0} dimmed, ${nodeCounts.hidden ?? 0} hidden.`;
+      window.__UOC_VISIBILITY_RECEIPT__ = Object.freeze({
+        ready: true,
+        graph_id: result.graph_id,
+        filter_input: filterInput,
+        node_counts: Object.freeze(nodeCounts),
+        edge_counts: Object.freeze(edgeCounts),
+        node_ids: Object.freeze(activeGraph.nodes.map((node) => node.id)),
+        edge_ids: Object.freeze(activeGraph.edges.map((edge) => edge.id)),
+        profile_notice: result.profile_notice,
+      });
+      return result;
+    };
+    const clearVisibility = () => {
+      dom.filterFamily.value = defaultFilterInput.family;
+      dom.filterMaturity.value = defaultFilterInput.maturity;
+      dom.filterCoverage.value = defaultFilterInput.coverage;
+      dom.filterProfile.value = defaultFilterInput.profile_id;
+      dom.filterRelation.value = defaultFilterInput.relation;
+      dom.filterMode.value = defaultFilterInput.non_match;
+      return applyVisibility(defaultFilterInput);
+    };
+    const setFilterInput = (filterInput) => {
+      dom.filterFamily.value = filterInput.family;
+      dom.filterMaturity.value = filterInput.maturity;
+      dom.filterCoverage.value = filterInput.coverage;
+      dom.filterProfile.value = filterInput.profile_id;
+      dom.filterRelation.value = filterInput.relation;
+      dom.filterMode.value = filterInput.non_match;
+      return applyVisibility(filterInput);
+    };
+    const applyFocus = (startId) => {
+      if (!activeGraph) return null;
+      const result = findCanvasTrace(activeGraph, startId);
+      if (!result.selected_node_id) {
+        dom.focusSummary.textContent = `No graph object matches “${dom.focusSearch.value}”. Active filters and graph state were preserved.`;
+        return result;
+      }
+      if (!focusRestore) focusRestore = Object.freeze({
+        filter_input: currentFilterInput(),
+        view_box: dom.canvas.getAttribute("viewBox"),
+        transform: state.transform,
+        scroll_left: dom.canvas.parentElement.scrollLeft,
+        scroll_top: dom.canvas.parentElement.scrollTop,
+      });
+      const focusedNodes = new Set(result.node_ids);
+      const focusedEdges = new Set(result.edge_ids);
+      for (const element of dom.nodes.querySelectorAll("[data-node-id]")) {
+        const included = focusedNodes.has(element.dataset.nodeId);
+        element.dataset.focusState = element.dataset.nodeId === startId ? "selected" : included ? "trace" : "outside";
+        element.classList.toggle("is-focus-emphasized", included);
+        element.classList.toggle("is-focus-dimmed", !included);
+      }
+      for (const element of dom.edges.querySelectorAll("[data-edge-id]")) {
+        const included = focusedEdges.has(element.dataset.edgeId);
+        element.dataset.focusState = included ? "trace" : "outside";
+        element.classList.toggle("is-focus-emphasized", included);
+        element.classList.toggle("is-focus-dimmed", !included);
+      }
+      dom.focusGaps.replaceChildren(...result.missing_hops.map((gap) => {
+        const item = document.createElement("li");
+        item.dataset.gapId = gap.id;
+        item.dataset.gapFrom = gap.from;
+        item.textContent = `${gap.kind}: ${gap.reason} Owner: ${gap.owner_route}.`;
+        return item;
+      }));
+      dom.focusSummary.textContent = result.missing_hops.length
+        ? `${result.node_ids.length} objects and ${result.edge_ids.length} explicit relations; ${result.missing_hops.length} missing hop named below.`
+        : `${result.node_ids.length} objects and ${result.edge_ids.length} explicit relations; no missing hop on this supplied path.`;
+      window.__UOC_FOCUS_RECEIPT__ = Object.freeze({...result, ready: true, restored: false});
+      setNavigatorSelection(startId);
+      return result;
+    };
+    const focusNode = (nodeId) => applyFocus(nodeId);
+    const resolveSearch = (query) => {
+      if (!activeGraph) return null;
+      const normalized = query.trim().toLocaleLowerCase();
+      if (!normalized) return null;
+      return activeGraph.nodes.find((node) => [node.id, node.source_id, node.label].some((value) => String(value).toLocaleLowerCase() === normalized))
+        ?? activeGraph.nodes.find((node) => [node.id, node.source_id, node.label, node.plain_language, node.family, JSON.stringify(node.statuses)].some((value) => String(value).toLocaleLowerCase().includes(normalized)))
+        ?? null;
+    };
+    const focusSearchResult = () => {
+      const node = resolveSearch(dom.focusSearch.value);
+      return applyFocus(node?.id ?? "");
+    };
+    const clearFocus = () => {
+      for (const element of dom.nodes.querySelectorAll("[data-node-id]")) {
+        element.classList.remove("is-focus-emphasized", "is-focus-dimmed");
+        delete element.dataset.focusState;
+      }
+      for (const element of dom.edges.querySelectorAll("[data-edge-id]")) {
+        element.classList.remove("is-focus-emphasized", "is-focus-dimmed");
+        delete element.dataset.focusState;
+      }
+      dom.focusGaps.replaceChildren();
+      dom.focusSearch.value = "";
+      if (focusRestore) {
+        setFilterInput(focusRestore.filter_input);
+        applyTransform(focusRestore.transform, "focus-restore");
+        dom.canvas.parentElement.scrollLeft = focusRestore.scroll_left;
+        dom.canvas.parentElement.scrollTop = focusRestore.scroll_top;
+      }
+      dom.focusSummary.textContent = "Rule trace is emphasized by default. Select any object to derive its explicit trace.";
+      focusRestore = null;
+      setNavigatorSelection(null);
+      window.__UOC_FOCUS_RECEIPT__ = Object.freeze({ready: true, graph_id: activeGraph?.graph_id ?? null, selected_node_id: null, node_ids: Object.freeze([]), edge_ids: Object.freeze([]), missing_hops: Object.freeze([]), relation_kinds: Object.freeze([]), name_only_links: Object.freeze([]), restored: true, filter_input: currentFilterInput(), view_box: dom.canvas.getAttribute("viewBox"), scroll_left: dom.canvas.parentElement.scrollLeft, scroll_top: dom.canvas.parentElement.scrollTop});
+      return window.__UOC_FOCUS_RECEIPT__;
+    };
+    const inspectCanvasObject = (graph, objectId) => {
+      const node = graph.nodes.find((item) => item.id === objectId);
+      const edge = graph.edges.find((item) => item.id === objectId);
+      if (!node && !edge) return null;
+      const incident = (node ? graph.indexes.incident_edges[node.id] ?? [] : [edge.id])
+        .map((edgeId) => graph.edges.find((item) => item.id === edgeId))
+        .filter(Boolean)
+        .map((item) => Object.freeze({
+          id: item.id,
+          kind: item.kind,
+          from: item.from,
+          to: item.to,
+          direction: node ? item.from === node.id ? "outgoing" : "incoming" : `${item.from} -> ${item.to}`,
+          derivation: item.derivation,
+        }));
+      const sourceRef = node?.source_ref ?? edge.derivation;
+      const ownerRoute = node?.raw?.owner_route ?? `Owner remains the source artifact named by ${sourceRef}.`;
+      const contract = {
+        kind: node ? "node" : "edge",
+        id: objectId,
+        family: node?.family ?? edge.kind,
+        label: node?.label ?? edge.kind,
+        plain_language: node?.plain_language ?? `${edge.from} ${edge.kind} ${edge.to}.`,
+        source_ref: sourceRef,
+        statuses: node?.statuses ?? Object.freeze({source_kind: edge.source_kind, semantic_posture: edge.semantic_posture}),
+        fixture_profile_id: node?.fixture_profile_id ?? null,
+        evaluation_profile_id: node?.evaluation_profile_id ?? null,
+        constraint_origin_profile_id: node?.constraint_origin_profile_id ?? null,
+        direction: edge ? Object.freeze({from: edge.from, relation: edge.kind, to: edge.to}) : null,
+        incident_relationships: Object.freeze(incident),
+        raw: node?.raw ?? edge.raw,
+        owner_route: ownerRoute,
+        claim_ceiling: "Local supplied/candidate record only; authority_effect none. No adapter ran; no ontology admission, release, deployment, or production claim.",
+      };
+      return Object.freeze(contract);
+    };
+    const objectElement = (objectId) => [...document.querySelectorAll("[data-node-id], [data-edge-id]")]
+      .find((element) => element.dataset.nodeId === objectId || element.dataset.edgeId === objectId) ?? null;
+    const renderInspection = (contract) => {
+      dom.details.dataset.inspectorId = contract.id;
+      dom.details.dataset.inspectorKind = contract.kind;
+      dom.detailsId.textContent = contract.id;
+      dom.detailsKind.textContent = `${contract.kind} · ${contract.family}`;
+      dom.detailsPlain.textContent = contract.plain_language;
+      dom.detailsSource.textContent = contract.source_ref;
+      dom.detailsStatuses.textContent = JSON.stringify(contract.statuses);
+      dom.detailsFixtureProfile.textContent = contract.fixture_profile_id ?? "not supplied";
+      dom.detailsEvaluationProfile.textContent = contract.evaluation_profile_id ?? "not supplied";
+      dom.detailsConstraintOrigin.textContent = contract.constraint_origin_profile_id ?? "not supplied";
+      dom.detailsDirection.textContent = contract.direction ? `${contract.direction.from} —${contract.direction.relation}→ ${contract.direction.to}` : "node; see incident relationships";
+      dom.detailsOwner.textContent = contract.owner_route;
+      dom.detailsClaim.textContent = contract.claim_ceiling;
+      dom.detailsRaw.textContent = JSON.stringify(contract.raw, null, 2);
+      dom.detailsRelations.replaceChildren(...contract.incident_relationships.map((relation) => {
+        const item = document.createElement("li");
+        item.dataset.relationId = relation.id;
+        item.dataset.direction = relation.direction;
+        item.textContent = `${relation.direction}: ${relation.from} —${relation.kind}→ ${relation.to}; source ${relation.derivation}`;
+        return item;
+      }));
+    };
+    const openInspection = (objectId, opener = objectElement(objectId), activation = "programmatic") => {
+      if (!activeGraph) return null;
+      const contract = inspectCanvasObject(activeGraph, objectId);
+      if (!contract) return null;
+      if (dom.details.open) dom.details.close();
+      inspectorOpener = opener;
+      renderInspection(contract);
+      dom.details.showModal();
+      dom.closeDetails.focus();
+      window.__UOC_INSPECT_RECEIPT__ = Object.freeze({ready: true, graph_id: activeGraph.graph_id, inspected_id: objectId, activation, contract, dialog_open: true, restored_focus_id: null});
+      return contract;
+    };
+    const closeInspection = () => {
+      if (dom.details.open) dom.details.close();
+    };
+    const render = (graph, layout) => {
+      const focus = findCanvasTrace(graph, "meta:DS-D1.7");
+      const focusNodes = new Set(focus.node_ids);
+      const focusEdges = new Set(focus.edge_ids);
+      for (const band of layout.bands) {
+        const group = svg("g", {"data-band": band.id, "data-testid": `band-${band.id}`});
+        group.append(svg("rect", {class: "band-backdrop", x: band.x, y: band.y, width: band.width, height: band.height}));
+        const title = svg("text", {class: "band-title", x: band.x + 16, y: band.y - 34});
+        title.textContent = band.label;
+        const subtitle = svg("text", {class: "band-subtitle", x: band.x + 16, y: band.y - 14});
+        subtitle.textContent = `${band.node_ids.length} graph objects`;
+        group.append(title, subtitle);
+        dom.bands.append(group);
+      }
+      const routeById = new Map(layout.routes.map((route) => [route.edge_id, route]));
+      for (const edge of graph.edges) {
+        const route = routeById.get(edge.id);
+        const path = svg("path", {
+          class: `graph-edge ${route.relation_class} ${focusEdges.has(edge.id) ? "is-emphasized" : "is-dimmed"}`,
+          d: route.path,
+          "data-edge-id": edge.id,
+          "data-edge-kind": edge.kind,
+          "data-pattern": route.pattern,
+          tabindex: "-1",
+          markerend: "url(#arrow)",
+        });
+        const title = svg("title");
+        title.textContent = route.accessible_name;
+        path.append(title);
+        path.addEventListener("dblclick", (event) => openInspection(edge.id, event.currentTarget, "pointer"));
+        dom.edges.append(path);
+      }
+      for (const node of graph.nodes) {
+        const position = layout.positions[node.id];
+        const group = svg("g", {
+          class: `graph-node ${focusNodes.has(node.id) ? "is-emphasized" : "is-dimmed"}`,
+          transform: `translate(${position.x} ${position.y})`,
+          "data-node-id": node.id,
+          "data-family": node.family,
+          "data-band": node.band,
+          "data-source-ref": node.source_ref,
+          "data-maturity": node.statuses?.maturity ?? "",
+          "data-coverage": node.statuses?.mapping_status ?? node.statuses?.candidate_status ?? "",
+          "data-fixture-profile-id": node.fixture_profile_id ?? "",
+          "data-evaluation-profile-id": node.evaluation_profile_id ?? "",
+          "data-constraint-origin-profile-id": node.constraint_origin_profile_id ?? "",
+          tabindex: "-1",
+          role: "graphics-symbol",
+          "aria-label": `${node.label}. ${node.plain_language}`,
+        });
+        group.append(svg("rect", {class: "node-card", width: position.width, height: position.height}));
+        const label = svg("text", {class: "node-label", x: 12, y: 20});
+        label.textContent = short(node.label, 28);
+        const plainLines = lineChunks(node.plain_language);
+        plainLines.forEach((line, index) => {
+          const text = svg("text", {class: "node-plain", x: 12, y: 39 + index * 12});
+          text.textContent = line;
+          group.append(text);
+        });
+        const meta = svg("text", {class: "node-meta", x: 12, y: position.height - 7});
+        meta.textContent = `${node.family} · ${short(node.source_id, 22)}`;
+        const title = svg("title");
+        title.textContent = `${node.label}: ${node.plain_language}`;
+        group.append(label, meta, title);
+        group.addEventListener("click", () => {
+          dom.focusSearch.value = node.id;
+          focusNode(node.id);
+        });
+        group.addEventListener("dblclick", (event) => openInspection(node.id, event.currentTarget, "pointer"));
+        dom.nodes.append(group);
+      }
+      dom.canvas.setAttribute("viewBox", `0 0 ${layout.bounds.width} ${layout.bounds.height}`);
+      dom.canvas.dataset.graphId = graph.graph_id;
+      dom.canvas.dataset.layoutId = layout.layout_id;
+      dom.canvas.dataset.verificationStatus = graph.verification_status;
+      dom.nodeCount.textContent = graph.nodes.length;
+      dom.edgeCount.textContent = graph.edges.length;
+      dom.loading.hidden = true;
+      dom.canvas.hidden = false;
+    };
+    const load = async () => {
+      try {
+        const [metaTypes, ontology, profiles, facts, evaluation] = await Promise.all([
+          fetchSource(sources.meta_types),
+          fetchSource(sources.ontology),
+          Promise.all(sources.profiles.map(fetchSource)),
+          fetchSource(sources.facts),
+          fetchSource(sources.evaluation),
+        ]);
+        const bundle = {meta_types: metaTypes, ontology, profiles, facts, evaluation};
+        const sourceBefore = JSON.stringify(bundle);
+        const graph = BuildUnifiedCanvasProjection(bundle);
+        const layout = ComputeDeterministicCanvasLayout(graph);
+        const sourceMutated = sourceBefore !== JSON.stringify(bundle);
+        if (sourceMutated) throw new Error("Unified render mutated the source bundle.");
+        activeGraph = graph;
+        activeLayout = layout;
+        for (const node of graph.nodes) {
+          const option = document.createElement("option");
+          option.value = node.id;
+          option.label = `${node.label} · ${node.family}`;
+          dom.focusOptions.append(option);
+        }
+        for (const relation of [...new Set(graph.edges.map((edge) => edge.kind))].sort()) {
+          const option = document.createElement("option");
+          option.value = relation;
+          option.textContent = relation;
+          dom.filterRelation.append(option);
+        }
+        render(graph, layout);
+        renderNavigator(graph);
+        clearVisibility();
+        clearFocus();
+        fitGraph("all");
+        dom.status.textContent = "Ready · local prototype";
+        dom.status.classList.add("ready");
+        window.__UOC_STATIC_RECEIPT__ = Object.freeze({
+          ready: true,
+          graph_id: graph.graph_id,
+          layout_id: layout.layout_id,
+          verification_status: graph.verification_status,
+          node_count: graph.nodes.length,
+          edge_count: graph.edges.length,
+          band_count: layout.bands.length,
+          source_mutated: sourceMutated,
+          authority_effect: graph.authority_effect,
+        });
+      } catch (error) {
+        dom.status.textContent = "Blocked";
+        dom.status.classList.add("error");
+        dom.loading.textContent = `Unable to render the complete graph: ${error.message}`;
+        console.error(error);
+      }
+    };
+    const setDrawerOpen = (open) => {
+      dom.drawer.classList.toggle("open", open);
+      dom.drawer.setAttribute("aria-hidden", String(!open));
+      dom.openDrawer.setAttribute("aria-expanded", String(open));
+    };
+    dom.openDrawer.addEventListener("click", () => setDrawerOpen(!dom.drawer.classList.contains("open")));
+    dom.closeDrawer.addEventListener("click", () => setDrawerOpen(false));
+    dom.navigatorSearch.addEventListener("input", () => searchNavigator());
+    for (const control of [dom.filterFamily, dom.filterMaturity, dom.filterCoverage, dom.filterProfile, dom.filterRelation, dom.filterMode]) control.addEventListener("change", () => applyVisibility());
+    dom.clearFilters.addEventListener("click", clearVisibility);
+    dom.applyFocus.addEventListener("click", focusSearchResult);
+    dom.clearFocus.addEventListener("click", clearFocus);
+    dom.focusSearch.addEventListener("search", () => { if (!dom.focusSearch.value) clearFocus(); });
+    dom.closeDetails.addEventListener("click", closeInspection);
+    const panStep = () => viewportLimits().width / (state.transform?.scale ?? 1) * .12;
+    dom.panLeft.addEventListener("click", () => panBy(-panStep(), 0, "pan-left"));
+    dom.panRight.addEventListener("click", () => panBy(panStep(), 0, "pan-right"));
+    dom.panUp.addEventListener("click", () => panBy(0, -panStep(), "pan-up"));
+    dom.panDown.addEventListener("click", () => panBy(0, panStep(), "pan-down"));
+    dom.zoomIn.addEventListener("click", () => zoomBy(1.25));
+    dom.zoomOut.addEventListener("click", () => zoomBy(.8));
+    dom.fitAll.addEventListener("click", () => fitGraph("all"));
+    dom.fitSelection.addEventListener("click", () => fitGraph("selection"));
+    dom.resetViewport.addEventListener("click", () => applyTransform(reduceViewportTransform(state.transform, {type: "reset"}), "reset"));
+    dom.canvasWrap.addEventListener("focus", () => { state.gesture.active = true; emitViewportReceipt("canvas-activated"); });
+    dom.canvasWrap.addEventListener("blur", () => { state.gesture.active = false; state.gesture.dragging = false; emitViewportReceipt("canvas-deactivated"); });
+    dom.canvasWrap.addEventListener("pointerdown", (event) => {
+      dom.canvasWrap.focus({preventScroll: true});
+      state.gesture.active = true;
+      if (event.target.closest?.("[data-node-id], [data-edge-id]")) {
+        emitViewportReceipt("canvas-activated");
+        return;
+      }
+      state.gesture.dragging = true;
+      state.gesture.pointer_id = event.pointerId;
+      state.gesture.client_x = event.clientX;
+      state.gesture.client_y = event.clientY;
+      state.gesture.start_transform = state.transform;
+      dom.canvasWrap.setPointerCapture?.(event.pointerId);
+    });
+    dom.canvasWrap.addEventListener("pointermove", (event) => {
+      if (!state.gesture.dragging || event.pointerId !== state.gesture.pointer_id) return;
+      const scale = state.gesture.start_transform?.scale ?? 1;
+      panBy((state.gesture.client_x - event.clientX) / scale, (state.gesture.client_y - event.clientY) / scale, "drag-pan");
+    });
+    const endPan = (event) => {
+      if (event.pointerId !== state.gesture.pointer_id) return;
+      state.gesture.dragging = false;
+      state.gesture.pointer_id = null;
+      emitViewportReceipt("pan-complete");
+    };
+    dom.canvasWrap.addEventListener("pointerup", endPan);
+    dom.canvasWrap.addEventListener("pointercancel", endPan);
+    dom.canvasWrap.addEventListener("wheel", (event) => {
+      if (!state.gesture.active || document.activeElement !== dom.canvasWrap) return;
+      event.preventDefault();
+      zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15);
+    }, {passive: false});
+    dom.details.addEventListener("close", () => {
+      const restoredId = inspectorOpener?.dataset.nodeId ?? inspectorOpener?.dataset.edgeId ?? null;
+      inspectorOpener?.focus();
+      const previous = window.__UOC_INSPECT_RECEIPT__;
+      if (previous) window.__UOC_INSPECT_RECEIPT__ = Object.freeze({...previous, dialog_open: false, restored_focus_id: restoredId});
+      inspectorOpener = null;
+    });
+    window.__UOC_VISIBILITY_API__ = Object.freeze({deriveVisibility, apply: applyVisibility, clear: clearVisibility});
+    window.__UOC_FOCUS_API__ = Object.freeze({findCanvasTrace, focusNode, apply: applyFocus, clear: clearFocus, search: focusSearchResult});
+    window.__UOC_INSPECT_API__ = Object.freeze({inspectCanvasObject, open: openInspection, close: closeInspection});
+    window.__UOC_VIEWPORT_API__ = Object.freeze({reduceViewportTransform, applyTransform, fitGraph, zoomBy, panBy, reset: () => applyTransform(reduceViewportTransform(state.transform, {type: "reset"}), "reset")});
+    window.__UOC_NAVIGATOR_API__ = Object.freeze({navigatorRowContract, search: searchNavigator, select: selectNavigatorObject, setSelection: setNavigatorSelection});
+    await load();
+  </script>
+</body>
+</html>

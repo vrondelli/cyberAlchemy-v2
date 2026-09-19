@@ -1,0 +1,17 @@
+diff --git a/lib/compress/zstd_compress.c b/lib/compress/zstd_compress.c
+index d659baf..daee6ce 100644
+--- a/lib/compress/zstd_compress.c
++++ b/lib/compress/zstd_compress.c
+@@ -979,6 +979,12 @@ static void ZSTD_invalidateMatchState(ZSTD_matchState_t* ms)
+ {
+     ZSTD_window_clear(&ms->window);
+ 
++    /* Ensure index 0 is never used as a match reference:
++     * start the window reference at 1, so that the first input
++     * position (index 1) is valid even on first usage of the context. */
++    ms->window.lowLimit = MAX(ms->window.lowLimit, 1);
++    ms->window.dictLimit = MAX(ms->window.dictLimit, 1);
++
+     ms->nextToUpdate = ms->window.dictLimit + 1;
+     ms->nextToUpdate3 = ms->window.dictLimit + 1;
+     ms->loadedDictEnd = 0;

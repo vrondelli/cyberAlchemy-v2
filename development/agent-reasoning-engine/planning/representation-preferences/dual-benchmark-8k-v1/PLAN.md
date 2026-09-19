@@ -141,7 +141,12 @@ is physically shared, count it once for physical spending but once per logical a
 for the matched comparison. This successor intends independent full trajectories,
 so expose rather than hide divergences in tool use and evidence delivery. Do not
 change the existing full-benchmark acceptance criteria or label a small result as
-global clearance. LongMemEval uses blind native-rubric review with ambiguity retained.
+global clearance. LongMemEval uses the pinned native rubric with an arm-blinded GLM
+judge in a separate evaluator process after generation. Judge input/output (including
+reasoning and failures) is attributed to its arm and included in the15% comparison.
+Use384 output tokens, actual input <=6976, exact yes/no parsing and no retries.
+Same-model judge bias is a limitation; ambiguous or invalid judgements do not become
+passing answers. Independent review checks conclusions and scoring ambiguities.
 
 LongMemEval cap:204,800 tokens per stage across four pairs. ContextBench cap:96,000
 tokens per arm,192,000 per pair,768,000 across four pairs per stage. Combined maximum

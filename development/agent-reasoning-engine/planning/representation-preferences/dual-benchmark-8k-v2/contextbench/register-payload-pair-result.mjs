@@ -1,0 +1,37 @@
+// Native result and successor work from actual tokenizer evidence. Open questions: PAYLOAD-PAIR-QUALIFICATION.md.
+import assert from 'node:assert/strict';import {readFileSync,writeFileSync} from 'node:fs';import {join,resolve} from 'node:path';import {createHash} from 'node:crypto';
+import {createResearchResult,createHypothesisObservation,createLearningDecision,verifyEvolutionRecord} from '../../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/index.mjs';
+import {materializeResearchDag} from '../../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/src/research-dag.mjs';
+import {materializeResearchPlan} from '../../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/src/research-work.mjs';
+import {digest} from '../../../../../../implementation/agent-reasoning-engine/packages/request-intent-runtime/src/canonical.mjs';
+const c=import.meta.dirname,root=resolve(c,'../../../../../..'),stage=join(c,'payload-pair-live-r2'),read=p=>JSON.parse(readFileSync(p)),hash=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
+const previous=read(join(c,'COMPARISON-PAYLOAD-RESEARCH-R1.json')),protocol=read(join(stage,'PROTOCOL.json')),measured=read(join(stage,'output/RESULTS.json')),review=read(join(stage,'RESULT-REVIEW.json'));
+assert.equal(review.result_integrity_approved,true);assert.equal(measured.complete,true);assert.equal(measured.diagnostic_passed,true);
+for(const b of review.source_bindings)assert.equal(hash(resolve(root,b.path)),b.sha256);
+assert.equal(measured.model_calls,0);assert.equal(measured.tokenizer_dispatches,2);assert.deepEqual(measured.rows.map(r=>r.input_tokens),[5769,3474]);
+const hypothesis=previous.prospective_candidates.find(h=>h.record_id===protocol.experiment.hypothesis_ref),experiment=protocol.experiment;
+assert.ok(hypothesis);const resultPath=join(stage,'output/RESULTS.json'),refs=[resultPath,join(stage,'PROCESS.json'),join(stage,'RESULT-REVIEW.json'),join(stage,'PROTOCOL.json'),join(c,'FOLLOWUP-RECONSTRUCTION-ASSESSMENT-R1.json')];
+const limitations=['Single exposed prospective public-derived pair, not exact historical replay','No model comprehension or task quality measurement','Not full runtime qualification or whole-task total-token savings','Full comparison and untouched confirmation remain required'];
+const result=createResearchResult({target_ref:hypothesis.record_id,provider_id:'glm-5.3-flash-tokenizer',source_ref:resultPath,source_version:hash(resultPath),mechanism:'Lossless source metadata factoring reduces measured complete-request input including the paid representation guide.',evidence:refs,counterevidence:[],limitations});
+const observation=createHypothesisObservation({hypothesis_ref:hypothesis.record_id,source_result_ref:result.record_id,source_result_digest:result.record_digest,observation_kind:'supporting',phase:'experiment',claim:'For the specified public-derived pair, input fell from5769 to3474 tokens (39.7816%); with512 margin and2048 output reserve, projected total fell from8329 to6034. All20 observations roundtrip exactly. Two HTTP200 tokenizer receipts, zero retries and zero model calls. This supports only the bounded input-reduction and fit mechanism.',evaluator_id:'native-driver-and-independent-receipt-audit',evidence_refs:refs,limitations});
+const decision=createLearningDecision({hypothesis_ref:hypothesis.record_id,experiment_ref:experiment.record_id,observation_refs:[observation.record_id],disposition:'run-experiment',reason_codes:['paired-input-reduction-measured','prospective-encoded-request-fits','full-runtime-and-task-quality-unproven'],supporting_count:1,experiment_support_count:1,next_action:'Qualify an additive codec-aware runtime and exact delivered-evidence path with fresh full follow-ups including retained reasoning; diagnose transport errors separately. Then freeze a complete comparison with unchanged perfect-quality and at-least15% total-model-token criteria. Keep radical retrieval-first as a separate prospective branch.'});
+const records=[hypothesis,experiment,result,observation,decision];for(const r of records)assert.equal(verifyEvolutionRecord(r).ok,true);
+const source_bindings=review.source_bindings.filter(b=>b.path.endsWith('.mjs')),implementationBody={source_bindings},implementation={record_id:'implementation:'+digest(implementationBody),...implementationBody};
+const questionText='Does the measured lossless-payload gain survive full runtime follow-ups and preserve comprehension, evidence credit, task quality and total-token efficiency?';
+const question={record_id:'question:'+digest({question:questionText}),question:questionText};
+const extra=[...refs,join(c,'register-payload-pair-result.mjs')].map(path=>({path,sha256:hash(path)}));
+const evidence_bindings=[...new Map([...review.source_bindings,...extra].map(b=>[resolve(root,b.path),b])).values()];
+const body={experiment_id:experiment.record_id,records,implementation,question,evidence_bindings},registration={...body,registration_digest:digest(body)};
+const verify_registration=r=>{try{const {registration_digest,...body}=r;assert.equal(digest(body),registration_digest);for(const b of [...r.implementation.source_bindings,...r.evidence_bindings])assert.equal(hash(resolve(root,b.path)),b.sha256);return r.records.every(x=>verifyEvolutionRecord(x).ok);}catch{return false;}};
+assert.equal(verify_registration(registration),true);assert.equal(verify_registration(previous.registration),true);
+const registrations=[previous.registration,registration],research_dag=materializeResearchDag({registrations,lineage:[{question_ref:previous.registration.question.record_id,hypothesis_ref:hypothesis.record_id,source_ref:join(c,'COMPARISON-PAYLOAD-RESEARCH-R1.json')}],verify_registration});
+const specs=[
+ ['runtime',[],'product-construction','Additive shared codec/evidence integration passes full runtime follow-up qualification including retained reasoning and all overhead'],
+ ['transport',[],'operational-support','Bounded sanitized transport error evidence tested without new model retries or inferred historical cause'],
+ ['comparison',['runtime','transport'],'product-construction','Exact reviewed twelve-outcome experiment measures quality and every model token against unchanged controls and criteria'],
+ ['confirm',['comparison'],'product-construction','If complete comparison passes, untouched confirmation and broader benchmark coverage establish the original claim']
+];
+const work=materializeResearchPlan({research_dag,registrations,verify_registration,tasks:specs.map(([id,deps,lane,criterion])=>({task_id:'payload-pair-r2:'+id,title:id,depends_on:deps.map(d=>'payload-pair-r2:'+d),owner:'coordinator',lane,stage:'prototype',question_ref:question.record_id,completion_criteria:[criterion],validator_ref:join(c,'PAYLOAD-PAIR-QUALIFICATION.md')}))});
+const artifact={schema:'are.payload-pair-postrun/v1',registration,research_dag,work,continuity:previous.continuity,full_comparison_success_criteria:previous.full_comparison_success_criteria,full_comparison_budgets:previous.full_comparison_budgets,diagnostic_supported:true,runtime_admitted:false,total_task_savings_established:false,campaign_goal_achieved:false,authority_effect:'none',open_questions_ref:'../PAYLOAD-PAIR-QUALIFICATION.md'};
+writeFileSync(join(stage,'RESEARCH-RESULT.json'),JSON.stringify(artifact,null,2)+'\n',{flag:'wx'});
+console.log(JSON.stringify({records:records.length,dag_nodes:research_dag.nodes.length,tasks:work.tasks.length,campaign_goal_achieved:false}));

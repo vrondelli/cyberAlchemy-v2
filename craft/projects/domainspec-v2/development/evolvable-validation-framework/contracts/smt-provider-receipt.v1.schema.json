@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/evf/smt-provider-receipt.v1.schema.json",
+  "title": "EVF SMT Provider Receipt v1",
+  "description": "Closed solver-result protocol receipt with total execution, witness, origin, and claim invariants.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "evidence_origin",
+    "request_ref",
+    "semantic_source_ref",
+    "formal_obligation_ref",
+    "translation_receipt_ref",
+    "runtime_manifest_ref",
+    "query_kind",
+    "execution",
+    "native_result",
+    "witness",
+    "normalized_result",
+    "semantic_result_digest",
+    "evidence_refs",
+    "residue",
+    "authority_effect",
+    "release_admission",
+    "claim_ceiling",
+    "receipt_payload_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": "evf.smt-provider-receipt/v1" },
+    "receipt_id": { "$ref": "#/$defs/identifier" },
+    "evidence_origin": { "enum": ["observed-solver-execution", "synthetic-validator-input"] },
+    "request_ref": { "$ref": "#/$defs/identifier" },
+    "semantic_source_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "formal_obligation_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "translation_receipt_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "runtime_manifest_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "query_kind": { "enum": ["counterexample", "witness"] },
+    "execution": { "$ref": "#/$defs/execution" },
+    "native_result": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/nativeResult" }
+      ]
+    },
+    "witness": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/boundWitness" }
+      ]
+    },
+    "normalized_result": { "$ref": "#/$defs/normalizedResult" },
+    "semantic_result_digest": { "$ref": "#/$defs/sha256" },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/exactArtifactRef" }
+    },
+    "residue": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "authority_effect": { "const": "none" },
+    "release_admission": { "const": "not-granted" },
+    "claim_ceiling": {
+      "enum": [
+        "exact-formula-solver-result-only",
+        "no-property-claim",
+        "protocol-validation-only-no-solver-or-domain-claim"
+      ]
+    },
+    "receipt_payload_digest": { "$ref": "#/$defs/sha256" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "execution": { "properties": { "status": { "const": "completed" } } } } },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "timed_out": { "const": false },
+              "failure_kind": { "type": "null" },
+              "exit_code": { "const": 0 }
+            }
+          },
+          "native_result": { "$ref": "#/$defs/nativeResult" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "execution": { "properties": { "status": { "const": "blocked" } } } } },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "timed_out": { "const": false },
+              "failure_kind": { "const": "policy-block" },
+              "exit_code": { "type": "null" }
+            }
+          },
+          "native_result": { "type": "null" },
+          "witness": { "type": "null" },
+          "normalized_result": { "properties": { "outcome": { "const": "unresolved" } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "status": { "const": "failed" },
+              "timed_out": { "const": true }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "execution": { "properties": { "failure_kind": { "const": "timeout" } } },
+          "native_result": { "type": "null" },
+          "witness": { "type": "null" },
+          "normalized_result": { "properties": { "outcome": { "const": "unresolved" } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "status": { "const": "failed" },
+              "timed_out": { "const": false }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "failure_kind": { "enum": ["process-error", "invalid-output", "missing-output"] }
+            }
+          },
+          "native_result": { "type": "null" },
+          "witness": { "type": "null" },
+          "normalized_result": { "properties": { "outcome": { "const": "unresolved" } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "execution": { "properties": { "status": { "const": "stale" } } } } },
+      "then": {
+        "properties": {
+          "execution": {
+            "properties": {
+              "timed_out": { "const": false },
+              "failure_kind": { "const": "stale-input" },
+              "exit_code": { "type": "null" }
+            }
+          },
+          "native_result": { "type": "null" },
+          "witness": { "type": "null" },
+          "normalized_result": { "properties": { "outcome": { "const": "unresolved" } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution": { "properties": { "status": { "const": "completed" } } },
+          "native_result": { "type": "object", "properties": { "outcome": { "const": "sat" } }, "required": ["outcome"] }
+        }
+      },
+      "then": { "properties": { "witness": { "$ref": "#/$defs/boundWitness" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "native_result": { "type": "object", "properties": { "outcome": { "enum": ["unsat", "unknown"] } }, "required": ["outcome"] }
+        }
+      },
+      "then": { "properties": { "witness": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "evidence_origin": { "const": "synthetic-validator-input" } } },
+      "then": {
+        "properties": {
+          "claim_ceiling": { "const": "protocol-validation-only-no-solver-or-domain-claim" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_origin": { "const": "observed-solver-execution" },
+          "execution": { "properties": { "status": { "const": "completed" } } },
+          "native_result": { "type": "object", "properties": { "outcome": { "enum": ["sat", "unsat"] } }, "required": ["outcome"] }
+        }
+      },
+      "then": { "properties": { "claim_ceiling": { "const": "exact-formula-solver-result-only" } } }
+    },
+    {
+      "if": {
+        "properties": { "evidence_origin": { "const": "observed-solver-execution" } },
+        "anyOf": [
+          { "properties": { "execution": { "properties": { "status": { "enum": ["blocked", "failed", "stale"] } } } } },
+          { "properties": { "native_result": { "type": "object", "properties": { "outcome": { "const": "unknown" } }, "required": ["outcome"] } } }
+        ]
+      },
+      "then": { "properties": { "claim_ceiling": { "const": "no-property-claim" } } }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "exactArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "status", "timed_out", "failure_kind", "exit_code"],
+      "properties": {
+        "run_id": { "$ref": "#/$defs/identifier" },
+        "status": { "enum": ["completed", "blocked", "failed", "stale"] },
+        "timed_out": { "type": "boolean" },
+        "failure_kind": {
+          "type": ["string", "null"],
+          "enum": [null, "timeout", "process-error", "invalid-output", "missing-output", "policy-block", "stale-input"]
+        },
+        "exit_code": { "type": ["integer", "null"] }
+      }
+    },
+    "nativeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "result_ref", "result_digest"],
+      "properties": {
+        "outcome": { "enum": ["sat", "unsat", "unknown"] },
+        "result_ref": { "$ref": "#/$defs/exactArtifactRef" },
+        "result_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "boundWitness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_ref",
+        "request_ref",
+        "translated_query_digest",
+        "runtime_manifest_ref",
+        "execution_run_id",
+        "native_result_digest",
+        "bindings_digest"
+      ],
+      "properties": {
+        "model_ref": { "$ref": "#/$defs/exactArtifactRef" },
+        "request_ref": { "$ref": "#/$defs/identifier" },
+        "translated_query_digest": { "$ref": "#/$defs/sha256" },
+        "runtime_manifest_ref": { "type": "string", "minLength": 1 },
+        "execution_run_id": { "$ref": "#/$defs/identifier" },
+        "native_result_digest": { "$ref": "#/$defs/sha256" },
+        "bindings_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "normalizedResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome"],
+      "properties": {
+        "outcome": { "enum": ["counterexample", "no-counterexample", "witness", "no-witness", "unresolved"] }
+      }
+    }
+  }
+}

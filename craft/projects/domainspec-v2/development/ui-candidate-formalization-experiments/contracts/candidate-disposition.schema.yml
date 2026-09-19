@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ucfe://contracts/candidate-disposition/v1",
+  "title": "UI candidate evidence disposition v1",
+  "type": "object",
+  "required": ["schema_version", "candidate_id", "disposition", "coverage_alternative_id", "evidence_handles", "missing_conjuncts", "residue", "owner_handoff_required", "authority_mutation"],
+  "properties": {
+    "schema_version": {"const": "ucfe.candidate-disposition.v1"},
+    "candidate_id": {"type": "string", "pattern": "^DS-D1\\.[0-9]+$"},
+    "disposition": {"enum": ["covered-existing", "distinct-supported", "defer-missing"]},
+    "coverage_alternative_id": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+    "evidence_handles": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "missing_conjuncts": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "residue": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "owner_handoff_required": {"const": true},
+    "authority_mutation": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"disposition": {"const": "covered-existing"}}},
+      "then": {
+        "properties": {
+          "coverage_alternative_id": {"type": "string", "minLength": 1},
+          "missing_conjuncts": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"disposition": {"const": "distinct-supported"}}},
+      "then": {
+        "properties": {
+          "coverage_alternative_id": {"type": "null"},
+          "missing_conjuncts": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"disposition": {"const": "defer-missing"}}},
+      "then": {
+        "properties": {
+          "coverage_alternative_id": {"type": "null"},
+          "missing_conjuncts": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

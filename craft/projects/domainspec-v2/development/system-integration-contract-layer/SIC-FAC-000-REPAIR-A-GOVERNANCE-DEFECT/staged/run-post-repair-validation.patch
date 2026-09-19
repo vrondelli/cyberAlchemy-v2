@@ -1,0 +1,37 @@
+diff --git a/projects/domainspec-v2/development/system-integration-contract-layer/SIC-FAC-000-REPAIR-A/tools/run-post-repair-validation.mjs b/projects/domainspec-v2/development/system-integration-contract-layer/SIC-FAC-000-REPAIR-A/tools/run-post-repair-validation.mjs
+--- a/projects/domainspec-v2/development/system-integration-contract-layer/SIC-FAC-000-REPAIR-A/tools/run-post-repair-validation.mjs
++++ b/projects/domainspec-v2/development/system-integration-contract-layer/SIC-FAC-000-REPAIR-A/tools/run-post-repair-validation.mjs
+@@ -483,17 +483,27 @@ const runHostileClaimProbe = async () => {
+   const remainingEntries = await exists(hostileOutputParent)
+     ? await readdir(hostileOutputParent)
+     : [];
+-  const exactError = command.parsed?.code === "FACTORY_CLAIM_CEILING_MISMATCH" &&
+-    command.parsed?.detail === "typescript-w3-effects-connections";
++  const expectedCode = "FACTORY_CLAIM_CEILING_MISMATCH";
++  const expectedNodeId = "typescript-w3-effects-connections";
++  const expectedDetail = `${expectedCode}:${expectedNodeId}`;
++  const exactErrorEnvelope = command.exitStatus === 1 &&
++    command.parsed?.result === "block" &&
++    command.parsed?.code === expectedCode &&
++    command.parsed?.detail === expectedDetail &&
++    command.parsed?.authority_effect === "none";
++  const failClosedBeforePublication = command.exitStatus === 1 &&
++    remainingEntries.length === 0;
+   const result = {
+     schema_version: "SicFacHostileClaimProbe/v1",
+-    result: exactError && remainingEntries.length === 0 ? "PASS" : "BLOCK",
+-    expected_code: "FACTORY_CLAIM_CEILING_MISMATCH",
+-    expected_detail: "typescript-w3-effects-connections",
++    result: exactErrorEnvelope && failClosedBeforePublication ? "PASS" : "BLOCK",
++    expected_code: expectedCode,
++    expected_detail: expectedDetail,
++    expected_node_id: expectedNodeId,
+     observed: command.parsed,
+     published_run_count: remainingEntries.filter((name) => name.startsWith("factory-")).length,
+     output_parent_entries: remainingEntries.sort(compareUtf8),
+-    fail_closed_before_publication: exactError && remainingEntries.length === 0,
++    error_envelope_matches: exactErrorEnvelope,
++    fail_closed_before_publication: failClosedBeforePublication,
+     authority_effect: "none",
+   };
+   await writeJsonExclusive(resolve(probesRoot, "hostile-claim-probe.json"), result);

@@ -1,0 +1,185 @@
+Status: `pass`. This is the inline payload for `receipts/explorer-persistence-consistency.json`; it was not written because `write_scope=[]`.
+
+## Direct result
+
+DomainSpec should not add `Database`, `Repository`, or `ORM` as DS-D1 meta-types. The smallest non-collapsing persistence architecture is:
+
+```text
+existing DomainSpec semantics
+  -> internal Interface / Operation / Query application port
+  -> PersistenceBinding
+  -> technology profile and adapter
+  -> TransactionPolicy + MigrationContract
+  -> evaluator evidence and separate owner decision
+```
+
+Keep three candidate records: `PersistenceBinding`, `TransactionPolicy`, and `MigrationContract`.
+
+- A repository port merges into an internal `Interface` exposing existing `Operation` and `Query` concepts.
+- An ORM and database are technology-profile selections referenced by `PersistenceBinding`.
+- A generic `ConsistencyPolicy` is too broad. Decompose it into the named domain invariant, write-side constraint, transaction/isolation policy, and projection-freshness policy.
+- A `ValidatorBinding` would duplicate the existing `ImplementationConformanceProfile` → `Obligation`/evaluator → `EvaluationReceipt` chain, so merge it there.
+- No new DS-D8 relationship is justified. Use typed fields inside the binding until a distinct graph-level validation consequence is demonstrated.
+
+## Concern taxonomy
+
+| Concern | Correct layer and invariant |
+|---|---|
+| Data store | Technology-profile resource referenced by a binding; product identity is not domain semantics. |
+| Logical schema | Application contract derived from Entity/Value Object identities and fields; must not become a second semantic source. |
+| Physical schema | Infrastructure binding: tables, columns, streams, codecs, indexes, constraints. |
+| Index/constraint | Write-side enforcement primitive and runtime guarantee. A Rule may name the invariant but cannot prove a concurrent race was serialized. |
+| Repository port | Application contract represented by an internal Interface exposing Operations/Queries. |
+| ORM/data mapper | Technology-profile mapping and unit-of-work mechanism. Existing Mapping may describe shape transformation, but not flush, identity-map, locking, or transaction behavior. |
+| Unit of work | Application/infrastructure contract naming the exact atomic change set. |
+| Transaction boundary | Candidate `TransactionPolicy`: participating operations/resources, commit/rollback, isolation, conflict mapping, retry. |
+| Isolation/concurrency | Technology-bound runtime guarantee with explicit prohibited anomalies and retry behavior. PostgreSQL’s documented levels differ materially, and stronger modes may abort transactions requiring full retry. [PostgreSQL 18 isolation](https://www.postgresql.org/docs/18/transaction-iso.html) |
+| Migration/compatibility | Candidate `MigrationContract`: exact source/target versions, compatibility window, preconditions, steps, backfill, rollback/roll-forward, verification. DDL can rewrite rows or immediately validate constraints. [PostgreSQL 18 table modification](https://www.postgresql.org/docs/18/ddl-alter.html) |
+| Backup/recovery | Operational technology profile with RPO/RTO and restore-test evidence; defer from portable DomainSpec core. |
+| Cache/projection | Infrastructure binding plus freshness/invalidity contract. Async state is advisory unless synchronously maintained inside the accepted write transaction. |
+| Idempotency/uniqueness | Domain Rule plus application operation contract plus write-side key/constraint. Same-command deduplication and distinct-command uniqueness races are different invariants. |
+| Secret/config ownership | Provider-neutral configuration/secret references only; secret material and rotation remain with the security/operations owner. |
+
+Official SQLAlchemy documentation reinforces the boundary: its `Session` is a mutable unit-of-work/transaction mechanism, not a portable semantic guarantee; it is one session per thread/task, flushes within the database transaction, and depends on the database’s atomicity/isolation. Its version counter detects selected stale writes but does not cover bulk updates. [Session basics](https://docs.sqlalchemy.org/en/20/orm/session_basics.html), [version counters](https://docs.sqlalchemy.org/en/20/orm/versioning.html)
+
+Migration generation is likewise candidate tooling, not migration truth: Alembic states generated revisions require review and cannot reliably infer operations such as renames. [Alembic autogenerate](https://alembic.sqlalchemy.org/en/latest/autogenerate.html)
+
+## Candidate verdicts
+
+| Candidate | Verdict | Reason |
+|---|---|---|
+| `Database` | `PROFILE-LOCAL` | Resource/product selection; no distinct portable domain invariant. |
+| `Repository` | `MERGE` | Internal Interface plus exposed Operations/Queries; adapter selected by binding. |
+| `ORM` | `PROFILE-LOCAL` | Mapping/unit-of-work implementation choice. |
+| `PersistenceBinding` | `KEEP` | Distinct responsibility: bind semantic/application refs to one physical realization and its evidence limits. |
+| `TransactionPolicy` | `KEEP` | Distinct atomicity, isolation, concurrency, retry, and conflict invariant. |
+| `ConsistencyPolicy` | `MERGE` | Split into named Rule/invariant, transaction policy, constraint binding, and projection freshness. |
+| `MigrationContract` | `KEEP` | Distinct version-transition lifecycle and failure surface. |
+| `ValidatorBinding` | `MERGE` | Reuse conformance profile evaluator refs, Obligations, and EvaluationReceipt. |
+
+## Existing-owner mapping
+
+- `Entity`: identity/lifecycle owner, not a database table.
+- `Operation`: state-changing business action, not proof of transactionality.
+- `Query`: read-only retrieval, not proof of replica freshness or snapshot isolation.
+- `Mapping`: field transformation, not an ORM.
+- `Workflow`: ordered orchestration, not atomic commit.
+- `Rule`: boolean invariant, not the concurrency-enforcement primitive.
+- `Interface`: appropriate owner for an internal repository/application port.
+
+Reuse DS-D8 `exposes`, `maps`, `enforces`, `orchestrates`, `queries`, `creates`, and `produces`. Binding-to-adapter and binding-to-schema references remain profile-local fields.
+
+The experimental minted profile currently admits only `Entity`, `Event`, `Operation`, and `Rule`, plus `enforces`, `performs`, and `produces`; it does not currently admit the full repository-port shape and grants no release admission.
+
+## Candidate shapes
+
+`PersistenceBinding` should minimally carry:
+
+```text
+id, version, semantic_profile_ref
+interface_ref, entity_refs, operation_refs, query_refs, mapping_refs
+logical_schema_ref, technology_profile_ref, resource_ref, adapter_ref
+transaction_policy_ref, migration_contract_ref
+constraint_bindings[{invariant_ref, physical_ref, failure_code}]
+projection_bindings[{query_ref, authority_ref, max_staleness, hard_gate:false}]
+config_refs, secret_refs, evaluator_refs
+source_digest, binding_digest, claim_limits
+```
+
+`TransactionPolicy`:
+
+```text
+id, operation_refs, resource_refs, atomic_change_set
+isolation_level, prohibited_anomalies, concurrency_control
+expected_version_ref
+retry{retryable_codes,max_attempts,backoff,idempotency_key_ref}
+timeout, conflict_mapping, nested_or_savepoint_policy
+```
+
+`MigrationContract`:
+
+```text
+id, from_schema_version, to_schema_version
+compatible_application_versions
+preconditions, ordered_ddl_and_data_steps
+expand_contract_phase, backfill_checkpoint
+rollback_or_rollforward_policy
+lock_or_rewrite_limits
+positive_and_negative_fixture_refs, expected_failure_codes
+```
+
+## Finite fixture
+
+Use the existing `financial-settlement.P4.eligible-payout` fixture, SHA-256 `9c286c9e...`, as the frozen semantic/effect input. Existing evidence records `total_payout=400`, one payout write, and one event-handler call. That is useful executed effect evidence, but it does not prove a database transaction, durability, isolation, concurrency safety, or broker delivery.
+
+Proposed persistence extension:
+
+- Bind `GenerateSettlement` to a local transaction containing:
+  - one `PAYOUT` row uniquely keyed by `(player_id, transaction_type, end_date)`;
+  - any changed makeup row guarded by a version;
+  - one outbox intent for `PayoutCreated`.
+- Retry the same idempotency key and require the same logical result with row counts still equal to one.
+- Record schema/binding digests, transaction isolation, exact before/after row digests, commit outcome, and raw adapter diagnostics.
+- Treat the outbox row only as locally committed intent; delivery belongs to the distributed-integration lane.
+
+Proposed hostile matrix:
+
+| Failure | Required oracle / diagnostic | Evidence and ceiling |
+|---|---|---|
+| Injected failure before outbox insert | Zero payout, makeup, and outbox changes; `DSV2-PERSIST-ATOMICITY-ROLLBACK` | Before/after row digests and transaction trace; exact adapter/profile only. |
+| Split-transaction partial commit mutant | Payout/outbox count mismatch fails `DSV2-PERSIST-PARTIAL-COMMIT` | Both transaction IDs and row digests; detects this mutant, not universal atomicity. |
+| Stale migration | Binding expects schema v2 while store is v1; fail before DML with `DSV2-PERSIST-SCHEMA-VERSION-MISMATCH` | Schema identity plus zero-write proof. |
+| Uniqueness race | Two distinct requests for the same business key: exactly one commit, one typed conflict, one row/outbox | Barrier schedule and both transaction results; one database/profile only. Unique constraints are actual enforcement primitives. [PostgreSQL 18 constraints](https://www.postgresql.org/docs/18/ddl-constraints.html) |
+| Lost update | Competing expected versions: one success and one `DSV2-PERSIST-STALE-WRITE`, or an explicitly recorded serialization retry | Initial/final versions and retry trace. |
+| Dirty read | A second transaction cannot observe an uncommitted payout | Synchronized read/write trace under the bound isolation level. |
+| Non-repeatable read | If stable reads are required, two reads in one transaction remain equal or the transaction aborts/retries; a lower-isolation mutant must change the verdict | Snapshot values and isolation identity; no cross-database generalization. |
+| Stale cache/projection | Projection says “absent,” but write-side constraint rejects duplicate; emit `DSV2-PERSIST-PROJECTION-STALE` without accepting the write | Cache timestamp/source and database conflict; projection remains advisory. |
+
+The local email-claim precedent supplies the same essential oracle: all contenders must collide at one write-side primitive; process managers, idempotency keys, and asynchronous projections do not independently prove uniqueness.
+
+## Exact local evidence
+
+Repository HEAD observed: `3fe0d8399de8f8e75aebea4bf5e88a64f8b38184`. The wider worktree is dirty, but the listed load-bearing files had no scoped modifications; hashes bind the exact observed bytes.
+
+- `definitions/meta-types/meta-types.yml`, SHA-256 `439496...`, selectors `/members[id=DS-D1.1|1.4|1.5|1.7|1.9|1.11|1.13]`.
+- `definitions/relationships/relationships.yml`, SHA-256 `ffc97f...`, selectors `/signatures[id=produces|creates|enforces|exposes|orchestrates|maps|queries]`.
+- `definitions/minted-project/supported-profiles.yml`, SHA-256 `086878...`, selector `/profiles/0`.
+- Implementation-structure findings, SHA-256 `ba6f3a...`, selectors `#candidate-vocabulary-and-authority-map`, `#blind-spots-and-typed-residue`, and line 508’s explicit deferral of persistence/concurrency/retries/idempotency.
+- Email uniqueness findings, SHA-256 `636947...`, selectors `#write-side-collision-contract`, `#concrete-create-race`, `#failure-compensation`, `#falsifiable-invariant`.
+- WaveDB findings, SHA-256 `958ed1...`, selectors `#three-posture-verdict-matrix`, `#hold-and-kill-residue`, especially schema migration/downgrade `HOLD`.
+- Financial Settlement `operations.md`, SHA-256 `af758d...`, lines 51–77; `workflows.md`, SHA-256 `b310c9...`, lines 25–60.
+- Existing P4 effect evidence SHA-256 `6e31b7...`; proof receipt SHA-256 `59d03f...`; adoption report SHA-256 `5e83ad...`, whose claims explicitly leave full coverage, formal source approval, release, and production false.
+
+One non-blocking locator defect was found: the strategy packet names `.arcanum/inventory/entries/entries-ddd-process-manager-email-uniqueness-strategy-result-synthesis.md`, but the actual entry omits the leading `entries-`. The packet’s underlying `source_ref` resolves correctly.
+
+## Claim ceiling
+
+This action establishes a source-grounded candidate architecture and finite test design only. It did not execute a database, ORM, migration, concurrency schedule, restore, benchmark, or product test. It does not admit vocabulary or profiles, select technology, implement persistence, prove consistency/durability, authorize secrets, promote authority, publish, release, deploy, or establish production readiness.
+
+```json
+{
+  "schema_version": "arcanum.native-dispatch-runner.receipt.v0.1",
+  "action_id": "spawn-0002",
+  "dispatch_id": "2026-08-13-domainspec-v2-system-integration-contracts-route",
+  "run_id": "dsv2sic-20260813T044615Z",
+  "wave_id": "explorers",
+  "step_id": "s1",
+  "role": "persistence-consistency-explorer",
+  "capability_ref": "research",
+  "agent_id": "/root/orchestrate_acd76d90bf10cdef4653cc244d024f7e19502ccd0c6b1b7128fc490e9bcd988c_spawn_0002",
+  "status": "pass",
+  "artifacts": [
+    "inline:persistence-consistency-research-result",
+    "projects/domainspec-v2/definitions/meta-types/meta-types.yml",
+    "projects/domainspec-v2/definitions/relationships/relationships.yml",
+    "projects/domainspec-v2/definitions/minted-project/supported-profiles.yml",
+    "research/ddd-event-sourcing/2026-06-30-process-manager-uniqueness/findings.md",
+    "ops/development/2026-08-04-wavedb-craft-runtime-research/findings.md",
+    "projects/domainspec-v2/impl/spec/features/financial-settlement/sfol/adoption/effect-evidence.json"
+  ],
+  "validation": "pass",
+  "blockers": [],
+  "started_at": "2026-08-13T04:48:16Z",
+  "finished_at": "2026-08-13T04:58:26Z"
+}
+```

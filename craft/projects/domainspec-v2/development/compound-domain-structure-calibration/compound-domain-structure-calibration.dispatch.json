@@ -1,0 +1,277 @@
+{
+  "dispatch_id": "domainspec-v2-compound-domain-structure-calibration",
+  "intent": {
+    "raw": "define, design, and plan the candidate-only compound-domain-structure calibration experiment",
+    "objective": "Calibrate the residual-analysis hypothesis over three frozen fixtures with deterministic outcomes and no authority mutation.",
+    "target_artifact": "projects/domainspec-v2/development/compound-domain-structure-calibration"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "scu_swu_reduction",
+    "recomposition_proof",
+    "validation_loop",
+    "owner_boundary_check",
+    "handle_handoff",
+    "residue_ledger",
+    "execution_receipt_handoff",
+    "authority_split_gate",
+    "artifact_contract_bridge",
+    "concrete_path_evidence",
+    "observability_grouping"
+  ],
+  "subagent_strategy": {
+    "status": "recommended",
+    "trigger": "W1 contains three disjoint fixture-receipt SWUs after W0 freezes shared contracts and evaluator behavior.",
+    "explanation": "Each W1 worker writes one receipt subtree and reads one bounded fixture source; W0, W2, and W3 remain serialized.",
+    "roles": [
+      {
+        "role_id": "fixture-evidence-worker",
+        "purpose": "Build and validate exactly one frozen fixture receipt without evaluating or mutating its source.",
+        "owns": "One disjoint SWU among SWU-CDSC-003 through SWU-CDSC-005.",
+        "applies_to_steps": ["s3"]
+      }
+    ],
+    "parallelism": "mixed",
+    "join_policy": "parent_synthesis",
+    "authorization": "requires_user_permission",
+    "permission_prompt": "Approve W1 runtime subagents only after W0 passes, with one disjoint fixture SWU and the WORK-PACK receipt contract per worker.",
+    "receipt_requirements": [
+      "agent_id",
+      "role_id",
+      "spawn_status",
+      "join_status",
+      "close_status",
+      "dispatch_id",
+      "step_id",
+      "capability_ref",
+      "status",
+      "artifacts",
+      "validation",
+      "observer_status",
+      "blockers",
+      "residue",
+      "reroute",
+      "handoff_note"
+    ]
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b-invoke-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": ["s2", "s3", "s4", "s5"],
+        "contract": "Execute one selected SWU with explicit package-only write scope and return a receipt.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-fixture-sources",
+        "kind": "artifact_import",
+        "from_owner": "GoldenQuill and Savvy source owners",
+        "to_owner": "compound calibration development",
+        "applies_to_steps": ["s2", "s3", "s5"],
+        "contract": "Fixture sources are pinned read-only evidence; all generated receipts and results stay in the calibration package.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-result-authority",
+        "kind": "human_approval",
+        "from_owner": "compound calibration development",
+        "to_owner": "DS-D1, DS-D8, pattern, and candidate governance",
+        "applies_to_steps": ["s1", "s3", "s4", "s5"],
+        "contract": "Fixture outcomes and suite verdicts cannot decide identity, relationship authority, pattern admission, replication, or promotion.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-human-evaluator",
+        "kind": "capability_handoff",
+        "from_owner": "fixture evidence reviewers",
+        "to_owner": "deterministic evaluator",
+        "applies_to_steps": ["s2", "s3", "s4"],
+        "contract": "Reviewers freeze predicate values; evaluator computes residue and outcomes without inventing or revising them.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "authoring": "invoke",
+      "execution": "task-session",
+      "fixture_evidence": "bounded source reviewers",
+      "evaluation": "versioned development evaluator",
+      "formation": "DS-D1 definitions governance",
+      "relationships": "DS-D8 relationship governance",
+      "patterns": "architecture-pattern governance",
+      "promotion": "separate owner decision only"
+    },
+    "receipts": [
+      {
+        "receipt_id": "r-cdsc-swu",
+        "producer": "task-session",
+        "required_fields": ["dispatch_id", "step_id", "capability_ref", "status", "artifacts", "validation_result", "blockers", "residue", "handoff_note"],
+        "stores": ["task-session result artifact", ".arcanum/observability/signals/sigil-invocations.jsonl"],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "compound-calibration-development",
+        "owner": "WP-CDSC-001",
+        "write_policy": "One selected SWU writes only its declared paths inside the calibration package."
+      },
+      {
+        "namespace": "fixture-and-canonical-authority",
+        "owner": "GoldenQuill, Savvy, DS-D1, DS-D8, pattern, and candidate owners",
+        "write_policy": "Read-only to this dispatch."
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "s1",
+      "name": "Author and validate Invoke package",
+      "capability_ref": "invoke",
+      "pattern": "sequential",
+      "techniques": ["sequence", "scu_swu_reduction", "recomposition_proof", "residue_ledger", "owner_boundary_check"],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "../ui-meta-type-repair/research/2026-07-11-compound-domain-structures/findings.md"
+        }
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "SPEC.md"},
+        {"kind": "artifact", "ref": "ARCHITECTURE.md"},
+        {"kind": "artifact", "ref": "WORK-PACK.md"}
+      ],
+      "evidence_artifact": "INVOKE-TRANSPORT.md",
+      "stop_conditions": [
+        "block if package claims a compound kind, identity, DS-D1, DS-D8, pattern, candidate, or promotion authority"
+      ]
+    },
+    {
+      "step_id": "s2",
+      "name": "Freeze contracts and deterministic evaluator",
+      "capability_ref": "task-session",
+      "pattern": "sequential",
+      "techniques": ["artifact_contract_bridge", "validation_loop", "execution_receipt_handoff"],
+      "inputs": [
+        {"kind": "artifact", "ref": "WORK-PACK.md#SWU-CDSC-001..002"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "versioned contracts, manifest, evaluator, and tests"}
+      ],
+      "evidence_artifact": "W0 Task Session receipts",
+      "stop_conditions": [
+        "block ambiguous semantic fields, incomplete outcome tables, evaluator-authored predicates, or source drift"
+      ]
+    },
+    {
+      "step_id": "s3",
+      "name": "Produce frozen fixture receipts",
+      "capability_ref": "task-session",
+      "pattern": "fanout",
+      "parallel": true,
+      "join_policy": "parent_synthesis",
+      "techniques": ["validation_loop", "handle_handoff", "execution_receipt_handoff", "observability_grouping", "concrete_path_evidence"],
+      "inputs": [
+        {"kind": "artifact", "ref": "W0 accepted contracts and evaluator"},
+        {"kind": "artifact", "ref": "WORK-PACK.md#SWU-CDSC-003..005"}
+      ],
+      "outputs": [
+        {"kind": "ledger", "ref": "F1, F2, and F3 immutable evidence receipts"}
+      ],
+      "evidence_artifact": "W1 fixture receipts and join receipt",
+      "stop_conditions": [
+        "block overlapping write scopes, fixture-source mutation, late predicate changes, or hidden indeterminate evidence"
+      ]
+    },
+    {
+      "step_id": "s4",
+      "name": "Evaluate and append generation 1",
+      "capability_ref": "task-session",
+      "pattern": "sequential",
+      "techniques": ["recomposition_proof", "validation_loop", "residue_ledger", "execution_receipt_handoff"],
+      "inputs": [
+        {"kind": "ledger", "ref": "W1 joined fixture receipts"},
+        {"kind": "artifact", "ref": "WORK-PACK.md#SWU-CDSC-006"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "fixture results, suite verdict, and generation index"}
+      ],
+      "evidence_artifact": "W2 generation receipt",
+      "stop_conditions": [
+        "block F2 control bypass, non-total outcome, replay drift, or in-place generation update"
+      ]
+    },
+    {
+      "step_id": "s5",
+      "name": "Independently replay, audit, and route",
+      "capability_ref": "task-session",
+      "pattern": "validation",
+      "techniques": ["validation_loop", "recomposition_proof", "authority_split_gate", "execution_receipt_handoff"],
+      "inputs": [
+        {"kind": "artifact", "ref": "WORK-PACK.md#SWU-CDSC-007"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "independent replay, audit, and bounded next-route receipt"}
+      ],
+      "evidence_artifact": "W3 closeout receipt",
+      "stop_conditions": [
+        "block replay mismatch, source mutation, missing uncertainty, or any identity/authority/promotion inference"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g1-contract",
+      "kind": "validation",
+      "owner": "compound calibration development",
+      "condition": "Finite schemas, source pins, predicate coordinates, and total outcome tables pass before receipt production.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g2-fixtures",
+      "kind": "quality",
+      "owner": "task-session parent",
+      "condition": "Three disjoint receipts validate and preserve indeterminate evidence and read-only source boundaries.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g3-control",
+      "kind": "validation",
+      "owner": "suite evaluator",
+      "condition": "F2 is EXPLAINED before CALIBRATION-PASS is possible, and all frozen outputs replay identically.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g4-authority",
+      "kind": "human_approval",
+      "owner": "DS-D1, DS-D8, pattern, and candidate governance",
+      "condition": "Calibration evidence may route later research but cannot change canonical authority or promotion state.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "dispatch_validated",
+      "contract_frozen",
+      "evaluator_validated",
+      "fixture_receipt_recorded",
+      "fixture_join_completed",
+      "generation_evaluated",
+      "replay_completed",
+      "audit_completed"
+    ],
+    "signal_grouping": "dispatch_id"
+  },
+  "promotion_guardrails": [
+    "Residual support is not identity, irreducibility, or portability.",
+    "Calibration pass is not replication, pattern admission, or promotion.",
+    "DS-D8 endpoint use is not DS-D1 formation authority.",
+    "Page and Layout remain roles with unreplicated pattern pressure.",
+    "Fixture and canonical source repositories remain read-only.",
+    "No experiment outcome directly enters a canonical promotion route."
+  ]
+}

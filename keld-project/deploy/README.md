@@ -20,9 +20,13 @@ No VPS was contacted and no real merchant credentials were provisioned.
 - File-secret input, public HTTPS origin/private HTTP listener separation,
   readiness, graceful draining and at most two concurrent archive downloads.
 - Store-backed provisioning, explicit UID permissions and local smoke tests.
+- An integrated anonymous-public ARE documentation/chat candidate at the exact
+  `/are/` and `/are/api/are/*` surface, behind the same Caddy ingress. Its edge,
+  chat, broker and provider gateway keep separate networks and no host ports.
 
-Only Caddy publishes ports 80/443. KELD, worker, PostgreSQL and Keycloak have no
-host-published ports. Keep SSH key-based and restricted at the VPS firewall.
+Only Caddy publishes ports 80/443. KELD, worker, PostgreSQL, Keycloak and all
+four ARE services have no host-published ports. Keep SSH key-based and
+restricted at the VPS firewall.
 Supply two DNS names pointing to the new VPS. Caddy obtains public TLS certificates.
 The Keycloak admin UI uses its normal authenticated HTTPS endpoint; restrict
 administrative access according to the VPS access policy before accepting customers.
@@ -45,6 +49,17 @@ Existing .bundle output is refused; explicitly remove that generated directory
 when rebuilding after code changes. Application code uses Node 26.8.1; the image
 provides Debian's Python for the ledger. The operator secret-store tooling needs
 Python 3.12+ and the exact pinned SOPS/age binaries listed in its README.
+
+The integrated Compose file intentionally does not rebuild ARE. First run the
+ARE package, seccomp and runtime verification in
+`../are-documentation`, then publish each approved image through the separately
+authorized registry workflow. Set `ARE_EDGE_IMAGE`, `ARE_PUBLIC_CHAT_IMAGE`,
+`ARE_INFERENCE_BROKER_IMAGE` and `ARE_PROVIDER_GATEWAY_IMAGE` to immutable
+registry references containing `@sha256:`. Mutable tags and local image IDs are
+test evidence, not production references. The Compose file also consumes the
+reviewed sibling `../are-documentation/deploy/seccomp-node.json`; transfer that
+exact file with the deployment candidate and verify the digest documented in
+`../are-documentation/deploy/SECCOMP-PROFILE.md`.
 
 ## 2. Create a dedicated KELD sandbox vault
 
@@ -88,7 +103,9 @@ operator/provider steps; no registrations have been made by this implementation.
 ## 3. Prepare configuration and private runtime files
 
 Copy settings.example.json to a private operator file. Set domains/issuer,
-test merchant IDs, `mercadopagoApplicationId`, PayPal webhook ID, explicit BRL quote policy/expiry, and a
+test merchant IDs, `mercadopagoApplicationId`, PayPal webhook ID, the PayPal
+presentment currency (`BRL` for the validated Brazilian sandbox merchant),
+explicit BRL quote policy/expiry, and a
 synthetic artifact path. The quote example is intentionally invalid.
 
 ```sh
@@ -104,10 +121,30 @@ and a private initial database SQL file. These are deliberate provisioning outpu
 and are ignored by Git; they must travel only over the authenticated deployment
 channel. The original vault/key are not copied. Existing output is refused.
 
-Copy .env.example to .env and set only public domain/email/version values.
-The domains must agree with settings.json. Securely transfer the deployment files,
-source-only .bundle (or built image), and .runtime to the VPS. Do not transfer
-the operator's age identity or entire vault.
+Install one separate model-provider credential at
+`.runtime/secrets/are_model_api_key`; do not put it in `.env`, KELD's settings,
+or the browser bundle. The file must be a regular non-symlink file and contain
+only the credential. `install-permissions.sh` assigns it exclusively to the ARE
+provider-gateway UID along with the other service-specific runtime permissions.
+
+Copy `.env.example` to `.env`. Set the public domain/email/version fields, the
+four immutable ARE image references, the owner-approved positive idle-retention
+and spend ceilings, and the operator-verified positive provider rates. The
+example deliberately leaves those policy/rate values blank; Compose rejects an
+unset or empty value. Before transfer, run the production-input verifier shown
+below. It rejects mutable/malformed image references, reused role-image digests,
+and numeric values outside the runtime's syntax and implementation bounds. It
+does not choose or approve policy values and does not print them. The domains
+must agree with settings.json. Securely
+transfer the deployment files, the exact sibling ARE seccomp profile,
+source-only `.bundle` (or built KELD image), and `.runtime` to the VPS. Do not
+transfer the operator's age identity or entire vault.
+
+Optional workstation preflight after populating `.env`:
+
+```sh
+node --env-file=.env verify-production-inputs.mjs
+```
 
 ## 4. Set permissions and start on the VPS
 
@@ -120,8 +157,16 @@ docker compose --env-file .env up -d --build
 docker compose --env-file .env ps
 ```
 
+Ordinary Compose startup runs the same verifier as the hardened, networkless
+`are-production-inputs` one-shot service. Every ARE service directly requires
+its successful completion, so a mutable/malformed image reference, reused role
+digest, or invalid numeric input prevents the ARE graph from starting. Use
+`docker compose up` after changing these inputs; an operator-forced `--no-deps`
+run or direct container invocation deliberately bypasses dependency controls
+and is outside this deployment contract.
+
 The permission script changes only .runtime and rejects symlink entries.
-Files are assigned to the pinned images' service UIDs: KELD 10001,
+Files are assigned to the pinned images' service UIDs: KELD 10001, ARE 65532,
 Keycloak 1000 and PostgreSQL 70. Do not change images/users without revisiting
 those permissions. Run Compose through a trusted Docker operator account.
 
@@ -140,9 +185,18 @@ changing it makes old session ciphertext unreadable.
 ## 5. Acceptance and operational work
 
 Verify real browser login/callback/logout, then one authenticated sandbox purchase,
-verified webhook and exact download per provider. Create test users through
-Keycloak administration; no user/password is shipped in the realm. SMTP,
-self-registration, account recovery and customer onboarding policy are not configured.
+verified webhook and exact download per provider. Self-registration is enabled
+for the staging realm through the OIDC `prompt=create` flow. Registration uses
+unique email addresses and the realm password policy. No user/password is
+shipped in the realm. Email verification, password reset, SMTP delivery and the
+production customer-onboarding policy remain unconfigured.
+
+Separately verify that `/are/` serves the ARE page, `/are/api/are/status` reports
+the approved retention value, `/api/are/status` and `/area` do not reach ARE,
+and no ARE backend has a host-published port. A status/readiness response does
+not authorize a model call. Public chat remains anonymous for now and has no
+commerce privileges; deployment-wide abuse identity and the review trigger for
+that temporary choice remain owner decisions.
 
 Before production: approve license/release and refund/dispute behavior, configure
 off-server encrypted backups and prove restoration, choose monitoring/alerting,
@@ -163,16 +217,20 @@ still read them.
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s keld-project/vendor/secret-management/tests -p 'test_*.py'
 PYTHONDONTWRITEBYTECODE=1 python3 keld-project/deploy/test_prepare.py
+node --test keld-project/deploy/test-production-inputs.mjs
 npm --prefix keld-project/integrations test
 PYTHONDONTWRITEBYTECODE=1 python3 keld-project/deploy/smoke.py
 ```
 
-The container smoke requires existing pinned images, the built KELD image,
-Docker Compose supporting !override, and ubuntu:24.04 for temporary permission
-setup. It creates a synthetic vault and disposable stack, publishes only a
-random loopback HTTP port, and removes its containers/volumes/private files.
-It tests startup/routing, not public TLS, browser OIDC or merchant connectivity.
-Never use its synthetic values as deployment credentials.
+The container smoke requires the four locally built ARE security-candidate
+images, existing pinned infrastructure images, the built KELD image, Docker
+Compose supporting `!override`, and ubuntu:24.04 for temporary permission setup.
+It creates a synthetic vault and disposable stack, publishes only a random
+loopback HTTP port, verifies exact `/are/` routing plus ARE runtime/network
+isolation and successful enforcement of the production-input dependency, and
+removes its containers/volumes/private files. It makes no model
+or merchant call and does not test public TLS or browser OIDC. Never use its
+synthetic credentials, prices, limits, or retention value in deployment.
 
 ## Infrastructure-only staging
 
@@ -191,8 +249,13 @@ Validate with `python3 deploy/smoke_infrastructure.py` from the KELD project roo
 On this VPS the stable deployment directory is `/opt/keld-staging` and the command is:
 
 ```sh
+sudo sh install-permissions.sh --infrastructure-only
 docker compose -p keld-staging -f compose.infrastructure.yaml --env-file .env up -d
 ```
+
+Infrastructure-only permission mode rejects an ARE model key and does not
+require merchant or ARE inputs. Full deployment mode (no flag) still requires
+the dedicated gateway model key and assigns it only to UID 65532.
 
 The dedicated operator vault is at
 `/home/vrondelli/.local/share/keld-staging-operator/vault.yaml`; its identity is
@@ -218,7 +281,9 @@ The full application still requires all three merchant configurations.
 ## Open Questions
 
 VPS address/operator, domains, merchant sandbox values, issuer administration,
-BRL quote ownership, backup targets, customer onboarding and production policy
-remain owner/operator inputs. The [deployment design](../docs/VPS-AND-SECRETS.md)
+BRL quote ownership, ARE registry digests, model credential, retention and
+spend/rate values, anonymous-public abuse identity/review trigger, backup targets,
+customer onboarding and production policy remain owner/operator inputs. The
+[deployment design](../docs/VPS-AND-SECRETS.md)
 and [integration contract](../docs/SDK-INTEGRATION.md#open-questions) own the
 remaining release requirements.

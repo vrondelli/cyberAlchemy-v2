@@ -116,14 +116,13 @@ customer eligibility allocation, actual engine downloads, or support delivery.
 ## ARE product page connection
 
 The engine section title and Explore the engine link open the existing ARE page,
-not the KELD summary dialog. Local default: `http://localhost:4193/`, served by
-`workspace/experiments/are-documentation` (`npm run dev` there). Navigation does
-not send a chat message or invoke a model. The shop remains a separate action.
+not the KELD summary dialog. The owner-selected route is `/are/`, backed by
+`keld-project/are-documentation`. Navigation does not send a chat message or
+invoke a model. The shop remains a separate action.
 
-Set `KELD_ARE_PAGE_URL` when building to use the actual hosted address or a
-root-relative route, for example `KELD_ARE_PAGE_URL=/are/ python3 build.py` only
-when that route is served. All static/offline editions receive the same link.
-The ARE application is not copied or embedded in the standalone HTML.
+`python3 build.py` now emits the selected `/are/` route by default. Set
+`KELD_ARE_PAGE_URL` only for an explicitly approved alternate HTTPS URL or
+root-relative route. All static/offline editions receive the same link. The ARE
+application is not copied or embedded in the standalone HTML.
 
-Open question: the public ARE URL has not been selected; the current link is
-for local preview. Production hosting remains separately scoped.
+Production hosting and target-environment acceptance remain separately scoped.

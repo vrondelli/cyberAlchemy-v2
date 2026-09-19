@@ -1,0 +1,210 @@
+{
+  "schema_version": "ArchitectureMappingDecision/v1",
+  "decision_id": "DS-OF-W1-ENUM-001",
+  "campaign_id": "domainspec-all-meta-type-forms-20260808",
+  "wave_id": "W1",
+  "meta_type_id": "DS-D1.3",
+  "meta_type_label": "Enum",
+  "scope": "Enum portable architecture and TypeScript, Python, and Rust target realizations only",
+  "status": "accepted-target-awaiting-python-and-rust-profile-materialization",
+  "selected_option_id": "W1-ENUM-A-NOMINAL-BOUNDARY",
+  "selected_option_label": "Nominal Enum boundary with explicit wire adapters",
+  "decision_source": {
+    "kind": "user-message",
+    "exact_text": "1",
+    "accepted_at": "2026-08-08T18:48:28Z",
+    "context": "The user selected numbered option 1 immediately after the Decision Gate mapped it to W1-ENUM-A-NOMINAL-BOUNDARY.",
+    "scope_evidence": "immediate-conversation-context-only",
+    "independent_scope_proof": false
+  },
+  "admissibility": {
+    "request_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W1-ENUM-OPTION-ADMISSIBILITY-REQUEST.json",
+      "sha256": "7c992ab7c568c108a10fc24d4387424bdbb5962f8cf406b1666b09ad52f58792"
+    },
+    "receipt_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W1-ENUM-OPTION-ADMISSIBILITY.json",
+      "sha256": "4a8a395146e46bc22a539c0017e8d04687f5f005fe8280c38101f2380aadde39"
+    },
+    "request_digest": "f27a0abfaf2af92ff82a446d8436a3c2455cf0662207d1645b6a9b5a0b8537f9",
+    "route_outcome": "gate"
+  },
+  "considered_options": [
+    {
+      "option_id": "W1-ENUM-A-NOMINAL-BOUNDARY",
+      "outcome": "selected"
+    },
+    {
+      "option_id": "W1-ENUM-B-STRING-INTEROP",
+      "outcome": "not-selected",
+      "tradeoff": "Reduces Python string-boundary adaptation but lets raw strings participate in member equality and hashing."
+    },
+    {
+      "option_id": "W1-ENUM-X-OPEN-NATIVE-EXTENSION",
+      "outcome": "structurally-inadmissible",
+      "tradeoff": "Open runtime extension contradicts the owner-resolved finite set."
+    },
+    {
+      "option_id": "W1-ENUM-C-DEFER",
+      "outcome": "not-selected"
+    },
+    {
+      "option_id": "W1-ENUM-D-STOP",
+      "outcome": "not-selected"
+    }
+  ],
+  "portable_architecture": {
+    "type_id": "architecture.EnumImplementation",
+    "portable_invariants": [
+      "finite closed named value set",
+      "no typed fields designated identity or independent lifecycle",
+      "member keys and canonical wire values are each unique",
+      "implementation members cannot define or extend canonical meaning",
+      "composition is resolved before language-native type generation",
+      "composition preserves the exact canonical set and blocks duplicate keys values cycles and repeated contributions",
+      "wire parsing and emission are explicit total adapters over the canonical set"
+    ],
+    "required_property_ids": [
+      "binding.expected_enum_values",
+      "enum.implemented_values",
+      "enum.implemented_members",
+      "enum.composition_kind",
+      "identity.component_count",
+      "state.transition_count"
+    ],
+    "allowed_relation_ids": [
+      "architecture.composed_from",
+      "architecture.depends_on"
+    ],
+    "relation_contracts": [
+      {
+        "relation_id": "architecture.composed_from",
+        "source_types": [
+          "architecture.EnumImplementation",
+          "architecture.EnumRepresentationUnit"
+        ],
+        "target_types": [
+          "architecture.EnumRepresentationUnit"
+        ],
+        "semantic_role": "implementation provenance graph over representation contributions",
+        "value_effect": "value-constraining",
+        "cycle_policy": "acyclic"
+      }
+    ],
+    "forbidden_collapses": [
+      "architecture.EnumImplementation is an implementation architecture type and not the canonical DomainSpec Enum definition",
+      "implementation members cannot become the canonical value source",
+      "Python raw strings are not Enum members",
+      "wire strings are transport representations and not independent domain members",
+      "language inheritance or runtime extension cannot add members",
+      "composition output cannot widen the owner-resolved canonical set"
+    ]
+  },
+  "composition_contract": {
+    "resolution_stage": "before-language-native-type-generation",
+    "source_authority": "owner-resolved canonical Enum contributions only",
+    "output": "one normalized finite member set with provenance",
+    "ontology_relation_projection": "EnumImplementation and nested EnumRepresentationUnit sources point to EnumRepresentationUnit contributions",
+    "order_semantics": "none",
+    "duplicate_keys": "block",
+    "duplicate_values": "block",
+    "cycles": "block",
+    "repeated_contributions": "block",
+    "new_canonical_members": "forbidden"
+  },
+  "wire_contract": {
+    "wire_type": "string",
+    "member_to_wire": "explicit total one-to-one adapter",
+    "wire_to_member": "explicit fallible adapter",
+    "unknown_wire_value": "structured failure",
+    "aliases": "forbidden",
+    "domain_wire_equality_collapse": "forbidden"
+  },
+  "language_target_realizations": [
+    {
+      "language": "typescript",
+      "form_id": "typescript.owned-const-object-enum",
+      "protocol_id": "typescript.owned-const-object-enum/v1",
+      "requirements": [
+        "use the existing digest-bound defineEnum composeEnum and EnumValue provider",
+        "runtime value object is frozen",
+        "member values are unique non-empty string literals",
+        "composition accepts owned provider outputs only and blocks collisions cycles and repeated contributions"
+      ],
+      "profile_status": "selected-existing-profile-and-provider"
+    },
+    {
+      "language": "python",
+      "form_id": "python.enum-class",
+      "protocol_id": "python.nominal-enum-explicit-wire/v1",
+      "requirements": [
+        "use enum.Enum without str mixin",
+        "generate the class only after composition closes the member set",
+        "forbid aliases and runtime member extension",
+        "provide explicit parse and emit adapters",
+        "reject raw-string equality as member equality"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "rust",
+      "form_id": "rust.native-enum",
+      "protocol_id": "rust.nominal-enum-explicit-wire/v1",
+      "requirements": [
+        "generate a native unit-variant enum only after composition closes the member set",
+        "derive or implement Copy Clone PartialEq Eq and Hash",
+        "provide explicit total member-to-wire and fallible wire-to-member adapters",
+        "reject unknown wire values",
+        "do not require a serialization framework for the portable contract"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    }
+  ],
+  "proof_contract": {
+    "positive_obligations": [
+      "implemented member keys and values exactly equal the owner-resolved canonical set",
+      "composition is order-invariant and preserves uniqueness exhaustiveness and provenance",
+      "composition provenance uses the admitted EnumRepresentationUnit relation endpoints",
+      "every canonical member round-trips through its explicit wire adapter in all three languages",
+      "unknown wire values fail without producing a member",
+      "Python Enum members do not compare equal to raw strings",
+      "Rust native matching is exhaustive over the generated closed set",
+      "TypeScript retains the existing owned provider path digest and protocol"
+    ],
+    "negative_controls": [
+      "implementation members define canonical meaning",
+      "missing extra duplicate or aliased member passes",
+      "composition cycle duplicate collision or repeated contribution passes",
+      "composition order changes normalized meaning",
+      "direct EnumImplementation-to-EnumImplementation composition bypasses representation-unit provenance",
+      "unknown wire value produces a member",
+      "Python raw string compares equal to an Enum member",
+      "language runtime extension adds a member",
+      "TypeScript helper-name impersonation passes without provider identity"
+    ],
+    "claim_ceiling": "candidate-local Enum identity representation composition and explicit wire-boundary behavior only"
+  },
+  "matrix_transition": {
+    "target_state": "tension-reviewed",
+    "architecture_form_status": "owner-decided",
+    "language_forms_status": "TypeScript selected; Python and Rust proposed until exact profile protocols and providers exist",
+    "implementation_ready": false
+  },
+  "remaining_blockers": [
+    "admit exact nominal Enum protocols in Python and Rust profiles",
+    "implement and digest-bind Python and Rust providers or generators",
+    "bind exact per-Enum member-to-wire mappings in realization descriptors",
+    "bind generated composition graph nodes to the existing EnumRepresentationUnit relation endpoints",
+    "compute the selected canonical Enum record digest",
+    "generate the realization descriptor factory kit and pre-queue readiness receipt"
+  ],
+  "non_effects": [
+    "no canonical Enum definition mutation",
+    "no candidate ontology or language-profile promotion",
+    "no Python or Rust provider implementation",
+    "no implementation-queue admission",
+    "no W2 behavioral-form decision",
+    "no independent transcript-bound or cryptographic authentication of the numbered selection"
+  ],
+  "authority_effect": "none"
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/evf/formal-obligation-request.v1.schema.json",
+  "title": "EVF Formal Obligation Request v1",
+  "description": "Closed, evaluation-free request for one exact translated formal obligation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "request_state",
+    "query_kind",
+    "semantic_source_ref",
+    "formal_obligation_ref",
+    "theory_profile_ref",
+    "symbol_table_ref",
+    "assumptions_ref",
+    "translation_contract_ref",
+    "runtime_manifest_ref",
+    "execution_policy",
+    "authority_effect",
+    "release_admission",
+    "claim_ceiling",
+    "residue"
+  ],
+  "properties": {
+    "schema_version": { "const": "evf.formal-obligation-request/v1" },
+    "request_id": { "$ref": "#/$defs/identifier" },
+    "request_state": { "enum": ["ready", "blocked", "stale"] },
+    "query_kind": { "enum": ["counterexample", "witness"] },
+    "semantic_source_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "formal_obligation_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "theory_profile_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "symbol_table_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "assumptions_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "translation_contract_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "runtime_manifest_ref": { "$ref": "#/$defs/exactArtifactRef" },
+    "execution_policy": { "$ref": "#/$defs/executionPolicy" },
+    "authority_effect": { "const": "none" },
+    "release_admission": { "const": "not-granted" },
+    "claim_ceiling": { "const": "request-only-no-evaluation-claim" },
+    "residue": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "request_state": { "const": "ready" } } },
+      "then": {
+        "properties": {
+          "semantic_source_ref": { "$ref": "#/$defs/currentArtifactRef" },
+          "formal_obligation_ref": { "$ref": "#/$defs/currentArtifactRef" },
+          "theory_profile_ref": { "$ref": "#/$defs/currentArtifactRef" },
+          "symbol_table_ref": { "$ref": "#/$defs/currentArtifactRef" },
+          "assumptions_ref": { "$ref": "#/$defs/currentArtifactRef" },
+          "translation_contract_ref": { "$ref": "#/$defs/currentArtifactRef" },
+          "runtime_manifest_ref": { "$ref": "#/$defs/currentArtifactRef" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "request_state": { "const": "stale" } } },
+      "then": {
+        "anyOf": [
+          { "properties": { "semantic_source_ref": { "$ref": "#/$defs/staleArtifactRef" } } },
+          { "properties": { "formal_obligation_ref": { "$ref": "#/$defs/staleArtifactRef" } } },
+          { "properties": { "theory_profile_ref": { "$ref": "#/$defs/staleArtifactRef" } } },
+          { "properties": { "symbol_table_ref": { "$ref": "#/$defs/staleArtifactRef" } } },
+          { "properties": { "assumptions_ref": { "$ref": "#/$defs/staleArtifactRef" } } },
+          { "properties": { "translation_contract_ref": { "$ref": "#/$defs/staleArtifactRef" } } },
+          { "properties": { "runtime_manifest_ref": { "$ref": "#/$defs/staleArtifactRef" } } }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "exactArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "current"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "current": { "type": "boolean" }
+      }
+    },
+    "currentArtifactRef": {
+      "allOf": [
+        { "$ref": "#/$defs/exactArtifactRef" },
+        { "properties": { "current": { "const": true } } }
+      ]
+    },
+    "staleArtifactRef": {
+      "allOf": [
+        { "$ref": "#/$defs/exactArtifactRef" },
+        { "properties": { "current": { "const": false } } }
+      ]
+    },
+    "executionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timeout_ms",
+        "memory_ceiling_bytes",
+        "max_output_bytes",
+        "network",
+        "working_directory",
+        "environment_allowlist"
+      ],
+      "properties": {
+        "timeout_ms": { "type": "integer", "minimum": 1 },
+        "memory_ceiling_bytes": { "type": "integer", "minimum": 1 },
+        "max_output_bytes": { "type": "integer", "minimum": 1 },
+        "network": { "const": "forbidden" },
+        "working_directory": { "type": "string", "minLength": 1 },
+        "environment_allowlist": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

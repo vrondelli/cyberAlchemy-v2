@@ -1,0 +1,98 @@
+schema_version: ui-formalization.result-contract.w1.v0.1
+schema_id: UIF-W1-EXPERIMENT-RESULT-v0.1
+status: frozen-before-lane-execution
+created_by: SWU-UIF-003A
+protocol_ref: protocol.yml
+method_protocol_ref: ../protocol.yml
+authority_boundary: result evidence only; no automatic promotion
+
+required_fields:
+  - experiment_id
+  - lane_id
+  - result_contract_version
+  - protocol_version
+  - candidate_id
+  - candidate
+  - hypothesis_ref
+  - corpus_refs
+  - criterion_probe_ref
+  - runs
+  - repeatability
+  - method_outcome
+  - provisional_outcome
+  - reason_codes
+  - evidence
+  - correction_route
+  - residue
+  - promotion_eligible
+
+field_contracts:
+  experiment_id:
+    type: string
+  lane_id:
+    type: string
+    allowed: [composition, data-interaction, integration-control]
+  result_contract_version:
+    type: string
+    allowed: [ui-formalization.result-contract.w1.v0.1]
+  protocol_version:
+    type: string
+    allowed: [ui-formalization.v0.1]
+  candidate_id:
+    type: string
+    allowed: [DS-D1.15, DS-D1.16, DS-D1.17, DS-D1.18, DS-D1.19, DS-D1.20, DS-D1.21, DS-D1.22, DS-D1.23, DS-D1.24, DS-D1.25]
+  candidate:
+    type: string
+    allowed: [Page, Layout, Component, View Model, Hook, Form, Action, Guard, Binding, Adapter, State Indicator]
+  corpus_refs:
+    type: list
+    minimum_items: 1
+  runs:
+    type: object
+    required:
+      - positive
+      - malformed_negative
+      - neighbor_probe
+      - graph_coherence
+      - portability
+      - round_trip
+    observations:
+      positive: [accept, reject, error]
+      malformed_negative: [accept, reject, error]
+      neighbor_probe: [accept, reject, reroute, error]
+      graph_coherence: [pass, fail, not-applicable, not-run]
+      portability: [pass, fail, incomplete, not-run]
+      round_trip: [pass, fail, not-run]
+  repeatability:
+    type: string
+    allowed: [deterministic, non-deterministic]
+  method_outcome:
+    type: string
+    allowed: [structural-separation-survives, structural-collapse-observed, inconclusive, protocol-failure]
+  provisional_outcome:
+    type: string
+    allowed: [candidate-schema-ready, merge-candidate, relation-not-node, framework-vocabulary, split-candidate, defer-evidence-gap]
+  reason_codes:
+    type: list
+    minimum_items: 1
+  evidence:
+    type: list
+    minimum_items: 1
+  correction_route:
+    type: object
+    required: [malformed, neighbor]
+  residue:
+    type: list
+  promotion_eligible:
+    type: boolean
+    allowed: [false]
+
+w1_rules:
+  - positive must accept in at least two declared framework styles
+  - malformed_negative must reject with structural failure reasons
+  - neighbor_probe must reject or reroute for separation, or accept as an explicit collapse signal
+  - graph_coherence evidence is supporting-only and cannot set method_outcome independently
+  - deterministic requires two runs equal on the W1 protocol compare fields
+  - round_trip remains not-run until candidate schemas exist in SWU-UIF-008
+  - promotion_eligible must remain false
+  - real-corpus and replication gaps remain residue until SWU-UIF-010

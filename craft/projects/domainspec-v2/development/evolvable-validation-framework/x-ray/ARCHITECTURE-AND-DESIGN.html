@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DomainSpec v2 — Architecture and Design X-Ray</title>
+  <style>
+    :root {
+      --ink: #152126;
+      --muted: #607078;
+      --paper: #f4f0e6;
+      --panel: #fffdf7;
+      --line: #b8b5aa;
+      --source: #0f766e;
+      --source-soft: #d8f3ed;
+      --derive: #1d4ed8;
+      --derive-soft: #dbeafe;
+      --execute: #7c3aed;
+      --execute-soft: #ede9fe;
+      --evidence: #b45309;
+      --evidence-soft: #fef3c7;
+      --block: #b42318;
+      --block-soft: #fee4e2;
+      --good: #166534;
+      --shadow: 0 10px 32px rgba(21, 33, 38, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(15,118,110,.10), transparent 28rem),
+        radial-gradient(circle at 94% 18%, rgba(180,83,9,.10), transparent 26rem),
+        var(--paper);
+      font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(2.2rem, 6vw, 5.4rem); line-height: .98; letter-spacing: -.055em; max-width: 920px; }
+    h2 { font-size: clamp(1.6rem, 3vw, 2.5rem); letter-spacing: -.035em; }
+    h3 { font-size: 1rem; letter-spacing: .01em; }
+    code { background: rgba(21,33,38,.07); padding: .1rem .3rem; border-radius: .25rem; }
+    .wrap { width: min(1500px, calc(100% - 32px)); margin: 0 auto; }
+    .hero { padding: 68px 0 34px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .13em; font-size: .72rem; font-weight: 800; color: var(--source); }
+    .lede { max-width: 820px; font-size: clamp(1.08rem, 2vw, 1.34rem); color: #32434a; }
+    .meta-row, .status-row, .legend, .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pill, .tag {
+      display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line);
+      border-radius: 999px; padding: 6px 10px; background: rgba(255,255,255,.62); font-size: .76rem; font-weight: 750;
+    }
+    .tag.source { color: var(--source); border-color: #7bc9bd; background: var(--source-soft); }
+    .tag.inference { color: #7a4b00; border-color: #e5bd6f; background: var(--evidence-soft); }
+    .tag.block { color: var(--block); border-color: #f3a9a2; background: var(--block-soft); }
+    .tag.seed { color: #32434a; }
+    .status-board { display: grid; grid-template-columns: repeat(4, minmax(160px,1fr)); gap: 10px; margin-top: 26px; }
+    .status-card { padding: 16px; border: 1px solid var(--line); background: var(--panel); border-radius: 14px; box-shadow: var(--shadow); }
+    .status-card strong { display: block; font-size: 1.2rem; margin-top: 5px; }
+    .status-card.blocked { border-top: 4px solid var(--block); }
+    .status-card.planned { border-top: 4px solid var(--source); }
+    .toolbar {
+      position: sticky; top: 0; z-index: 20; margin-bottom: 26px; padding: 12px 0;
+      background: rgba(244,240,230,.92); border-top: 1px solid rgba(184,181,170,.8); border-bottom: 1px solid rgba(184,181,170,.8);
+      backdrop-filter: blur(12px);
+    }
+    .controls label, .controls button {
+      border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+      padding: 7px 10px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer;
+    }
+    .controls button:hover, .controls label:hover { border-color: var(--ink); }
+    .controls input { accent-color: var(--source); }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+    .content { min-width: 0; }
+    .section {
+      margin-bottom: 22px; padding: clamp(20px, 3vw, 34px); background: rgba(255,253,247,.86);
+      border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+    }
+    .section[hidden] { display: none; }
+    .section-head { display: flex; justify-content: space-between; align-items: start; gap: 18px; }
+    .kicker { color: var(--muted); font-size: .82rem; max-width: 660px; }
+    .why { border-left: 4px solid var(--evidence); padding: 10px 14px; background: #fff8e7; border-radius: 0 10px 10px 0; }
+    .proof-frame { overflow-x: auto; margin: 24px 0 10px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+    .proof-frame svg { display: block; width: 1180px; max-width: none; height: 340px; }
+    .node-card { cursor: pointer; transition: transform .15s ease, filter .15s ease; }
+    .node-card:hover { transform: translateY(-3px); filter: drop-shadow(0 5px 5px rgba(0,0,0,.12)); }
+    .chain-caption { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .evidence-box { padding: 14px; border: 1px solid #7bc9bd; background: var(--source-soft); border-radius: 10px; }
+    .inference-box { padding: 14px; border: 1px dashed #d8a646; background: var(--evidence-soft); border-radius: 10px; }
+    .plane-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+    .plane { min-height: 230px; border-radius: 14px; padding: 17px; border: 1px solid var(--line); cursor: pointer; }
+    .plane ul { padding-left: 18px; color: #3c4b51; }
+    .plane.source-plane { background: var(--source-soft); border-top: 5px solid var(--source); }
+    .plane.derive-plane { background: var(--derive-soft); border-top: 5px solid var(--derive); }
+    .plane.execute-plane { background: var(--execute-soft); border-top: 5px solid var(--execute); }
+    .plane.evidence-plane { background: var(--evidence-soft); border-top: 5px solid var(--evidence); }
+    .contract-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .contract { border: 1px solid var(--line); border-radius: 12px; padding: 15px; background: #fff; cursor: pointer; }
+    .contract:hover { border-color: var(--source); }
+    .contract strong { display: block; margin-bottom: 5px; }
+    .contract small { color: var(--muted); }
+    .boundary-grid { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 12px; align-items: stretch; }
+    .boundary { padding: 18px; border: 2px dashed var(--line); border-radius: 14px; background: rgba(255,255,255,.6); }
+    .boundary.engine { border-style: solid; border-color: var(--derive); background: #f6f9ff; }
+    .boundary ul { margin: 0; padding-left: 18px; }
+    .mini-callout { margin-top: 12px; padding: 11px; border-radius: 9px; background: var(--block-soft); color: #7a1d17; }
+    .timeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 25px; }
+    .stage { position: relative; padding: 18px 14px 14px; border-top: 5px solid var(--line); background: #fff; min-height: 185px; }
+    .stage::before { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--line); top: -10px; left: 14px; }
+    .stage.current { border-color: var(--block); background: var(--block-soft); }
+    .stage.current::before { background: var(--block); }
+    .stage.future { opacity: .78; }
+    .formula { margin-top: 16px; padding: 15px; border-radius: 10px; color: #eef8f7; background: #15373a; overflow-x: auto; }
+    .risk-grid { display: grid; grid-template-columns: 120px 1fr 1fr; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .risk-grid > div { padding: 14px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .risk-grid > div:nth-child(3n) { border-right: 0; }
+    .risk-head { background: #e8e5dc; font-weight: 800; }
+    .risk-now { background: var(--block-soft); }
+    .risk-next { background: #fff8e7; }
+    .risk-later { background: #edf4ff; }
+    .terms { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+    .term { padding: 15px; border-left: 4px solid var(--source); border-radius: 8px; background: #fff; }
+    .term dt { font-weight: 850; }
+    .term dd { margin: 4px 0 0; color: #3f4e54; }
+    .reader-outcomes { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .outcome { padding: 15px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+    .inspector {
+      position: sticky; top: 76px; border: 1px solid var(--line); border-radius: 16px;
+      background: #14272b; color: #f6faf9; padding: 18px; box-shadow: var(--shadow);
+    }
+    .inspector .eyebrow { color: #65d5c5; }
+    .inspector p { color: #cad7d8; font-size: .84rem; }
+    .inspector strong { color: #fff; }
+    .inspect-block { margin-top: 15px; padding-top: 15px; border-top: 1px solid #385157; }
+    .inspect-source { color: #8ce6d7 !important; }
+    .inspect-inference { color: #ffd78e !important; }
+    .source-list { padding-left: 20px; }
+    footer { padding: 30px 0 70px; color: var(--muted); }
+    .source-map { font-size: .78rem; word-break: break-word; }
+    .muted { color: var(--muted); }
+    .only-gap .section:not([data-gap="true"]) { display: none; }
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 1fr; }
+      .inspector { position: relative; top: auto; order: -1; }
+      .plane-grid, .status-board { grid-template-columns: repeat(2,1fr); }
+      .boundary-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .wrap { width: min(100% - 18px, 1500px); }
+      .hero { padding-top: 40px; }
+      .status-board, .plane-grid, .contract-grid, .timeline, .terms, .reader-outcomes, .chain-caption { grid-template-columns: 1fr; }
+      .risk-grid { grid-template-columns: 78px 1fr; }
+      .risk-grid > div:nth-child(3n) { border-right: 1px solid var(--line); }
+      .risk-grid .wide-risk { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero wrap" data-lane="surface">
+    <p class="eyebrow">DomainSpec v2 · architecture x-ray · seed</p>
+    <h1>Can one authored relationship cause a real test?</h1>
+    <p class="lede">That is the architecture’s promise. A <code>Rule --enforces--&gt; Operation</code> edge should travel through a graph, become an obligation and a runnable test, bind to an implementation, receive an independent verdict, and leave a replayable receipt.</p>
+    <p class="why"><strong>Why it matters:</strong> if any stage invents meaning, hides a skip, or grades itself, the graph may look composable without proving anything about a real system.</p>
+    <div class="meta-row">
+      <span class="tag seed">L0 static HTML/SVG</span>
+      <span class="tag source">source-backed design</span>
+      <span class="tag inference">inference shown separately</span>
+      <span class="tag block">runtime proof absent</span>
+    </div>
+    <div class="status-board" aria-label="Current state">
+      <div class="status-card planned"><span class="eyebrow">Architecture</span><strong>Two-proof design accepted</strong><small>Core and IOLM consumer close independently; neither receipt exists yet.</small></div>
+      <div class="status-card planned"><span class="eyebrow">First slice</span><strong>SWU-GCP-001</strong><small>One causal edge plus negative mutation.</small></div>
+      <div class="status-card blocked"><span class="eyebrow">Execution</span><strong>BLOCK</strong><small>Authored formal predicate is missing.</small></div>
+      <div class="status-card blocked"><span class="eyebrow">Backend exit</span><strong>BLOCK</strong><small>13 kinds / 16 signatures are planned, not closed.</small></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="wrap controls" aria-label="Layer controls">
+      <strong>Layers:</strong>
+      <label><input id="toggle-surface" type="checkbox" checked> surface</label>
+      <label><input id="toggle-flow" type="checkbox" checked> flow</label>
+      <label><input id="toggle-deps" type="checkbox" checked> dependencies</label>
+      <label><input id="toggle-risk" type="checkbox" checked> risks</label>
+      <button id="stack-all" type="button">Stack all</button>
+      <button id="trace-proof" type="button">Trace proof</button>
+      <button id="show-gaps" type="button">Only gaps</button>
+    </div>
+  </div>
+
+  <main class="wrap" id="xray-main">
+    <div class="content">
+      <section class="section" data-lane="surface" data-ref="DEFINE.md; WORK-PACK.md" data-source="The design names an explicit graph-to-receipt chain and one first enforces witness." data-inference="The causal promise is the best reader entry point.">
+        <div class="section-head">
+          <div><p class="eyebrow">01 · surface</p><h2>The whole promise in one line</h2></div>
+          <span class="tag source">source-backed</span>
+        </div>
+        <div class="proof-frame" role="img" aria-label="Proof chain from source files to receipt">
+          <svg viewBox="0 0 1180 420" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#52666d"/></marker>
+              <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#b42318"/></marker>
+            </defs>
+            <rect x="18" y="24" width="1144" height="350" rx="18" fill="#fbfaf5" stroke="#b8b5aa"/>
+            <text x="35" y="50" font-size="12" font-weight="700" fill="#607078">LOCAL PATTERN · proof-chain-spine · each arrow is a digest-bearing handoff</text>
+            <g stroke="#52666d" stroke-width="2" marker-end="url(#arrow)">
+              <line x1="158" y1="148" x2="181" y2="148"/><line x1="303" y1="148" x2="326" y2="148"/>
+              <line x1="448" y1="148" x2="471" y2="148"/><line x1="593" y1="148" x2="616" y2="148"/>
+              <line x1="738" y1="148" x2="761" y2="148"/><line x1="883" y1="148" x2="906" y2="148"/>
+              <line x1="1028" y1="148" x2="1051" y2="148"/>
+            </g>
+            <g class="node-card" data-ref="DEFINE.md · NodeSource/EdgeSource" data-source="YAML/JSON source owns authored domain meaning." data-inference="A profile can let kinds evolve without one universal schema.">
+              <rect x="35" y="91" width="123" height="114" rx="12" fill="#d8f3ed" stroke="#0f766e" stroke-width="2"/>
+              <text x="49" y="120" font-size="13" font-weight="800" fill="#0f5f59">AUTHORED</text><text x="49" y="142" font-size="16" font-weight="800">Source</text>
+              <text x="49" y="165" font-size="11" fill="#36555a">YAML / JSON</text><text x="49" y="183" font-size="11" fill="#36555a">nodes + edges</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · profile and relationship admission" data-source="Only admitted kinds and signatures enter the normalized graph." data-inference="Admission is the framework evolution seam.">
+              <rect x="181" y="91" width="122" height="114" rx="12" fill="#d8f3ed" stroke="#0f766e" stroke-width="2"/>
+              <text x="195" y="120" font-size="13" font-weight="800" fill="#0f5f59">ADMITTED</text><text x="195" y="142" font-size="16" font-weight="800">Graph</text>
+              <text x="195" y="165" font-size="11" fill="#36555a">stable IDs</text><text x="195" y="183" font-size="11" fill="#36555a">source digests</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · derivation interface" data-source="Deterministic rules derive ordered obligations from the admitted graph." data-inference="O_spec must remain an independent oracle.">
+              <rect x="326" y="91" width="122" height="114" rx="12" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/>
+              <text x="340" y="120" font-size="13" font-weight="800" fill="#1d4ed8">DERIVED</text><text x="340" y="142" font-size="16" font-weight="800">Obligation</text>
+              <text x="340" y="165" font-size="11" fill="#36555a">required claim</text><text x="340" y="183" font-size="11" fill="#36555a">rule version</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · test emission" data-source="A TestCase requires an authored formal expression or returns needs_formal." data-inference="This is the current causal stop point.">
+              <rect x="471" y="91" width="122" height="114" rx="12" fill="#fee4e2" stroke="#b42318" stroke-width="3"/>
+              <text x="485" y="120" font-size="13" font-weight="800" fill="#b42318">BLOCKED</text><text x="485" y="142" font-size="16" font-weight="800">TestCase</text>
+              <text x="485" y="165" font-size="11" fill="#6f2923">missing formal</text><text x="485" y="183" font-size="11" fill="#6f2923">predicate + input</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · binding interface" data-source="Binding maps target and fixture to an adapter and implementation digest." data-inference="Binding must never store the expected answer.">
+              <rect x="616" y="91" width="122" height="114" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+              <text x="630" y="120" font-size="13" font-weight="800" fill="#6d28d9">EXECUTION</text><text x="630" y="142" font-size="16" font-weight="800">Binding</text>
+              <text x="630" y="165" font-size="11" fill="#4e3b69">adapter</text><text x="630" y="183" font-size="11" fill="#4e3b69">impl digest</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · runner" data-source="The runner invokes the bound implementation and records actual evidence." data-inference="A runner result is evidence, not a verdict by itself.">
+              <rect x="761" y="91" width="122" height="114" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+              <text x="775" y="120" font-size="13" font-weight="800" fill="#6d28d9">EXECUTION</text><text x="775" y="142" font-size="16" font-weight="800">Runner</text>
+              <text x="775" y="165" font-size="11" fill="#4e3b69">actual result</text><text x="775" y="183" font-size="11" fill="#4e3b69">runtime evidence</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · evaluator family" data-source="A scoped evaluator judges structural, local, graph, temporal, or semantic claims." data-inference="The first proof needs only structural and local evaluators.">
+              <rect x="906" y="91" width="122" height="114" rx="12" fill="#fef3c7" stroke="#b45309" stroke-width="2"/>
+              <text x="920" y="120" font-size="13" font-weight="800" fill="#985005">JUDGMENT</text><text x="920" y="142" font-size="16" font-weight="800">Evaluator</text>
+              <text x="920" y="165" font-size="11" fill="#684715">scoped verdict</text><text x="920" y="183" font-size="11" fill="#684715">independent check</text>
+            </g>
+            <g class="node-card" data-ref="DESIGN.md · receipt contract" data-source="The receipt records source, binding, execution, evaluator, verdict, and typed residue." data-inference="Digest continuity makes the bounded result replayable.">
+              <rect x="1051" y="91" width="94" height="114" rx="12" fill="#fef3c7" stroke="#b45309" stroke-width="2"/>
+              <text x="1064" y="120" font-size="13" font-weight="800" fill="#985005">EVIDENCE</text><text x="1064" y="142" font-size="16" font-weight="800">Receipt</text>
+              <text x="1064" y="165" font-size="11" fill="#684715">verdict</text><text x="1064" y="183" font-size="11" fill="#684715">residue</text>
+            </g>
+            <path d="M1097 205 L1097 234" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#arrow)"/>
+            <g class="node-card" data-ref="DEC-GCP-002 · IOLM machine consumer contract" data-source="After a successful core receipt and its own candidate substrate, IOLM consumes exact handles and emits a fresh independent receipt." data-inference="This sibling proof demonstrates real application consumption without changing the core verdict.">
+              <rect x="900" y="238" width="245" height="74" rx="12" fill="#d8f3ed" stroke="#0f766e" stroke-width="2"/>
+              <text x="916" y="263" font-size="12" font-weight="800" fill="#0f5f59">INDEPENDENT CONSUMER</text><text x="916" y="285" font-size="16" font-weight="800">IOLM receipt</text>
+              <text x="916" y="302" font-size="11" fill="#36555a">sibling verdict · not a core gate</text>
+            </g>
+            <path d="M1080 205 C1080 370, 531 388, 531 212" fill="none" stroke="#b42318" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowRed)"/>
+            <text x="620" y="372" font-size="12" font-weight="800" fill="#b42318">NEGATIVE MUTATION MUST CHANGE THE CORE VERDICT</text>
+            <text x="465" y="232" font-size="12" font-weight="800" fill="#b42318">CURRENT STOP</text>
+          </svg>
+        </div>
+        <div class="chain-caption">
+          <div class="evidence-box"><span class="tag source">source-backed</span><p>The contracts, handoffs, invariants, first witness, and layer sequence are explicitly designed.</p></div>
+          <div class="inference-box"><span class="tag inference">inference</span><p>The design is compositionally coherent, but the same digest has not yet survived a real end-to-end run.</p></div>
+        </div>
+      </section>
+
+      <section class="section" data-lane="internal_dependencies" data-ref="DESIGN.md · four planes" data-source="Source, Derivation, Execution, and Evidence have separate responsibilities." data-inference="This separation is the central anti-self-certification control.">
+        <div class="section-head"><div><p class="eyebrow">02 · internal dependencies</p><h2>Four planes prevent one component from certifying itself</h2></div><span class="tag source">pattern.dependency-boundary</span></div>
+        <div class="plane-grid">
+          <article class="plane source-plane" data-ref="DESIGN.md · source plane" data-source="Source owns authored intent and admission inputs." data-inference="Profiles are the extensibility boundary."><h3>1 · Source</h3><p>What the domain author is allowed to say.</p><ul><li>NodeSource</li><li>EdgeSource</li><li>RelationshipSignature</li><li>selected profile</li></ul><small>Must not infer runtime truth.</small></article>
+          <article class="plane derive-plane" data-ref="DESIGN.md · derivation plane" data-source="Graph, validator, rules, and emitter derive explicit consequences." data-inference="Keep O_spec independent from O_gen."><h3>2 · Derivation</h3><p>What follows deterministically from admitted meaning.</p><ul><li>Graph</li><li>validator</li><li>Obligation</li><li>TestCase emitter</li></ul><small>Must not hide missing predicates.</small></article>
+          <article class="plane execute-plane" data-ref="DESIGN.md · execution plane" data-source="Binding, adapter, TestCase, and runner connect the claim to runtime." data-inference="Runtime location and expected semantics must stay separate."><h3>3 · Execution</h3><p>Which implementation actually gets exercised.</p><ul><li>Binding</li><li>adapter registry</li><li>fixture</li><li>runner result</li></ul><small>Must not rewrite authority.</small></article>
+          <article class="plane evidence-plane" data-ref="DESIGN.md · evidence plane" data-source="Evaluator, Receipt, and Inventory judge and preserve evidence." data-inference="Receipts are bounded proof, never release authority."><h3>4 · Evidence</h3><p>What was checked, how, and with which verdict.</p><ul><li>Evaluator</li><li>Receipt</li><li>typed residue</li><li>Inventory read model</li></ul><small>Must not promote itself.</small></article>
+        </div>
+        <p class="why"><strong>Why it matters:</strong> a generator cannot declare its own output complete, and a passing runtime result cannot change the authored domain meaning.</p>
+      </section>
+
+      <section class="section" data-lane="flow" data-ref="DEFINE.md; DESIGN.md" data-source="Nine explicit contracts carry source, derived, execution, and evidence state." data-inference="The object boundaries can remain stable while concrete types evolve.">
+        <div class="section-head"><div><p class="eyebrow">03 · components</p><h2>Nine contracts, each with one job</h2></div><span class="tag source">source-backed</span></div>
+        <div class="contract-grid">
+          <div class="contract" data-ref="DEFINE.md · NodeSource" data-source="Carries one authored typed node with stable identity and source digest." data-inference="Node kinds should be admitted by profile, not hard-coded globally."><strong>NodeSource</strong><small>authored thing</small></div>
+          <div class="contract" data-ref="DEFINE.md · EdgeSource" data-source="Carries one authored relationship with provenance." data-inference="Separate edge files avoid pseudo-edges hidden in prose bodies."><strong>EdgeSource</strong><small>authored relationship</small></div>
+          <div class="contract" data-ref="DESIGN.md · relationship admission" data-source="Defines allowed source kind, relation, and target kind." data-inference="A registry can evolve without flattening every graph into one schema."><strong>RelationshipSignature</strong><small>edge admission rule</small></div>
+          <div class="contract" data-ref="DESIGN.md · Graph" data-source="Normalized container with nodes, edges, provenance, and digest." data-inference="One semantic graph can feed multiple generated views."><strong>Graph</strong><small>admitted normalized form</small></div>
+          <div class="contract" data-ref="DESIGN.md · derivation" data-source="Names a required claim with source and rule version." data-inference="Stable keys make independent counting possible."><strong>Obligation</strong><small>what must hold</small></div>
+          <div class="contract" data-ref="DESIGN.md · test emission" data-source="Runnable assertion or typed needs_formal outcome." data-inference="No expected value may be inferred from prose intent."><strong>TestCase</strong><small>how to check it</small></div>
+          <div class="contract" data-ref="DESIGN.md · binding" data-source="Maps target to adapter, fixture, and implementation digest." data-inference="Stale-binding detection preserves causal identity."><strong>Binding</strong><small>where it runs</small></div>
+          <div class="contract" data-ref="DESIGN.md · evaluator" data-source="Judges one declared scope and emits evidence." data-inference="Evaluator families grow by claim class, not one universal solver."><strong>Evaluator</strong><small>who judges</small></div>
+          <div class="contract" data-ref="DESIGN.md · receipt" data-source="Append-only envelope with evidence, verdict, and residue." data-inference="Receipt schema is the cross-engine interoperability seam."><strong>Receipt</strong><small>what can be replayed</small></div>
+        </div>
+      </section>
+
+      <section class="section" data-lane="external_dependencies" data-ref="findings.md; backend PLAN.md" data-source="Semantic authorities, runtime implementations, orchestration, and consumers sit outside the engine boundary." data-inference="Consumer proof can run independently after core proof without becoming semantic authority.">
+        <div class="section-head"><div><p class="eyebrow">04 · external dependencies</p><h2>The engine sits between authority and independent proof</h2></div><span class="tag source">pattern.dependency-boundary</span></div>
+        <div class="boundary-grid">
+          <div class="boundary">
+            <h3>Semantic authority</h3>
+            <ul><li>node and edge YAML/JSON</li><li>profile admission</li><li>relationship registry</li><li>authored formal predicates</li></ul>
+            <p class="muted">Says what the domain means.</p>
+          </div>
+          <div class="boundary engine">
+            <h3>DomainSpec validation framework</h3>
+            <ul><li>normalize + admit</li><li>derive obligations</li><li>emit tests + typed residue</li><li>bind + run</li><li>evaluate + receipt</li></ul>
+            <div class="mini-callout"><strong>Current gap:</strong> the key-and-door Rule authors only a boolean return type, not the executable predicate and fixture input.</div>
+          </div>
+          <div class="boundary">
+            <h3>Runtime and consumers</h3>
+            <ul><li>implementation adapters</li><li>Task Session authorization</li><li>IOLM narrow EVF consumer</li><li>IOLM later BTE breadth rerun</li><li>Body War</li><li>Craft</li></ul>
+            <p class="muted">Proves use, not source meaning.</p>
+          </div>
+        </div>
+        <p class="why"><strong>Why it matters:</strong> learner and navigation views can be generated from the same stable IDs, while source authority remains one semantic graph—not several independently authored truths.</p>
+        <p class="why"><strong>Accepted two-proof topology:</strong> the EVF core receipt closes on its own. After the IOLM candidate substrate exists, IOLM consumes that exact handle and emits a fresh independent receipt. A missing consumer receipt blocks only the combined “real application used the proof” claim. The later BTE breadth rerun is a different receipt and cannot be replaced by the narrow one.</p>
+      </section>
+
+      <section class="section" data-lane="lifecycle" data-ref="IMPLEMENTATION-LAYERING.md; backend PLAN.md" data-source="The design proceeds through L0 causal proof, L1 repetition, L2 graph laws, and L3 breadth." data-inference="Breadth should consume the proven framework seam, not block its first proof.">
+        <div class="section-head"><div><p class="eyebrow">05 · lifecycle</p><h2>Build confidence in four core layers plus one sibling consumer lane</h2></div><span class="tag source">pattern.lifecycle-stack</span></div>
+        <div class="timeline">
+          <article class="stage current"><p class="eyebrow">L0 · now</p><h3>One causal edge</h3><p><code>enforces</code> travels through every contract. Positive and typed-negative receipts replay.</p><span class="tag block">blocked on predicate</span></article>
+          <article class="stage future"><p class="eyebrow">L1 · next</p><h3>Repeatability</h3><p>Add a second admitted fixture or profile. Compare stable IDs and digests.</p><span class="tag seed">after L0</span></article>
+          <article class="stage future"><p class="eyebrow">L2 · later</p><h3>Graph laws</h3><p>Independent reachability, cycle, and closure evaluators produce their own receipts.</p><span class="tag seed">oracle missing</span></article>
+          <article class="stage future"><p class="eyebrow">L3 · breadth</p><h3>Backend completeness</h3><p>13 kinds, 16 signatures, all obligations and tests, zero hidden residue, independent consumers.</p><span class="tag seed">separate lane</span></article>
+        </div>
+        <p class="why"><strong>L0C sibling:</strong> after L0 and the independent IOLM candidate substrate pass, DSC-A consumes the core receipt. Its support-receipt blocker delays the combined application claim, never L0/L1 core progression.</p>
+        <div class="formula"><strong>Completeness target</strong><br><code>Kinds_profile = Kinds_exercised = 13</code><br><code>Criteria_profile = O_spec = O_gen = T_gen = E_run = 16</code><br><code>skips = todos = orphans = unrunnable = surviving mutants = 0</code></div>
+      </section>
+
+      <section class="section" data-lane="risk_questions" data-gap="true" data-ref="WORK-PACK.md blockers; TASK-SESSION-RESULT.md" data-source="The current run blocks before mutation because formal source input is missing." data-inference="The decision is architectural placement, not whether the engine may invent the predicate.">
+        <div class="section-head"><div><p class="eyebrow">06 · risk questions</p><h2>What is blocking now—and what is not</h2></div><span class="tag block">active gap</span></div>
+        <div class="risk-grid">
+          <div class="risk-head">When</div><div class="risk-head">Question</div><div class="risk-head wide-risk">Proof needed</div>
+          <div class="risk-now"><strong>Now · L0</strong></div><div class="risk-now">Where does the authored <code>has_key == true</code> predicate and fixture input live?</div><div class="risk-now wide-risk">Resolve DEC-GCP-001, then produce positive and causal-negative receipts.</div>
+          <div class="risk-next"><strong>Next · L1</strong></div><div class="risk-next">Can a second kind/profile enter without editing closed unions?</div><div class="risk-next wide-risk">Repeat the chain with a second admitted slice and stable digests.</div>
+          <div class="risk-later"><strong>Later · L2</strong></div><div class="risk-later">Who independently judges graph laws?</div><div class="risk-later wide-risk">Bounded oracle for reachability, cycles, and closure.</div>
+          <div><strong>Breadth · L3</strong></div><div>Do 13 kinds and 16 signatures all become runnable, counted, and mutation-sensitive?</div><div class="wide-risk">Independent O_spec, exact obligation/test/run equality, zero residue, external consumer handles.</div>
+        </div>
+        <p class="why"><strong>Why it matters:</strong> the immediate path is small. Do not reopen the entire ontology or build the 13-by-16 breadth engine before proving one honest causal chain.</p>
+      </section>
+
+      <section class="section" data-lane="risk_questions" data-gap="true" data-ref="DEC-GCP-001" data-source="The decision artifact offers three bounded options and recommends evidence-local v1 operations aspect." data-inference="Option 1 is the smallest reversible proof, but it proves graph-plus-aspect composition rather than predicate carriage in Rule nodes.">
+        <div class="section-head"><div><p class="eyebrow">07 · active decision</p><h2>Three ways to handle the missing formal predicate</h2></div><span class="tag block">DEC-GCP-001 pending</span></div>
+        <div class="contract-grid">
+          <div class="contract"><strong>1 · Evidence-local aspect</strong><p>Author the predicate and fixtures beside this SWU.</p><small>Recommended; narrow and reversible. Proves graph + aspect composition.</small></div>
+          <div class="contract"><strong>2 · Extend Rule source</strong><p>Add predicate carriage to the shared minted Rule contract.</p><small>More general; changes schema, compiler, fixtures, and authority surfaces.</small></div>
+          <div class="contract"><strong>3 · Honest blocked receipt</strong><p>Stop at <code>needs_formal</code>.</p><small>Correctly records residue, but cannot prove L0 or close the task.</small></div>
+        </div>
+      </section>
+
+      <section class="section" data-lane="surface" data-ref="Reader contract in lane model" data-source="The x-ray reader contract assumes only nodes, edges, and ordinary tests." data-inference="Terms are taught after the causal chain so vocabulary serves the model.">
+        <div class="section-head"><div><p class="eyebrow">08 · reader terms</p><h2>Reader terms</h2></div><span class="tag source">newcomer contract</span></div>
+        <dl class="terms">
+          <div class="term"><dt>Source authority</dt><dd>The YAML or JSON allowed to say what the domain means.</dd></div>
+          <div class="term"><dt>Profile admission</dt><dd>The named rule set deciding which kinds and edges one source may use.</dd></div>
+          <div class="term"><dt>Graph</dt><dd>The admitted, normalized nodes and edges with provenance and digests.</dd></div>
+          <div class="term"><dt>Obligation</dt><dd>A precise claim that the authored graph requires to hold.</dd></div>
+          <div class="term"><dt>TestCase</dt><dd>A runnable assertion derived from an obligation and authored formal input.</dd></div>
+          <div class="term"><dt>Binding</dt><dd>The mapping from a spec target to a real adapter and implementation.</dd></div>
+          <div class="term"><dt>Evaluator</dt><dd>A scoped judge for one claim class, not a universal solver.</dd></div>
+          <div class="term"><dt>Receipt</dt><dd>A replayable evidence record; never automatic release authority.</dd></div>
+          <div class="term"><dt>Typed residue</dt><dd>A machine-readable reason the chain stopped, such as <code>needs_formal</code>.</dd></div>
+          <div class="term"><dt>O_spec / O_gen</dt><dd>The independently expected obligations versus what the engine generated.</dd></div>
+        </dl>
+      </section>
+
+      <section class="section" data-lane="surface" data-ref="Layer reader outcomes in lane model" data-source="The visual has explicit orientation, flow, boundary, lifecycle, and risk outcomes." data-inference="A reader should leave knowing the next proof, not merely the component names.">
+        <div class="section-head"><div><p class="eyebrow">09 · comprehension check</p><h2>Reader outcomes</h2></div><span class="tag inference">teaching inference</span></div>
+        <div class="reader-outcomes">
+          <div class="outcome"><strong>Trace it</strong><p>Explain how one authored edge becomes a receipt.</p></div>
+          <div class="outcome"><strong>Bound it</strong><p>Separate semantic authority, runtime evidence, and consumer proof.</p></div>
+          <div class="outcome"><strong>Act on it</strong><p>Name the missing predicate as the next blocker—before breadth.</p></div>
+        </div>
+      </section>
+
+      <section class="section" data-lane="flow" data-ref="x-ray visual library" data-source="The page reuses registered library components and patterns." data-inference="The local proof-chain-spine could become reusable after a second real target proves reuse.">
+        <div class="section-head"><div><p class="eyebrow">10 · visual composition</p><h2>Visual library trace</h2></div><span class="tag seed">custom pattern nudge</span></div>
+        <p><strong>Registered components:</strong> node, boundary, layer-panel, risk-marker, arrow, feedback-loop, timeline-strip, risk-matrix, and inspector-rail.</p>
+        <p><strong>Registered patterns:</strong> dependency-boundary, lifecycle-stack, and evidence-inference-split.</p>
+        <p><strong>Local-only composition:</strong> <code>pattern.proof-chain-spine</code>. Keep it unpromoted for now. If a second architecture needs the same digest-bearing chain with a causal feedback mutation, it is a credible library candidate.</p>
+      </section>
+
+      <section class="section source-map" data-lane="surface" data-ref="Local sources" data-source="Every architecture claim is tied to a current local artifact." data-inference="Accepted planning evidence narrows the next action but does not establish runtime completeness.">
+        <p class="eyebrow">Source map</p>
+        <ul class="source-list">
+          <li><code>evolvable-validation-framework/DEFINE.md</code></li>
+          <li><code>evolvable-validation-framework/DESIGN.md</code></li>
+          <li><code>evolvable-validation-framework/IMPLEMENTATION-LAYERING.md</code></li>
+          <li><code>evolvable-validation-framework/PLAN.md</code></li>
+          <li><code>evolvable-validation-framework/WORK-PACK.md</code></li>
+          <li><code>evolvable-validation-framework/decisions/2026-07-20-key-and-door-formal-source.md</code></li>
+          <li><code>evolvable-validation-framework/decisions/2026-07-20-iolm-proof-role.md</code></li>
+          <li><code>evolvable-validation-framework/runs/SWU-GCP-001/TASK-SESSION-RESULT.md</code></li>
+          <li><code>first-production-release/backend-type-test-engine-completeness/PLAN.md</code></li>
+          <li><code>cyberAlchemy-v2/development/domainspec-v2/iolm-consumer/consumer-contract.yml</code></li>
+          <li><code>cyberAlchemy-v2/development/domainspec-v2/iolm-consumer/receipt.schema.json</code></li>
+          <li><code>cyberAlchemy-v2/development/interactive-ontology-learning-map/WORK-PACK.md</code></li>
+          <li><code>research/2026-07-17-spec-ontology-node-layering/findings.md</code></li>
+        </ul>
+      </section>
+    </div>
+
+    <aside class="inspector" aria-live="polite">
+      <p class="eyebrow">Evidence inspector</p>
+      <h3 id="inspect-title">Select any node or panel</h3>
+      <p>The page separates what current files say from what the x-ray concludes.</p>
+      <div class="inspect-block">
+        <strong>Source-backed</strong>
+        <p class="inspect-source" id="inspect-source">The architecture explicitly separates source, derivation, execution, and evidence.</p>
+      </div>
+      <div class="inspect-block">
+        <strong>Inference</strong>
+        <p class="inspect-inference" id="inspect-inference">Ownership separation is the design's strongest defense against self-certification.</p>
+      </div>
+      <div class="inspect-block">
+        <strong>Reference</strong>
+        <p id="inspect-ref">DESIGN.md</p>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="wrap">
+    <p><strong>Seed status:</strong> this x-ray explains a candidate architecture from current local artifacts. It is not a production renderer, promoted library pattern, implementation receipt, or release verdict.</p>
+  </footer>
+
+  <script>
+    const root = document.getElementById('xray-main');
+    const toggles = {
+      surface: document.getElementById('toggle-surface'),
+      flow: document.getElementById('toggle-flow'),
+      deps: document.getElementById('toggle-deps'),
+      risk: document.getElementById('toggle-risk')
+    };
+    function applyFilters() {
+      document.querySelectorAll('[data-lane]').forEach((el) => {
+        const lane = el.dataset.lane;
+        const show = lane === 'surface' ? toggles.surface.checked
+          : lane === 'flow' ? toggles.flow.checked
+          : (lane === 'internal_dependencies' || lane === 'external_dependencies') ? toggles.deps.checked
+          : lane === 'risk_questions' ? toggles.risk.checked : true;
+        if (el.tagName === 'SECTION') el.hidden = !show;
+      });
+    }
+    Object.values(toggles).forEach((toggle) => toggle.addEventListener('change', () => {
+      root.classList.remove('only-gap');
+      applyFilters();
+    }));
+    document.getElementById('stack-all').addEventListener('click', () => {
+      Object.values(toggles).forEach((toggle) => toggle.checked = true);
+      root.classList.remove('only-gap');
+      applyFilters();
+    });
+    document.getElementById('trace-proof').addEventListener('click', () => {
+      toggles.surface.checked = true; toggles.flow.checked = true;
+      toggles.deps.checked = false; toggles.risk.checked = false;
+      root.classList.remove('only-gap'); applyFilters();
+      document.querySelector('[data-lane="surface"] .proof-frame').scrollIntoView({behavior: 'smooth', block: 'center'});
+    });
+    document.getElementById('show-gaps').addEventListener('click', () => {
+      Object.values(toggles).forEach((toggle) => toggle.checked = true);
+      applyFilters(); root.classList.toggle('only-gap');
+    });
+    document.querySelectorAll('[data-source]').forEach((el) => {
+      el.addEventListener('click', () => {
+        document.getElementById('inspect-title').textContent = el.querySelector('h2,h3,strong,text')?.textContent || 'Selected architecture element';
+        document.getElementById('inspect-source').textContent = el.dataset.source || 'No source-backed note attached.';
+        document.getElementById('inspect-inference').textContent = el.dataset.inference || 'No inference attached.';
+        document.getElementById('inspect-ref').textContent = el.dataset.ref || 'Lane model';
+      });
+    });
+    applyFilters();
+  </script>
+</body>
+</html>

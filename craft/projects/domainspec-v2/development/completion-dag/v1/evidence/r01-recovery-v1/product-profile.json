@@ -1,0 +1,136 @@
+{
+  "candidate_id": "DSV2-R01-PYTHON-SQLITE-RECOVERY-001",
+  "status": "prototype-definition",
+  "lane": "product_construction",
+  "stage": "prototype-definition",
+  "title": "Local durable Workflow recovery reference product",
+  "owner_role": "DomainSpec Workflow/runtime owner",
+  "authority_effect": "none",
+  "architecture_id": "domainspec-durable-recovery@2",
+  "language": "python",
+  "provider": "sqlite",
+  "selection_status": "agent-selected prototype candidate under user-authorized R01; no product approval or production selection",
+  "rationale": "Reuse the existing Python recovery planner and sqlite3 available in the local standard library; exercise separate local transaction boundaries without a database service.",
+  "runtime_observation": {
+    "python": "3.12.3",
+    "sqlite": "3.45.1",
+    "executable": "/usr/bin/python3",
+    "scope": "availability only; R02 must pin the exact implementation/test runtime and dependencies"
+  },
+  "bounds": {
+    "hosts": 1,
+    "host_boots": 1,
+    "competing_workers": 2,
+    "dispatches_per_case": 1,
+    "plan_occurrences_min": 1,
+    "plan_occurrences_max": 8,
+    "attempts_per_occurrence_max": 3,
+    "lease_duration_ms": 5000,
+    "renewal_interval_ms": 1000,
+    "retry_delay_ms": 1000,
+    "store_busy_timeout_ms": 100,
+    "test_case_deadline_seconds": 30,
+    "test_repetitions": 2,
+    "operation_effects": "local example database mutation only",
+    "wakeup": "local polling hint; duplicate or absent hints cannot change dispatch truth"
+  },
+  "storage": {
+    "coordination_database": "coordination.sqlite",
+    "operation_database": "operation.sqlite",
+    "journal_mode": "DELETE",
+    "synchronous": "EXTRA",
+    "foreign_keys": true,
+    "transaction_control": "sqlite3 autocommit=True; explicit SQL BEGIN IMMEDIATE / COMMIT / ROLLBACK; do not use Connection.commit() as the commit operation",
+    "attachment": "No ATTACH or transaction spanning both files",
+    "filesystem": "local Linux filesystem with SQLite locking; network filesystems and shared multi-host storage excluded",
+    "configuration_gate": "Read back required pragmas and reject mismatches before writing business state; schema/profile/version mismatch stops mutation."
+  },
+  "clock": {
+    "kind": "host monotonic time plus host boot identity",
+    "testing": "Injected shared deterministic clock at exact lease boundaries plus actual process kill/restart on the same host boot",
+    "backward_or_boot_change": "Stop advancement without fabricating a terminal result; retain evidence for owner-directed successor work.",
+    "limit": "No cross-boot resume, wall-clock adjustment tolerance claim, or multi-host clock guarantee."
+  },
+  "identity": {
+    "intent": "Reuse unchanged D37 identity from existing planner",
+    "plan": "Freeze ordered occurrences and canonical plan digest",
+    "binding": "Persist exact Operation binding and implementation digest selected before dispatch; mismatch blocks invocation",
+    "attempt": "New durable ID and increasing per-occurrence number at each execution start; acquire/renew alone creates no attempt",
+    "invocation": "Reuse existing D40 identity H(intent_id, plan_digest, operation_id, plan_occurrence_id) across retries and takeover"
+  },
+  "transaction_boundaries": [
+    {
+      "id": "coordination",
+      "owner": "Recovery runtime",
+      "resource": "coordination.sqlite",
+      "atomic_participants": [
+        "dispatch/version",
+        "progress",
+        "claim/lease",
+        "attempt outcomes",
+        "retry schedule",
+        "terminal disposition and semantic projection",
+        "dispatch outbox"
+      ],
+      "rule": "Only participants changed by one transition join that transaction. Persist intent, exact plan and binding set before dispatch is eligible. No Operation is invoked inside this transaction."
+    },
+    {
+      "id": "operation",
+      "owner": "Example recovery Operation adapter",
+      "resource": "operation.sqlite",
+      "atomic_participants": [
+        "business state",
+        "successful invocation identity and recorded result",
+        "Operation outbox"
+      ],
+      "rule": "Unique invocation identity plus exact binding/payload digest. Under one write transaction return an existing matching success or apply and record one success atomically. Same identity with different payload/binding rejects. A failed pre-commit call records no applied-success row; durable attempt evidence lives in coordination. No network or external business effects."
+    }
+  ],
+  "claim_and_lease": {
+    "acquire": "Bootstrap claim or takeover uses version CAS. Takeover requires expired/released authority, increments durable fence and supersedes prior claim; active claim acquisition is rejected. These are store arbitration transitions, not unfenced worker progress.",
+    "advance": "At transaction authorization point check expected version, current claim/fence, latest lease generation and valid_from <= now < expires_at; serialize transition through commit; no user callback or wait inside it. Recheck time immediately before committing and reject expired authority.",
+    "renew": "Same current claim and fence, greater lease generation; no revival after expiry.",
+    "loss": "After invocation starts, loss of effective authority produces unknown, even if a late callback reports success. New claimant records unknown during takeover before any successor attempt. Old worker commits are rejected.",
+    "safety_limit": "An expired worker may already be inside an Operation; fencing protects coordination commits while the Operation-owned ledger protects repeat business application."
+  },
+  "retry": {
+    "policy_id": "r01-local-retry-v1",
+    "selection": "Frozen example Operation binding explicitly selects retry for failed/unknown attempt outcomes; separate fixtures select escalate and terminal-failure. Failure classification alone cannot select retry.",
+    "budget": "At most three durable execution starts per occurrence, counting failed, unknown and successful starts. Reserve the next number atomically when starting. Claim and lease changes consume none.",
+    "schedule": "Before eligibility, persist predecessor attempt, unchanged identity/binding, selected policy, next number, remaining budget and not-before = selection_time + 1000 ms.",
+    "unknown": "Reconcile durable stores before further invocation. A committed matching Operation result may supply evidence for progress under a new valid claim. Otherwise replay only under the frozen explicit retry policy and budget. If reconciliation cannot establish state, retain unknown and stop that run.",
+    "exhaustion": "With three starts consumed and no durable success evidence, record exhausted with consumed-budget evidence; do not claim no business effect happened.",
+    "store_failures": "Busy/conflict before transition commits is no advancement and no new attempt. A later poll rereads state. Ambiguous commit requires reread/reconciliation; no blind replay. Corrupt or inaccessible state stops that run with not_evaluable dependent checks."
+  },
+  "terminal": {
+    "completed": "Durable success evidence for every occurrence; semantic state satisfied.",
+    "exhausted": "Explicit terminal-failure continuation or consumed retry budget with no reconciled completion; semantic state unresolved.",
+    "escalated": "Explicit Operation-owned escalation continuation; semantic state unresolved; record route, do not send messages or launch another workflow.",
+    "rule": "Record terminal evidence and semantic projection atomically in coordination. Terminal rejects retries and implicit successors.",
+    "excluded": [
+      "cancelled",
+      "abandoned",
+      "dead-letter"
+    ]
+  },
+  "claims": {
+    "target": "at-least-once-invocation-with-idempotent-semantic-application",
+    "business_application_upper_bound_per_identity": 1,
+    "liveness_conditions": "Eligible work, available healthy stores, advancing clock, polling worker, valid binding, and remaining budget; no universal eventual completion.",
+    "runtime_guarantees_observed": false,
+    "product_approved": false,
+    "universal_exactly_once": false,
+    "excluded": [
+      "remote side effects",
+      "OS reboot recovery",
+      "power loss durability",
+      "disk loss/corruption recovery",
+      "network partitions",
+      "multi-host execution",
+      "throughput guarantees",
+      "production deployment",
+      "automatic schema migration"
+    ]
+  },
+  "next_consumer": "R02 recovery system prototype and binding contracts"
+}

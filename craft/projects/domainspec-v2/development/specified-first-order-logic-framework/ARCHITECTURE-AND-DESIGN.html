@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>DS-SFOL — From a Domain Clause to Executable Evidence</title>
+  <style>
+    :root {
+      --ink: #172126;
+      --muted: #607078;
+      --paper: #f2eee3;
+      --panel: #fffdf7;
+      --line: #bbb7aa;
+      --source: #0f766e;
+      --source-soft: #d9f2ed;
+      --logic: #1d4ed8;
+      --logic-soft: #dce9ff;
+      --run: #6d28d9;
+      --run-soft: #eee8ff;
+      --proof: #a84d08;
+      --proof-soft: #fff0c9;
+      --danger: #b42318;
+      --danger-soft: #fee4e2;
+      --good: #166534;
+      --good-soft: #dcfce7;
+      --shadow: 0 12px 36px rgba(23, 33, 38, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 6% 0%, rgba(15, 118, 110, .12), transparent 30rem),
+        radial-gradient(circle at 96% 16%, rgba(168, 77, 8, .11), transparent 28rem),
+        var(--paper);
+      font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input { font: inherit; }
+    button:focus-visible, a:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }
+    h1, h2, h3, h4, p { margin-top: 0; }
+    h1 {
+      max-width: 1020px;
+      margin-bottom: 18px;
+      font-size: clamp(2.5rem, 6.6vw, 6.1rem);
+      line-height: .94;
+      letter-spacing: -.065em;
+    }
+    h2 { font-size: clamp(1.65rem, 3.5vw, 2.75rem); line-height: 1.08; letter-spacing: -.04em; }
+    h3 { font-size: 1.12rem; line-height: 1.3; }
+    h4 { margin-bottom: 6px; font-size: .83rem; letter-spacing: .08em; text-transform: uppercase; }
+    a { color: var(--source); }
+    code {
+      padding: .12rem .34rem;
+      border-radius: .3rem;
+      background: rgba(23, 33, 38, .07);
+      font-size: .88em;
+    }
+    pre {
+      margin: 0;
+      overflow-x: auto;
+      color: #eef8f7;
+      background: #152d31;
+      border-radius: 13px;
+      padding: 18px;
+      font: .82rem/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    pre code { padding: 0; background: none; font-size: inherit; }
+    .wrap { width: min(1480px, calc(100% - 34px)); margin-inline: auto; }
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--source);
+      font-size: .73rem;
+      font-weight: 850;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .hero { padding: 72px 0 38px; }
+    .lede { max-width: 900px; color: #35464d; font-size: clamp(1.08rem, 2vw, 1.4rem); }
+    .callout {
+      max-width: 980px;
+      margin: 22px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--proof);
+      border-radius: 0 10px 10px 0;
+      background: #fff7e4;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .65);
+      font-size: .75rem;
+      font-weight: 780;
+    }
+    .tag.source { color: var(--source); border-color: #7acbbe; background: var(--source-soft); }
+    .tag.logic { color: var(--logic); border-color: #9dbcf8; background: var(--logic-soft); }
+    .tag.run { color: var(--run); border-color: #bea9f5; background: var(--run-soft); }
+    .tag.proof { color: #854006; border-color: #e2b665; background: var(--proof-soft); }
+    .tag.danger { color: var(--danger); border-color: #eeaaa4; background: var(--danger-soft); }
+    .tag.good { color: var(--good); border-color: #94d4a9; background: var(--good-soft); }
+
+    .status-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 30px;
+    }
+    .status-card {
+      min-height: 142px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--source);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .status-card.next { border-top-color: var(--logic); }
+    .status-card.absent { border-top-color: var(--danger); }
+    .status-card.later { border-top-color: var(--proof); }
+    .status-card strong { display: block; margin: 5px 0; font-size: 1.15rem; }
+    .status-card small { color: var(--muted); }
+
+    .toolbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-block: 1px solid rgba(187, 183, 170, .86);
+      background: rgba(242, 238, 227, .92);
+      backdrop-filter: blur(14px);
+    }
+    .toolbar-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      min-height: 58px;
+    }
+    .toolbar button, .toolbar a {
+      cursor: pointer;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--ink);
+      background: var(--panel);
+      font-size: .78rem;
+      font-weight: 760;
+      text-decoration: none;
+    }
+    .toolbar button:hover, .toolbar a:hover { border-color: var(--ink); }
+    .toolbar .progress-label { margin-left: auto; color: var(--muted); font-size: .78rem; }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      gap: 24px;
+      align-items: start;
+      padding-top: 28px;
+    }
+    .content { min-width: 0; }
+    .section {
+      margin-bottom: 22px;
+      padding: clamp(21px, 3vw, 36px);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 253, 247, .88);
+      box-shadow: var(--shadow);
+    }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 20px;
+    }
+    .section-head p { max-width: 700px; color: var(--muted); }
+
+    .example-strip {
+      display: grid;
+      grid-template-columns: .85fr 1.15fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+    .example-card {
+      padding: 19px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .example-card.illustrative { border-top: 5px solid var(--source); }
+    .example-card p:last-child { margin-bottom: 0; }
+    .equation {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 9px;
+      margin: 18px 0 6px;
+      font-size: clamp(1.05rem, 2.5vw, 1.45rem);
+      font-weight: 850;
+    }
+    .token {
+      padding: 8px 11px;
+      border-radius: 8px;
+      background: var(--source-soft);
+      color: #0d5e58;
+    }
+    .token.result { background: var(--proof-soft); color: #7a3b06; }
+
+    .procedure {
+      position: relative;
+      display: grid;
+      gap: 10px;
+    }
+    .step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      gap: 16px;
+      align-items: center;
+      width: 100%;
+      min-height: 112px;
+      padding: 16px;
+      cursor: pointer;
+      text-align: left;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .step:hover { transform: translateY(-2px); box-shadow: 0 7px 18px rgba(23, 33, 38, .08); }
+    .step.active { border: 2px solid var(--logic); box-shadow: 0 0 0 4px rgba(29, 78, 216, .10); }
+    .step::after {
+      content: "";
+      position: absolute;
+      left: 46px;
+      bottom: -11px;
+      width: 2px;
+      height: 10px;
+      background: var(--line);
+    }
+    .step:last-child::after { display: none; }
+    .step-no {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      color: #fff;
+      border-radius: 50%;
+      background: var(--source);
+      font-weight: 900;
+    }
+    .step.logic-step .step-no { background: var(--logic); }
+    .step.run-step .step-no { background: var(--run); }
+    .step.proof-step .step-no { background: var(--proof); }
+    .step strong { display: block; margin-bottom: 4px; font-size: 1.03rem; }
+    .step small { display: block; max-width: 680px; color: var(--muted); }
+    .step-output {
+      min-width: 150px;
+      padding-left: 13px;
+      border-left: 1px solid var(--line);
+      color: #405159;
+      font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .inspector {
+      position: sticky;
+      top: 82px;
+      padding: 19px;
+      color: #f4faf9;
+      border: 1px solid #28464c;
+      border-radius: 16px;
+      background: #14292d;
+      box-shadow: var(--shadow);
+    }
+    .inspector .eyebrow { color: #72d9ca; }
+    .inspector h3 { font-size: 1.3rem; }
+    .inspector p, .inspector li { color: #cad7d8; font-size: .84rem; }
+    .inspector ul { padding-left: 18px; }
+    .inspect-block { margin-top: 16px; padding-top: 16px; border-top: 1px solid #38545a; }
+    .inspect-block strong { color: #fff; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
+    .inspect-block code { color: #b6ece4; background: #213e44; }
+
+    .branch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .branch {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .branch.pure { border-top: 5px solid var(--run); }
+    .branch.effect { border-top: 5px solid var(--proof); }
+    .branch ol { padding-left: 22px; }
+    .observation {
+      margin-top: 13px;
+      padding: 13px;
+      border-radius: 9px;
+      color: #493d63;
+      background: var(--run-soft);
+      font: .8rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .effect .observation { color: #684008; background: var(--proof-soft); }
+
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .component {
+      min-height: 154px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+    }
+    .component strong { display: block; margin-bottom: 7px; }
+    .component p { margin-bottom: 8px; color: #46565d; font-size: .86rem; }
+    .component small { color: var(--muted); }
+
+    .boundary-map {
+      display: grid;
+      grid-template-columns: 1fr 1.35fr 1fr;
+      gap: 12px;
+      align-items: stretch;
+    }
+    .boundary {
+      padding: 18px;
+      border: 2px dashed var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .68);
+    }
+    .boundary.core { border-style: solid; border-color: var(--logic); background: #f7f9ff; }
+    .boundary h3 { margin-bottom: 10px; }
+    .boundary ul { margin-bottom: 0; padding-left: 19px; }
+    .forbidden {
+      margin-top: 14px;
+      padding: 13px 15px;
+      border-left: 4px solid var(--danger);
+      border-radius: 0 10px 10px 0;
+      color: #70201a;
+      background: var(--danger-soft);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .lane {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .lane.bte { border-left: 6px solid var(--source); }
+    .lane.sfol { border-left: 6px solid var(--logic); }
+    .lane ul { padding-left: 20px; }
+    .not-equal {
+      display: inline-grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin: 10px 0;
+      color: var(--danger);
+      border-radius: 50%;
+      background: var(--danger-soft);
+      font-size: 1.4rem;
+      font-weight: 900;
+    }
+
+    .formula {
+      padding: 17px;
+      overflow-x: auto;
+      color: #eaf5f4;
+      border-radius: 12px;
+      background: #15363a;
+      text-align: center;
+      font: 700 .9rem/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .formula-note {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .formula-note div {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      font-size: .84rem;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      margin-top: 24px;
+    }
+    .phase {
+      position: relative;
+      min-height: 215px;
+      padding: 20px 15px 15px;
+      border-top: 5px solid var(--line);
+      background: #fff;
+    }
+    .phase::before {
+      content: "";
+      position: absolute;
+      top: -11px;
+      left: 14px;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: var(--line);
+    }
+    .phase.current { border-color: var(--logic); background: var(--logic-soft); }
+    .phase.current::before { background: var(--logic); }
+    .phase h3 { margin-bottom: 7px; }
+    .phase p, .phase li { color: #46565d; font-size: .84rem; }
+    .phase ul { padding-left: 18px; }
+
+    .ceiling {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .ceiling > div { padding: 18px; border-radius: 13px; }
+    .does { border: 1px solid #8dcda2; background: var(--good-soft); }
+    .does-not { border: 1px solid #eca8a1; background: var(--danger-soft); }
+    .ceiling ul { margin-bottom: 0; padding-left: 20px; }
+
+    .source-list { padding-left: 20px; }
+    .source-list li { margin-bottom: 7px; }
+    footer { padding: 28px 0 72px; color: var(--muted); font-size: .84rem; }
+    .print-only { display: none; }
+
+    @media (max-width: 1120px) {
+      main { grid-template-columns: 1fr; }
+      .inspector { position: relative; top: auto; order: -1; }
+      .status-board { grid-template-columns: repeat(2, 1fr); }
+      .component-grid { grid-template-columns: repeat(2, 1fr); }
+      .boundary-map { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .wrap { width: min(100% - 18px, 1480px); }
+      .hero { padding-top: 42px; }
+      .status-board, .example-strip, .branch-grid, .component-grid, .compare,
+      .formula-note, .timeline, .ceiling { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 52px 1fr; }
+      .step-output { grid-column: 2; padding: 8px 0 0; border: 0; border-top: 1px solid var(--line); }
+      .toolbar .progress-label { display: none; }
+    }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      main { display: block; }
+      .inspector { display: none; }
+      .section, .status-card { break-inside: avoid; box-shadow: none; }
+      .print-only { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero wrap">
+    <p class="eyebrow">DomainSpec v2 · DS-SFOL · procedural architecture</p>
+    <h1>From a domain clause to executable evidence.</h1>
+    <p class="lede">
+      Start with one meaning owned by a canonical behavioral node. Carry it through
+      bounded logic, a real implementation observation, independent evaluation, and
+      an exact-set proof. Every handoff keeps its identity and digest.
+    </p>
+    <p class="callout">
+      <strong>The central idea:</strong> the implementation may produce the observed answer,
+      but it never supplies the expected answer. The specification and the evaluator remain
+      independent of the code under test.
+    </p>
+    <div class="tags" aria-label="Claim boundaries">
+      <span class="tag source">private DomainSpec design</span>
+      <span class="tag logic">bounded typed logic</span>
+      <span class="tag proof">examples are illustrative</span>
+      <span class="tag danger">not full FOL</span>
+      <span class="tag danger">not release evidence</span>
+    </div>
+
+    <div class="status-board" aria-label="Current implementation state">
+      <div class="status-card">
+        <span class="eyebrow">Design</span>
+        <strong>Define · Design · Plan pass</strong>
+        <small>The canonical v0.2 package specifies the full framework and its bounded claim.</small>
+      </div>
+      <div class="status-card next">
+        <span class="eyebrow">Next unit</span>
+        <strong>SWU-SFOL-001</strong>
+        <small>The exact independent-denominator material is mutation-ready for Task Session.</small>
+      </div>
+      <div class="status-card absent">
+        <span class="eyebrow">Implementation</span>
+        <strong>Canonical files absent</strong>
+        <small>The two denominator files are staged as material; they have not been applied to the engine.</small>
+      </div>
+      <div class="status-card later">
+        <span class="eyebrow">First adopter</span>
+        <strong>Financial Settlement · L3</strong>
+        <small>Planned after the core, effect harness, and canonical node adapter—not available today.</small>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toolbar" aria-label="Page controls">
+    <div class="wrap toolbar-inner">
+      <strong>Walkthrough:</strong>
+      <button id="previous-step" type="button">← Previous</button>
+      <button id="next-step" type="button">Next step →</button>
+      <button id="show-all" type="button">Show whole chain</button>
+      <a href="#pure-effect">Pure vs effectful</a>
+      <a href="#implementation-order">Build order</a>
+      <span class="progress-label" id="progress-label">Step 1 of 10</span>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <div class="content">
+      <section class="section" id="example">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">01 · begin with behavior</p>
+            <h2>One Financial Settlement example</h2>
+            <p>
+              This clause is deliberately simple so the architecture is visible. It is an
+              explanatory example, not approved Financial Settlement authority or final DS-SFOL syntax.
+            </p>
+          </div>
+          <span class="tag proof">illustrative</span>
+        </div>
+
+        <div class="example-strip">
+          <article class="example-card illustrative">
+            <p class="eyebrow">Meaning</p>
+            <h3><code>settlement.total-is-conserved</code></h3>
+            <p>
+              For an admitted settlement fixture, the gross amount equals the net amount
+              plus its fee.
+            </p>
+            <div class="equation" aria-label="gross equals net plus fee">
+              <span class="token result">gross</span>
+              <span>=</span>
+              <span class="token">net</span>
+              <span>+</span>
+              <span class="token">fee</span>
+            </div>
+          </article>
+
+          <article class="example-card">
+            <p class="eyebrow">Illustrative structured payload</p>
+            <pre><code>body.logic:
+  version: domainspec-node-logic/v1
+  module: financial-settlement
+  clauses:
+    - id: settlement.total-is-conserved
+      kind: predicate
+      parameters: [gross, net, fee]
+      expression:
+        equals: [gross, { add: [net, fee] }]</code></pre>
+          </article>
+        </div>
+
+        <p class="forbidden">
+          DS-SFOL does not scrape this meaning from Markdown, a <code>Formal</code> table cell,
+          or a fenced formula. Real logic must be structured data owned by the canonical node
+          and preserved by the canonical graph/manifest/build process.
+        </p>
+      </section>
+
+      <section class="section" id="procedure">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">02 · runtime procedure</p>
+            <h2>Follow the clause, one transformation at a time</h2>
+            <p>Select a step to inspect its input, output, and failure boundary.</p>
+          </div>
+          <span class="tag logic">interactive</span>
+        </div>
+
+        <div class="procedure" aria-label="DS-SFOL procedural chain">
+          <button class="step active" type="button"
+            data-title="Canonical behavioral node"
+            data-input="An owning node with a structured body.logic module."
+            data-output="Node identity, module identity, clause identity, and source digest."
+            data-failure="No logic is inferred from prose. Missing logic becomes needs-formal residue."
+            data-example="settlement.total-is-conserved is authored with the Financial Settlement node.">
+            <span class="step-no">1</span>
+            <span><strong>Author the clause in its canonical node</strong><small>Business meaning stays with the source owner and receives stable identities.</small></span>
+            <span class="step-output">node + logic<br>source digest</span>
+          </button>
+
+          <button class="step" type="button"
+            data-title="Canonical node build"
+            data-input="The admitted node source set."
+            data-output="One graph, source manifest, build receipt, profile, and compatible digests."
+            data-failure="A second graph, direct node traversal, or stale proof context is rejected."
+            data-example="The settlement node must survive the same minted-project build used by downstream consumers.">
+            <span class="step-no">2</span>
+            <span><strong>Compile the canonical graph proof context</strong><small>The framework consumes the existing graph/manifest/build authority; it does not reconstruct one.</small></span>
+            <span class="step-output">graph<br>manifest<br>build receipt</span>
+          </button>
+
+          <button class="step logic-step" type="button"
+            data-title="Independent denominator"
+            data-input="Validation-owned admission manifest plus exact node and build handles."
+            data-output="A frozen exact set of required clause and obligation identities."
+            data-failure="Empty, missing, duplicate, extra, unknown, or stale members fail closed."
+            data-example="The denominator says settlement.total-is-conserved must exist before generation runs.">
+            <span class="step-no">3</span>
+            <span><strong>Freeze what must be proven independently</strong><small>The denominator cannot import the compiler, generator, runner, evaluator, or their outputs.</small></span>
+            <span class="step-output">C<sub>spec</sub><br>exact identities</span>
+          </button>
+
+          <button class="step logic-step" type="button"
+            data-title="Node-logic projection"
+            data-input="The canonical graph, manifest, build receipt, profile, and source-set handles."
+            data-output="One lossless NodeLogicEnvelope per admitted node logic module."
+            data-failure="Noncanonical source, incompatible versions, broken bijection, or digest drift becomes typed residue."
+            data-example="The clause reaches DS-SFOL through the graph—not by reopening a Markdown document.">
+            <span class="step-no">4</span>
+            <span><strong>Project the structured logic losslessly</strong><small>Every node, graph, manifest, build, profile, and source-set handle remains attached.</small></span>
+            <span class="step-output">NodeLogicEnvelope</span>
+          </button>
+
+          <button class="step logic-step" type="button"
+            data-title="Language compiler"
+            data-input="A structured NodeLogicEnvelope and the admitted language profile."
+            data-output="Validated, normalized, fully typed logic with exact arithmetic."
+            data-failure="Unknown syntax, ambiguous types, undeclared finite domains, and unsupported expressions never become runnable tests."
+            data-example="gross, net, and fee resolve to the same exact Money representation; add and equals are typechecked.">
+            <span class="step-no">5</span>
+            <span><strong>Decode, normalize, and typecheck</strong><small>DS-SFOL is a bounded executable profile: deterministic and finite, not an open-ended prover.</small></span>
+            <span class="step-output">TypedLogicModule</span>
+          </button>
+
+          <button class="step logic-step" type="button"
+            data-title="Finite case derivation"
+            data-input="Typed clauses, the frozen denominator, and validation-owned fixture universes."
+            data-output="Stable DerivedCase records with inputs, expected-expression handles, roles, and fixture digests."
+            data-failure="Unbounded quantifiers, missing universes, or a derived set unequal to the denominator fail closed."
+            data-example="The fixture gross=103, net=100, fee=3 becomes one exact case.">
+            <span class="step-no">6</span>
+            <span><strong>Expand finite fixtures into cases</strong><small>Quantifiers range only over named, typed, finite universes. No fixture means no silent test.</small></span>
+            <span class="step-output">DerivedCase[]</span>
+          </button>
+
+          <button class="step run-step" type="button"
+            data-title="Implementation binding"
+            data-input="A stable module, clause, case, and executable-role identity."
+            data-output="Exactly one module/symbol or harness target plus argument and observation projections."
+            data-failure="Zero, multiple, first-match, stale, or expected-value-bearing bindings are rejected."
+            data-example="The pure role points to calculateSettlementTotal, but does not say that 103 is correct.">
+            <span class="step-no">7</span>
+            <span><strong>Resolve exactly one value-free binding</strong><small>The binding knows how to call the implementation. It does not know what answer should pass.</small></span>
+            <span class="step-output">target + maps<br>no oracle data</span>
+          </button>
+
+          <button class="step run-step" type="button"
+            data-title="Raw observation"
+            data-input="Derived inputs and one pure binding or contained effect harness."
+            data-output="Raw return/throw or an ordered pre-state, post-state, call, write, event, and error trace."
+            data-failure="The runner records reality only. It cannot receive an expected answer or declare correctness."
+            data-example="calculateSettlementTotal(100, 3) returns 103; the runner records 103 and the target/runtime digests.">
+            <span class="step-no">8</span>
+            <span><strong>Run the implementation and record reality</strong><small>Pure and effectful behavior use different observation contracts.</small></span>
+            <span class="step-output">RawObservation<br>or EffectTrace</span>
+          </button>
+
+          <button class="step proof-step" type="button"
+            data-title="Independent semantic evaluation"
+            data-input="The typed clause, finite environment, and raw observation."
+            data-output="pass, fail, or typed indeterminate."
+            data-failure="The evaluator cannot import or invoke the implementation target; indeterminate fails admitted completeness."
+            data-example="DS-SFOL independently evaluates net + fee as 103, then judges the observed gross value.">
+            <span class="step-no">9</span>
+            <span><strong>Evaluate the specified meaning independently</strong><small>The evaluator derives expected meaning from the typed clause—not from implementation behavior.</small></span>
+            <span class="step-output">EvaluationResult</span>
+          </button>
+
+          <button class="step proof-step" type="button"
+            data-title="Exact-set proof and replay"
+            data-input="Denominator, typed cases, bindings, observations, evaluations, and every compatible digest."
+            data-output="LogicProofReceipt records or explicit failing residue."
+            data-failure="Equal counts are insufficient. Every exact identity and compatible digest must join with no skips or extras."
+            data-example="The clause is complete only if it exists in every set from C_spec through R_evaluated and replays.">
+            <span class="step-no">10</span>
+            <span><strong>Join exact identities, prove closure, and replay</strong><small>A receipt records the bounded proof. It cannot repair an incomplete set or become source authority.</small></span>
+            <span class="step-output">proof receipt<br>or residue</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="section" id="pure-effect">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">03 · two observation procedures</p>
+            <h2>Pure answers and real-world effects need different evidence</h2>
+            <p>A returned value cannot prove that state changed, a gateway was called, or an event was emitted.</p>
+          </div>
+        </div>
+
+        <div class="branch-grid">
+          <article class="branch pure">
+            <span class="tag run">pure</span>
+            <h3>Example: calculate a settlement total</h3>
+            <ol>
+              <li>Fixture supplies <code>net=100</code> and <code>fee=3</code>.</li>
+              <li>Binding calls <code>calculateSettlementTotal</code>.</li>
+              <li>Runner records the raw return.</li>
+              <li>Evaluator independently computes the specified expression.</li>
+              <li>Proof joins the exact case and digests.</li>
+            </ol>
+            <div class="observation">arguments: [100, 3]
+rawReturn: 103
+expectedFromSpec: 103
+verdict: pass</div>
+          </article>
+
+          <article class="branch effect">
+            <span class="tag proof">effectful</span>
+            <h3>Example: confirm a settlement</h3>
+            <ol>
+              <li>Fixture supplies a contained pending settlement.</li>
+              <li>Harness captures pre-state, calls, writes, events, errors, and post-state.</li>
+              <li>Implementation runs inside the declared containment boundary.</li>
+              <li>Evaluator checks the node-owned transition/effect relation over the raw trace.</li>
+              <li>Missing, extra, or out-of-order effects fail.</li>
+            </ol>
+            <div class="observation">pre.state: PENDING
+calls: [gateway.confirm]
+post.state: SETTLED
+events: [SettlementCompleted]
+verdict: evaluated from relation</div>
+          </article>
+        </div>
+        <p class="forbidden">
+          The effect example is also illustrative. The actual Financial Settlement owner must
+          approve its exact clauses, fixture universe, and observation surface before L3 adoption.
+        </p>
+      </section>
+
+      <section class="section" id="components">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">04 · component model</p>
+            <h2>Each component gets one job</h2>
+            <p>The architecture is built to make self-grading and silent omission difficult.</p>
+          </div>
+        </div>
+        <div class="component-grid">
+          <article class="component"><strong>Node-source adapter</strong><p>Projects logic only from one canonical graph/manifest/build context.</p><small><code>src/sfol/node-source/</code></small></article>
+          <article class="component"><strong>Language kernel</strong><p>Owns AST contracts, decoding, normalization, types, versions, and diagnostics.</p><small><code>src/sfol/language/</code></small></article>
+          <article class="component"><strong>Independent denominator</strong><p>Freezes the exact admitted clause and role set without generator dependencies.</p><small><code>src/sfol/denominator/</code></small></article>
+          <article class="component"><strong>Case derivation</strong><p>Expands typed clauses over named finite validation-owned fixtures.</p><small><code>src/sfol/cases/</code></small></article>
+          <article class="component"><strong>Binding resolver</strong><p>Maps each executable role to exactly one value-free target.</p><small><code>src/sfol/bindings/</code></small></article>
+          <article class="component"><strong>Pure runner</strong><p>Calls a pure target and records return or throw without judging it.</p><small><code>src/sfol/runners/pure/</code></small></article>
+          <article class="component"><strong>Effect harness SPI</strong><p>Contains setup, execution, trace capture, and teardown.</p><small><code>src/sfol/runners/effect/</code></small></article>
+          <article class="component"><strong>Independent evaluator</strong><p>Evaluates typed meaning over finite inputs and raw observations.</p><small><code>src/sfol/evaluator/</code></small></article>
+          <article class="component"><strong>Proof and replay</strong><p>Joins exact identities and digests, then replays allowlisted evidence.</p><small><code>src/sfol/proof/</code></small></article>
+        </div>
+      </section>
+
+      <section class="section" id="boundaries">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">05 · ownership boundaries</p>
+            <h2>The core is generic; adopters own business meaning</h2>
+            <p>Generic TypeScript names are not enough. Portability must be demonstrated without changing core semantics.</p>
+          </div>
+        </div>
+        <div class="boundary-map">
+          <article class="boundary">
+            <p class="eyebrow">Source owners</p>
+            <h3>Consumer-owned</h3>
+            <ul>
+              <li>canonical behavioral nodes</li>
+              <li>business clauses</li>
+              <li>fixture universes</li>
+              <li>binding registries</li>
+              <li>effect harness adapters</li>
+            </ul>
+          </article>
+          <article class="boundary core">
+            <p class="eyebrow">Private engine</p>
+            <h3>DS-SFOL core</h3>
+            <ul>
+              <li>versioned bounded language</li>
+              <li>independent exact denominator</li>
+              <li>finite case derivation</li>
+              <li>value-free binding contracts</li>
+              <li>pure/effect observation contracts</li>
+              <li>independent evaluation</li>
+              <li>exact proof join and replay</li>
+            </ul>
+          </article>
+          <article class="boundary">
+            <p class="eyebrow">Generality evidence</p>
+            <h3>Two adopters</h3>
+            <ul>
+              <li>Financial Settlement first</li>
+              <li>Agent Execution Orchestrator second</li>
+              <li>same core contract</li>
+              <li>no adopter vocabulary in core</li>
+              <li>no semantic core change for adopter two</li>
+            </ul>
+          </article>
+        </div>
+        <p class="forbidden">
+          Forbidden dependency directions include: denominator → generated/run/evaluated output;
+          evaluator → implementation target; core → adopter modules; DS-SFOL → Markdown;
+          and generated tests/receipts → source or admission authority.
+        </p>
+      </section>
+
+      <section class="section" id="bte">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">06 · evidence lanes</p>
+            <h2>Structural BTE and semantic DS-SFOL answer different questions</h2>
+            <p>Both may later feed an admission decision. Neither can substitute for the other.</p>
+          </div>
+        </div>
+        <div class="compare">
+          <article class="lane bte">
+            <span class="tag source">Structural BTE</span>
+            <h3>“Is the required shape present?”</h3>
+            <ul>
+              <li>nodes and edges</li>
+              <li>tags and instances</li>
+              <li>backend forms and signatures</li>
+              <li>structural obligations</li>
+            </ul>
+            <p><strong>It does not prove:</strong> that a settlement calculation or transition behaves correctly.</p>
+          </article>
+          <article class="lane sfol">
+            <span class="tag logic">Semantic DS-SFOL</span>
+            <h3>“Does admitted behavior match meaning?”</h3>
+            <ul>
+              <li>node-owned structured clauses</li>
+              <li>finite cases and exact bindings</li>
+              <li>raw implementation observations</li>
+              <li>independent semantic verdicts</li>
+            </ul>
+            <p><strong>It does not prove:</strong> full feature, release, solver, or production completeness.</p>
+          </article>
+        </div>
+        <div class="not-equal" aria-label="not equal">≠</div>
+        <p><strong>A green structural suite is not a green semantic suite.</strong> The receipts and terminology remain separate.</p>
+      </section>
+
+      <section class="section" id="exactness">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">07 · completeness rule</p>
+            <h2>Exact sets—not matching counts</h2>
+            <p>Two lists can both contain ten items while disagreeing about which ten. DS-SFOL joins stable identities and compatible digests.</p>
+          </div>
+        </div>
+        <div class="formula">C<sub>spec</sub> = C<sub>projected</sub> = C<sub>validated</sub> = C<sub>typed</sub> = T<sub>generated</sub> = C<sub>bound</sub> = O<sub>run</sub> = R<sub>evaluated</sub></div>
+        <div class="formula-note">
+          <div><strong>No missing member.</strong><br>A required clause cannot disappear between stages.</div>
+          <div><strong>No extra member.</strong><br>The generator cannot invent a clause and grade it as coverage.</div>
+          <div><strong>No silent residue.</strong><br>Skip, todo, stale, duplicate, unsupported, unbound, or indeterminate fails an admitted profile.</div>
+        </div>
+      </section>
+
+      <section class="section" id="bounded-fol">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">08 · claim ceiling</p>
+            <h2>“Specified first-order logic” is deliberately bounded</h2>
+            <p>The target is executable, deterministic domain logic—not general theorem proving.</p>
+          </div>
+        </div>
+        <div class="ceiling">
+          <div class="does">
+            <h3>DS-SFOL v1 is designed to support</h3>
+            <ul>
+              <li>typed terms and predicates</li>
+              <li>exact integers and rationals</li>
+              <li>finite named quantifier universes</li>
+              <li>function definitions and effect relations</li>
+              <li>deterministic resource-bounded evaluation</li>
+              <li>typed indeterminate residue</li>
+            </ul>
+          </div>
+          <div class="does-not">
+            <h3>It does not claim</h3>
+            <ul>
+              <li>arbitrary satisfiability or validity solving</li>
+              <li>unbounded quantification or recursive proof search</li>
+              <li>automatic invention of business truth</li>
+              <li>SMT, Lean, Datalog, Cedar, Alloy, or TLA+ integration</li>
+              <li>production correctness from generated tests alone</li>
+              <li>release or promotion authority</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="implementation-order">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">09 · implementation procedure</p>
+            <h2>The runtime begins at the node; construction begins at the denominator</h2>
+            <p>This order establishes the trust boundaries before connecting real adopter behavior.</p>
+          </div>
+        </div>
+        <div class="timeline">
+          <article class="phase current">
+            <p class="eyebrow">L0 · current</p>
+            <h3>Prove the semantic kernel</h3>
+            <ul>
+              <li>SWU-001 denominator</li>
+              <li>AST and diagnostics</li>
+              <li>decoder and normalization</li>
+              <li>types and finite domains</li>
+              <li>independent evaluator</li>
+            </ul>
+          </article>
+          <article class="phase">
+            <p class="eyebrow">L1</p>
+            <h3>Run pure behavior</h3>
+            <ul>
+              <li>exact-one bindings</li>
+              <li>finite case derivation</li>
+              <li>raw pure observation</li>
+              <li>proof receipts</li>
+              <li>replay</li>
+            </ul>
+          </article>
+          <article class="phase">
+            <p class="eyebrow">L2</p>
+            <h3>Connect effects and nodes</h3>
+            <ul>
+              <li>typed effect traces</li>
+              <li>contained harness SPI</li>
+              <li>canonical node adapter</li>
+              <li>proof-context validation</li>
+            </ul>
+          </article>
+          <article class="phase">
+            <p class="eyebrow">L3</p>
+            <h3>Demonstrate generality</h3>
+            <ul>
+              <li>Financial Settlement</li>
+              <li>Agent Execution Orchestrator</li>
+              <li>unchanged core contract</li>
+              <li>full replay and boundary audit</li>
+            </ul>
+          </article>
+        </div>
+        <p class="callout">
+          <strong>Why the denominator is first:</strong> if the same generator decides both
+          which tests should exist and which tests do exist, it can omit a clause and still
+          report itself complete. Independent accounting creates the first trustworthy red test.
+        </p>
+      </section>
+
+      <section class="section" id="current">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">10 · what is true today</p>
+            <h2>Planned architecture, one mutation-ready first unit</h2>
+            <p>This page explains the target system. It is not evidence that the full pipeline already runs.</p>
+          </div>
+          <span class="tag danger">claim boundary</span>
+        </div>
+        <div class="compare">
+          <article class="lane bte">
+            <h3>Confirmed current</h3>
+            <ul>
+              <li>Define, Design, and Plan gates pass.</li>
+              <li><code>SWU-SFOL-001</code> is selected and mutation-ready.</li>
+              <li>An exact two-file denominator package and admission probe pass exist.</li>
+              <li>The staged denominator tests pass in their material package.</li>
+              <li>The work pack defines twelve bounded SWUs.</li>
+            </ul>
+          </article>
+          <article class="lane sfol">
+            <h3>Not yet established</h3>
+            <ul>
+              <li>The denominator files are not in the canonical engine path.</li>
+              <li>The language, evaluator, bindings, runners, proof, and node adapter are not implemented.</li>
+              <li>Financial Settlement clauses have not been adopted.</li>
+              <li>The current node v1 contract does not carry the required logic payload.</li>
+              <li>No full DS-SFOL or production-completeness claim exists.</li>
+            </ul>
+          </article>
+        </div>
+        <p class="forbidden">
+          Therefore, deriving Financial Settlement tests today would not yet produce the full,
+          properly generated semantic suite. The framework must progress through L0–L2, then
+          pass the Financial Settlement source-owner and compatible-node entry gates at L3.
+        </p>
+      </section>
+
+      <section class="section" id="sources">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">11 · source map</p>
+            <h2>Canonical planning references</h2>
+            <p>The examples simplify presentation; these documents own the actual contract.</p>
+          </div>
+        </div>
+        <ul class="source-list">
+          <li><a href="SPEC.md">SPEC.md</a> — scope, concepts, invariants, generality proof, and completion ceiling.</li>
+          <li><a href="DESIGN.md">DESIGN.md</a> — context, structure, components, workflow, decisions, and dependencies.</li>
+          <li><a href="interfaces.md">interfaces.md</a> — programmatic interfaces and failure boundaries.</li>
+          <li><a href="operations.md">operations.md</a> — compile, denominator, case derivation, and evaluation rules.</li>
+          <li><a href="mappings.md">mappings.md</a> — canonical node, binding, observation, and proof joins.</li>
+          <li><a href="IMPLEMENTATION-LAYERING.md">IMPLEMENTATION-LAYERING.md</a> — L0–L3 construction strategy.</li>
+          <li><a href="WORK-PACK.md">WORK-PACK.md</a> — current SWU state, gates, and next route.</li>
+        </ul>
+      </section>
+    </div>
+
+    <aside class="inspector" aria-live="polite" aria-label="Selected procedure step">
+      <p class="eyebrow">Procedure inspector</p>
+      <h3 id="inspect-title">Canonical behavioral node</h3>
+      <p id="inspect-example">The clause is authored with the Financial Settlement node.</p>
+      <div class="inspect-block">
+        <strong>Input</strong>
+        <p id="inspect-input">An owning node with a structured body.logic module.</p>
+      </div>
+      <div class="inspect-block">
+        <strong>Output</strong>
+        <p id="inspect-output">Node identity, module identity, clause identity, and source digest.</p>
+      </div>
+      <div class="inspect-block">
+        <strong>Fails closed when</strong>
+        <p id="inspect-failure">No logic is inferred from prose. Missing logic becomes needs-formal residue.</p>
+      </div>
+      <div class="inspect-block">
+        <strong>Reading rule</strong>
+        <p>Expected meaning flows from the node and fixtures. Observed behavior flows from the implementation. They meet only at independent evaluation.</p>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="wrap">
+    <p>
+      DS-SFOL procedural architecture · private DomainSpec planning artifact ·
+      examples are explanatory, not adopter authority · generated 2026-07-24.
+    </p>
+    <p class="print-only">Interactive step details are expanded in the main procedure cards for print.</p>
+  </footer>
+
+  <script>
+    (() => {
+      const steps = Array.from(document.querySelectorAll(".step"));
+      const title = document.querySelector("#inspect-title");
+      const input = document.querySelector("#inspect-input");
+      const output = document.querySelector("#inspect-output");
+      const failure = document.querySelector("#inspect-failure");
+      const example = document.querySelector("#inspect-example");
+      const progress = document.querySelector("#progress-label");
+      let activeIndex = 0;
+
+      function selectStep(index, scroll = false) {
+        activeIndex = (index + steps.length) % steps.length;
+        steps.forEach((step, i) => step.classList.toggle("active", i === activeIndex));
+        const step = steps[activeIndex];
+        title.textContent = step.dataset.title;
+        input.textContent = step.dataset.input;
+        output.textContent = step.dataset.output;
+        failure.textContent = step.dataset.failure;
+        example.textContent = step.dataset.example;
+        progress.textContent = `Step ${activeIndex + 1} of ${steps.length}`;
+        if (scroll) step.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      steps.forEach((step, index) => step.addEventListener("click", () => selectStep(index)));
+      document.querySelector("#previous-step").addEventListener("click", () => selectStep(activeIndex - 1, true));
+      document.querySelector("#next-step").addEventListener("click", () => selectStep(activeIndex + 1, true));
+      document.querySelector("#show-all").addEventListener("click", () => {
+        document.querySelector("#procedure").scrollIntoView({ behavior: "smooth", block: "start" });
+        steps.forEach(step => {
+          step.animate(
+            [{ borderColor: "#1d4ed8" }, { borderColor: "#bbb7aa" }],
+            { duration: 850, easing: "ease-out" }
+          );
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

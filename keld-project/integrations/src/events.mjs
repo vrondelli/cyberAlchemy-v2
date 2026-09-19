@@ -31,7 +31,7 @@ export function createEventVerifiers(config,{request=globalThis.fetch,clock=()=>
     verifiers.mercadopago=async(body,headers,url)=>{
       object(body);const signature=header(headers,'x-signature'),requestId=id(header(headers,'x-request-id'));
       const u=new URL(url,'https://keld.invalid');const ids=u.searchParams.getAll('data.id');
-      const isOrder=c.api==='orders-v1'&&/^ORD[A-Z0-9]{26}$/.test(ids[0]);
+      const isOrder=c.api==='orders-v1'&&/^ORD[A-Z0-9]{26,29}$/.test(ids[0]);
       if(ids.length!==1||(!isOrder&&!/^\d{1,32}$/.test(ids[0])))reject();
       const parts=signature.split(',').map(p=>p.trim());
       if(parts.length!==2||parts.filter(p=>/^ts=(?:\d{10}|\d{13})$/.test(p)).length!==1||parts.filter(p=>/^v1=[a-f0-9]{64}$/.test(p)).length!==1)reject();

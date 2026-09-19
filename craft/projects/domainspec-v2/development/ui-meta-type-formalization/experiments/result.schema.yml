@@ -1,0 +1,89 @@
+schema_version: ui-formalization.result-contract.v0.1
+schema_id: UIF-EXPERIMENT-RESULT-v0.1
+status: frozen-before-execution
+created_by: SWU-UIF-002
+protocol_ref: protocol.yml
+authority_boundary: result evidence only; no automatic promotion
+
+required_fields:
+  - experiment_id
+  - pair_id
+  - protocol_version
+  - candidate
+  - hypothesis_ref
+  - corpus_refs
+  - criterion_probe_ref
+  - runs
+  - repeatability
+  - method_outcome
+  - provisional_outcome
+  - reason_codes
+  - evidence
+  - residue
+
+field_contracts:
+  experiment_id:
+    type: string
+  pair_id:
+    type: string
+    allowed: [UIF-E0-FORM-COMPONENT, UIF-E0-ADAPTER-MAPPING]
+  protocol_version:
+    type: string
+    allowed: [ui-formalization.v0.1]
+  candidate:
+    type: string
+    allowed: [Form, Adapter]
+  corpus_refs:
+    type: list
+    minimum_items: 3
+  runs:
+    type: object
+    required:
+      - positive
+      - malformed_negative
+      - neighbor_probe
+      - graph_coherence
+      - portability
+      - round_trip
+    observations:
+      positive: [accept, reject, error, not-run]
+      malformed_negative: [accept, reject, error, not-run]
+      neighbor_probe: [accept, reject, reroute, error, not-run]
+      graph_coherence: [pass, fail, not-applicable, not-run]
+      portability: [pass, fail, incomplete, not-run]
+      round_trip: [pass, fail, not-run]
+  repeatability:
+    type: string
+    allowed: [deterministic, non-deterministic, not-run]
+  method_outcome:
+    type: string
+    allowed:
+      - structural-separation-survives
+      - structural-collapse-observed
+      - inconclusive
+      - protocol-failure
+  provisional_outcome:
+    type: string
+    allowed:
+      - not-adjudicated
+      - candidate-schema-ready
+      - merge-candidate
+      - relation-not-node
+      - framework-vocabulary
+      - split-candidate
+      - defer-evidence-gap
+  reason_codes:
+    type: list
+    minimum_items: 1
+  evidence:
+    type: list
+  residue:
+    type: list
+
+e0_rules:
+  - E0 results must keep provisional_outcome equal to not-adjudicated.
+  - structural-separation-survives requires positive accept, malformed reject, and neighbor reroute.
+  - structural-collapse-observed requires positive accept, malformed reject, and neighbor accept when only forbidden shortcuts distinguish it.
+  - deterministic requires two runs with equal method_outcome, reason_codes, evidence refs, and residue.
+  - synthetic-only corpus keeps promotion_eligible false outside this result contract.
+  - DS-D8 graph evidence may support a result but cannot independently set method_outcome.

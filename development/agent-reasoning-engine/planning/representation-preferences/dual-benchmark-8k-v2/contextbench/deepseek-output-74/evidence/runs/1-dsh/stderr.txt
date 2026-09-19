@@ -1,0 +1,85 @@
+dsh: reasoning:
+This is zstd repo. Issue #1241 relates to ZSTD_compressBlock_fast / dictMatchState? "first input position is valid for a match even during first usage of context by starting reference at 1" — this sounds like ZSTD_insertAndFindFirstIndex / hash chain "ZSTD_updateTree" ... Actually it matches zstd issue about "compression bug with dict using ZSTD_compressBegin" ... The known fix: in zstd_compress.c, ZSTD_compressBlock_fast, the check `match - repIndex` ... Hmm. Known commit: "fix: ensure first position is valid for a match even in single-shot" — relates to `ZSTD_compressBegin_internal` / `ZSTD_compress_insertDictionary`? Let me search zstd_compress.c for something like `if (ip == istart)` or "saved".
+
+Actually the known fix (PR #1246?) is in ZSTD_fast: `U32 const h = ... ; ... if (dictMode == ZSTD_dictMatchState)`. Hmm. Let's search for "start of input" or window log low limit. Search "too low" or "windowLog".
+dsh: reasoning:
+The issue: ZSTD_window_init sets lowLimit = 1? Let's look at zstd_compress_internal.h around line 506-520 (ZSTD_window_init). The fix "starting reference at 1 (avoiding the problematic 0)" — upstream zstd commit changed `ZSTD_window_init` to set `base` such that indices start at 1: `ms->window.dictLimit = 1; ms->window.lowLimit = 1; ms->window.nextSrc = ms->window.base + 1;` Yes, upstream commit "fixed #1241: ensure first position is valid" changed ZSTD_window_init:
+
+```
+ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;
+    window->lowLimit = 1;
+    window->nextSrc = window->base + 1;   /* see issue #1241 */
+}
+```
+
+Let's read current code.
+dsh: reasoning:
+Find ZSTD_window_init — search.
+dsh: reasoning:
+No ZSTD_window_init exists; window is zeroed in ZSTD_reset_matchState probably. Find where window is memset/initialized in zstd_compress.c.
+dsh: reasoning:
+Find ZSTD_reset_matchState or where ms->window is set. Search "ms->window.base" in zstd_compress.c.
+dsh: reasoning:
+Look at ZSTD_reset_matchState in zstd_compress.c around lines 2250-2450.
+dsh: reasoning:
+I need to find ZSTD_reset_matchState where window is reset. Search "ZSTD_window_t" in zstd_compress.c or "window_t* const".
+dsh: reasoning:
+The upstream fix (zstd PR #1245, commit "fix #1241") introduced ZSTD_window_init in zstd_compress_internal.h:
+
+```
+MEM_STATIC void ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;
+    window->lowLimit = 1;
+    window->nextSrc = window->base + 1;   /* see issue #1241 */
+}
+```
+
+and in ZSTD_reset_matchState replaced `memset(&ms->window, 0, sizeof(ms->window));` with `ZSTD_window_init(&ms->window);`.
+
+But here, dictLimit/lowLimit starting at 1 while base is "" (empty string). Note in this older version, ZSTD_window_update computes base = nextSrc etc. Check ZSTD_window_update to ensure consistency. In old code, window_update:
+
+```
+window->base += (ptrdiff_t)...? 
+```
+
+Actually old ZSTD_window_update:
+
+```
+    if (src != window->nextSrc) {
+        /* new block start ... */
+        U32 const endIndex = (U32)((size_t)(srcEnd - window->base));
+        ...
+        window->base = src - (ptrdiff_t)startIndex; ... 
+```
+
+The upstream fix also changed things. The minimal upstream commit (v1.3.8, commit f2d0c29 "Fix Issue #1241"):
+
+```
+MEM_STATIC void ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;
+    window->lowLimit = 1;
+    window->nextSrc = window->base + 1;   /* see issue #1241 */
+}
+```
+
+and in reset_matchState: `ZSTD_window_init(&ms->window);` instead of memset. Also ZSTD_window_update must handle "window->base was set". Let's check ZSTD_window_update in this base to see if it's compatible. Read lines ~640-700 of the header.
+dsh: reasoning:
+With window zeroed, nextSrc=NULL, base=NULL, dictBase=NULL. First window_update: not contiguous (src != NULL), distanceFromBase=0, lowLimit=dictLimit=0, dictBase=base=NULL, base = ip - 0 = ip, dictLimit=0. Then `window->dictLimit - window->lowLimit < HASH_READ_SIZE` → 0 < n, so lowLimit = dictLimit = 0. So the first position 0 is index 0 which equals dictLimit → treated as dict content? That's the bug: index 0 valid for a match with dictBase offset 0... upstream fix: set base="" dictBase="" dictLimit=1 lowLimit=1 nextSrc=base+1. Then first update: not contiguous (src != base+1), distanceFromBase = 1, lowLimit=1, dictLimit=1, dictBase="", base=ip-1. Good.
+
+Also check overflow correction: ZSTD_window_correctOverflow handles lowLimit... upstream commit also adjusted? Upstream v1.3.8 commit "fixed #1241" (commit 5d2b90e?) also touched zstd_compress.c dictMatchState and ZSTD_reduceIndex? The reduceIndex subtracts correction; with lowLimit starting at 1, fine.
+
+Apply patch: add ZSTD_window_init after ZSTD_window_clear (or before), and change memset in reset_matchState.
+dsh: reasoning:
+Verify consistency with ZSTD_window_update first-call path: distanceFromBase = nextSrc - base = 1, lowLimit=dictLimit=1, dictBase="" (base), base = ip - 1. Good. Also ZSTD_window_clear works. Also ZSTD_invalidateMatchState after init — check it doesn't clobber window. Search quickly.
+dsh: reasoning:
+invalidateMatchState calls ZSTD_window_clear, which sets lowLimit=dictLimit=end where end = nextSrc - base = 1. So dictLimit=lowLimit=1 — exactly the desired state. Good, the patch is consistent. Submit.

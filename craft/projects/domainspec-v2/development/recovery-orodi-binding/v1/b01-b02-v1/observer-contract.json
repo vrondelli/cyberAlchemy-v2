@@ -1,0 +1,84 @@
+{
+  "status": "local-prototype",
+  "authority_effect": "none",
+  "observer_id": "domainspec.orodi.recovery-test-observer-candidate",
+  "owner_role": "Recovery evidence owner",
+  "producer_separation": {
+    "subject": "frozen R03-R06 runtime",
+    "fault_driver": "Existing test runner plus later instrumented successor",
+    "observer": "Distinct implementation identity and process evidence; no recovery mutation API",
+    "independence_evidence": [
+      "observer artifact digest",
+      "subject artifact digest",
+      "producer and observer process identities",
+      "capture method and read-only connection policy"
+    ],
+    "historical_independence": "unknown unless the original producer relationship is evidenced"
+  },
+  "capture_protocol": [
+    "Driver reaches named barrier and reports process identity and sequence",
+    "Observer opens existing fixture database read-only, enables query_only, verifies schema without migration",
+    "Read a bounded transaction per store, stable row ordering and snapshot metadata",
+    "Close each read transaction before driver continues; no long-lived read lock across tested COMMIT",
+    "Record store captures separately; no assertion of atomic cross-database snapshot",
+    "On timeout or read failure emit cause and unavailable snapshot; driver policy handles its own bounded test timeout"
+  ],
+  "required_fields": [
+    "scenario_id",
+    "repetition",
+    "test_id",
+    "subject_digest",
+    "observer_digest",
+    "producer_identity",
+    "observer_identity",
+    "barrier_id",
+    "sequence",
+    "store_role",
+    "schema_version",
+    "capture_started_at_utc",
+    "capture_finished_at_utc",
+    "clock_kind",
+    "boot_id",
+    "monotonic_value",
+    "snapshot_or_failure",
+    "raw_source_ref"
+  ],
+  "clock_policy": {
+    "wall_clock": "UTC capture interval and supplied evaluation instant; never infer capture time from campaign recording time",
+    "lease_clock": "Explicit injected/host-monotonic kind and boot identity; no cross-boot comparisons",
+    "ordering": "Barrier sequence establishes ordering; wall-clock order alone is insufficient",
+    "failure": "Missing required capture time is missing; backward/changed clock needed by assertion is inconclusive with cause"
+  },
+  "input_policy": {
+    "local_fixture_only": true,
+    "sql": "Existing databases only; no CREATE, UPDATE, PRAGMA writes, checkpoint, cleanup or migration",
+    "atomicity": "Per-store snapshot; cross-store causal barriers required",
+    "observation_interference": "Record reader-lock behavior and confirm no observer lock spans fault-driver COMMIT; intrusive observation invalidates affected assertion"
+  },
+  "fresh_instrumentation": {
+    "R01-F26": "Formation probe with tool/source digests; no runtime snapshot required",
+    "R01-F27": "Both formation and runtime observations required",
+    "R01-F30": "Both formation and runtime observations required",
+    "default": "Before/after and scenario-specific process/barrier evidence"
+  },
+  "attribute_policy": {
+    "allowlist": [
+      "scenario_id",
+      "repetition",
+      "test_id",
+      "store_role",
+      "barrier_id",
+      "clock_kind",
+      "schema_version"
+    ],
+    "unknown_attributes": "invalid; preserve original raw bytes separately",
+    "identity_placement": "PIDs, boot IDs, paths and digests are structured provenance, not telemetry labels",
+    "telemetry_counters": "absent unless actually measured; not required by this recovery profile",
+    "budgets": {
+      "scenario_ids": 30,
+      "repetitions": 2,
+      "store_roles": 2
+    },
+    "private_raw_evidence": "Keep repository-private; no public export"
+  }
+}

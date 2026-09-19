@@ -1,0 +1,29 @@
+diff --git a/projects/domainspec-v2/impl/architecture-conformance/factory/pipeline/execute-factory-run.ts b/projects/domainspec-v2/impl/architecture-conformance/factory/pipeline/execute-factory-run.ts
+--- a/projects/domainspec-v2/impl/architecture-conformance/factory/pipeline/execute-factory-run.ts
++++ b/projects/domainspec-v2/impl/architecture-conformance/factory/pipeline/execute-factory-run.ts
+@@ -24,6 +24,7 @@ const deepFreeze = <T>(value: T): T => {
+ 
+ export const bindReplayVerifiedSemanticResult = (input: Readonly<{
+   node_id: string;
++  locked_claim_ceiling: string;
+   direct_sha256: string;
+   replay_result: FactoryNodeSemanticResultV1;
+   replay_result_sha256: string;
+@@ -33,6 +34,9 @@ export const bindReplayVerifiedSemanticResult = (input: Readonly<{
+   if (input.replay_result_sha256 !== input.direct_sha256 ||
+       sha256(canonicalJson(input.replay_result)) !== input.replay_result_sha256) {
+     return fail("FACTORY_REPLAY_DRIFT", input.node_id);
+   }
++  if (input.replay_result.claim_ceiling !== input.locked_claim_ceiling) {
++    return fail("FACTORY_CLAIM_CEILING_MISMATCH", input.node_id);
++  }
+   return deepFreeze(input.replay_result);
+ };
+@@ -83,6 +87,7 @@ export const executeFactoryRun = async (input: Readonly<{
+         childPids.push(replay.child_pid);
+         const stable = bindReplayVerifiedSemanticResult({
+           node_id: nodeId,
++          locked_claim_ceiling: locked.claim_ceiling,
+           direct_sha256: directSha256,
+           replay_result: replay.result,
+           replay_result_sha256: replay.result_sha256,

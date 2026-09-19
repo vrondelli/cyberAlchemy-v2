@@ -1,0 +1,93 @@
+{
+  "candidate_id": "DSV2-R01-PYTHON-SQLITE-RECOVERY-001",
+  "status": "agent-navigation-scaffold",
+  "authority_effect": "none",
+  "actors": [
+    {
+      "id": "workflow-owner",
+      "role": "Selects exact recovery Operations and meaning of completion"
+    },
+    {
+      "id": "operation-owner",
+      "role": "Owns local business state, result ledger, outbox and explicit continuation"
+    },
+    {
+      "id": "runtime-owner",
+      "role": "Owns coordination, claims, leases and restart mechanics"
+    },
+    {
+      "id": "test-owner",
+      "role": "Observes separate stores and adjudicates bounded product evidence"
+    }
+  ],
+  "product_capability": {
+    "id": "local-recovery",
+    "beneficiary": "Developer testing DomainSpec recovery behavior",
+    "problem": "Process loss can leave business work committed while recovery progress is uncertain.",
+    "desired_outcome": "Resume the same plan with preserved progress and no repeated local business application.",
+    "business_value_status": "hypothesis; no measured customer outcome"
+  },
+  "objects": [
+    {
+      "id": "recovery-request",
+      "definition_ref": "domainspec-v2-D37"
+    },
+    {
+      "id": "recovery-progress",
+      "definition_ref": "domainspec-v2-D38"
+    },
+    {
+      "id": "execution-episode",
+      "definition_ref": "domainspec-v2-D39"
+    },
+    {
+      "id": "business-replay-key",
+      "definition_ref": "domainspec-v2-D40"
+    },
+    {
+      "id": "recovery-result",
+      "definition_ref": "domainspec-v2-D44"
+    }
+  ],
+  "ownership": [
+    {
+      "id": "coordination",
+      "owner": "Recovery runtime",
+      "resource": "coordination.sqlite",
+      "atomic_participants": [
+        "dispatch/version",
+        "progress",
+        "claim/lease",
+        "attempt outcomes",
+        "retry schedule",
+        "terminal disposition and semantic projection",
+        "dispatch outbox"
+      ],
+      "rule": "Only participants changed by one transition join that transaction. Persist intent, exact plan and binding set before dispatch is eligible. No Operation is invoked inside this transaction."
+    },
+    {
+      "id": "operation",
+      "owner": "Example recovery Operation adapter",
+      "resource": "operation.sqlite",
+      "atomic_participants": [
+        "business state",
+        "successful invocation identity and recorded result",
+        "Operation outbox"
+      ],
+      "rule": "Unique invocation identity plus exact binding/payload digest. Under one write transaction return an existing matching success or apply and record one success atomically. Same identity with different payload/binding rejects. A failed pre-commit call records no applied-success row; durable attempt evidence lives in coordination. No network or external business effects."
+    }
+  ],
+  "success_measures": [
+    "All 30 bounded scenarios satisfy expected observations in two fresh repetitions",
+    "No duplicate local business application for a stable invocation identity",
+    "No stale-worker progress commit after takeover",
+    "No discarded completed prefix across process restart"
+  ],
+  "adoption_status": "unapproved prototype; runtime unimplemented",
+  "not_a_claim": [
+    "production readiness",
+    "remote refund correctness",
+    "general database rollback",
+    "universal exactly-once delivery"
+  ]
+}

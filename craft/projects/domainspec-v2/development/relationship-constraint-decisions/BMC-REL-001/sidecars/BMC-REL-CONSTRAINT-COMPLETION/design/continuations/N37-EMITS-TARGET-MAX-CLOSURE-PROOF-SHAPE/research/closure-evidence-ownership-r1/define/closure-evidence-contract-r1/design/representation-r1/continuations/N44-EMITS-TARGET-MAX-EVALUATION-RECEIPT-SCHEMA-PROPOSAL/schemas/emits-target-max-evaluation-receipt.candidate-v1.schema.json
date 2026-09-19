@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/candidates/emits-target-max-evaluation-receipt.candidate-v1.schema.json",
+  "title": "Candidate emits.target_max evaluation receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "receipt_schema", "evaluator", "inputs", "predicate", "evaluation_summary", "result", "diagnostics", "semantic_result_digest", "receipt_payload_digest", "currentness", "claim_ceiling", "authority_effect"],
+  "properties": {
+    "schema_version": { "const": "domainspec.emits-target-max-evaluation-receipt.candidate/v1" },
+    "receipt_id": { "$ref": "#/$defs/id" },
+    "receipt_schema": { "$ref": "#/$defs/exactRef" },
+    "evaluator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "version": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["closure_envelope", "graph", "source_manifest", "relationship_registry", "profile"],
+      "properties": {
+        "closure_envelope": { "$ref": "#/$defs/exactRef" },
+        "graph": { "$ref": "#/$defs/exactRef" },
+        "source_manifest": { "$ref": "#/$defs/exactRef" },
+        "relationship_registry": { "$ref": "#/$defs/exactRef" },
+        "profile": { "$ref": "#/$defs/exactRef" }
+      }
+    },
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation", "facet", "value", "counting_unit", "duplicate_policy_receipt", "numeric_policy_receipt", "closure_proof_receipt"],
+      "properties": {
+        "relation": { "const": "emits" },
+        "facet": { "const": "target_max" },
+        "value": { "const": 1 },
+        "counting_unit": { "const": "distinct-authored-canonical-concept-facts-after-duplicate-rejection" },
+        "duplicate_policy_receipt": { "$ref": "#/$defs/exactRef" },
+        "numeric_policy_receipt": { "$ref": "#/$defs/exactRef" },
+        "closure_proof_receipt": { "$ref": "#/$defs/exactRef" }
+      }
+    },
+    "evaluation_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding_errors", "duplicate_fact_ids", "target_max_violations", "missing_closure_components"],
+      "properties": {
+        "binding_errors": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "duplicate_fact_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "target_max_violations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event_id", "source_entity_ids"],
+            "properties": {
+              "event_id": { "$ref": "#/$defs/id" },
+              "source_entity_ids": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+            }
+          }
+        },
+        "missing_closure_components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["boundary-identity", "boundary-kind", "eligible-entity-population", "entity-placement", "eligible-event-population", "event-placement", "incoming-emits-adjacency"] }
+        }
+      }
+    },
+    "result": { "enum": ["pass", "invalid", "not-evaluated-incomplete-closure", "error"] },
+    "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
+    "semantic_result_digest": { "$ref": "#/$defs/sha256" },
+    "receipt_payload_digest": { "$ref": "#/$defs/sha256" },
+    "currentness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "external_ref"],
+      "properties": {
+        "status": { "enum": ["unknown", "external-ref"] },
+        "external_ref": { "oneOf": [{ "$ref": "#/$defs/exactRef" }, { "type": "null" }] }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "unknown" } } }, "then": { "properties": { "external_ref": { "type": "null" } } } },
+        { "if": { "properties": { "status": { "const": "external-ref" } } }, "then": { "properties": { "external_ref": { "$ref": "#/$defs/exactRef" } } } }
+      ]
+    },
+    "claim_ceiling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "property_claim", "runtime_claim", "packet_authority", "release_authority"],
+      "properties": {
+        "scope": { "const": "exact-bound-snapshot-and-emits-target-max-1-only" },
+        "property_claim": { "enum": ["established-for-bound-snapshot", "refuted-for-bound-snapshot", "none"] },
+        "runtime_claim": { "const": false },
+        "packet_authority": { "const": false },
+        "release_authority": { "const": false }
+      }
+    },
+    "authority_effect": { "const": "none" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "evaluation_summary": { "properties": { "binding_errors": { "minItems": 1 } } } } },
+      "then": { "properties": { "result": { "const": "error" }, "claim_ceiling": { "properties": { "property_claim": { "const": "none" } } } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluation_summary": {
+            "properties": { "binding_errors": { "maxItems": 0 } },
+            "anyOf": [
+              { "properties": { "duplicate_fact_ids": { "minItems": 1 } } },
+              { "properties": { "target_max_violations": { "minItems": 1 } } }
+            ]
+          }
+        }
+      },
+      "then": { "properties": { "result": { "const": "invalid" }, "claim_ceiling": { "properties": { "property_claim": { "const": "refuted-for-bound-snapshot" } } } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluation_summary": {
+            "properties": {
+              "binding_errors": { "maxItems": 0 },
+              "duplicate_fact_ids": { "maxItems": 0 },
+              "target_max_violations": { "maxItems": 0 },
+              "missing_closure_components": { "minItems": 1 }
+            }
+          }
+        }
+      },
+      "then": { "properties": { "result": { "const": "not-evaluated-incomplete-closure" }, "claim_ceiling": { "properties": { "property_claim": { "const": "none" } } } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluation_summary": {
+            "properties": {
+              "binding_errors": { "maxItems": 0 },
+              "duplicate_fact_ids": { "maxItems": 0 },
+              "target_max_violations": { "maxItems": 0 },
+              "missing_closure_components": { "maxItems": 0 }
+            }
+          }
+        }
+      },
+      "then": { "properties": { "result": { "const": "pass" }, "claim_ceiling": { "properties": { "property_claim": { "const": "established-for-bound-snapshot" } } } } }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "precedence", "stage", "subject", "detail"],
+      "properties": {
+        "code": { "enum": ["EMITS_INPUT_BINDING_ERROR", "EMITS_DUPLICATE_AUTHORED_FACT", "EMITS_TARGET_MAX_VIOLATION", "EMITS_INCOMPLETE_CLOSURE", "EMITS_EVALUATOR_ERROR"] },
+        "precedence": { "type": "integer", "minimum": 1 },
+        "stage": { "enum": ["binding", "duplicates", "numeric", "closure", "evaluation"] },
+        "subject": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

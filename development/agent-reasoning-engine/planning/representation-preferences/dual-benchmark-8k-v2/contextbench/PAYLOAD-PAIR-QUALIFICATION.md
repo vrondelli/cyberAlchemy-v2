@@ -1,0 +1,17 @@
+# Prospective public-derived payload pair
+
+This diagnostic uses two newly specified complete tokenizer requests derived from the failed run’s public initial request, public assistant tool call and recorded search result. It is not an exact replay: historical retained reasoning was omitted from public capture, and the reconstructed request hash does not match the historical measured request. The historical 8337-token denial is retained unchanged.
+
+The raw condition includes the public assistant/tool exchange as recorded. The encoded condition changes only the tool payload to the reviewed lossless encoding and appends PAYLOAD_GUIDE to the system instruction. Both contain the same tools and source observations. Neither has reasoning_content; retained-reasoning reservation is zero for these specified requests. Output reserve2048 and margin512 are included in both totals. The encoded guide’s input tokens count. Model comprehension and fresh runtime follow-ups remain untested.
+
+A native prospective experiment records this narrower diagnostic before dispatch, as a prerequisite to the original qualification rather than its replacement. Success requires both successful known tokenizer receipts, fewer encoded input tokens and encoded total at most8000. No15% whole-task, runtime or quality claim can be made. Raw overflow is measured evidence, not model dispatch permission.
+
+The helper creates a native investigation driver for each condition but only calls prepare and close. Transport admission permits exactly two tokenizer dispatches total and forbids model calls. Each client has one model-request capacity but model dispatch is never invoked and the transport callback independently rejects non-tokenizer calls. Tokenizer retries remain disabled. A provider failure preserves its receipt and stops the second condition. Native ledgers and fixed two-row result remain in the guarded output root.
+
+The dedicated worker uses the reviewed process supervisor through runComparisonProductionStage:120-second deadline, one-second termination grace and bounded local process-group settlement. Source hashes are checked before and after the child. Exact independent technical review must bind the manifest digest and admit only this two-tokenizer invocation. Fresh D:/WSL admission reserves33MiB (32MiB worker artifacts plus bounded parent report); no source worktrees or model generation are needed. C: is excluded.
+
+Six offline tests pass through the actual native admission driver with scripted tokenizers: oversized raw/fitting encoded, lack of reduction or fit, provider failure, forbidden model evidence and prompt drift. These are not provider measurements. Boundary tests cover totals of 7998, 7999, 8000 and 8001. The existing native driver admits preparation only below 7999; the diagnostic separately records native_prepare_admitted and the declared at-most-8000 arithmetic criterion. A known tokenizer measurement at that boundary remains valid diagnostic evidence, never model dispatch permission.
+
+## Open Questions
+
+Independent protocol/implementation review and real tokenizer measurements are pending. A passing pair establishes only a mechanism on these specified requests. Fresh full runtime capture, codec integration into all applicable arm/evidence paths, separate transport diagnosis, exact full-comparison review, quality and cumulative-token gates, and untouched confirmation remain required. The original research objectives are preserved in COMPARISON-PAYLOAD-RESEARCH-R1.json.

@@ -1,0 +1,1457 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="A story-led explanation of DomainSpec, its current node model and structural compiler, and the planned DS-SFOL behavioral evidence framework.">
+  <title>DomainSpec — From Shared Meaning to Nodes and Evidence</title>
+  <style>
+    :root {
+      --ink: #172126;
+      --muted: #617078;
+      --paper: #f2eee3;
+      --panel: #fffdf7;
+      --line: #bbb7aa;
+      --source: #0f766e;
+      --source-soft: #d9f2ed;
+      --logic: #1d4ed8;
+      --logic-soft: #dce9ff;
+      --run: #6d28d9;
+      --run-soft: #eee8ff;
+      --proof: #a84d08;
+      --proof-soft: #fff0c9;
+      --danger: #b42318;
+      --danger-soft: #fee4e2;
+      --good: #166534;
+      --good-soft: #dcfce7;
+      --shadow: 0 12px 36px rgba(23, 33, 38, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 7% 0%, rgba(15, 118, 110, .12), transparent 30rem),
+        radial-gradient(circle at 96% 18%, rgba(168, 77, 8, .11), transparent 28rem),
+        var(--paper);
+      font: 16px/1.58 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      max-width: 1050px;
+      margin-bottom: 20px;
+      font-size: clamp(2.5rem, 6.4vw, 6rem);
+      line-height: .95;
+      letter-spacing: -.064em;
+    }
+    h2 {
+      margin-bottom: 12px;
+      font-size: clamp(1.65rem, 3.4vw, 2.75rem);
+      line-height: 1.08;
+      letter-spacing: -.04em;
+    }
+    h3 { margin-bottom: 9px; font-size: 1.15rem; line-height: 1.3; }
+    p { max-width: 820px; }
+    a { color: var(--source); }
+    code {
+      padding: .12rem .34rem;
+      border-radius: .3rem;
+      background: rgba(23, 33, 38, .07);
+      font-size: .9em;
+    }
+    pre {
+      position: relative;
+      margin: 16px 0;
+      overflow-x: auto;
+      color: #edf8f6;
+      border: 1px solid #315158;
+      border-radius: 13px;
+      background: #152d31;
+      padding: 18px;
+      font: .84rem/1.62 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    pre code { padding: 0; background: none; font-size: inherit; }
+
+    .wrap { width: min(1460px, calc(100% - 34px)); margin-inline: auto; }
+    .hero { padding: 74px 0 42px; }
+    .eyebrow {
+      margin-bottom: 9px;
+      color: var(--source);
+      font-size: .72rem;
+      font-weight: 850;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .lede {
+      max-width: 900px;
+      color: #35464d;
+      font-size: clamp(1.08rem, 2vw, 1.42rem);
+    }
+    .example-banner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      max-width: 1050px;
+      margin-top: 26px;
+      padding: 18px 20px;
+      border: 1px solid #d6a654;
+      border-left: 5px solid var(--proof);
+      border-radius: 12px;
+      background: var(--proof-soft);
+    }
+    .example-banner p { margin: 0; }
+    .badge {
+      display: inline-flex;
+      padding: 6px 10px;
+      color: #7d3d06;
+      border: 1px solid #dfb05e;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .55);
+      font-size: .75rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .toolbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-block: 1px solid rgba(187, 183, 170, .86);
+      background: rgba(242, 238, 227, .92);
+      backdrop-filter: blur(14px);
+    }
+    .toolbar-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      min-height: 58px;
+    }
+    .toolbar a {
+      padding: 7px 10px;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel);
+      font-size: .76rem;
+      font-weight: 760;
+      text-decoration: none;
+    }
+    .toolbar a:hover { border-color: var(--ink); }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 290px;
+      gap: 24px;
+      align-items: start;
+      padding-top: 28px;
+    }
+    .content { min-width: 0; }
+    .section {
+      margin-bottom: 22px;
+      padding: clamp(22px, 3vw, 38px);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 253, 247, .9);
+      box-shadow: var(--shadow);
+      scroll-margin-top: 78px;
+    }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 20px;
+    }
+    .section-title p { color: var(--muted); }
+
+    .toc {
+      position: sticky;
+      top: 82px;
+      padding: 18px;
+      border: 1px solid #29484e;
+      border-radius: 16px;
+      color: #f3faf8;
+      background: #14292d;
+      box-shadow: var(--shadow);
+    }
+    .toc .eyebrow { color: #75dccd; }
+    .toc ol { margin: 0; padding-left: 22px; }
+    .toc li { margin: 5px 0; color: #b9cacc; font-size: .82rem; }
+    .toc a { color: #dcebea; text-decoration: none; }
+    .toc a:hover { color: #75dccd; }
+    .toc-note {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #38545a;
+      color: #b9cacc;
+      font-size: .79rem;
+    }
+
+    .equation-card {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin: 18px 0;
+      font-size: clamp(1.05rem, 2.6vw, 1.5rem);
+      font-weight: 850;
+    }
+    .token {
+      padding: 8px 12px;
+      color: #0e5e58;
+      border-radius: 8px;
+      background: var(--source-soft);
+    }
+    .token.result { color: #7d3d06; background: var(--proof-soft); }
+    .note {
+      margin-top: 18px;
+      padding: 13px 15px;
+      border-left: 4px solid var(--proof);
+      border-radius: 0 10px 10px 0;
+      background: #fff7e4;
+    }
+    .warning {
+      margin-top: 18px;
+      padding: 13px 15px;
+      color: #70201a;
+      border-left: 4px solid var(--danger);
+      border-radius: 0 10px 10px 0;
+      background: var(--danger-soft);
+    }
+
+    .steps { display: grid; gap: 11px; }
+    .step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 15px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      left: 44px;
+      bottom: -12px;
+      width: 2px;
+      height: 11px;
+      background: var(--line);
+    }
+    .step-number {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      color: #fff;
+      border-radius: 50%;
+      background: var(--source);
+      font-weight: 900;
+    }
+    .step:nth-child(n+3):nth-child(-n+6) .step-number { background: var(--logic); }
+    .step:nth-child(n+7):nth-child(-n+8) .step-number { background: var(--run); }
+    .step:nth-child(n+9) .step-number { background: var(--proof); }
+    .step-body > p:last-child { margin-bottom: 0; }
+
+    .streams {
+      display: grid;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .stream {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 14px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #fff;
+    }
+    .stream strong {
+      align-self: stretch;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stream.account strong { color: #7d3d06; background: var(--proof-soft); }
+    .stream.meaning strong { color: var(--logic); background: var(--logic-soft); }
+    .stream.reality strong { color: var(--run); background: var(--run-soft); }
+    .stream code { line-height: 1.8; }
+    .join {
+      margin-top: 10px;
+      padding: 15px;
+      color: #edf8f6;
+      border-radius: 11px;
+      background: #15363a;
+      text-align: center;
+      font-weight: 800;
+    }
+
+    .orientation-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .two-column, .lane-grid, .now-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      min-width: 0;
+      padding: 19px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+    .card.source { border-top: 5px solid var(--source); }
+    .card.logic { border-top: 5px solid var(--logic); }
+    .card.run { border-top: 5px solid var(--run); }
+    .card.proof { border-top: 5px solid var(--proof); }
+    .card.danger { border-top: 5px solid var(--danger); }
+    .card ul, .card ol { padding-left: 21px; }
+    .card p:last-child, .card ul:last-child, .card ol:last-child { margin-bottom: 0; }
+
+    .role-table {
+      display: grid;
+      grid-template-columns: 1fr 1.45fr;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .role-table > div {
+      padding: 14px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .role-table > div:nth-child(2n) { border-right: 0; }
+    .role-table > div:nth-last-child(-n+2) { border-bottom: 0; }
+    .role-table .role {
+      display: flex;
+      align-items: center;
+      color: #0e5e58;
+      background: var(--source-soft);
+      font-weight: 820;
+    }
+
+    .formula {
+      overflow-x: auto;
+      padding: 17px;
+      color: #ecf7f5;
+      border-radius: 12px;
+      background: #15363a;
+      text-align: center;
+      font: 750 .9rem/1.75 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .order {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 16px 0;
+    }
+    .order span {
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--logic-soft);
+      color: var(--logic);
+      font-size: .86rem;
+      font-weight: 800;
+    }
+    .order i { color: var(--muted); font-style: normal; }
+
+    footer { padding: 28px 0 72px; color: var(--muted); font-size: .84rem; }
+
+    @media (max-width: 1080px) {
+      main { grid-template-columns: 1fr; }
+      .toc { position: relative; top: auto; order: -1; }
+      .toc ol { columns: 2; }
+    }
+    @media (max-width: 700px) {
+      .wrap { width: min(100% - 18px, 1460px); }
+      .hero { padding-top: 44px; }
+      .example-banner, .orientation-grid, .two-column, .lane-grid, .now-grid {
+        grid-template-columns: 1fr;
+      }
+      .example-banner { align-items: start; }
+      .toc ol { columns: 1; }
+      .stream { grid-template-columns: 1fr; }
+      .role-table { grid-template-columns: 1fr; }
+      .role-table > div { border-right: 0; }
+      .role-table > div:nth-last-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .role-table > div:last-child { border-bottom: 0; }
+    }
+    @media print {
+      body { background: #fff; }
+      .toolbar, .toc { display: none; }
+      main { display: block; }
+      .section, .card, .step { break-inside: avoid; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero wrap">
+    <p class="eyebrow">DomainSpec · from intent to evidence</p>
+    <h1>How can the requirement, the code, and the tests all look right—and still disagree?</h1>
+    <p class="lede">
+      One describes what somebody meant. One records what a developer built. One checks
+      a few examples. They may be reviewed at different moments by different people.
+      The difficult problem is not producing more documents. It is keeping the same
+      meaning alive while an idea becomes software.
+    </p>
+    <div class="example-banner">
+      <p>
+        <strong>Follow one small story.</strong>
+        A player, a key, and a locked door will show why DomainSpec exists. Then we will
+        open one real node file and follow it into structural and behavioral checks.
+      </p>
+      <span class="badge">Illustrative story</span>
+    </div>
+  </header>
+
+  <nav class="toolbar" aria-label="Page sections">
+    <div class="wrap toolbar-inner">
+      <strong>Jump to:</strong>
+      <a href="#domainspec-story">What is DomainSpec?</a>
+      <a href="#nodes">Nodes now</a>
+      <a href="#orientation">DomainSpec context</a>
+      <a href="#bte">Structure vs behavior</a>
+      <a href="#example">Example</a>
+      <a href="#procedure">Procedure</a>
+      <a href="#streams">Three streams</a>
+      <a href="#effects">Effects</a>
+      <a href="#order">Build order</a>
+      <a href="#now">Current state</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <div class="content">
+      <section class="section" id="domainspec-story">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Before nodes · why DomainSpec exists</p>
+            <h2>A player has a key. The door should open. Simple—until the meaning changes.</h2>
+            <p>
+              Imagine your team is building a small game. The first requirement says,
+              “A player with a key can unlock the door.” Product writes the sentence,
+              a developer writes the function, and a tester checks that the door opens.
+              Everyone agrees.
+            </p>
+          </div>
+          <span class="badge">Key-and-Door</span>
+        </div>
+
+        <div class="orientation-grid">
+          <article class="card source">
+            <h3>Product’s note</h3>
+            <pre><code>A player with a key
+can unlock the door.</code></pre>
+            <p>This records the original idea in plain language.</p>
+          </article>
+          <article class="card run">
+            <h3>The implementation</h3>
+            <pre><code>if (player.hasKey) {
+  unlock(door)
+}</code></pre>
+            <p>This turns one interpretation of the sentence into executable code.</p>
+          </article>
+          <article class="card proof">
+            <h3>The test</h3>
+            <pre><code>player has a key
+unlock succeeds</code></pre>
+            <p>This checks one example chosen by the tester.</p>
+          </article>
+        </div>
+
+        <p>
+          Now the rule changes: the player needs <em>the matching key for that door</em>.
+          Product updates the requirement. The developer updates the code. The old test
+          still uses the matching key, so it keeps passing—but it never checks what happens
+          with the wrong key.
+        </p>
+        <p class="warning">
+          <strong>Nothing is obviously broken when inspected alone.</strong>
+          The requirement reads well. The code compiles. The test passes. Yet the three
+          files no longer carry the same complete meaning.
+        </p>
+
+        <h3>The obvious answer is “write better documentation”</h3>
+        <p>
+          Better documentation helps. More tests help too. But here is the strange part:
+          every new document or test becomes another place where the meaning can slowly
+          diverge. The team does not only need more descriptions. It needs one explicit
+          model that those descriptions and checks can point back to.
+        </p>
+
+        <p class="note">
+          <strong>This is where DomainSpec begins.</strong>
+          DomainSpec is a repeatable way to turn what a team means into a connected model
+          that both people and tools can inspect. Before asking how to write the code, it
+          asks: what things exist in this domain, how are they related, and which rules must
+          remain true?
+        </p>
+
+        <h3>From one sentence to a model you can inspect</h3>
+        <pre><code>Player ── performs ──→ UnlockDoor ── produces ──→ DoorUnlocked
+                              ↑
+                              │ enforces
+                         HasKeyRule</code></pre>
+        <p>
+          The sentence has been separated into the things it was talking about: a player,
+          an unlock action, an event, and a rule. The arrows make their relationships
+          visible. Now a tool can ask whether the required parts exist, whether a
+          connection is allowed, and which source introduced each part.
+        </p>
+
+        <div class="order" aria-label="General DomainSpec flow">
+          <span>understand the domain</span><i>→</i>
+          <span>build a connected model</span><i>→</i>
+          <span>derive work and checks</span><i>→</i>
+          <span>observe the result</span><i>→</i>
+          <span>make disagreements visible</span>
+        </div>
+
+        <div class="two-column">
+          <article class="card source">
+            <h3>What DomainSpec is trying to preserve</h3>
+            <ul>
+              <li>the important concepts in the problem;</li>
+              <li>the relationships between those concepts;</li>
+              <li>the rules the software is expected to respect;</li>
+              <li>the path from those rules to specifications, tests, and code work;</li>
+              <li>the evidence needed to notice when reality has drifted from the model.</li>
+            </ul>
+          </article>
+          <article class="card danger">
+            <h3>What DomainSpec does not do for you</h3>
+            <ul>
+              <li>invent the correct business meaning;</li>
+              <li>remove the need for product, engineering, or testing judgment;</li>
+              <li>guarantee that application code exists or behaves correctly;</li>
+              <li>make every part of the intended pipeline available today;</li>
+              <li>turn an explanatory model into release approval.</li>
+            </ul>
+          </article>
+        </div>
+
+        <p class="warning">
+          <strong>Honesty boundary:</strong> the current DomainSpec v2 tools implement
+          useful slices of the larger idea; they do not make the entire intent-to-code
+          pipeline available today. The rest of this page labels capabilities as current
+          or planned.
+        </p>
+
+        <h3>Where DomainSpec fits in the larger private system</h3>
+        <div class="orientation-grid">
+          <article class="card source">
+            <h3>DomainSpec asks “what?”</h3>
+            <p>
+              What does the domain mean? What concepts, relationships, and rules should
+              the software preserve?
+            </p>
+          </article>
+          <article class="card run">
+            <h3>Arcanum organizes “how?”</h3>
+            <p>
+              Which reusable capabilities, routes, and work sessions help people and
+              agents perform the work?
+            </p>
+          </article>
+          <article class="card proof">
+            <h3>Saturn closes the loop</h3>
+            <p>
+              What actually happened, where did reality drift from intent, and what
+              evidence shows that a correction worked?
+            </p>
+          </article>
+        </div>
+        <p class="warning">
+          <strong>System-frame boundary:</strong> this three-part view describes the
+          intended private architecture. DomainSpec and Saturn are not claimed here as
+          publicly shipped products.
+        </p>
+        <p class="note">
+          <strong>A node is not all of DomainSpec.</strong>
+          It is the first concrete instrument in this page: one small file that makes one
+          part of the shared model explicit. The next section opens that instrument and
+          shows exactly what it can do today.
+        </p>
+      </section>
+
+      <section class="section" id="nodes">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Start here · available today</p>
+            <h2>What is a DomainSpec node?</h2>
+            <p>
+              A node is a small file that describes one important part of the software.
+              In a key-and-door game, separate nodes can describe the player, the unlock
+              action, the door-opened event, and the rule that says the player must have
+              the key. Connecting those nodes creates a map of how that part of the
+              software is supposed to work.
+            </p>
+          </div>
+          <span class="badge">Current format · experimental</span>
+        </div>
+
+        <p class="note">
+          <strong>What does “domain” mean here?</strong> It means the subject your software
+          handles: players and doors in a game, orders in a shop, or settlements in a
+          financial system. It does not mean a website address.
+        </p>
+
+        <h3>First picture the nodes as connected boxes</h3>
+        <pre><code>Player ── performs ──→ UnlockDoor ── produces ──→ DoorUnlocked
+                              ↑
+                              │ enforces
+                         HasKeyRule</code></pre>
+        <p>
+          This picture says: a player performs the unlock action, the action produces a
+          door-unlocked event, and the has-key rule controls whether the action is allowed.
+          Each box is a node. Each labeled arrow is a connection.
+        </p>
+
+        <p class="note">
+          <strong>The node file is the source developers edit.</strong> Later sections call
+          it the <em>canonical source</em>, which simply means it is the main version the
+          compiler trusts. The graph, documentation, and receipts are rebuilt from these
+          files instead of being edited by hand.
+        </p>
+
+        <h3>The same rule as a real node file</h3>
+        <p>
+          The current tools accept this <code>HasKeyRule</code> example. The
+          <code>intent</code> explains the rule in plain English. The
+          <code>connections</code> section links the rule to <code>UnlockDoor</code>.
+        </p>
+        <pre><code>{
+  "schema_version": "minted-node/v1",
+  "node_id": "key-and-door.HasKeyRule",
+  "feature_id": "key-and-door",
+  "kind": "Rule",
+  "intent": "Allow the unlock operation only when the player holds the key.",
+  "body": {
+    "formal_return_type": "boolean"
+  },
+  "connections": [
+    {
+      "edge_id": "key-and-door.edge.has-key-rule-enforces-unlock-door",
+      "type": "enforces",
+      "to": "key-and-door.UnlockDoor"
+    }
+  ]
+}</code></pre>
+
+        <h3>The seven parts of the file</h3>
+        <div class="role-table">
+          <div class="role"><code>schema_version</code></div>
+          <div>Says which version of the node-file format is being used.</div>
+          <div class="role"><code>node_id</code></div>
+          <div>Gives the node a unique name so other nodes can point to it.</div>
+          <div class="role"><code>feature_id</code></div>
+          <div>Says which feature this node belongs to.</div>
+          <div class="role"><code>kind</code></div>
+          <div>Says what kind of thing it is: an entity, event, operation, or rule.</div>
+          <div class="role"><code>intent</code></div>
+          <div>Explains in plain English why the node exists.</div>
+          <div class="role"><code>body</code></div>
+          <div>Stores the extra details required for that kind of node.</div>
+          <div class="role"><code>connections</code></div>
+          <div>
+            Lists the arrows from this node to other nodes: the connection name, its type,
+            and where it points.
+          </div>
+        </div>
+
+        <h3>How nodes can be used now</h3>
+        <div class="two-column">
+          <article class="card source">
+            <h3>What you can do today</h3>
+            <ul>
+              <li>
+                Describe four kinds of things: an <code>Entity</code> such as a player,
+                an <code>Operation</code> such as unlocking, an <code>Event</code> such as
+                a door being unlocked, and a <code>Rule</code> such as requiring a key.
+              </li>
+              <li>
+                Connect them with three relationship types:
+                <code>performs</code>, <code>produces</code>, and <code>enforces</code>.
+              </li>
+              <li>
+                Catch common mistakes, such as duplicate names, missing target nodes,
+                invalid connections, or missing details.
+              </li>
+              <li>
+                Build a graph, generated documentation, a list of source files, and a
+                receipt describing the build.
+              </li>
+              <li>
+                Detect when generated files are out of date or no longer match their sources.
+              </li>
+              <li>
+                Use the result for structural checks: does the required model exist, and
+                are its parts connected correctly?
+              </li>
+            </ul>
+          </article>
+          <article class="card danger">
+            <h3>What it does not do yet</h3>
+            <ul>
+              <li>Write the application code for you.</li>
+              <li>Prove that the running application behaves correctly.</li>
+              <li>Support every future DomainSpec node or relationship type.</li>
+              <li>
+                Store the formal logic rules shown later on this page; the current
+                <code>minted-node/v1</code> format does not support them.
+              </li>
+              <li>Decide that a feature is ready to release to users.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="order" aria-label="Current node workflow">
+          <span>write node files</span><i>→</i>
+          <span>check nodes and connections</span><i>→</i>
+          <span>build the graph and reports</span><i>→</i>
+          <span>run structural checks</span>
+        </div>
+        <p class="note">
+          <strong>The rest of this page explains the next idea.</strong>
+          A future node format could store precise behavior rules, turn those rules into
+          test cases, run the application, and compare what happened with what the rule
+          required. That future system is called DS-SFOL. It does not run yet.
+        </p>
+      </section>
+
+      <section class="section" id="orientation">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">System context</p>
+            <h2>Next, ask two different questions</h2>
+            <p>
+              After the nodes are connected, we want to know two things. First: did we
+              describe all the required parts and connect them correctly? Second: does the
+              running application do what the description says? DomainSpec supplies the
+              description. BTE checks the first question. The planned DS-SFOL system would
+              check the second.
+            </p>
+          </div>
+        </div>
+        <p class="note">
+          <strong>The compiler creates three useful helpers.</strong> The graph is a map of
+          the nodes and connections. The source manifest lists the files used to build that
+          map. The build receipt records which versions and content fingerprints were used.
+          These helpers can always be rebuilt from the node files.
+        </p>
+        <div class="orientation-grid">
+          <article class="card source">
+            <h3>DomainSpec describes the expected model</h3>
+            <p>
+              Nodes name the important things in the domain and connections show how they
+              relate. In the future design, a node could also carry a precise behavior rule
+              instead of leaving a test generator to guess from prose.
+            </p>
+          </article>
+          <article class="card proof">
+            <h3>BTE checks the shape of the model</h3>
+            <p>
+              The Backend-Type Test Engine asks whether the required nodes and connections
+              exist and can be traced back to their source files. It checks the description,
+              not the application’s business behavior. A BTE pass does not mean application
+              code was generated or that the application works correctly.
+            </p>
+          </article>
+          <article class="card logic">
+            <h3>DS-SFOL would check behavior</h3>
+            <p>
+              The planned framework would turn precise node rules into a limited set of
+              test cases, run the application, and compare what happened with what the rule
+              required. It would not repair a missing or invalid node model.
+            </p>
+          </article>
+        </div>
+        <p class="note">
+          <strong>Local evidence vocabulary:</strong> “proof” means replayable linkage between
+          specified intent and observed evidence—not a theorem-prover proof. “Residue” means a
+          typed, recorded gap that prevents the claimed evidence chain from closing. These are
+          explanatory usages; the <a href="GLOSSARY.md">package glossary</a> and
+          <a href="GLOSSARY-CONSISTENCY.md">consistency record</a> remain the local terminology
+          owners.
+        </p>
+        <div class="order" aria-label="DomainSpec verification context">
+          <span>write DomainSpec nodes</span><i>→</i>
+          <span>build the graph</span><i>→</i>
+          <span>check the model’s shape</span><i>+</i>
+          <span>check application behavior</span><i>→</i>
+          <span>pass or record a gap</span>
+        </div>
+        <p class="note">
+          <strong>Why keep the questions separate?</strong> A model can be complete even
+          when the application code is missing or wrong. Application code can also appear
+          to work while required parts of the model are missing. Passing one check never
+          silently passes the other.
+        </p>
+      </section>
+
+      <section class="section" id="bte">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">DomainSpec verification context</p>
+            <h2>Structure and behavior are different checks</h2>
+            <p>
+              Both checks begin with the same DomainSpec model, but they answer different
+              questions. BTE checks whether the description has the required parts.
+              DS-SFOL would check a limited, declared set of application behaviors.
+            </p>
+          </div>
+          <span class="badge">Separate evidence lanes</span>
+        </div>
+
+        <p>A Financial Settlement model might contain all of this:</p>
+        <pre><code>Rule: settlement.total-is-conserved
+Operation: calculate-settlement-total
+Rule --[enforces]--> Operation
+logic: gross = net + fee</code></pre>
+
+        <h3>“Generated structure” and “generated application code” are different claims</h3>
+        <div class="orientation-grid">
+          <article class="card source">
+            <h3>1. Authored DomainSpec sources</h3>
+            <p>
+              Canonical nodes, relationships, and structured logic authored as domain intent.
+              These sources say what must exist and what behavior is meaningful.
+            </p>
+          </article>
+          <article class="card proof">
+            <h3>2. Generated structural artifacts</h3>
+            <p>
+              The compiler derives the graph, source manifest, build receipt, and structural
+              obligations consumed by BTE. “Generated” at this stage means generated evidence
+              and read models—not application functions, classes, services, or binaries.
+            </p>
+          </article>
+          <article class="card run">
+            <h3>3. Application implementation</h3>
+            <p>
+              Executable product code such as <code>calculateSettlementTotal</code>. It may be
+              handwritten or produced by a separate code-generation process. Its existence and
+              behavior require evidence beyond structural formation.
+            </p>
+          </article>
+        </div>
+        <p class="warning">
+          <strong>BTE’s boundary:</strong> BTE checks that the required DomainSpec structure is
+          represented and traceable in stage 2. It does not, by that fact alone, establish that
+          stage 3 exists, compiles, can be invoked, or implements the specified behavior. Even
+          when a structural obligation checks a code tag, instance, or binding, that establishes
+          presence or addressability—not behavioral correctness.
+        </p>
+
+        <div class="lane-grid">
+          <article class="card proof">
+            <h3>BTE asks: was it formed correctly?</h3>
+            <pre><code>Does the Rule node exist?
+Does the Operation node exist?
+Is Rule --[enforces]--> Operation allowed by the current relationship rules?
+Are required types, instances, and formations present?
+Do graph, manifest, and build identities agree?</code></pre>
+            <p>
+              A BTE pass supports structural formation and traceability back to canonical
+              sources. It cannot establish that <code>calculateSettlementTotal(100, 3)</code>
+              returns the correct value.
+            </p>
+          </article>
+          <article class="card logic">
+            <h3>DS-SFOL asks: does it behave correctly?</h3>
+            <pre><code>Was the clause independently required?
+Can its structured expression be typed?
+Was every finite case bound and executed?
+Does observed behavior satisfy gross = net + fee?
+Do all clause and evidence identities close exactly?</code></pre>
+            <p>
+              A DS-SFOL pass supports bounded behavioral conformance. It does not establish
+              that every required DomainSpec node or backend formation exists.
+            </p>
+          </article>
+        </div>
+        <h3>States the architecture must keep separate</h3>
+        <div class="role-table">
+          <div class="role">BTE passes; implementation is absent</div>
+          <div>
+            Structural formation is evidenced. DS-SFOL is blocked or unrunnable because there is
+            no implementation target to observe.
+          </div>
+          <div class="role">BTE passes; implementation returns the wrong result</div>
+          <div>
+            Structure remains valid. DS-SFOL fails because observed behavior does not satisfy the
+            node-owned clause.
+          </div>
+          <div class="role">BTE fails; implementation appears to work</div>
+          <div>
+            An implementation observation may exist, but the complete DomainSpec evidence chain
+            cannot close because required structure or traceability is missing.
+          </div>
+        </div>
+        <p class="warning">
+          The target is conjunction, not substitution:
+          <code>structural evidence ∧ behavioral evidence</code>. Even together these are
+          scoped verification evidence, not automatic release or promotion authority.
+        </p>
+      </section>
+
+      <section class="section" id="example">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Behavioral example</p>
+            <h2><code>settlement.total-is-conserved</code></h2>
+          </div>
+          <span class="badge">Meaning</span>
+        </div>
+        <pre><code>settlement.total-is-conserved
+
+gross = net + fee</code></pre>
+        <p>For this example:</p>
+        <div class="equation-card" aria-label="net 100 plus fee 3 equals gross 103">
+          <span class="token">net = 100</span>
+          <span>+</span>
+          <span class="token">fee = 3</span>
+          <span>=</span>
+          <span class="token result">gross = 103</span>
+        </div>
+      </section>
+
+      <section class="section" id="procedure">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Runtime procedure</p>
+            <h2>Follow the clause through ten transformations</h2>
+          </div>
+        </div>
+
+        <div class="steps">
+          <article class="step" id="step-1">
+            <span class="step-number">1</span>
+            <div class="step-body">
+              <h3>The target node extension owns the behavioral meaning</h3>
+              <p>
+                In the planned DS-SFOL extension, the rule is stored as a logic clause—a
+                stable node-owned predicate, invariant, function definition, transition,
+                or effect relation—inside its canonical behavioral node:
+              </p>
+              <p class="warning">
+                <strong>Target design, not current syntax:</strong> the current
+                <code>minted-node/v1</code> schema accepts the Rule formation shown earlier,
+                but it does not accept <code>body.logic</code>. The following payload must
+                first be admitted through a versioned canonical node-schema extension.
+              </p>
+              <pre><code>body:
+  logic:
+    version: domainspec-node-logic/v1
+    clauses:
+      - id: settlement.total-is-conserved
+        parameters: [gross, net, fee]
+        expression:
+          equals:
+            - gross
+            - add: [net, fee]</code></pre>
+              <p>
+                DS-SFOL must not discover this by reading Markdown or interpreting prose.
+                If the node contains only:
+              </p>
+              <pre><code>The settlement total should be correct.</code></pre>
+              <p>
+                then DS-SFOL reports <code>needs-formal</code>; it does not invent a formula.
+              </p>
+            </div>
+          </article>
+
+          <article class="step" id="step-2">
+            <span class="step-number">2</span>
+            <div class="step-body">
+              <h3>An independent manifest declares what must be proven</h3>
+              <p>Before test generation, a validation-owned manifest says:</p>
+              <pre><code>Required clauses:
+- settlement.total-is-conserved</code></pre>
+              <p>
+                This becomes the denominator: the independently constructed exact set
+                of required proofs.
+              </p>
+              <p>That matters because otherwise the generator could accidentally omit the clause and still report:</p>
+              <pre><code>Generated 0 of 0 tests — success</code></pre>
+              <p>With the denominator, that becomes:</p>
+              <pre><code>Required:  1
+Generated: 0
+Verdict:   FAIL — missing clause</code></pre>
+            </div>
+          </article>
+
+          <article class="step" id="step-3">
+            <span class="step-number">3</span>
+            <div class="step-body">
+              <h3>The canonical compiler builds the proof context</h3>
+              <p>
+                Using an admitted profile—the exact versioned language features, clause kinds,
+                harness kinds, and residue rules allowed for this run—the node compiler produces
+                one digest-bound compilation package:
+              </p>
+              <pre><code>canonical node sources
+        ↓
+graph
+source manifest
+build receipt
+source and profile digests</code></pre>
+              <p>
+                DS-SFOL consumes these products. It does not reopen node files or construct
+                a second interpretation of the graph.
+              </p>
+            </div>
+          </article>
+
+          <article class="step" id="step-4">
+            <span class="step-number">4</span>
+            <div class="step-body">
+              <h3>The node adapter projects the logic</h3>
+              <p>
+                The adapter extracts a <code>NodeLogicEnvelope</code>: the lossless package that
+                joins node logic to compiled graph, manifest, build, profile, and source-set
+                identities.
+              </p>
+              <pre><code>node identity
+module identity
+clause identity
+structured expression
+graph digest
+manifest digest
+build digest
+profile digest</code></pre>
+              <p>
+                This preserves the complete chain back to the canonical node. If the graph
+                says one thing while the build receipt refers to an older source digest,
+                projection fails as stale evidence.
+              </p>
+            </div>
+          </article>
+
+          <article class="step" id="step-5">
+            <span class="step-number">5</span>
+            <div class="step-body">
+              <h3>The language kernel validates and typechecks it</h3>
+              <p>The compiler determines that:</p>
+              <pre><code>gross : Money
+net   : Money
+fee   : Money
+
+add(Money, Money) → Money
+equals(Money, Money) → Boolean</code></pre>
+              <p>It then produces a typed expression:</p>
+              <pre><code>equals(gross, add(net, fee))</code></pre>
+              <p>
+                Money and rational values use exact arithmetic. They should not silently
+                become floating-point values. Unsupported or ambiguous logic produces an
+                <em>indeterminate</em> result—a typed record that evaluation is missing or
+                unsupported—and therefore failing residue; it does not become a skipped test.
+              </p>
+            </div>
+          </article>
+
+          <article class="step" id="step-6">
+            <span class="step-number">6</span>
+            <div class="step-body">
+              <h3>Finite fixtures become executable cases</h3>
+              <p>
+                A validation-owned fixture universe—the explicitly declared finite values used
+                to instantiate variables, quantifiers, and boundary cases—supplies:
+              </p>
+              <pre><code>gross: 103
+net: 100
+fee: 3</code></pre>
+              <p>The case deriver creates something conceptually like:</p>
+              <pre><code>case ID: settlement.total-is-conserved/case-001
+clause:  settlement.total-is-conserved
+inputs:  net=100, fee=3
+observed role: gross
+fixture digest: …</code></pre>
+              <p>Quantifiers are handled similarly, but only over declared finite universes:</p>
+              <pre><code>forall settlement in admitted-settlement-fixtures</code></pre>
+              <p>There is no unbounded search.</p>
+            </div>
+          </article>
+
+          <article class="step" id="step-7">
+            <span class="step-number">7</span>
+            <div class="step-body">
+              <h3>Connect the case to implementation code</h3>
+              <p>
+                A binding is a non-authoritative invocation map from one derived execution role
+                to exactly one implementation symbol or harness. It might say:
+              </p>
+              <pre><code>role: calculate-settlement-total
+module: financial-settlement/calculator
+symbol: calculateSettlementTotal
+arguments: [net, fee]</code></pre>
+              <p>Critically, it cannot say:</p>
+              <pre><code>expected: 103</code></pre>
+              <p>The binding owns invocation mechanics, not truth.</p>
+            </div>
+          </article>
+
+          <article class="step" id="step-8">
+            <span class="step-number">8</span>
+            <div class="step-body">
+              <h3>The runner observes reality</h3>
+              <p>The runner calls:</p>
+              <pre><code>calculateSettlementTotal(100, 3)</code></pre>
+              <p>Suppose the implementation returns:</p>
+              <pre><code>103</code></pre>
+              <p>
+                The runner records a raw observation—the unjudged value or effect trace produced
+                by the implementation:
+              </p>
+              <pre><code>arguments: [100, 3]
+raw return: 103
+target digest: …
+runtime version: …</code></pre>
+              <p>It does not declare that <code>103</code> is correct.</p>
+            </div>
+          </article>
+
+          <article class="step" id="step-9">
+            <span class="step-number">9</span>
+            <div class="step-body">
+              <h3>The evaluator calculates meaning independently</h3>
+              <p>Separately, DS-SFOL evaluates:</p>
+              <pre><code>net + fee
+100 + 3
+103</code></pre>
+              <p>
+                It then compares the independently derived result with the raw implementation observation:
+              </p>
+              <pre><code>specified result: 103
+observed result:  103
+verdict: pass</code></pre>
+              <p>If the implementation returns <code>102</code>:</p>
+              <pre><code>specified result: 103
+observed result:  102
+verdict: fail</code></pre>
+              <p>
+                The evaluator is forbidden from importing or calling
+                <code>calculateSettlementTotal</code>. Otherwise the system would grade the
+                implementation using the implementation itself.
+              </p>
+            </div>
+          </article>
+
+          <article class="step" id="step-10">
+            <span class="step-number">10</span>
+            <div class="step-body">
+              <h3>Compare the complete evidence chain</h3>
+              <p>
+                The proof join is the final exact-identity comparison. It checks the complete
+                evidence chain:
+              </p>
+              <pre><code>required clauses
+= projected clauses
+= validated clauses
+= typed clauses
+= generated cases
+= bound cases
+= executed observations
+= evaluated results</code></pre>
+              <p>In the specification this is expressed as:</p>
+              <div class="formula">
+                C<sub>spec</sub> = C<sub>projected</sub> = C<sub>validated</sub> = C<sub>typed</sub><br>
+                = T<sub>generated</sub> = C<sub>bound</sub> = O<sub>run</sub> = R<sub>evaluated</sub>
+              </div>
+              <p class="note">
+                Equal counts are insufficient. The identities and compatible digests must also match.
+              </p>
+              <p>The final receipt binds together:</p>
+              <pre><code>canonical node
++ canonical build
++ denominator member
++ typed expression
++ fixture
++ generated case
++ binding
++ implementation digest
++ raw observation
++ evaluation
++ replay result</code></pre>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="streams">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Mental model</p>
+            <h2>The architecture as three independent streams</h2>
+            <p>The simplest mental model is:</p>
+          </div>
+        </div>
+        <div class="streams">
+          <div class="stream account">
+            <strong>ACCOUNTABILITY</strong>
+            <code>admission manifest ───────────────→ exact denominator</code>
+          </div>
+          <div class="stream meaning">
+            <strong>MEANING</strong>
+            <code>canonical node → typed clause → expected meaning</code>
+          </div>
+          <div class="stream reality">
+            <strong>REALITY</strong>
+            <code>binding → implementation → observation</code>
+          </div>
+          <div class="join">independent join → proof or residue</div>
+        </div>
+        <p class="note">
+          Expected meaning flows from the node and fixtures. Observed behavior flows
+          from the implementation. Accountability independently says what must exist.
+          They meet only at the proof join.
+        </p>
+      </section>
+
+      <section class="section" id="ownership">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Separation of authority</p>
+            <h2>No participant controls both the question and its answer</h2>
+            <p>The separation is intentional:</p>
+          </div>
+        </div>
+        <div class="role-table">
+          <div class="role">Source owner</div>
+          <div>Controls meaning.</div>
+          <div class="role">Validation owner</div>
+          <div>Controls what must be covered and the fixture universe.</div>
+          <div class="role">Implementation owner</div>
+          <div>Controls executable code.</div>
+          <div class="role">Runner</div>
+          <div>Records reality.</div>
+          <div class="role">Evaluator</div>
+          <div>Judges meaning independently.</div>
+          <div class="role">Proof join</div>
+          <div>Establishes exact completeness.</div>
+        </div>
+      </section>
+
+      <section class="section" id="effects">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Effectful example</p>
+            <h2>A return value cannot prove state, calls, or events</h2>
+          </div>
+        </div>
+        <p>A return value is insufficient for a rule such as:</p>
+        <pre><code>When a pending settlement is confirmed:
+- state becomes SETTLED;
+- the gateway is called once;
+- SettlementCompleted is emitted once.</code></pre>
+        <p>
+          An effect harness—an execution adapter that records explicit state, calls, writes,
+          events, and errors—records:
+        </p>
+        <pre><code>pre-state:
+  status: PENDING
+
+calls:
+  gateway.confirm(settlement-123)
+
+writes:
+  status: SETTLED
+
+events:
+  SettlementCompleted(settlement-123)
+
+errors: []
+
+post-state:
+  status: SETTLED</code></pre>
+        <p>The evaluator checks the node-owned effect relation against this trace.</p>
+        <p>Examples of failures:</p>
+        <pre><code>state changed, but event missing       → fail
+event emitted twice                    → fail
+gateway called after event             → fail, if order is specified
+trace does not capture gateway calls   → indeterminate → fail
+teardown or containment failed         → fail</code></pre>
+        <p>This is why DS-SFOL has two execution surfaces:</p>
+        <div class="two-column">
+          <article class="card run">
+            <h3>Pure runner</h3>
+            <p>Invokes a deterministic function and records only its <code>raw return or throw</code>.</p>
+          </article>
+          <article class="card proof">
+            <h3>Effect harness</h3>
+            <p><code>state, calls, writes, events, errors</code></p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="bounded">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Claim ceiling</p>
+            <h2>Specified first-order logic is bounded</h2>
+            <p>
+              The target is an executable, deterministic domain-logic profile—not an
+              arbitrary theorem prover.
+            </p>
+          </div>
+        </div>
+        <div class="two-column">
+          <article class="card logic">
+            <h3>It supports</h3>
+            <ul>
+              <li>typed terms and predicates;</li>
+              <li>exact integer and rational values;</li>
+              <li>finite named quantifier universes;</li>
+              <li>function definitions and effect relations;</li>
+              <li>deterministic resource-bounded evaluation;</li>
+              <li>typed indeterminate residue.</li>
+            </ul>
+          </article>
+          <article class="card danger">
+            <h3>It does not claim</h3>
+            <ul>
+              <li>arbitrary satisfiability or validity solving;</li>
+              <li>unbounded quantification or recursive proof search;</li>
+              <li>automatic invention of business truth;</li>
+              <li>production correctness from generated tests alone;</li>
+              <li>release or promotion authority.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="order">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Two different orders</p>
+            <h2>Runtime order versus implementation order</h2>
+            <p>The finished runtime begins with the canonical node:</p>
+          </div>
+        </div>
+        <div class="order" aria-label="Runtime order">
+          <span>node</span><i>→</i>
+          <span>compile</span><i>→</i>
+          <span>project</span><i>→</i>
+          <span>typecheck</span><i>→</i>
+          <span>derive</span><i>→</i>
+          <span>bind</span><i>→</i>
+          <span>observe</span><i>→</i>
+          <span>evaluate</span><i>→</i>
+          <span>prove</span>
+        </div>
+        <p>Construction begins elsewhere:</p>
+        <div class="two-column">
+          <article class="card logic">
+            <h3>L0</h3>
+            <p>Denominator and language/evaluator.</p>
+          </article>
+          <article class="card run">
+            <h3>L1</h3>
+            <p>Pure bindings, execution, proof, and replay.</p>
+          </article>
+          <article class="card proof">
+            <h3>L2</h3>
+            <p>Effects and canonical node adapter.</p>
+          </article>
+          <article class="card source">
+            <h3>L3</h3>
+            <p>
+              Financial Settlement and a second adopter—another feature or product that supplies
+              its own canonical logic, fixtures, bindings, and harness adapters.
+            </p>
+          </article>
+        </div>
+        <p class="note">
+          The denominator is implemented first because the system needs an independent
+          definition of “everything that must exist” before trusting generated tests.
+        </p>
+      </section>
+
+      <section class="section" id="now">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">What exists now</p>
+            <h2>Complete as a plan, not as a running framework</h2>
+          </div>
+        </div>
+        <div class="now-grid">
+          <article class="card source">
+            <h3>Established</h3>
+            <ul>
+              <li>
+                The current experimental minted-project package validates canonical
+                <code>minted-node/v1</code> sources and compiles structural graph,
+                manifest, Markdown, and receipt read models.
+              </li>
+              <li>The DS-SFOL architecture and twelve-SWU work pack are defined.</li>
+              <li><code>SWU-SFOL-001</code>, the independent denominator, is mutation-ready.</li>
+              <li>Its staged package has 11 passing tests.</li>
+            </ul>
+          </article>
+          <article class="card danger">
+            <h3>Not established yet</h3>
+            <ul>
+              <li>
+                A versioned canonical node extension that admits
+                <code>body.logic</code> has not yet been implemented.
+              </li>
+              <li>The canonical denominator implementation files have not yet been applied.</li>
+              <li>The language, evaluator, bindings, runners, proof system, and node adapter remain future SWUs.</li>
+              <li>Financial Settlement adoption comes at L3.</li>
+            </ul>
+          </article>
+        </div>
+        <p class="warning">
+          The full procedural chain does not run yet. The immediate implementation step
+          remains <code>SWU-SFOL-001</code>; Financial Settlement test generation becomes
+          meaningful only after the core and canonical-node integration exist.
+        </p>
+      </section>
+    </div>
+
+    <aside class="toc" aria-label="Detailed contents">
+      <p class="eyebrow">Procedure map</p>
+      <ol>
+        <li><a href="#step-1">Node owns meaning</a></li>
+        <li><a href="#step-2">Manifest declares coverage</a></li>
+        <li><a href="#step-3">Compiler builds context</a></li>
+        <li><a href="#step-4">Adapter projects logic</a></li>
+        <li><a href="#step-5">Kernel typechecks</a></li>
+        <li><a href="#step-6">Fixtures become cases</a></li>
+        <li><a href="#step-7">Binding selects target</a></li>
+        <li><a href="#step-8">Runner observes reality</a></li>
+        <li><a href="#step-9">Evaluator judges meaning</a></li>
+        <li><a href="#step-10">Proof verifies closure</a></li>
+      </ol>
+      <p class="toc-note">
+        Meaning and reality remain separate until independent evaluation.
+        Exact identities and compatible digests—not counts—establish closure.
+      </p>
+    </aside>
+  </main>
+
+  <footer class="wrap">
+    <p>
+      DS-SFOL procedural architecture · private DomainSpec planning explanation ·
+      illustrative examples are not adopter authority · 2026-07-24.
+    </p>
+  </footer>
+</body>
+</html>

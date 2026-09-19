@@ -1,0 +1,127 @@
+{
+  "schema_version": "domainspec.reference-runtime-proof/v1-candidate",
+  "run_id": "l31789513687266221",
+  "fixture_isolation": "success-and-failure-use-distinct-postgresql-nats-http-processes",
+  "services": {
+    "success": {
+      "postgresql": "ready",
+      "nats": "ready",
+      "http_fixture": "ready",
+      "provider_webhook": "ready"
+    },
+    "failure": {
+      "postgresql": "ready",
+      "nats": "ready",
+      "http_fixture": "ready",
+      "provider_webhook": "ready"
+    }
+  },
+  "success": {
+    "receipt": {
+      "schema_version": "domainspec.reference-runtime-execution/v1-candidate",
+      "order_id": "1001",
+      "stages": [
+        {
+          "stage": "payment-provider",
+          "outcome": "accepted",
+          "reference": "provider-response:accepted"
+        },
+        {
+          "stage": "application-commit",
+          "outcome": "committed",
+          "reference": "transaction:committed"
+        },
+        {
+          "stage": "broker-acceptance",
+          "outcome": "accepted",
+          "reference": "stream-sequence:1"
+        },
+        {
+          "stage": "consumer-completion",
+          "outcome": "not-observed",
+          "reference": "not-inferred-from-provider-acceptance"
+        }
+      ],
+      "operation": {
+        "status": "committed",
+        "value": {
+          "billing_customer_id": "7",
+          "choice": {
+            "variant": "Some",
+            "payload": {
+              "note": null,
+              "quantity": "25"
+            }
+          },
+          "customer": {
+            "id": "7",
+            "name": "Ada"
+          },
+          "id": "1001",
+          "labels": [
+            "priority",
+            "web"
+          ],
+          "lines": [
+            {
+              "note": "primary",
+              "quantity": "25"
+            }
+          ],
+          "money": {
+            "note": null,
+            "quantity": "25"
+          },
+          "tags": [
+            "new",
+            "paid"
+          ]
+        }
+      },
+      "authority_effect": "none"
+    },
+    "database": {
+      "orders": 1,
+      "outbox": 1,
+      "inbox": 1
+    },
+    "topic_counts": {
+      "a": 2,
+      "b": 2
+    },
+    "queue_total": 1,
+    "ack_after_commit": true,
+    "provider_duplicate": true,
+    "valid_webhook_status": 202,
+    "webhook_invocations": 1,
+    "stream_messages": 3
+  },
+  "failures": {
+    "duplicate_order": "rejected",
+    "unauthorized": "failed",
+    "unauthorized_reference": "http:unauthorized:commerce:perform",
+    "retry_classification": {
+      "matcher": "http:timeout",
+      "classification": "retryable",
+      "effect_selected": false
+    },
+    "dead_letter": "dead-letter-sequence:2",
+    "invalid_webhook_status": 401,
+    "webhook_invocations": 0
+  },
+  "orodi": {
+    "schema_version": "domainspec.orodi-observation-input/v1-candidate",
+    "order_id": "1001",
+    "stage_outcomes": [
+      "payment-provider:accepted",
+      "application-commit:committed",
+      "broker-acceptance:accepted",
+      "consumer-completion:not-observed"
+    ],
+    "receipt_sha256": "655d38de1a54cbc80a5b816132e3bca64cd92f37ad071c06f3121c3eafed1e61",
+    "return_edge": "prohibited",
+    "authority_effect": "none"
+  },
+  "claim_ceiling": "bounded-disposable-reference-runtime-only",
+  "authority_effect": "none"
+}

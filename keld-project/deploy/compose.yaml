@@ -2,6 +2,18 @@ name: keld-sandbox
 x-logging: &logging
   driver: json-file
   options: {max-size: 10m, max-file: "3"}
+x-are-runtime: &are-runtime
+  user: "65532:65532"
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true, "seccomp=../are-documentation/deploy/seccomp-node.json"]
+  pids_limit: 64
+  mem_limit: 384m
+  cpus: 1.0
+  restart: unless-stopped
+  tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"]
+  logging: {driver: json-file, options: {max-size: 5m, max-file: "2"}}
 x-app: &app
   image: keld-sandbox:${KELD_VERSION:-candidate}
   build: {context: .bundle, dockerfile: Dockerfile}
@@ -47,10 +59,11 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    networks: [backend, egress]
+    networks: [backend, egress, are-edge]
     logging: *logging
     depends_on:
       web: {condition: service_healthy}
+      are-edge: {condition: service_started}
   postgres:
     image: keld-postgres:16-security-candidate
     build: {context: ., dockerfile: Postgres.Dockerfile}
@@ -125,6 +138,107 @@ services:
     secrets: [stripe, mercadopago, paypal_client_id, paypal_secret]
     depends_on:
       web: {condition: service_healthy}
+  are-production-inputs:
+    image: keld-sandbox:${KELD_VERSION:-candidate}
+    build: {context: .bundle, dockerfile: Dockerfile}
+    command: ["node", "/opt/keld/verify-production-inputs.mjs"]
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 0.25
+    restart: "no"
+    environment:
+      ARE_EDGE_IMAGE: "${ARE_EDGE_IMAGE:?set ARE_EDGE_IMAGE to a digest-pinned ARE edge image reference}"
+      ARE_PUBLIC_CHAT_IMAGE: "${ARE_PUBLIC_CHAT_IMAGE:?set ARE_PUBLIC_CHAT_IMAGE to a digest-pinned ARE public-chat image reference}"
+      ARE_INFERENCE_BROKER_IMAGE: "${ARE_INFERENCE_BROKER_IMAGE:?set ARE_INFERENCE_BROKER_IMAGE to a digest-pinned ARE broker image reference}"
+      ARE_PROVIDER_GATEWAY_IMAGE: "${ARE_PROVIDER_GATEWAY_IMAGE:?set ARE_PROVIDER_GATEWAY_IMAGE to a digest-pinned ARE provider-gateway image reference}"
+      ARE_CHAT_IDLE_RETENTION_SECONDS: "${ARE_CHAT_IDLE_RETENTION_SECONDS:?set the owner-approved idle retention in seconds}"
+      ARE_BROKER_HOURLY_MICROUSD_LIMIT: "${ARE_BROKER_HOURLY_MICROUSD_LIMIT:?set the owner-approved hourly micro-USD ceiling}"
+      ARE_BROKER_MONTHLY_MICROUSD_LIMIT: "${ARE_BROKER_MONTHLY_MICROUSD_LIMIT:?set the owner-approved monthly micro-USD ceiling}"
+      ARE_PROVIDER_INPUT_MICROUSD_PER_MILLION_TOKENS: "${ARE_PROVIDER_INPUT_MICROUSD_PER_MILLION_TOKENS:?set the provider input rate in micro-USD per million tokens}"
+      ARE_PROVIDER_OUTPUT_MICROUSD_PER_MILLION_TOKENS: "${ARE_PROVIDER_OUTPUT_MICROUSD_PER_MILLION_TOKENS:?set the provider output rate in micro-USD per million tokens}"
+    volumes:
+      - ./verify-production-inputs.mjs:/opt/keld/verify-production-inputs.mjs:ro
+    logging: *logging
+  are-edge:
+    <<: *are-runtime
+    image: "${ARE_EDGE_IMAGE:?set ARE_EDGE_IMAGE to a digest-pinned ARE edge image reference}"
+    environment:
+      ARE_CHAT_ACCESS_MODE: "anonymous-public"
+      ARE_CHAT_PUBLIC_HOST: "${KELD_DOMAIN:?set KELD_DOMAIN}"
+    networks: [are-edge, are-chat-ingress]
+    depends_on:
+      are-production-inputs: {condition: service_completed_successfully}
+      are-public-chat: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  are-public-chat:
+    <<: *are-runtime
+    image: "${ARE_PUBLIC_CHAT_IMAGE:?set ARE_PUBLIC_CHAT_IMAGE to a digest-pinned ARE public-chat image reference}"
+    environment:
+      ARE_CHAT_PUBLIC_ORIGIN: "https://${KELD_DOMAIN:?set KELD_DOMAIN}"
+      ARE_CHAT_IDLE_RETENTION_SECONDS: "${ARE_CHAT_IDLE_RETENTION_SECONDS:?set the owner-approved idle retention in seconds}"
+    networks:
+      are-chat-ingress:
+        aliases: [public-chat]
+      are-inference: {}
+    depends_on:
+      are-production-inputs: {condition: service_completed_successfully}
+      are-inference-broker: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:4193/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  are-inference-broker:
+    <<: *are-runtime
+    image: "${ARE_INFERENCE_BROKER_IMAGE:?set ARE_INFERENCE_BROKER_IMAGE to a digest-pinned ARE broker image reference}"
+    environment:
+      ARE_BROKER_HOURLY_MICROUSD_LIMIT: "${ARE_BROKER_HOURLY_MICROUSD_LIMIT:?set the owner-approved hourly micro-USD ceiling}"
+      ARE_BROKER_MONTHLY_MICROUSD_LIMIT: "${ARE_BROKER_MONTHLY_MICROUSD_LIMIT:?set the owner-approved monthly micro-USD ceiling}"
+      ARE_PROVIDER_INPUT_MICROUSD_PER_MILLION_TOKENS: "${ARE_PROVIDER_INPUT_MICROUSD_PER_MILLION_TOKENS:?set the provider input rate in micro-USD per million tokens}"
+      ARE_PROVIDER_OUTPUT_MICROUSD_PER_MILLION_TOKENS: "${ARE_PROVIDER_OUTPUT_MICROUSD_PER_MILLION_TOKENS:?set the provider output rate in micro-USD per million tokens}"
+    volumes: ["are-broker-quota:/var/lib/are-broker-quota"]
+    networks:
+      are-inference:
+        aliases: [inference-broker]
+      are-provider-link: {}
+    depends_on:
+      are-production-inputs: {condition: service_completed_successfully}
+      are-provider-gateway: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:4194/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+  are-provider-gateway:
+    <<: *are-runtime
+    image: "${ARE_PROVIDER_GATEWAY_IMAGE:?set ARE_PROVIDER_GATEWAY_IMAGE to a digest-pinned ARE provider-gateway image reference}"
+    secrets:
+      - source: are_model_api_key
+        target: model_api_key
+        uid: "65532"
+        gid: "65532"
+        mode: 0400
+    networks:
+      are-provider-link:
+        aliases: [provider-gateway]
+      are-provider-egress: {}
+    depends_on:
+      are-production-inputs: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:4195/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 secrets:
   stripe: {file: ./.runtime/secrets/stripe}
   mercadopago: {file: ./.runtime/secrets/mercadopago}
@@ -139,9 +253,16 @@ secrets:
   keycloak_db_password: {file: ./.runtime/secrets/keycloak_db_password}
   keld_db_password: {file: ./.runtime/secrets/keld_db_password}
   keycloak_admin_password: {file: ./.runtime/secrets/keycloak_admin_password}
+  are_model_api_key: {file: ./.runtime/secrets/are_model_api_key}
 networks:
   backend: {internal: true}
   egress: {}
+  are-edge: {internal: true}
+  are-chat-ingress: {internal: true}
+  are-inference: {internal: true}
+  are-provider-link: {internal: true}
+  are-provider-egress: {}
 volumes:
   caddy_data: {}
   caddy_config: {}
+  are-broker-quota: {}

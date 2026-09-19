@@ -4,12 +4,12 @@
 
 1. Use the Node version declared in `product.json`.
 2. Run `doctor --json` before starting a host.
-3. Inspect Candidate 018 and run release verification for a release workspace.
+3. For a release workspace, inspect Candidate 018. Run release verification.
 4. Place gateway sockets and state below a user-private directory.
 5. Set explicit storage, buffer, idle, and retention limits.
 6. Monitor gateway stderr, closed sessions, expiry, replay, and unknown outcomes.
-7. Back up append-only state before migration.
-8. Stop and inspect source drift instead of overwriting candidate evidence.
+7. Make a backup of append-only state before migration.
+8. Stop if the source differs from the recorded version. Inspect the difference. Do not overwrite candidate evidence.
 
 ## Secrets
 
@@ -27,23 +27,26 @@ boundaries, current mitigations, and residual gaps.
 ## Effects
 
 Keep evaluation and execution separate. An `effect` result identifies
-consequence, reversibility, and owner gates for one exact proposal. The host
-must enforce its own approval and sandbox policy and record the observed
-result. Unknown outcomes must not be retried blindly.
+consequence, reversibility, and owner gates for one exact proposal. The host must enforce its own approval and sandbox policy. It must record the observed result.
+Do not retry an action without checking an unknown outcome.
 
 ## Storage
 
 Isolated product tests create temporary closures and remove successful runs.
 Failed runs may remain for diagnosis. ContextBench caches are research storage
-and follow their own compaction and retention manifests. Before a large run,
-inspect free disk space and set a bounded cache root.
+and follow their own compaction and retention manifests. Before a large run, inspect free disk space. Set a cache root with defined limits.
 
 ## Recovery
 
-On restart, verify state and journal digests before replay. Restore the latest
-valid checkpoint, replay later verified events, rebuild derived indexes, and
-preserve unknown external outcomes as blocked records. Do not infer success
-from a missing process.
+After a restart:
+
+1. Verify state and journal digests before replay.
+2. Restore the latest valid checkpoint.
+3. Replay later verified events.
+4. Rebuild derived indexes.
+5. Preserve unknown external outcomes as blocked records.
+
+Do not infer success from a missing process.
 
 ## Security claim boundary
 

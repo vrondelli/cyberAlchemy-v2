@@ -1,0 +1,281 @@
+const BAND_ORDER = Object.freeze(["meaning", "realization", "expectation", "observation", "explanation"]);
+const MATURITY_ORDER = Object.freeze({active: 0, candidate: 1, deferred: 2, superseded: 3});
+const CATEGORY_ORDER = Object.freeze({structural: 0, behavioral: 1, connective: 2, lifecycle: 3, ui: 4});
+const PROFILE_ORDER = Object.freeze({
+  "architecture.base-domain": 0,
+  "architecture.typescript-strict": 1,
+  "architecture.python-strict": 2,
+  "architecture.rust-strict": 3,
+});
+const SEVERITY_ORDER = Object.freeze({error: 0, warning: 1, info: 2});
+const DEFAULT_OPTIONS = Object.freeze({
+  margin_x: 80,
+  margin_y: 90,
+  band_width: 270,
+  band_gap: 70,
+  node_width: 220,
+  node_height: 72,
+  node_gap: 28,
+  band_padding: 25,
+  route_margin: 60,
+  route_lane_gap: 8,
+  route_stub: 10,
+});
+
+const naturalParts = (value) => String(value).split(/(\d+)/).filter(Boolean).map((part) => /^\d+$/.test(part) ? Number(part) : part);
+const compareNatural = (left, right) => {
+  const leftParts = naturalParts(left);
+  const rightParts = naturalParts(right);
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    if (leftParts[index] === undefined) return -1;
+    if (rightParts[index] === undefined) return 1;
+    if (leftParts[index] === rightParts[index]) continue;
+    if (typeof leftParts[index] === "number" && typeof rightParts[index] === "number") return leftParts[index] - rightParts[index];
+    return String(leftParts[index]).localeCompare(String(rightParts[index]));
+  }
+  return 0;
+};
+const compareKeys = (left, right) => {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftValue = left[index] ?? "";
+    const rightValue = right[index] ?? "";
+    if (leftValue === rightValue) continue;
+    if (typeof leftValue === "number" && typeof rightValue === "number") return leftValue - rightValue;
+    return compareNatural(leftValue, rightValue);
+  }
+  return 0;
+};
+const deepFreeze = (value) => {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value)) deepFreeze(child);
+  return value;
+};
+const layoutError = (diagnostics) => {
+  const error = new Error(`Unified canvas node layout rejected with ${diagnostics.length} diagnostic(s).`);
+  error.name = "UnifiedCanvasLayoutError";
+  error.code = "UOC_LAYOUT_INVALID";
+  error.diagnostics = diagnostics.map((item) => Object.freeze({...item}));
+  return error;
+};
+const canonicalMetaNumber = (node) => Number(String(node.source_id).split(".").at(-1)) || Number.MAX_SAFE_INTEGER;
+const conceptDepth = (node, graph, diagnostics) => {
+  const bySourceId = new Map(graph.nodes.filter((item) => item.family === "architecture-type").map((item) => [item.source_id, item]));
+  let depth = 0;
+  let current = node;
+  const seen = new Set();
+  while (current.raw.extends) {
+    if (seen.has(current.source_id)) {
+      diagnostics.push({code: "inheritance-cycle", id: node.id, message: `Inheritance cycle while ordering ${node.id}.`});
+      return Number.MAX_SAFE_INTEGER;
+    }
+    seen.add(current.source_id);
+    current = bySourceId.get(current.raw.extends);
+    if (!current) {
+      diagnostics.push({code: "unknown-layout-parent", id: node.id, message: `Unknown parent while ordering ${node.id}.`});
+      return Number.MAX_SAFE_INTEGER;
+    }
+    depth += 1;
+  }
+  return depth;
+};
+const constraintAppliesKey = (node) => {
+  const targets = node.raw.applies_to ?? [...(node.raw.source_types ?? []), ...(node.raw.target_types ?? [])];
+  return targets.join("|");
+};
+const sourcePath = (node) => node.raw.properties?.["source.path"] ?? `~${node.source_id}`;
+const sortKeyForNode = (node, graph, diagnostics) => {
+  if (node.band === "meaning") return [MATURITY_ORDER[node.statuses.maturity] ?? 99, CATEGORY_ORDER[node.raw.category] ?? 99, canonicalMetaNumber(node), node.id];
+  if (node.band === "realization") return [conceptDepth(node, graph, diagnostics), node.raw.canonical_meta_type_ref ?? "~", node.source_id];
+  if (node.band === "expectation") {
+    if (node.family === "profile") return [PROFILE_ORDER[node.source_id] ?? 99, 0, node.source_id];
+    if (node.family === "constraint") return [PROFILE_ORDER[node.statuses.owner_profile_id] ?? 99, 1, constraintAppliesKey(node), node.source_id];
+    if (node.family === "property") return [99, 2, node.source_id];
+    return [100, 9, node.id];
+  }
+  if (node.band === "observation") return [sourcePath(node), node.source_id];
+  if (node.band === "explanation") return [node.raw.subject_id, node.raw.constraint_id, node.raw.property_id, SEVERITY_ORDER[node.raw.severity] ?? 99, node.id];
+  diagnostics.push({code: "unknown-band", id: node.id, band: node.band, message: `Unknown band ${node.band} for ${node.id}.`});
+  return [999, node.id];
+};
+const overlaps = (left, right) => left.x < right.x + right.width && left.x + left.width > right.x && left.y < right.y + right.height && left.y + left.height > right.y;
+const edgeClass = (kind) => {
+  if (["extends", "profile-inherits", "defines-constraint", "applies-to", "instance-of"].includes(kind)) return {relation_class: "structural", pattern: "solid"};
+  if (["observed-relation", "observed-under", "evaluated-under", "explains", "checks"].includes(kind)) return {relation_class: "evidence", pattern: "dotted"};
+  return {relation_class: "semantic", pattern: "dashed"};
+};
+const compactPoints = (points) => points.filter((point, index) => index === 0 || point.x !== points[index - 1].x || point.y !== points[index - 1].y);
+const pathText = (points) => points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+const parallelIndexes = (edges) => {
+  const groups = new Map();
+  for (const edge of edges) {
+    const key = `${edge.from}->${edge.to}`;
+    groups.set(key, [...(groups.get(key) ?? []), edge]);
+  }
+  const result = new Map();
+  for (const group of groups.values()) {
+    group.sort((left, right) => left.id.localeCompare(right.id));
+    group.forEach((edge, index) => result.set(edge.id, {index, count: group.length, offset: (index - (group.length - 1) / 2) * 6}));
+  }
+  return result;
+};
+const routeEdges = (graph, positions, bands, options, diagnostics) => {
+  const bandById = new Map(bands.map((band) => [band.id, band]));
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const parallelByEdge = parallelIndexes(graph.edges);
+  const routes = [];
+  const ports = {};
+  const corridors = [];
+  const graphBottom = Math.max(...bands.map((band) => band.y + band.height));
+  let crossBandIndex = 0;
+  for (const edge of [...graph.edges].sort((left, right) => left.id.localeCompare(right.id))) {
+    const from = positions[edge.from];
+    const to = positions[edge.to];
+    const fromNode = nodeById.get(edge.from);
+    const toNode = nodeById.get(edge.to);
+    if (!from || !to || !fromNode || !toNode) {
+      diagnostics.push({code: "missing-route-endpoint", id: edge.id, message: `Cannot route ${edge.id}; endpoint position is missing.`});
+      continue;
+    }
+    const parallel = parallelByEdge.get(edge.id);
+    let sourcePort;
+    let targetPort;
+    let points;
+    let corridor;
+    if (from.band === to.band) {
+      const downward = from.y < to.y;
+      sourcePort = {side: downward ? "bottom" : "top", x: from.x + from.width / 2, y: downward ? from.y + from.height : from.y};
+      targetPort = {side: downward ? "top" : "bottom", x: to.x + to.width / 2, y: downward ? to.y : to.y + to.height};
+      const sourceLaneY = sourcePort.y + (downward ? options.route_stub : -options.route_stub);
+      const targetLaneY = targetPort.y + (downward ? -options.route_stub : options.route_stub);
+      const band = bandById.get(from.band);
+      const corridorX = band.x + band.width + options.band_gap / 2 + parallel.offset;
+      points = compactPoints([
+        {x: sourcePort.x, y: sourcePort.y},
+        {x: sourcePort.x, y: sourceLaneY},
+        {x: corridorX, y: sourceLaneY},
+        {x: corridorX, y: targetLaneY},
+        {x: targetPort.x, y: targetLaneY},
+        {x: targetPort.x, y: targetPort.y},
+      ]);
+      corridor = {kind: "intra-band", x: corridorX, band: from.band};
+    } else {
+      const forward = BAND_ORDER.indexOf(from.band) < BAND_ORDER.indexOf(to.band);
+      sourcePort = {side: forward ? "right" : "left", x: forward ? from.x + from.width : from.x, y: from.y + from.height / 2};
+      targetPort = {side: forward ? "left" : "right", x: forward ? to.x : to.x + to.width, y: to.y + to.height / 2};
+      const fromBand = bandById.get(from.band);
+      const toBand = bandById.get(to.band);
+      const sourceCorridorX = forward ? fromBand.x + fromBand.width + options.band_gap / 2 : fromBand.x - options.band_gap / 2;
+      const targetCorridorX = forward ? toBand.x - options.band_gap / 2 : toBand.x + toBand.width + options.band_gap / 2;
+      const globalY = graphBottom + options.route_margin + crossBandIndex * options.route_lane_gap + parallel.offset;
+      crossBandIndex += 1;
+      points = compactPoints([
+        {x: sourcePort.x, y: sourcePort.y},
+        {x: sourceCorridorX, y: sourcePort.y},
+        {x: sourceCorridorX, y: globalY},
+        {x: targetCorridorX, y: globalY},
+        {x: targetCorridorX, y: targetPort.y},
+        {x: targetPort.x, y: targetPort.y},
+      ]);
+      corridor = {kind: "cross-band", source_x: sourceCorridorX, target_x: targetCorridorX, y: globalY};
+    }
+    const presentation = edgeClass(edge.kind);
+    ports[edge.id] = {source: sourcePort, target: targetPort};
+    corridors.push({edge_id: edge.id, ...corridor});
+    routes.push({
+      edge_id: edge.id,
+      from: edge.from,
+      to: edge.to,
+      kind: edge.kind,
+      source_port: sourcePort,
+      target_port: targetPort,
+      points,
+      path: pathText(points),
+      parallel_index: parallel.index,
+      parallel_count: parallel.count,
+      parallel_offset: parallel.offset,
+      relation_class: presentation.relation_class,
+      pattern: presentation.pattern,
+      label_visibility: "focus-only-below-readable-zoom",
+      accessible_name: `${edge.kind} from ${fromNode.label} to ${toNode.label}`,
+    });
+  }
+  return {routes, ports, corridors};
+};
+
+export const ComputeDeterministicCanvasLayout = (graph, requestedOptions = {}) => {
+  const diagnostics = [];
+  if (!graph || typeof graph.graph_id !== "string" || !Array.isArray(graph.nodes)) {
+    throw layoutError([{code: "invalid-graph", message: "A unified graph with graph_id and nodes is required."}]);
+  }
+  const options = {...DEFAULT_OPTIONS, ...requestedOptions};
+  for (const [key, value] of Object.entries(options)) {
+    if (!Number.isFinite(value) || value <= 0) diagnostics.push({code: "invalid-layout-option", option: key, value, message: `Layout option ${key} must be positive.`});
+  }
+  const nodeIds = graph.nodes.map((node) => node.id);
+  if (new Set(nodeIds).size !== nodeIds.length) diagnostics.push({code: "duplicate-layout-node", message: "Graph node IDs must be unique."});
+  for (const node of graph.nodes) if (!BAND_ORDER.includes(node.band)) diagnostics.push({code: "unknown-band", id: node.id, band: node.band, message: `Unknown band ${node.band} for ${node.id}.`});
+  if (diagnostics.length > 0) throw layoutError(diagnostics);
+
+  const positions = {};
+  const bands = [];
+  for (const [bandIndex, bandId] of BAND_ORDER.entries()) {
+    const ordered = graph.nodes
+      .filter((node) => node.band === bandId)
+      .map((node) => ({node, sortKey: sortKeyForNode(node, graph, diagnostics)}))
+      .sort((left, right) => compareKeys(left.sortKey, right.sortKey));
+    const x = options.margin_x + bandIndex * (options.band_width + options.band_gap);
+    const contentX = x + (options.band_width - options.node_width) / 2;
+    for (const [order, entry] of ordered.entries()) {
+      positions[entry.node.id] = {
+        x: contentX,
+        y: options.margin_y + options.band_padding + order * (options.node_height + options.node_gap),
+        width: options.node_width,
+        height: options.node_height,
+        band: bandId,
+        order,
+        sort_key: entry.sortKey,
+      };
+    }
+    const contentHeight = ordered.length === 0 ? 0 : ordered.length * options.node_height + (ordered.length - 1) * options.node_gap;
+    bands.push({
+      id: bandId,
+      label: bandId[0].toUpperCase() + bandId.slice(1),
+      order: bandIndex,
+      x,
+      y: options.margin_y,
+      width: options.band_width,
+      height: contentHeight + options.band_padding * 2,
+      node_ids: ordered.map((entry) => entry.node.id),
+    });
+  }
+  if (diagnostics.length > 0) throw layoutError(diagnostics);
+  if (Object.keys(positions).length !== graph.nodes.length) diagnostics.push({code: "missing-position", message: "Not every graph node received a position."});
+  const rectangles = Object.entries(positions).map(([id, position]) => ({id, ...position}));
+  for (let leftIndex = 0; leftIndex < rectangles.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < rectangles.length; rightIndex += 1) {
+      if (overlaps(rectangles[leftIndex], rectangles[rightIndex])) diagnostics.push({code: "node-overlap", left: rectangles[leftIndex].id, right: rectangles[rightIndex].id, message: `Nodes ${rectangles[leftIndex].id} and ${rectangles[rightIndex].id} overlap.`});
+    }
+  }
+  if (diagnostics.length > 0) throw layoutError(diagnostics);
+  const right = Math.max(...bands.map((band) => band.x + band.width)) + options.margin_x;
+  const bottom = Math.max(...bands.map((band) => band.y + band.height)) + options.margin_y;
+  const nodeOptions = Object.fromEntries(["margin_x", "margin_y", "band_width", "band_gap", "node_width", "node_height", "node_gap", "band_padding"].map((key) => [key, options[key]]));
+  const layoutCore = {
+    graph_id: graph.graph_id,
+    verification_status: "prototype-unverified",
+    band_order: BAND_ORDER,
+    options: nodeOptions,
+    bands,
+    positions,
+    bounds: {x: 0, y: 0, width: right, height: bottom},
+  };
+  const routed = routeEdges(graph, positions, bands, options, diagnostics);
+  if (routed.routes.length !== graph.edges.length) diagnostics.push({code: "missing-route", message: `Expected ${graph.edges.length} routes; built ${routed.routes.length}.`});
+  if (new Set(routed.routes.map((route) => route.edge_id)).size !== routed.routes.length) diagnostics.push({code: "duplicate-route", message: "Each edge must have exactly one route."});
+  if (diagnostics.length > 0) throw layoutError(diagnostics);
+  const routedBottom = Math.max(bottom, ...routed.routes.flatMap((route) => route.points.map((point) => point.y))) + options.margin_y;
+  const routeOptions = Object.fromEntries(["route_margin", "route_lane_gap", "route_stub"].map((key) => [key, options[key]]));
+  const routedCore = {...layoutCore, bounds: {...layoutCore.bounds, height: routedBottom}, route_options: routeOptions, ...routed};
+  return deepFreeze({...routedCore, layout_id: "unified-layout:prototype"});
+};

@@ -1,0 +1,25 @@
+## Invoke Result
+
+- Mode: define + design + plan
+- Spell: invoke
+- Canonical ID: invoke
+- Scope: library
+- Phase status: pass
+- Mode contract: `.agents/skills/invoke/{define,design,plan}.md`
+- Outputs: `DEFINE.md`, `DESIGN.md`, `implementation-layering.md`, `WORK-PACK.md`, `PLAN-TRANSPORT.md`
+- Design views: context, high-level structure, low-level components, workflow process, decision flow, dependency interface
+- Glossary consistency: pass; local glossary only, no definition promotion
+- Dispatch techniques: `sequence`, `scu_swu_reduction`, `recomposition_proof`, `validation_loop`, `owner_boundary_check`, `authority_split_gate`, `artifact_contract_bridge`, `concrete_path_evidence`, `residue_ledger`, `execution_receipt_handoff`; full dispatch not required
+- Distill validation: pass; R1 authority-home closeout is the smallest coherent unit and recomposes into Batch-1 while preserving R2/R5/R6 residue
+- Implementation layering: `implementation-layering.md`; L0 authority proof, L1 projection cleanup, L2 closeout sync, L3 parent continuation
+- Work-pack: `WORK-PACK.md`; single-file
+- Complexity: low
+- Per-layer planning: compact
+- Implementation detail: inline
+- Smallest working units: complete; `SWU-R1A-001`, `SWU-R1A-002`
+- Refresh: n/a
+- Target artifact: DomainSpec v2 R1 AXIOMS authority-home closeout, owned by `CTX-DSV2-REFORMULATE-BATCH1`
+- Template or recipe selection: generic define, architecture design, standalone implementation-layering, standalone work-pack
+- Decisions: canonical owner home path is `authority/AXIOMS.md`; projection default is delete, with non-authority redirect fallback if validation requires a path
+- Unresolved gaps: no R1 acceptance-critical gaps; downstream R2 UI-11, R5 drift home, and R6a/R6b crosswalk remain
+- Next route: task-session on `SWU-R1A-001`

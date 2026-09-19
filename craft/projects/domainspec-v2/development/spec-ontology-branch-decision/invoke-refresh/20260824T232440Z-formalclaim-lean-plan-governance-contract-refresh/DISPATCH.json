@@ -1,0 +1,184 @@
+{
+  "dispatch_id": "formalclaim-lean-plan-governance-refresh-20260824t232440z",
+  "intent": {
+    "raw": "Author a proposal-only Invoke Refresh for the FormalClaim Lean/EVF Plan readiness-contract drift without applying Plan changes or executing an SWU.",
+    "objective": "Stage exact governance-only postimages, validate them with the current WPRA v2 contract, and fail closed on any remaining validator contradiction.",
+    "target_artifact": "projects/domainspec-v2/development/spec-ontology-branch-decision/invoke-refresh/20260824T232440Z-formalclaim-lean-plan-governance-contract-refresh/REFRESH-REPORT.md"
+  },
+  "mode": "single",
+  "techniques": [
+    "sequence",
+    "concrete_path_evidence",
+    "artifact_contract_bridge",
+    "validation_loop",
+    "execution_receipt_handoff",
+    "owner_boundary_check",
+    "residue_ledger"
+  ],
+  "steps": [
+    {
+      "step_id": "s1-context",
+      "name": "Bind blocker and exact Plan context",
+      "capability_ref": "context-builder",
+      "mode": "standard-strict",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["sequence", "concrete_path_evidence"],
+      "inputs": [
+        {"kind": "receipt", "ref": "SWU-FCL-002/CONTINUITY-GATE-BLOCK.json"},
+        {"kind": "receipt", "ref": "SWU-FCL-001/RECEIPT.json"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "context/CONTEXT-PACK.md"},
+        {"kind": "ledger", "ref": "context/context-pack.index.json"}
+      ],
+      "join_policy": "none",
+      "stop_conditions": ["stop if source evidence or target scope is incomplete"]
+    },
+    {
+      "step_id": "s2-inventory",
+      "name": "Resolve readiness architecture evidence",
+      "capability_ref": "inventory",
+      "capability_status": "local-extension",
+      "mode": "lookup",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": ["s1-context"],
+      "techniques": ["residue_ledger"],
+      "inputs": [{"kind": "artifact", "ref": "context/context-pack.index.json"}],
+      "outputs": [{"kind": "artifact", "ref": "inventory/LOOKUP-RESULT.json"}],
+      "join_policy": "none",
+      "stop_conditions": ["stop if Inventory lookup readiness blocks"]
+    },
+    {
+      "step_id": "s3-refresh",
+      "name": "Author proposal-only staged postimages",
+      "capability_ref": "invoke",
+      "mode": "refresh-proposal-only",
+      "pattern": "sequential",
+      "parallel": false,
+      "depends_on_steps": ["s2-inventory"],
+      "techniques": ["sequence", "artifact_contract_bridge", "owner_boundary_check"],
+      "inputs": [
+        {"kind": "artifact", "ref": "context/CONTEXT-PACK.md"},
+        {"kind": "artifact", "ref": "inventory/LOOKUP-RESULT.json"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "TARGET-INVENTORY.json"},
+        {"kind": "artifact", "ref": "staged-targets/"},
+        {"kind": "artifact", "ref": "REFRESH-PATCH-PROPOSAL.md"}
+      ],
+      "join_policy": "none",
+      "stop_conditions": ["stop on semantic drift, authority change, or any write outside the Refresh run root"]
+    },
+    {
+      "step_id": "s4-wpra",
+      "name": "Validate staged projection with current WPRA v2",
+      "capability_ref": "work-pack-readiness-audit",
+      "capability_status": "local-extension",
+      "mode": "v2-selected-unit-at-task-session",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": ["s3-refresh"],
+      "techniques": ["validation_loop", "execution_receipt_handoff", "concrete_path_evidence"],
+      "inputs": [{"kind": "artifact", "ref": "validation/input/audit-config.rebased.json"}],
+      "outputs": [{"kind": "receipt", "ref": "validation/wpra-current-run-2/work-pack-readiness-report-v2.json"}],
+      "evidence_artifact": "validation/wpra-current-run-2/work-pack-readiness-report-v2.json",
+      "join_policy": "none",
+      "stop_conditions": ["stop on any current readiness blocker; never execute configured commands"]
+    },
+    {
+      "step_id": "s5-handoff",
+      "name": "Route the remaining governance contract defect",
+      "capability_ref": "invoke",
+      "mode": "refresh-handoff",
+      "pattern": "handoff",
+      "parallel": false,
+      "depends_on_steps": ["s4-wpra"],
+      "techniques": ["residue_ledger", "owner_boundary_check", "execution_receipt_handoff"],
+      "inputs": [{"kind": "receipt", "ref": "validation/wpra-current-run-2/work-pack-readiness-report-v2.json"}],
+      "outputs": [{"kind": "handoff", "ref": "REFRESH-REPORT.md#next-route"}],
+      "join_policy": "none",
+      "stop_conditions": ["do not apply Plan postimages or infer a validator repair"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g-scope",
+      "kind": "validation",
+      "owner": "invoke",
+      "condition": "All writes remain under the isolated Refresh run root and accepted Plan bytes remain unchanged.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g-semantics",
+      "kind": "validation",
+      "owner": "invoke",
+      "condition": "The staged target postimages preserve the accepted canonical semantic and per-unit digests.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g-current-wpra",
+      "kind": "validation",
+      "owner": "work-pack-readiness-audit",
+      "condition": "Current WPRA must represent the real SWU-FCL-001 closeout structure before any apply or renewed acceptance request.",
+      "on_fail": "defer"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": null,
+    "trace_events": [
+      "context_bound",
+      "inventory_queried",
+      "proposal_staged",
+      "semantic_non_drift_checked",
+      "wpra_block_preserved",
+      "next_owner_routed"
+    ],
+    "signal_grouping": "formalclaim-lean-plan-governance-refresh-20260824t232440z"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b-refresh-plan",
+        "kind": "capability_handoff",
+        "from_owner": "invoke:refresh",
+        "to_owner": "work-pack-readiness-audit",
+        "applies_to_steps": ["s4-wpra"],
+        "contract": "WPRA validates staged evidence only and cannot apply the accepted Plan postimages.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-wpra-owner",
+        "kind": "capability_handoff",
+        "from_owner": "work-pack-readiness-audit",
+        "to_owner": "spellcraft:work-pack-readiness-audit",
+        "applies_to_steps": ["s5-handoff"],
+        "contract": "The remaining legacy-selector contradiction is owned by the WPRA lifecycle, not by this Plan Refresh.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "invoke:refresh",
+      "execution": "not-authorized",
+      "validation": "work-pack-readiness-audit",
+      "evidence": "proposal-only-run-local",
+      "memory": "unchanged",
+      "promotion": "not-authorized"
+    },
+    "receipts": [
+      {
+        "receipt_id": "current-wpra-validation",
+        "producer": "work-pack-readiness-audit",
+        "required_fields": ["status", "validation", "blockers", "handoff_note"],
+        "stores": ["validation/wpra-current-run-2/work-pack-readiness-report-v2.json"],
+        "on_missing": "block"
+      }
+    ]
+  },
+  "promotion_guardrails": [
+    "Do not promote Inventory, Ontology, glossary, sigil, or spell artifacts.",
+    "Do not apply Plan postimages, select an SWU, execute work, or claim renewed owner acceptance."
+  ]
+}

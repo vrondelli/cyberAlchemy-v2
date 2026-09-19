@@ -220,9 +220,11 @@ def run(config):
             boundary=db.execute('SELECT id,created_at FROM orders WHERE id=?',(after,)).fetchone() if after else None
             if after and not boundary:
                 raise Rejected('order-missing')
-            clause=' AND (o.created_at>? OR (o.created_at=? AND o.id>?))' if boundary else ''
-            params=(boundary['created_at'],boundary['created_at'],boundary['id']) if boundary else ()
-            rows=db.execute("SELECT o.id,o.customer,a.provider,a.account FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.payment_id IS NULL AND o.status IN ('pending','expired') AND a.remote_id IS NOT NULL"+clause+' ORDER BY o.created_at ASC,o.id ASC LIMIT 21',params).fetchall()
+            if boundary:
+                rows=db.execute("SELECT o.id,o.customer,a.provider,a.account FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.payment_id IS NULL AND o.status IN ('pending','expired') AND a.remote_id IS NOT NULL AND (o.created_at>? OR (o.created_at=? AND o.id>?)) ORDER BY o.created_at ASC,o.id ASC LIMIT 21",
+                                (boundary['created_at'],boundary['created_at'],boundary['id'])).fetchall()
+            else:
+                rows=db.execute("SELECT o.id,o.customer,a.provider,a.account FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.payment_id IS NULL AND o.status IN ('pending','expired') AND a.remote_id IS NOT NULL ORDER BY o.created_at ASC,o.id ASC LIMIT 21").fetchall()
         return {'orders':[dict(r) for r in rows[:20]],'next':rows[19]['id'] if len(rows)>20 else None}
     if op == 'list':
         with ledger.connection() as db:
@@ -232,9 +234,11 @@ def run(config):
                 boundary=db.execute('SELECT o.created_at,o.id FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.id=? AND o.customer=?',(before,customer)).fetchone()
                 if not boundary:
                     raise Rejected('not-owned')
-            clause=' AND (o.created_at<? OR (o.created_at=? AND o.id<?))' if boundary else ''
-            params=(customer,boundary['created_at'],boundary['created_at'],boundary['id']) if boundary else (customer,)
-            rows=db.execute('SELECT o.id,o.amount,o.created_at,o.expires_at,o.status,a.provider FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.customer=?'+clause+' ORDER BY o.created_at DESC,o.id DESC LIMIT 21',params).fetchall()
+            if boundary:
+                rows=db.execute('SELECT o.id,o.amount,o.created_at,o.expires_at,o.status,a.provider FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.customer=? AND (o.created_at<? OR (o.created_at=? AND o.id<?)) ORDER BY o.created_at DESC,o.id DESC LIMIT 21',
+                                (customer,boundary['created_at'],boundary['created_at'],boundary['id'])).fetchall()
+            else:
+                rows=db.execute('SELECT o.id,o.amount,o.created_at,o.expires_at,o.status,a.provider FROM orders o JOIN sdk_attempts a ON a.order_id=o.id WHERE o.customer=? ORDER BY o.created_at DESC,o.id DESC LIMIT 21',(customer,)).fetchall()
         return {'orders':[dict(r) for r in rows[:20]],'next':rows[19]['id'] if len(rows)>20 else None}
     if op == 'lookup':
         with ledger.connection() as db:

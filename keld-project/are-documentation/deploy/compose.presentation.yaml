@@ -1,0 +1,107 @@
+name: are-keld-presentation
+
+x-runtime: &runtime
+  user: "65532:65532"
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+    - seccomp=./seccomp-node.json
+  pids_limit: 64
+  mem_limit: 384m
+  cpus: 1.0
+  restart: unless-stopped
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777
+  logging:
+    driver: json-file
+    options: {max-size: 5m, max-file: "2"}
+
+services:
+  edge:
+    <<: *runtime
+    image: sha256:3d8180cbb76ab755e113e5c8da571c2438edb9ea3cfb470ef96fde45fd2a29bc
+    environment:
+      ARE_CHAT_ACCESS_MODE: anonymous-public
+      ARE_CHAT_PUBLIC_HOST: are.keld.studio
+    networks:
+      presentation-ingress:
+        aliases: [are-edge]
+      chat-ingress: {}
+    depends_on:
+      public-chat: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, /nodejs/bin/node, -e, "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  public-chat:
+    <<: *runtime
+    image: sha256:0a82c38b22f7699b8410daac8a8097281bd44dbadec1c1921df94e4c330875b7
+    environment:
+      ARE_CHAT_PUBLIC_ORIGIN: https://are.keld.studio
+      ARE_CHAT_IDLE_RETENTION_SECONDS: "1800"
+    networks: [chat-ingress, inference]
+    depends_on:
+      inference-broker: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, /nodejs/bin/node, -e, "fetch('http://127.0.0.1:4193/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  inference-broker:
+    <<: *runtime
+    image: sha256:d03d130ad6965b9e2b727e650a6df4cfa8275aa493888801c95a5464dc2489a2
+    environment:
+      ARE_BROKER_HOURLY_MICROUSD_LIMIT: "5000000"
+      ARE_BROKER_MONTHLY_MICROUSD_LIMIT: "50000000"
+      ARE_PROVIDER_INPUT_MICROUSD_PER_MILLION_TOKENS: "1000000"
+      ARE_PROVIDER_OUTPUT_MICROUSD_PER_MILLION_TOKENS: "10000000"
+    volumes:
+      - broker-quota:/var/lib/are-broker-quota
+    networks: [inference, provider-link]
+    depends_on:
+      provider-gateway: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, /nodejs/bin/node, -e, "fetch('http://127.0.0.1:4194/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  provider-gateway:
+    <<: *runtime
+    image: sha256:dbaf783163a0d1b1e6ea7cd693f1145803df7bfaa1d23d31c41c4ffd447e3361
+    secrets:
+      - source: model_api_key
+        target: model_api_key
+        uid: "65532"
+        gid: "65532"
+        mode: 0400
+    networks: [provider-link, provider-egress]
+    healthcheck:
+      test: [CMD, /nodejs/bin/node, -e, "fetch('http://127.0.0.1:4195/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+secrets:
+  model_api_key:
+    file: ./secrets/model_api_key
+
+networks:
+  presentation-ingress:
+    external: true
+    name: are-presentation-ingress
+  chat-ingress:
+    internal: true
+  inference:
+    internal: true
+  provider-link:
+    internal: true
+  provider-egress: {}
+
+volumes:
+  broker-quota: {}

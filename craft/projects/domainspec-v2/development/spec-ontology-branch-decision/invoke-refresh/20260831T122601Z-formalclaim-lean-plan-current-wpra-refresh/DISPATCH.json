@@ -1,0 +1,287 @@
+{
+  "boundary_evidence": {
+    "authority": {
+      "evidence": "proposal-only-run-local",
+      "execution": "not-authorized",
+      "lifecycle": "invoke:refresh",
+      "memory": "unchanged",
+      "promotion": "not-authorized",
+      "validation": "work-pack-readiness-audit"
+    },
+    "boundaries": [
+      {
+        "applies_to_steps": [
+          "s4-wpra"
+        ],
+        "boundary_id": "b-refresh-plan",
+        "contract": "WPRA validates staged evidence only and cannot apply the accepted Plan postimages.",
+        "from_owner": "invoke:refresh",
+        "kind": "capability_handoff",
+        "on_violation": "block",
+        "to_owner": "work-pack-readiness-audit"
+      },
+      {
+        "applies_to_steps": [
+          "s5-handoff"
+        ],
+        "boundary_id": "b-wpra-owner",
+        "contract": "A passing proposal remains unapplied until renewed exact owner acceptance binds the refreshed candidate digest.",
+        "from_owner": "work-pack-readiness-audit",
+        "kind": "capability_handoff",
+        "on_violation": "block",
+        "to_owner": "Rondelli"
+      }
+    ],
+    "receipts": [
+      {
+        "on_missing": "block",
+        "producer": "work-pack-readiness-audit",
+        "receipt_id": "current-wpra-validation",
+        "required_fields": [
+          "status",
+          "validation",
+          "blockers",
+          "handoff_note"
+        ],
+        "stores": [
+          "validation/wpra-current-final/work-pack-readiness-report-v2.json"
+        ]
+      }
+    ]
+  },
+  "dispatch_id": "formalclaim-lean-plan-current-wpra-refresh-20260831t122601z",
+  "gates": [
+    {
+      "condition": "All writes remain under the isolated Refresh run root and accepted Plan bytes remain unchanged.",
+      "gate_id": "g-scope",
+      "kind": "validation",
+      "on_fail": "block",
+      "owner": "invoke"
+    },
+    {
+      "condition": "The staged target postimages preserve the accepted canonical semantic and per-unit digests.",
+      "gate_id": "g-semantics",
+      "kind": "validation",
+      "on_fail": "block",
+      "owner": "invoke"
+    },
+    {
+      "condition": "Current WPRA passes the staged projection with no blockers and FCL-002 as the truthful unexecuted frontier.",
+      "gate_id": "g-current-wpra",
+      "kind": "validation",
+      "on_fail": "defer",
+      "owner": "work-pack-readiness-audit"
+    }
+  ],
+  "intent": {
+    "objective": "Stage exact governance postimages that preserve plan semantics while satisfying current execution-binding and historical-closeout contracts.",
+    "raw": "Author a proposal-only current-WPRA refresh for the accepted FormalClaim Lean/EVF Plan.",
+    "target_artifact": "projects/domainspec-v2/development/spec-ontology-branch-decision/invoke-refresh/20260831T122601Z-formalclaim-lean-plan-current-wpra-refresh/REFRESH-REPORT.md"
+  },
+  "mode": "single",
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": null,
+    "signal_grouping": "formalclaim-lean-plan-current-wpra-refresh-20260831t122601z",
+    "trace_events": [
+      "context_bound",
+      "inventory_queried",
+      "proposal_staged",
+      "historical_closeout_bound",
+      "current_execution_contracts_validated",
+      "exact_acceptance_boundary_preserved"
+    ]
+  },
+  "promotion_guardrails": [
+    "Do not promote Inventory, Ontology, glossary, sigil, or spell artifacts.",
+    "Do not apply Plan postimages, select an SWU, execute work, or claim renewed owner acceptance."
+  ],
+  "steps": [
+    {
+      "capability_ref": "context-builder",
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "SWU-FCL-002/CONTINUITY-GATE-BLOCK.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "SWU-FCL-001/RECEIPT.json"
+        }
+      ],
+      "join_policy": "none",
+      "mode": "standard-strict",
+      "name": "Bind blocker and exact Plan context",
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "context/CONTEXT-PACK.md"
+        },
+        {
+          "kind": "ledger",
+          "ref": "context/context-pack.index.json"
+        }
+      ],
+      "parallel": false,
+      "pattern": "sequential",
+      "step_id": "s1-context",
+      "stop_conditions": [
+        "stop if source evidence or target scope is incomplete"
+      ],
+      "techniques": [
+        "sequence",
+        "concrete_path_evidence"
+      ]
+    },
+    {
+      "capability_ref": "inventory",
+      "capability_status": "local-extension",
+      "depends_on_steps": [
+        "s1-context"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "context/context-pack.index.json"
+        }
+      ],
+      "join_policy": "none",
+      "mode": "lookup",
+      "name": "Resolve readiness architecture evidence",
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "inventory/LOOKUP-RESULT.json"
+        }
+      ],
+      "parallel": false,
+      "pattern": "sequential",
+      "step_id": "s2-inventory",
+      "stop_conditions": [
+        "stop if Inventory lookup readiness blocks"
+      ],
+      "techniques": [
+        "residue_ledger"
+      ]
+    },
+    {
+      "capability_ref": "invoke",
+      "depends_on_steps": [
+        "s2-inventory"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "context/CONTEXT-PACK.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "inventory/LOOKUP-RESULT.json"
+        }
+      ],
+      "join_policy": "none",
+      "mode": "refresh-proposal-only",
+      "name": "Author proposal-only staged postimages",
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "TARGET-INVENTORY.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "staged-targets/"
+        },
+        {
+          "kind": "artifact",
+          "ref": "REFRESH-PATCH-PROPOSAL.md"
+        }
+      ],
+      "parallel": false,
+      "pattern": "sequential",
+      "step_id": "s3-refresh",
+      "stop_conditions": [
+        "stop on semantic drift, authority change, or any write outside the Refresh run root"
+      ],
+      "techniques": [
+        "sequence",
+        "artifact_contract_bridge",
+        "owner_boundary_check"
+      ]
+    },
+    {
+      "capability_ref": "work-pack-readiness-audit",
+      "capability_status": "local-extension",
+      "depends_on_steps": [
+        "s3-refresh"
+      ],
+      "evidence_artifact": "validation/wpra-current-final/work-pack-readiness-report-v2.json",
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "validation/input/audit-config.rebased.json"
+        }
+      ],
+      "join_policy": "none",
+      "mode": "v2-selected-unit-at-task-session",
+      "name": "Validate staged projection with current WPRA v2",
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "validation/wpra-current-final/work-pack-readiness-report-v2.json"
+        }
+      ],
+      "parallel": false,
+      "pattern": "validation",
+      "step_id": "s4-wpra",
+      "stop_conditions": [
+        "stop unless WPRA passes with FCL-002 as the unexecuted frontier and configured commands remain unexecuted"
+      ],
+      "techniques": [
+        "validation_loop",
+        "execution_receipt_handoff",
+        "concrete_path_evidence"
+      ]
+    },
+    {
+      "capability_ref": "invoke",
+      "depends_on_steps": [
+        "s4-wpra"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "validation/wpra-current-final/work-pack-readiness-report-v2.json"
+        }
+      ],
+      "join_policy": "none",
+      "mode": "refresh-handoff",
+      "name": "Return refreshed candidate for exact owner acceptance",
+      "outputs": [
+        {
+          "kind": "handoff",
+          "ref": "REFRESH-REPORT.md#next-route"
+        }
+      ],
+      "parallel": false,
+      "pattern": "handoff",
+      "step_id": "s5-handoff",
+      "stop_conditions": [
+        "do not apply postimages or infer renewed exact owner acceptance"
+      ],
+      "techniques": [
+        "residue_ledger",
+        "owner_boundary_check",
+        "execution_receipt_handoff"
+      ]
+    }
+  ],
+  "techniques": [
+    "sequence",
+    "concrete_path_evidence",
+    "artifact_contract_bridge",
+    "validation_loop",
+    "execution_receipt_handoff",
+    "owner_boundary_check",
+    "residue_ledger"
+  ]
+}

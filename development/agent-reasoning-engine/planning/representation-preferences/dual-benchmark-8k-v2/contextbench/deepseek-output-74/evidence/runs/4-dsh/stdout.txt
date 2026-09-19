@@ -1,0 +1,9 @@
+The patch is complete. Summary of the investigation and changes:
+
+**Investigation:** Issue #12333 concerns how Svelte 5 handles `{@html ...}` and `src`/`srcset`/`href` attributes during hydration: the server-rendered markup/values are kept (client values ignored), and in dev mode a `hydration_html_changed` / `hydration_attribute_changed` warning is emitted. The runtime behavior already exists in `packages/svelte/src/internal/client/dom/elements/attributes.js` (`check_src_in_dev_hydration`, which deliberately skips resetting these attributes to avoid extra network requests) and `packages/svelte/src/internal/client/warnings.js`. The dev-time check for `@html` was deferred to #12362, so this PR is documentation plus a test — the `@html` case was already covered by `html-tag-hydration-2`, but no test existed for `<img src>`.
+
+**Changes:**
+1. `documentation/docs/02-template-syntax/02-basic-markup.md` — documented that `{@html}` contents are not hydrated and that `src`/`srcset`/`href` attributes are not updated during hydration, with dev warnings on mismatch and the server value being kept.
+2. `packages/svelte/tests/hydration/samples/ignore-mismatched-href/` — extended to also render `<img src={browser ? '/foo' : '/bar'} />`, asserting the server value `/bar` is retained and the `hydration_attribute_changed` warning fires for `src` (fails without the runtime behavior already in place; documents/locks in the behavior discussed in #12333).
+
+**Honest limitation:** the file sandbox only supports edits to existing tracked files (new-file creation via `apply_edits` is rejected), so I could not add a standalone `ignore-mismatched-img-src` sample directory; the `img src` case is covered within the existing sample instead. I also could not run `pnpm test`/`pnpm lint` in this environment.

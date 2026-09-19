@@ -1,0 +1,403 @@
+{
+  "schema_version": "domainspec.wp-rmt-002-relation-contracts/v1",
+  "work_pack_id": "WP-RMT-002",
+  "rel_a_decision": {
+    "path": "projects/domainspec-v2/development/architecture-pattern-enforcement/refreshes/20260813T165705Z-wp-rmt-001-ontology-v2-apply-package/decisions/relation-ownership-decision.json",
+    "sha256": "4ec814b621ae497091e0e03095b00339ed3b2cd4cbb6d4aaec57b4dafbe4f0b0",
+    "size_bytes": 3573,
+    "selected_option": "REL-A"
+  },
+  "policy": {
+    "owner": "independent relation assertion candidate",
+    "source": "exact source endpoint candidate and assertion evidence",
+    "target": "exact target endpoint candidate and assertion evidence",
+    "fallback": "deferred blueprint",
+    "authority_effect": "none",
+    "s1_handle_rule": "Semantic transaction, occurrence, transition/effect-intent, and workflow handles are exact versioned bindings; they are not new architecture relation instances or authority."
+  },
+  "type_contracts": [
+    {
+      "prefix": "OP",
+      "type": "Operation",
+      "owner_swu": "RMT-OP-008",
+      "contracts": [
+        {
+          "contract_id": "op/enforced-by-to-guards",
+          "domain_surface": "target_of:enforces",
+          "architecture_relation_id": "architecture.guards",
+          "translation": "inverse label only; architecture direction remains Rule to Operation",
+          "source_types": [
+            "architecture.RuleImplementation"
+          ],
+          "target_types": [
+            "architecture.OperationImplementation"
+          ],
+          "assertion_owner_mapping": "source Rule candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "op/exposed-by-to-exposes",
+          "domain_surface": "target_of:exposes",
+          "architecture_relation_id": "architecture.exposes",
+          "translation": "inverse label only; architecture direction remains Interface to Operation",
+          "source_types": [
+            "architecture.InterfaceImplementation"
+          ],
+          "target_types": [
+            "architecture.OperationImplementation"
+          ],
+          "assertion_owner_mapping": "source Interface candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "op/emitted-events-to-emits",
+          "domain_surface": "operation.emitted_events",
+          "architecture_relation_id": "architecture.emits",
+          "translation": "atomic commit persists the Event occurrence in the durable outbox; architecture.emits remains Operation to Event and does not claim publication or delivery",
+          "source_types": [
+            "architecture.OperationImplementation"
+          ],
+          "target_types": [
+            "architecture.EventImplementation"
+          ],
+          "assertion_owner_mapping": "source Operation candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "op/workflow-step-to-binds-step",
+          "domain_surface": "target_of:orchestrates",
+          "architecture_relation_id": "architecture.binds_step",
+          "translation": "workflow step binds an exact versioned Operation transaction/effect-group handle; this is not a direct Workflow-to-Operation edge or execution authority",
+          "source_types": [
+            "architecture.WorkflowStepContract"
+          ],
+          "target_types": [
+            "architecture.OperationImplementation",
+            "architecture.WorkflowImplementation"
+          ],
+          "assertion_owner_mapping": "Workflow candidate owning the step assertion",
+          "cycle_policy": "acyclic"
+        }
+      ],
+      "unmapped_domain_relations": [
+        "creates",
+        "produces",
+        "produces-for",
+        "queries",
+        "applies",
+        "calculates",
+        "mutates",
+        "performs",
+        "triggers-cross"
+      ],
+      "s1_handle_contract": {
+        "handle": "operation-transaction-effect-group/v1",
+        "fields": [
+          "transaction_id",
+          "effect_group_id",
+          "state_write_id",
+          "outbox_checkpoint_id",
+          "occurrence_id",
+          "commit_outcome"
+        ],
+        "publication_authority": false
+      }
+    },
+    {
+      "prefix": "RULE",
+      "type": "Rule",
+      "owner_swu": "RMT-RULE-008",
+      "contracts": [
+        {
+          "contract_id": "rule/enforces-to-guards",
+          "domain_surface": "source_of:enforces",
+          "architecture_relation_id": "architecture.guards",
+          "translation": "same direction; Rule guards Operation or State Machine",
+          "source_types": [
+            "architecture.RuleImplementation"
+          ],
+          "target_types": [
+            "architecture.OperationImplementation",
+            "architecture.StateMachineImplementation"
+          ],
+          "assertion_owner_mapping": "source Rule candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "rule/factory-validation",
+          "domain_surface": "validated factory guard",
+          "architecture_relation_id": "architecture.validated_by",
+          "translation": "factory provider points to Rule; relation is owned by the exact factory assertion candidate",
+          "source_types": [
+            "architecture.ValueObjectFactoryProvider",
+            "architecture.EntityFactoryProvider"
+          ],
+          "target_types": [
+            "architecture.RuleImplementation"
+          ],
+          "assertion_owner_mapping": "source factory candidate",
+          "cycle_policy": "not-applicable"
+        }
+      ],
+      "unmapped_domain_relations": [
+        "mirrors"
+      ]
+    },
+    {
+      "prefix": "IFACE",
+      "type": "Interface",
+      "owner_swu": "RMT-IFACE-008",
+      "contracts": [
+        {
+          "contract_id": "interface/exposes",
+          "domain_surface": "source_of:exposes",
+          "architecture_relation_id": "architecture.exposes",
+          "translation": "same direction; Interface exposes Operation or Query",
+          "source_types": [
+            "architecture.InterfaceImplementation"
+          ],
+          "target_types": [
+            "architecture.OperationImplementation",
+            "architecture.QueryImplementation"
+          ],
+          "assertion_owner_mapping": "source Interface candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "interface/implemented-by-adapter",
+          "domain_surface": "adapter implementation binding",
+          "architecture_relation_id": "architecture.implements_interface",
+          "translation": "Adapter points to Interface; no Interface-owned inverse edge",
+          "source_types": [
+            "architecture.AdapterImplementation"
+          ],
+          "target_types": [
+            "architecture.InterfaceImplementation"
+          ],
+          "assertion_owner_mapping": "source Adapter candidate",
+          "cycle_policy": "acyclic"
+        }
+      ],
+      "unmapped_domain_relations": [
+        "contracts",
+        "maps"
+      ]
+    },
+    {
+      "prefix": "MAP",
+      "type": "Mapping",
+      "owner_swu": "RMT-MAP-008",
+      "contracts": [
+        {
+          "contract_id": "mapping/maps-source-to-maps-from",
+          "domain_surface": "source_of:maps source endpoint",
+          "architecture_relation_id": "architecture.maps_from",
+          "translation": "Mapping points to its typed source DataShapeContract",
+          "source_types": [
+            "architecture.MappingImplementation"
+          ],
+          "target_types": [
+            "architecture.DataShapeContract"
+          ],
+          "assertion_owner_mapping": "source Mapping candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "mapping/maps-target-to-maps-to",
+          "domain_surface": "source_of:maps target endpoint",
+          "architecture_relation_id": "architecture.maps_to",
+          "translation": "Mapping points to its typed target DataShapeContract",
+          "source_types": [
+            "architecture.MappingImplementation"
+          ],
+          "target_types": [
+            "architecture.DataShapeContract"
+          ],
+          "assertion_owner_mapping": "source Mapping candidate",
+          "cycle_policy": "acyclic"
+        }
+      ],
+      "unmapped_domain_relations": []
+    },
+    {
+      "prefix": "EVENT",
+      "type": "Event",
+      "owner_swu": "RMT-EVENT-008",
+      "contracts": [
+        {
+          "contract_id": "event/emitted-by-operation",
+          "domain_surface": "target_of:emits",
+          "architecture_relation_id": "architecture.emits",
+          "translation": "Operation owns the committed durable outbox occurrence; Event publication, acknowledgement, delivery, and consumption remain separate observations",
+          "source_types": [
+            "architecture.OperationImplementation"
+          ],
+          "target_types": [
+            "architecture.EventImplementation"
+          ],
+          "assertion_owner_mapping": "source Operation candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "event/consumed-by-element",
+          "domain_surface": "declared consumer contract",
+          "architecture_relation_id": "architecture.consumes",
+          "translation": "consumer ArchitectureElement points to Event",
+          "source_types": [
+            "architecture.ArchitectureElement"
+          ],
+          "target_types": [
+            "architecture.EventImplementation"
+          ],
+          "assertion_owner_mapping": "source consumer candidate",
+          "cycle_policy": "acyclic"
+        }
+      ],
+      "unmapped_domain_relations": [
+        "transitions",
+        "triggers-cross",
+        "produces"
+      ],
+      "s1_handle_contract": {
+        "handle": "durable-occurrence/v1",
+        "fields": [
+          "occurrence_id",
+          "persistence_checkpoint",
+          "publication_attempt_id",
+          "acknowledgement_state",
+          "delivery_observation",
+          "consumption_observation"
+        ],
+        "publication_is_separate_from_commit": true
+      }
+    },
+    {
+      "prefix": "SM",
+      "type": "State Machine",
+      "owner_swu": "RMT-SM-008",
+      "contracts": [
+        {
+          "contract_id": "state-machine/guarded-by-rule",
+          "domain_surface": "guard reference",
+          "architecture_relation_id": "architecture.guards",
+          "translation": "Rule points to State Machine",
+          "source_types": [
+            "architecture.RuleImplementation"
+          ],
+          "target_types": [
+            "architecture.StateMachineImplementation"
+          ],
+          "assertion_owner_mapping": "source Rule candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "state-machine/has-state",
+          "domain_surface": "declared states",
+          "architecture_relation_id": "architecture.has_state",
+          "translation": "State Machine points to each StateContract",
+          "source_types": [
+            "architecture.StateMachineImplementation"
+          ],
+          "target_types": [
+            "architecture.StateContract"
+          ],
+          "assertion_owner_mapping": "source State Machine candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "state-machine/transitions",
+          "domain_surface": "target_of:transitions",
+          "architecture_relation_id": "architecture.transitions_to",
+          "translation": "each StateContract transition is a separate endpoint assertion",
+          "source_types": [
+            "architecture.StateContract"
+          ],
+          "target_types": [
+            "architecture.StateContract"
+          ],
+          "assertion_owner_mapping": "State Machine candidate owning transition assertions",
+          "cycle_policy": "cycle-permitted"
+        }
+      ],
+      "unmapped_domain_relations": [
+        "reflects"
+      ],
+      "s1_handle_contract": {
+        "handle": "state-machine-transition-effect-intent/v1",
+        "fields": [
+          "transition_id",
+          "from_state",
+          "to_state",
+          "effect_intents"
+        ],
+        "executes_publication": false,
+        "executes_compensation": false
+      }
+    },
+    {
+      "prefix": "WF",
+      "type": "Workflow",
+      "owner_swu": "RMT-WF-008",
+      "contracts": [
+        {
+          "contract_id": "workflow/orchestrates",
+          "domain_surface": "source_of:orchestrates",
+          "architecture_relation_id": "architecture.orchestrates",
+          "translation": "Workflow points to each WorkflowStepContract",
+          "source_types": [
+            "architecture.WorkflowImplementation"
+          ],
+          "target_types": [
+            "architecture.WorkflowStepContract"
+          ],
+          "assertion_owner_mapping": "source Workflow candidate",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "workflow/precedes",
+          "domain_surface": "declared step order",
+          "architecture_relation_id": "architecture.precedes",
+          "translation": "each predecessor step points to its successor step",
+          "source_types": [
+            "architecture.WorkflowStepContract"
+          ],
+          "target_types": [
+            "architecture.WorkflowStepContract"
+          ],
+          "assertion_owner_mapping": "Workflow candidate owning step-order assertions",
+          "cycle_policy": "acyclic"
+        },
+        {
+          "contract_id": "workflow/binds-step",
+          "domain_surface": "declared step target",
+          "architecture_relation_id": "architecture.binds_step",
+          "translation": "WorkflowStepContract binds exact versioned Operation transaction/effect-group or nested Workflow handles; State Machine transition/effect-intent handles remain semantic inputs, not a new relation instance",
+          "source_types": [
+            "architecture.WorkflowStepContract"
+          ],
+          "target_types": [
+            "architecture.OperationImplementation",
+            "architecture.WorkflowImplementation"
+          ],
+          "assertion_owner_mapping": "Workflow candidate owning step-binding assertions",
+          "cycle_policy": "acyclic"
+        }
+      ],
+      "unmapped_domain_relations": [],
+      "s1_handle_contract": {
+        "handle": "workflow-s1-bindings/v1",
+        "operation_handle": "operation-transaction-effect-group/v1",
+        "state_machine_handle": "state-machine-transition-effect-intent/v1",
+        "post_commit_failure": "preserve-durable-facts",
+        "compensation": "forward-recovery-only"
+      }
+    }
+  ],
+  "claim_ceiling": "These are projection and S1 semantic-handle contracts, not relation instances. Materialization still requires exact REL-A evidence; otherwise only a deferred blueprint is allowed. No handle grants publication, provider, profile, or promotion authority.",
+  "semantic_plan_binding": {
+    "epoch_id": "WP-RMT-002/S1/2026-08-16",
+    "decision_sha256": "2168de08e9e0ea72a29ce74fb9a3285094aebaa05d72df34d9749e5cbdac20c9",
+    "contract_digest": "75fd21cd605735b9ca76ed42e46d126850b6c94ea976f55347aa35fd61d530b7",
+    "relation_topology_changed": false
+  }
+}

@@ -1,0 +1,1248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DomainSpec v2 BTE — implementation architecture x-ray</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #151412;
+      --panel: #211f1c;
+      --panel-hi: #2b2823;
+      --line: #4b4740;
+      --ink: #f3efe7;
+      --muted: #bdb6aa;
+      --authority: #e4b65e;
+      --runtime: #77c9ad;
+      --proof: #b59ad9;
+      --external: #d2a3c7;
+      --risk: #ef8585;
+      --exists: #8ecb98;
+      --proposed: #d99462;
+      --gate: #e4b65e;
+      --shadow: 0 22px 74px rgba(0, 0, 0, .28);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 8% 3%, rgba(228, 182, 94, .08), transparent 28rem),
+        radial-gradient(circle at 92% 7%, rgba(119, 201, 173, .09), transparent 26rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.52;
+    }
+
+    a { color: #9ed7c4; }
+    code { color: #eadbbf; font-size: .94em; }
+    pre {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 15px;
+      background: #181715;
+      color: #ddd5c7;
+      font-size: .8rem;
+      line-height: 1.6;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.12; }
+    h1 {
+      max-width: 970px;
+      margin: 10px 0 14px;
+      font-size: clamp(2.3rem, 6vw, 5.25rem);
+      letter-spacing: -.057em;
+    }
+    h2 { margin: 0 0 10px; font-size: clamp(1.55rem, 3.3vw, 2.45rem); letter-spacing: -.025em; }
+    h3 { margin: 0 0 8px; }
+    h4 { margin: 0 0 7px; }
+    p { margin: 0 0 12px; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+
+    .shell { width: min(1280px, calc(100% - 30px)); margin: 0 auto; padding: 36px 0 78px; }
+    .eyebrow, .kicker {
+      color: var(--runtime);
+      font-size: .73rem;
+      font-weight: 850;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .lede { max-width: 760px; color: #d2cbc0; font-size: 1.13rem; }
+
+    .badges, .legend, .controls, .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      align-items: center;
+    }
+    .badges { margin: 23px 0; }
+    .badge, .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: rgba(33, 31, 28, .9);
+      color: #ded7cc;
+      font-size: .76rem;
+      font-weight: 800;
+    }
+    .badge.warn { color: var(--authority); border-color: rgba(233, 183, 92, .5); }
+    .badge.good { color: var(--exists); border-color: rgba(118, 213, 150, .5); }
+    .badge.block { color: #f0a0a0; border-color: rgba(239, 133, 133, .5); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    .truth {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr .8fr;
+      gap: 1px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--line);
+      box-shadow: var(--shadow);
+    }
+    .truth article { min-height: 184px; padding: 22px; background: var(--panel); }
+    .truth article:first-child { background: linear-gradient(145deg, #28302b, var(--panel)); }
+    .truth .num { color: var(--muted); font-size: .72rem; font-weight: 850; letter-spacing: .12em; }
+    .truth h3 { margin-top: 10px; }
+    .truth article:first-child h3 { color: var(--runtime); }
+    .truth article:nth-child(2) h3 { color: var(--exists); }
+    .truth article:nth-child(3) h3 { color: var(--proof); }
+
+    .workday {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: #191816;
+      box-shadow: var(--shadow);
+    }
+    .day-anchor {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .day-anchor > div { padding: 20px; background: var(--panel); }
+    .day-anchor > div:first-child { background: linear-gradient(145deg, #28302b, var(--panel)); }
+    .day-anchor p { color: #d1c9bd; }
+    .day-anchor .change { margin-top: 9px; color: var(--ink); font-size: 1.04rem; }
+    .day-anchor .change code { color: #f0ddbc; }
+    .day-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+    .day-legend span { border: 1px solid currentColor; border-radius: 999px; padding: 4px 8px; font-size: .72rem; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+    .day-legend .now { color: var(--exists); }
+    .day-legend .design { color: var(--proposed); border-style: dashed; }
+    .day-legend .build { color: var(--runtime); border-style: dashed; }
+    .day-legend .owner { color: var(--authority); border-style: double; }
+    .day-loop {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+    .day-loop:last-of-type { border-bottom: 0; }
+    .day-loop-label { padding: 19px 16px; border-right: 1px solid var(--line); background: #1b1a18; }
+    .day-loop-label span { display: block; color: var(--muted); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .day-loop-label strong { display: block; margin: 7px 0; }
+    .day-loop-label p { color: var(--muted); font-size: .8rem; }
+    .day-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 18px; }
+    .day-step { position: relative; min-width: 0; border: 1px solid rgba(118, 213, 150, .55); border-radius: 12px; padding: 14px; background: var(--panel); }
+    .day-step::after { content: "→"; position: absolute; top: 23px; right: -12px; z-index: 2; color: #918a80; font-weight: 900; }
+    .day-step:last-child::after { display: none; }
+    .day-step.target { border-color: rgba(217, 148, 98, .72); border-style: dashed; }
+    .day-step.owner { border-color: rgba(233, 183, 92, .72); border-style: double; }
+    .day-time { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: var(--muted); font-size: .72rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+    .day-time .state { color: var(--exists); }
+    .day-step.target .state { color: var(--proposed); }
+    .day-step.target .state.build { color: var(--runtime); }
+    .day-step.owner .state { color: var(--authority); }
+    .day-step h3 { font-size: .94rem; }
+    .day-step p { color: var(--muted); font-size: .82rem; }
+    .day-step .artifact { display: block; margin-top: 10px; border-top: 1px solid var(--line); padding-top: 9px; color: #d6cec2; font-size: .78rem; overflow-wrap: anywhere; }
+    .day-outcome { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; border-top: 1px solid var(--line); background: var(--line); }
+    .day-outcome article { padding: 18px; background: var(--panel); }
+    .day-outcome article:first-child { box-shadow: inset 4px 0 0 var(--exists); }
+    .day-outcome article:last-child { box-shadow: inset 4px 0 0 var(--proposed); }
+    .day-outcome p { color: #d0c8bc; font-size: .84rem; }
+    .day-limit { padding: 12px 18px; border-top: 1px dashed #5a554c; background: #1a1917; color: var(--muted); font-size: .8rem; }
+    .day-limit strong { color: var(--ink); }
+
+    .section { margin-top: 54px; }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 16px;
+    }
+    .section-head > p { max-width: 600px; color: var(--muted); }
+
+    .toolbar {
+      position: sticky;
+      top: 10px;
+      z-index: 30;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 13px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(21, 20, 18, .94);
+      backdrop-filter: blur(12px);
+    }
+    .controls label { display: inline-flex; gap: 7px; align-items: center; color: #ddd6cb; font-size: .82rem; cursor: pointer; }
+    .controls input { accent-color: var(--runtime); }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 7px 10px;
+      background: #2a2723;
+      color: var(--ink);
+      font: inherit;
+      font-size: .73rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--runtime); }
+
+    .architecture {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: #191816;
+      box-shadow: var(--shadow);
+    }
+    .arch-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 17px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .74rem;
+    }
+    .plane {
+      position: relative;
+      display: grid;
+      grid-template-columns: 154px minmax(0, 1fr);
+      border-bottom: 1px solid var(--line);
+      transition: opacity .18s ease, max-height .2s ease;
+    }
+    .plane:last-child { border-bottom: 0; }
+    .plane.is-hidden { display: none; }
+    .plane-label {
+      padding: 19px 14px;
+      border-right: 1px solid var(--line);
+      background: #1b1a18;
+    }
+    .plane-label span { display: block; color: var(--muted); font-size: .72rem; font-weight: 850; letter-spacing: .08em; }
+    .plane-label strong { display: block; margin-top: 7px; font-size: .91rem; }
+    .authority-plane .plane-label strong { color: var(--authority); }
+    .runtime-plane .plane-label strong { color: var(--runtime); }
+    .proof-plane .plane-label strong { color: var(--proof); }
+    .external-plane .plane-label strong { color: var(--external); }
+    .plane-content { padding: 18px; }
+
+    .module-flow {
+      display: flex;
+      gap: 28px;
+      align-items: stretch;
+      overflow-x: auto;
+      padding: 3px 3px 8px;
+    }
+    .module {
+      position: relative;
+      flex: 1 0 154px;
+      min-width: 154px;
+      min-height: 127px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    .module::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: -23px;
+      color: #918a80;
+      font-size: 1.25rem;
+      font-weight: 900;
+      transform: translateY(-50%);
+    }
+    .module:last-child::after { display: none; }
+    .module.exists { border-style: solid; border-color: rgba(118, 213, 150, .62); }
+    .module.proposed { border-style: dashed; border-color: rgba(217, 148, 98, .78); }
+    .module.gated { border-style: double; border-color: rgba(233, 183, 92, .72); }
+    .module.external { border-style: dashed; border-color: rgba(198, 157, 255, .7); }
+    .module h4 { font-size: .91rem; }
+    .module p { color: var(--muted); font-size: .73rem; }
+    .status {
+      display: inline-flex;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      padding: 3px 7px;
+      background: #302d28;
+      color: #d1c9bd;
+      font-size: .72rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .exists .status { color: var(--exists); }
+    .proposed .status { color: var(--proposed); }
+    .gated .status { color: var(--gate); }
+    .external .status { color: var(--external); }
+    .handoff {
+      padding: 8px 17px;
+      border-top: 1px dashed var(--line);
+      background: rgba(21, 20, 18, .6);
+      color: #cbc3b7;
+      font-size: .78rem;
+    }
+    .handoff strong { color: var(--ink); }
+
+    .outcomes {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 9px;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: #1a1917;
+    }
+    .outcome { border: 1px solid var(--line); border-radius: 10px; padding: 11px; color: #c9c1b5; font-size: .78rem; }
+    .outcome strong { color: var(--ink); }
+
+    .callout {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      padding: 18px;
+      background: linear-gradient(145deg, rgba(43, 40, 35, .97), rgba(29, 27, 24, .97));
+    }
+    .callout.attention { border-left: 4px solid var(--risk); }
+    .callout.plain { border-left: 4px solid var(--runtime); }
+
+    .trace {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 22px;
+      align-items: stretch;
+      margin-top: 16px;
+    }
+    .trace-step {
+      position: relative;
+      min-height: 166px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    .trace-step::after {
+      content: "→";
+      position: absolute;
+      top: 48%;
+      right: -18px;
+      color: var(--proof);
+      font-weight: 900;
+    }
+    .trace-step:last-child::after { display: none; }
+    .trace-step .small { color: var(--proof); font-size: .66rem; font-weight: 900; letter-spacing: .09em; }
+    .trace-step h3 { margin-top: 10px; font-size: .92rem; }
+    .trace-step p { color: var(--muted); font-size: .72rem; }
+    .trace-step code { display: block; margin-top: 8px; color: #e6d6bd; font-size: .76rem; overflow-wrap: anywhere; }
+
+    .instance-shell {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #191816;
+      box-shadow: var(--shadow);
+    }
+    .instance-tabs {
+      display: flex;
+      gap: 1px;
+      overflow-x: auto;
+      padding: 0;
+      border-bottom: 1px solid var(--line);
+      background: var(--line);
+    }
+    .instance-tab {
+      flex: 1 0 220px;
+      border: 0;
+      border-radius: 0;
+      padding: 14px 16px;
+      background: #1b1a18;
+      color: var(--muted);
+      text-align: left;
+    }
+    .instance-tab span { display: block; margin-bottom: 3px; color: inherit; font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; }
+    .instance-tab[aria-selected="true"] { background: var(--panel-hi); color: var(--ink); box-shadow: inset 0 -3px 0 var(--runtime); }
+    .instance-panel { display: none; padding: 22px; }
+    .instance-panel.is-active { display: block; }
+    .instance-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+    .instance-heading > div:first-child { max-width: 780px; }
+    .instance-heading p { color: var(--muted); }
+    .evidence-tag {
+      display: inline-flex;
+      flex: 0 0 auto;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      padding: 5px 9px;
+      color: var(--exists);
+      font-size: .65rem;
+      font-weight: 900;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+    .evidence-tag.target { color: var(--proposed); border-style: dashed; }
+    .evidence-tag.blocked { color: var(--authority); border-style: double; }
+    .instance-chain {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .instance-chain.target-chain { grid-template-columns: 1fr; max-width: 880px; margin-inline: auto; }
+    .record-card {
+      position: relative;
+      min-width: 0;
+      border: 1px solid rgba(118, 213, 150, .52);
+      border-radius: 12px;
+      padding: 14px;
+      background: var(--panel);
+    }
+    .record-card::after { content: "→"; position: absolute; top: 24px; right: -14px; z-index: 2; color: var(--proof); font-weight: 900; }
+    .record-card:nth-child(5n)::after, .target-chain .record-card:last-child::after { display: none; }
+    .target-chain .record-card::after { content: "↓"; display: block; top: auto; right: 50%; bottom: -18px; }
+    .target-chain .record-card:last-child::after { display: none; }
+    .record-card.target { border-style: dashed; border-color: rgba(217, 148, 98, .72); }
+    .record-card .step { color: var(--runtime); font-size: .72rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .record-card.target .step { color: var(--proof); }
+    .record-card h3 { margin-top: 8px; font-size: .92rem; }
+    .record-card p { min-height: 42px; color: var(--muted); font-size: .8rem; }
+    .record-card pre { margin: 10px 0 0; padding: 10px; font-size: .76rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .instance-branch {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 14px;
+      align-items: center;
+      margin-top: 17px;
+      border: 1px solid rgba(255, 123, 134, .42);
+      border-radius: 12px;
+      padding: 15px;
+      background: rgba(62, 20, 29, .22);
+    }
+    .instance-branch .arrow { color: var(--risk); font-size: 1.5rem; font-weight: 900; }
+    .instance-branch strong { display: block; margin-bottom: 4px; }
+    .instance-branch p { margin: 0; color: #d0c1bd; font-size: .8rem; }
+    .exact-set {
+      margin-top: 17px;
+      border: 1px solid rgba(181, 154, 217, .58);
+      border-radius: 12px;
+      padding: 15px;
+      background: rgba(62, 48, 74, .45);
+      text-align: center;
+    }
+    .exact-set code { display: block; margin: 7px 0; color: #eadff5; font-size: clamp(.82rem, 2vw, 1.08rem); }
+    .exact-set p { margin: 0; color: var(--muted); font-size: .77rem; }
+    .edge-instance {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(190px, .8fr) minmax(180px, 1fr);
+      gap: 14px;
+      align-items: center;
+      margin: 18px 0;
+    }
+    .edge-node { border: 1px solid rgba(118, 213, 150, .56); border-radius: 12px; padding: 16px; background: var(--panel); text-align: center; }
+    .edge-node span { display: block; color: var(--muted); font-size: .72rem; }
+    .edge-arrow { color: var(--proof); text-align: center; font-size: 1.35rem; font-weight: 900; }
+    .edge-arrow span { display: block; color: #e0d4ea; font-size: .78rem; overflow-wrap: anywhere; }
+    .instance-boundary { margin-top: 15px; color: var(--muted); font-size: .77rem; }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      padding: 18px;
+      background: var(--panel);
+    }
+    .card ul, .card ol { margin: 10px 0 0; padding-left: 19px; color: #d0c8bc; }
+    .card li + li { margin-top: 7px; }
+    .card.reuse { border-top: 3px solid var(--exists); }
+    .card.build { border-top: 3px solid var(--proposed); }
+    .card.stop { border-top: 3px solid var(--risk); }
+
+    .table-scroll, .risk-scroll {
+      overflow-x: auto;
+      border-radius: 14px;
+      scrollbar-color: var(--runtime) var(--panel);
+    }
+    .table-scroll:focus-visible, .risk-scroll:focus-visible { outline: 2px solid var(--runtime); outline-offset: 3px; }
+    .module-table {
+      width: 100%;
+      min-width: 880px;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+    .module-table th, .module-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .module-table tr:last-child td { border-bottom: 0; }
+    .module-table th { background: #1b1a18; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; }
+    .module-table td { color: #d0c8bc; font-size: .8rem; }
+    .module-table td:first-child { color: var(--ink); font-weight: 800; }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      max-width: 980px;
+      margin-inline: auto;
+    }
+    .slice {
+      position: relative;
+      min-height: 0;
+      padding: 15px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    .slice::after { content: "↓"; position: absolute; left: 50%; bottom: -18px; z-index: 2; color: var(--proof); font-weight: 900; }
+    .slice:last-child::after { display: none; }
+    .slice .n { color: var(--proof); font-size: .75rem; font-weight: 900; }
+    .slice h3 { margin-top: 11px; font-size: .9rem; }
+    .slice p { color: var(--muted); font-size: .8rem; }
+    .slice.gate { border-color: rgba(233, 183, 92, .65); }
+    .slice.gate .n { color: var(--authority); }
+
+    .risk-grid {
+      display: grid;
+      min-width: 820px;
+      grid-template-columns: 160px repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--line);
+    }
+    .risk-cell { min-height: 130px; padding: 14px; background: var(--panel); }
+    .risk-cell.header { min-height: auto; color: var(--muted); font-size: .75rem; font-weight: 900; text-transform: uppercase; }
+    .risk-cell.axis { color: var(--muted); font-size: .78rem; font-weight: 900; }
+    .risk-cell.high { box-shadow: inset 4px 0 0 var(--risk); }
+    .risk-cell.medium { box-shadow: inset 4px 0 0 var(--authority); }
+    .risk-cell strong { display: block; margin-bottom: 6px; }
+    .risk-cell span { color: var(--muted); font-size: .75rem; }
+
+    .terms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    details { border: 1px solid var(--line); border-radius: 11px; padding: 13px 15px; background: var(--panel); }
+    summary { cursor: pointer; font-weight: 850; }
+    details p { margin-top: 10px; color: #d0c8bc; font-size: .84rem; }
+
+    .evidence-split { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+    .evidence-split article { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--panel); }
+    .evidence-split .source { border-left: 4px solid var(--exists); }
+    .evidence-split .inference { border-left: 4px dashed var(--external); }
+    .evidence-split p { color: #d0c8bc; }
+
+    .source-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .source-list a { display: block; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; background: #1b1a18; text-decoration: none; font-size: .8rem; }
+
+    .retell-checkpoint {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--runtime);
+      border-radius: 13px;
+      padding: 16px 18px;
+      background: var(--panel);
+    }
+    .retell-checkpoint h3 { margin-bottom: 10px; }
+    .retell-checkpoint ul, .reader-outcomes { margin: 0; padding-left: 20px; color: #d0c8bc; }
+    .retell-checkpoint li + li, .reader-outcomes li + li { margin-top: 7px; }
+
+    .footer { margin-top: 50px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: .77rem; }
+
+    @media (max-width: 1080px) {
+      .truth, .cards { grid-template-columns: 1fr; }
+      .day-steps { grid-template-columns: 1fr; }
+      .day-step::after { display: none; }
+      .trace { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .trace-step::after { display: none; }
+      .outcomes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .instance-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .instance-chain.target-chain { grid-template-columns: 1fr; }
+      .record-card::after { display: none; }
+      .target-chain .record-card::after { content: "↓"; display: block; top: auto; right: 50%; bottom: -18px; }
+      .target-chain .record-card:last-child::after { display: none; }
+    }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 18px, 1280px); padding-top: 22px; }
+      .section { margin-top: 40px; }
+      .section-head, .toolbar { display: block; }
+      .presets { margin-top: 9px; }
+      .plane { grid-template-columns: 1fr; }
+      .plane-label { border-right: 0; border-bottom: 1px solid var(--line); }
+      .day-anchor, .day-loop, .day-outcome { grid-template-columns: 1fr; }
+      .day-loop-label { border-right: 0; border-bottom: 1px solid var(--line); }
+      .trace, .split, .terms, .evidence-split, .source-list { grid-template-columns: 1fr; }
+      .outcomes { grid-template-columns: 1fr; }
+      .instance-panel { padding: 15px; }
+      .instance-heading, .instance-branch { display: block; }
+      .instance-chain, .instance-chain.target-chain, .edge-instance { grid-template-columns: 1fr; }
+      .instance-branch .arrow { margin: 8px 0; transform: rotate(90deg); text-align: center; }
+      .edge-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="eyebrow">DomainSpec v2 · Backend Test Engine</div>
+      <h1>Backend Test Engine: validated design and implementation path</h1>
+      <p class="lede">The Backend Test Engine carries validated DomainSpec sources through graph construction, exact test derivation, execution, mutation, and independent replay. Profile admission and release remain external decisions.</p>
+      <div class="badges">
+        <span class="badge good"><span class="dot"></span>Reusable kernel and adapter exist</span>
+        <span class="badge warn"><span class="dot"></span>Design validated · implementation open</span>
+        <span class="badge block"><span class="dot"></span>Invoke Plan is next</span>
+        <a class="badge" href="#workday">Jump to the live example ↓</a>
+      </div>
+    </header>
+
+    <section class="truth" aria-labelledby="onramp-title">
+      <h2 id="onramp-title" class="sr-only">How to read this implementation design</h2>
+      <article>
+        <div class="num">01 · THE IMPLEMENTATION IN ONE SENTENCE</div>
+        <h3>One causal pipeline, four separated planes</h3>
+        <p>Contracts say what is allowed. The compiler turns authored sources into one canonical graph. The proof system derives and executes exact checks. Consumers independently show the result remains usable without becoming DomainSpec authority.</p>
+      </article>
+      <article>
+        <div class="num">02 · REUSABLE FOUNDATIONS</div>
+        <h3>Existing compiler foundations</h3>
+        <p>Reuse the strict YAML criterion kernel, minted-node body adapter, source hashing, compiler graph/manifest shape, deterministic utilities, and narrow receipt-verification patterns.</p>
+      </article>
+      <article>
+        <div class="num">03 · IMPLEMENTATION SCOPE</div>
+        <h3>Unimplemented proof spine</h3>
+        <p>Add versioned replacement contracts, independent edge sources, minted-graph derivation, independent obligations, strict bindings and evaluators, execution/mutation evidence, complete receipts, replay, and fail-closed aggregates.</p>
+      </article>
+    </section>
+
+    <section class="section" id="workday" data-lane="surface flow lifecycle internal_dependencies" data-whisper-part="domain-workday">
+      <div class="section-head">
+        <div><div class="kicker">Live example and target workday</div><h2>Trace <code>UnlockDoor</code> from source to evidence</h2></div>
+        <p>Solid steps exist in the checked-in compiler path. Dashed steps are Design-defined work still to implement. Double borders mark Owner gates.</p>
+      </div>
+
+      <div class="workday">
+        <div class="day-anchor">
+          <div data-whisper-block="workday-anchor">
+            <div class="kicker">Checked-in example</div>
+            <p class="change"><code>UnlockDoor</code> is an Operation with <code>state_change: yes</code>. Its source-backed <code>produces</code> relation points to the <code>DoorUnlocked</code> Event.</p>
+            <p>The graph also contains <code>HasKeyRule --enforces--&gt; UnlockDoor</code>. That proves structural preservation of the relation—not yet that application code obeys the rule.</p>
+          </div>
+          <div data-whisper-block="workday-mental-model">
+            <div class="kicker">Process phases</div>
+            <p><strong>Source and graph:</strong> the authored system becomes an inspectable compiler output.</p>
+            <p><strong>Test derivation and execution:</strong> exact obligations become bound checks and observations.</p>
+            <p><strong>Replay and decision:</strong> raw evidence is recomputed before any owner-controlled action.</p>
+            <div class="day-legend"><span class="now">Runs now</span><span class="design">Design contract</span><span class="build">Build next</span><span class="owner">Owner gate</span></div>
+          </div>
+        </div>
+
+        <section class="day-loop" aria-label="Morning intent loop">
+          <div class="day-loop-label"><span>Loop 1 · morning</span><strong>Make the change explicit</strong><p>The DomainSpec author edits the source. Generated views never rewrite it.</p></div>
+          <div class="day-steps">
+            <article class="day-step" data-whisper-block="workday-step-1">
+              <div class="day-time"><span>09:00</span><span class="state">runs now</span></div>
+              <h3>1. Read the authored source</h3>
+              <p>The checked-in <code>UnlockDoor</code> node declares its kind, state change, and connection to <code>DoorUnlocked</code>. These JSON records—not this page—are the input.</p>
+              <span class="artifact"><strong>In:</strong> requested behavior<br><strong>Out:</strong> versioned node sources and relations</span>
+            </article>
+            <article class="day-step" data-whisper-block="workday-step-2">
+              <div class="day-time"><span>09:20</span><span class="state">runs now</span></div>
+              <h3>2. Compile and correct</h3>
+              <p>The profile selects the allowed kinds and YAML criteria. If <code>UnlockDoor.state_change</code> is <code>no</code>, the compiler stops on <code>writes_state</code> with <code>ATTRIBUTE-VALUE-MISMATCH</code>.</p>
+              <span class="artifact"><strong>In:</strong> source bundle + governing contracts<br><strong>Out:</strong> exact diagnostic or compiled artifacts</span>
+            </article>
+            <article class="day-step" data-whisper-block="workday-step-3">
+              <div class="day-time"><span>10:00</span><span class="state">runs now</span></div>
+              <h3>3. Inspect the graph</h3>
+              <p>The DomainSpec author inspects both structural edges: <code>HasKeyRule --enforces--&gt; UnlockDoor</code> and <code>UnlockDoor --produces--&gt; DoorUnlocked</code>. The manifest joins every graph record to a source path and digest.</p>
+              <span class="artifact"><strong>In:</strong> valid sources<br><strong>Out:</strong> MintedGraph + MintedSourceManifest + compiler receipt</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="day-loop" aria-label="Midday implementation loop">
+          <div class="day-loop-label"><span>Loop 2 · midday</span><strong>Turn intent into work</strong><p>The proof system must tell the developer exactly what must exist and run.</p></div>
+          <div class="day-steps">
+            <article class="day-step target" data-whisper-block="workday-step-4">
+              <div class="day-time"><span>10:30</span><span class="state design">Design contract</span><span class="state build">Build next</span></div>
+              <h3>4. Match checks to a frozen checklist</h3>
+              <p>The engine will resolve one immutable <code>ProofContext</code>, derive required checks, and compare them with an independently owned catalogue. A coverage key combines catalogue ID and obligation ID; a blocking diff lists exact missing, extra, duplicate, stale, or mismatched members.</p>
+              <span class="artifact"><strong>In:</strong> exact graph/manifest/contract handles + frozen catalogue<br><strong>Out:</strong> expected (<code>O_spec</code>) = derived (<code>O_gen</code>), or a blocking diff</span>
+            </article>
+            <article class="day-step target" data-whisper-block="workday-step-5">
+              <div class="day-time"><span>11:00–14:00</span><span class="state design">Design contract</span><span class="state build">Build next</span></div>
+              <h3>5. Connect each check to code</h3>
+              <p>The implementation developer changes the code. Each test instruction (<code>TestCase</code>) gets one explicit runtime connection (<code>Binding</code>) and one bounded judge (<code>Evaluator</code>), so the executed target is exact.</p>
+              <span class="artifact"><strong>In:</strong> obligation + TestCase<br><strong>Out:</strong> code change + unique runnable binding</span>
+            </article>
+            <article class="day-step target" data-whisper-block="workday-step-6">
+              <div class="day-time"><span>14:30</span><span class="state design">Design contract</span><span class="state build">Build next</span></div>
+              <h3>6. Run the valid and broken case</h3>
+              <p>The valid case must pass. Its invalid case runs as a fresh child lineage and must fail for the intended reason—not merely because a digest became stale. Removing <code>enforces</code> becomes core-eligible only after exact relationship admission.</p>
+              <span class="artifact"><strong>In:</strong> test + binding + evaluator + mutant<br><strong>Out:</strong> ExecutionResult + killed MutationResult</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="day-loop" aria-label="Afternoon evidence loop">
+          <div class="day-loop-label"><span>Loop 3 · afternoon</span><strong>Make proof portable</strong><p>A green screen is not the handoff. Recomputable evidence is.</p></div>
+          <div class="day-steps">
+            <article class="day-step target" data-whisper-block="workday-step-7">
+              <div class="day-time"><span>15:30</span><span class="state design">Design contract</span><span class="state build">Build next</span></div>
+              <h3>7. Recompute the evidence</h3>
+              <p>A <code>ProofReceipt</code> indexes source, graph, obligation, test, binding, evaluator, execution, and mutation handles. A separate replayer reads raw artifacts and emits a <code>ReplayResult</code> instead of trusting <code>status: pass</code>.</p>
+              <span class="artifact"><strong>In:</strong> complete raw proof chain<br><strong>Out:</strong> ReplayResult eligible for the core aggregate—the exact replay-backed, non-admitting result over all six catalogues—or typed residue, a machine-readable blocking reason</span>
+            </article>
+            <article class="day-step target" data-whisper-block="workday-step-8">
+              <div class="day-time"><span>16:15</span><span class="state design">Design contract</span><span class="state build">Build next</span></div>
+              <h3>8. Hand evidence to consumers</h3>
+              <p>IOLM and Body War consume a verified green core aggregate handle: the exact replay-backed, non-admitting structural result. Their runners emit consumer-owned raw evidence plus a non-authoritative receipt; BTE-owned replay then checks IDs, relation direction, provenance, and required views.</p>
+              <span class="artifact"><strong>In:</strong> verified green core aggregate handle<br><strong>Out:</strong> consumer raw evidence + receipt + fresh BTE ReplayResults</span>
+            </article>
+            <article class="day-step owner" data-whisper-block="workday-step-9">
+              <div class="day-time"><span>17:00</span><span class="state">Owner gate</span></div>
+              <h3>9. Owner decides admission or release</h3>
+              <p>The owner reviews evidence and residue. DomainSpec can make the proof inspectable; it cannot admit a profile, approve a relationship set, or release the system by itself.</p>
+              <span class="artifact"><strong>In:</strong> core + consumer evidence<br><strong>Out:</strong> accept, rework, defer, or explicitly admit</span>
+            </article>
+          </div>
+        </section>
+
+        <div class="day-outcome">
+          <article data-whisper-block="workday-current-outcome"><h3>Where a real day ends now</h3><p>The fixture proves <code>UnlockDoor</code> formation, the <code>DoorUnlocked</code> node, both named graph edges, their manifest joins, and the compiler build receipt. This is structural evidence only.</p></article>
+          <article data-whisper-block="workday-target-outcome"><h3>Where the intended day will end</h3><p>For admitted scope, the source change would carry exact checks, runnable bindings, evaluator results, killed mutants, replayable receipts, and fresh IOLM and Body War evidence.</p></article>
+        </div>
+        <div class="day-limit" data-whisper-block="workday-limit"><strong>Claim boundary:</strong> at each step, the Design-defined BTE path checks the same named source, rule, graph context, and obligation coverage key. Relationship evidence becomes core-eligible only after the owner admits the exact denominator—the claimed relationship membership. It does not prove that all game behavior is correct.</div>
+      </div>
+
+    </section>
+
+    <section class="section" id="architecture">
+      <div class="section-head">
+        <div><div class="kicker">Architecture at a glance</div><h2>Keep four responsibilities separate</h2></div>
+        <p>Solid borders mean existing code or evidence. Dashed borders mean Design-defined work still to build. Double borders mark owner-controlled contracts or gates. External consumers sit outside the BTE core.</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="controls" aria-label="Architecture layer toggles">
+          <label><input id="toggle-surface" type="checkbox" checked data-target="authority"> Authority and inputs</label>
+          <label><input id="toggle-flow" type="checkbox" checked data-target="runtime"> Compiler runtime</label>
+          <label><input id="toggle-deps" type="checkbox" checked data-target="proof"> Proof and evidence</label>
+          <label><input id="toggle-risk" type="checkbox" checked data-target="external"> Consumers and gates</label>
+        </div>
+        <div class="presets">
+          <button type="button" data-preset="all">Full system</button>
+          <button type="button" data-preset="compile">Compile path</button>
+          <button type="button" data-preset="prove">Proof path</button>
+          <button type="button" data-preset="handoff">Consumer handoff</button>
+        </div>
+      </div>
+
+      <div class="architecture" data-lane="surface components flow internal_dependencies external_dependencies">
+        <div class="arch-head"><span>Reading guide: left → right inside each responsibility, then top → bottom</span><span>Lifecycle: Runs now · Design contract · Build next · Owner gate. External marks topology, not lifecycle.</span></div>
+
+        <section class="plane authority-plane" data-layer="authority" data-lane="surface properties external_dependencies">
+          <div class="plane-label"><span>PLANE A</span><strong>Contracts, admissions, and authored inputs</strong></div>
+          <div>
+            <div class="plane-content">
+              <p>Semantic contracts define allowed shape and meaning; owner decisions admit exact contracts or sets; authored inputs provide governed content. Derived graphs, evidence, aggregates, and lifecycle decisions remain separate roles.</p>
+              <div class="module-flow">
+                <article class="module exists"><span class="status">Runs now</span><h4>Kind registry</h4><p><code>meta-types.yml</code><br>Owns the exact backend kind set and schema references.</p></article>
+                <article class="module proposed"><span class="status">Design contract</span><h4>Successor profile</h4><p><code>feature-with-independent-node-and-edge-files@1</code>; exact memberships and contract handles; separate candidate/admission state.</p></article>
+                <article class="module proposed"><span class="status">Design contract</span><h4>Isolated formation v2</h4><p>New <code>formation-v2/</code> catalogue with required structure, closed domains, and structural equality; current bytes stay frozen.</p></article>
+                <article class="module proposed"><span class="status">Design contract</span><h4>Retirement + migration maps</h4><p>Every old JSON constraint and node connection maps exactly to a successor rule, edge source, or owner-approved retirement.</p></article>
+                <article class="module gated"><span class="status">Owner gate</span><h4>Relationship set</h4><p>Exact selected families, endpoints, scope, direction, order, and owner admission.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Project / feature / node / edge JSON</h4><p>One authored record per node and edge with stable identity and source digest.</p></article>
+              </div>
+            </div>
+            <div class="handoff"><strong>Handoff:</strong> an immutable source bundle plus exact profile, registry, formation, retirement, relationship, and layout handles enters the compiler.</div>
+          </div>
+        </section>
+
+        <section class="plane runtime-plane" data-layer="runtime" data-lane="components internal_dependencies flow">
+          <div class="plane-label"><span>PLANE B</span><strong>Compiler runtime</strong></div>
+          <div>
+            <div class="plane-content">
+              <div class="module-flow">
+                <article class="module exists"><span class="status">Runs now</span><h4>Source resolver</h4><p>Already contains path, alias, symlink, extension, JSON, version, and digest controls. Add independent edge roots.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Contract loader</h4><p>Selects one profile version and verifies all referenced kind, formation, retirement, relationship, and adapter digests.</p></article>
+                <article class="module exists"><span class="status">Runs now</span><h4>Envelope validator</h4><p>Checks current project, feature, and node shapes. Build next extends it to independent edge records without swallowing formation errors.</p></article>
+                <article class="module exists"><span class="status">Runs now</span><h4>Formation adapter + kernel</h4><p>Normalizes current node bodies and executes criteria. Build next adds the versioned required-structure contract.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Edge resolver + graph validator</h4><p>Loads independent edges; validates endpoints, kind signatures, root/scope/direction, duplicate identity, ordering, and lifecycle.</p></article>
+                <article class="module exists"><span class="status">Runs now</span><h4>Minted graph + source manifest</h4><p>Deterministic generated outputs; every graph ID joins to source path and digest. The successor format remains Build next.</p></article>
+              </div>
+            </div>
+            <div class="handoff"><strong>Handoff:</strong> only a schema-valid normalized graph, complete source manifest, and compiler receipt can enter proof derivation. Missing or stale joins fail here.</div>
+          </div>
+        </section>
+
+        <section class="plane proof-plane" data-layer="proof" data-lane="components internal_dependencies flow lifecycle">
+          <div class="plane-label"><span>PLANE C</span><strong>Proof + evidence</strong></div>
+          <div>
+            <div class="plane-content">
+              <div class="module-flow">
+                <article class="module gated"><span class="status">Owner gate</span><h4>Expected obligations (<code>O_spec</code>)</h4><p>Expected check IDs frozen by the validation owner from profile, schemas, corpus, and selected relationships.</p></article>
+                <article class="module proposed"><span class="status">Design contract</span><h4>ProofContext envelope</h4><p>Exact handles to the one canonical graph, manifest, build, profile, registries, formation catalogue, and source set. It is not a second graph.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Derived obligations (<code>O_gen</code>)</h4><p>Deterministic obligations for each exact catalogue, preserving the shared context handle and coverage key.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Exact-set gate</h4><p>Rejects missing, extra, duplicate, stale, empty, or mismatched obligations before test generation.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Test + binding + evaluator</h4><p>One pre-run TestCase bundle; exactly one role-typed binding; one of four independent bounded evaluator interfaces.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>Execution + child-lineage mutation</h4><p>Every test produces a post-run observation; each fresh mutant is killed by the intended diagnostic or causal delta, not stale bytes.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4>ProofReceipt + ReplayResult</h4><p>The receipt indexes raw handles; a BTE-owned replayer independently recomputes schemas, digests, joins, observations, and exact sets.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4><code>verify:bte:core</code></h4><p>Checks exact required manifests and fails on any empty, stale, skipped, or surviving evidence.</p></article>
+              </div>
+            </div>
+            <div class="handoff"><strong>Required identity equality:</strong> expected checks (<code>O_spec</code>) = derived checks (<code>O_gen</code>) = generated tests (<code>T_gen</code>) = executed tests (<code>E_run</code>) = killed invalid cases (<code>M_killed</code>). Counts are diagnostics, never the comparator.</div>
+          </div>
+        </section>
+
+        <section class="plane external-plane" data-layer="external" data-lane="external_dependencies lifecycle risk_questions">
+          <div class="plane-label"><span>PLANE D</span><strong>Independent consumers + gates</strong></div>
+          <div>
+            <div class="plane-content">
+              <div class="module-flow">
+                <article class="module external"><span class="status">Build next</span><h4>IOLM consumer</h4><p>Imports the verified green core aggregate handle, runs its own adapter/runner, and emits raw evidence plus a non-authoritative receipt.</p></article>
+                <article class="module external"><span class="status">Build next</span><h4>Body War consumer</h4><p>Uses a private read-only machine contract and runner, then emits redaction and preservation evidence plus a non-authoritative receipt.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4><code>verify:bte:consumers</code></h4><p>Consumes exact fresh BTE-owned ReplayResult handles; rejects stale, fixture-only, wrong-stage, substituted, or BTE-authored consumer evidence.</p></article>
+                <article class="module proposed"><span class="status">Build next</span><h4><code>verify:bte</code></h4><p>Composes core and consumer aggregates without widening the structural claim.</p></article>
+                <article class="module gated"><span class="status">Owner gate</span><h4>Admission / release</h4><p>Owners may inspect receipts and replay results. No command, graph, consumer, receipt, or x-ray can self-admit a profile or release.</p></article>
+              </div>
+            </div>
+            <div class="handoff"><strong>Boundary:</strong> consumers demonstrate independent preservation and usefulness. They do not define DomainSpec graph truth, criteria, obligations, or admission.</div>
+          </div>
+        </section>
+
+        <div class="outcomes">
+          <div class="outcome"><strong>Authority outcome</strong><br>Know which machine files define the contract and why the successor is a separate version.</div>
+          <div class="outcome"><strong>Compiler outcome</strong><br>See how authored sources become one normalized graph and provenance manifest.</div>
+          <div class="outcome"><strong>Proof outcome</strong><br>Trace exact obligations through tests, runtime, mutations, receipts, and replay.</div>
+          <div class="outcome"><strong>Consumer outcome</strong><br>Separate green core proof from independent downstream evidence and admission.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" data-lane="components flow risk_questions">
+      <div class="section-head">
+        <div><div class="kicker">Completeness denominator</div><h2>Six catalogues answer six different questions</h2></div>
+        <p>A denominator is the exact membership claimed by one catalogue. Each catalogue keeps its own frozen expected set, derived set, tests, results, mutations, receipt, and replay result; one green total cannot substitute for those sets.</p>
+      </div>
+      <div class="handoff"><strong>Common core gate:</strong> every catalogue requires applicable owner admission, implementation, successful independent replay, and terminal inclusion in the six-catalogue aggregate. The last column adds the catalogue-specific gate.</div>
+      <div class="table-scroll" role="region" aria-label="Backend Test Engine completeness catalogues" tabindex="0">
+        <table class="module-table">
+          <thead><tr><th>Catalogue</th><th>What it asks</th><th>Design denominator</th><th>When it can enter core proof</th></tr></thead>
+          <tbody>
+            <tr><td><code>formation-criterion@1</code></td><td>Does every declared formation criterion get checked?</td><td>16 criteria</td><td>The isolated formation-v2 compatibility and false-green controls pass.</td></tr>
+            <tr><td><code>formation-structure@1</code></td><td>Does every required body shape and structural rule get checked?</td><td>13 structures</td><td>After structure expectations are independently frozen.</td></tr>
+            <tr><td><code>node-kind-causality@1</code></td><td>Does each backend kind have its bounded causal evaluator?</td><td>13 node kinds</td><td>After each evaluator proves the intended delta without shared implementation logic.</td></tr>
+            <tr><td><code>node-instance-conformance@1</code></td><td>Does every admitted node instance receive all required checks?</td><td>Computed from the admitted graph</td><td>The exact graph handle is fixed in ProofContext.</td></tr>
+            <tr><td><code>relationship-family-causality@1</code></td><td>Does every admitted relationship family get its causal check?</td><td>16 families</td><td>The exact causal denominator selection is fixed.</td></tr>
+            <tr><td><code>edge-instance-conformance@1</code></td><td>Does every admitted edge instance preserve and demonstrate its meaning?</td><td>Computed from admitted edges</td><td>Edge provenance and relationship-specific causal evidence are complete.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="handoff"><strong>Shared comparison key:</strong> records keep different artifact IDs, but each projects to one <code>catalogue_id + obligation_id</code> coverage key. Completeness requires exact nonempty equality across the five proof sets for each catalogue.</div>
+    </section>
+
+    <section class="section">
+      <div class="callout attention">
+        <div class="kicker">Derivation input boundary</div>
+        <h2>The legacy Markdown graph is not the canonical BTE input</h2>
+        <p>The current test-derivation engine parses Markdown/aspect documents into its own <code>ConceptGraph</code>. The validated Design makes <code>MintedGraph</code> and <code>MintedSourceManifest</code> the one canonical derivation input and wraps their exact handles in <code>ProofContext</code>. Any convenience rows must remain lossless derived projections, never a second graph. Reuse deterministic utilities only where their contracts still fit.</p>
+      </div>
+    </section>
+
+    <section class="section" data-lane="flow components lifecycle">
+      <div class="section-head">
+        <div><div class="kicker">Concrete process instances</div><h2>Trace one live compiler chain, one labelled target proof chain, and one live edge with admission-blocked target proof</h2></div>
+        <p>Tabs distinguish checked-in compiler evidence, illustrative Design records still to implement, and an existing edge whose causal proof awaits implementation and admission.</p>
+      </div>
+      <div class="instance-shell">
+        <div class="instance-tabs" role="tablist" aria-label="Process instances">
+          <button class="instance-tab" type="button" role="tab" id="instance-tab-live" aria-controls="instance-live" aria-selected="true" tabindex="0" data-instance="live"><span>Instance 1 · runs now</span>Compile one Operation</button>
+          <button class="instance-tab" type="button" role="tab" id="instance-tab-proof" aria-controls="instance-proof" aria-selected="false" tabindex="-1" data-instance="proof"><span>Instance 2 · target design</span>Derive, run, and prove it</button>
+          <button class="instance-tab" type="button" role="tab" id="instance-tab-edge" aria-controls="instance-edge" aria-selected="false" tabindex="-1" data-instance="edge"><span>Instance 3 · graph relation</span>Prove one edge matters</button>
+        </div>
+
+        <article class="instance-panel is-active" id="instance-live" role="tabpanel" aria-labelledby="instance-tab-live" tabindex="0" data-instance-panel="live">
+          <div class="instance-heading">
+            <div><h3>Does <code>UnlockDoor</code> satisfy the Operation rule?</h3><p>Yes. These values come from the checked-in fixture, YAML criterion, generated graph, source manifest, compiler test, and build receipt.</p></div>
+            <span class="evidence-tag">Source-backed · exists</span>
+          </div>
+          <div class="instance-chain">
+            <article class="record-card"><span class="step">1 · Source node</span><h3>Authored intent</h3><p>The author declares one stable node and its structural body.</p><pre>{
+  "node_id": "key-and-door.UnlockDoor",
+  "kind": "Operation",
+  "body": { "state_change": "yes" }
+}</pre></article>
+            <article class="record-card"><span class="step">2 · YAML criterion</span><h3>The machine rule</h3><p>Operation means the named attribute must equal <code>yes</code>.</p><pre>criterion:
+  writes_state:
+    rule: attribute-equals
+    key: state_change
+    value: yes</pre></article>
+            <article class="record-card"><span class="step">3 · Compiler check</span><h3>The actual comparison</h3><p>The body adapter exposes the attribute; the criterion kernel evaluates it.</p><pre>actual:   "yes"
+expected: "yes"
+violations: []</pre></article>
+            <article class="record-card"><span class="step">4 · Graph + manifest</span><h3>Generated, then joined</h3><p>The graph retains the node; the manifest points back to its exact source bytes.</p><pre>graph_id:
+  key-and-door.UnlockDoor
+source_digest:
+  b2e4c83a…5686</pre></article>
+            <article class="record-card"><span class="step">5 · Build receipt</span><h3>Compiler evidence</h3><p>The receipt binds the project source set to graph and manifest digests.</p><pre>status: pass
+source_set: 6316759c…b95
+graph:      66a63b80…a65
+manifest:   3d5db5ae…831</pre></article>
+          </div>
+          <div class="edge-instance" aria-label="UnlockDoor produces DoorUnlocked">
+            <div class="edge-node"><strong>UnlockDoor</strong><span>key-and-door.UnlockDoor</span><span>source digest: b2e4c83a…5686</span></div>
+            <div class="edge-arrow">────→<span>produces</span><span>edge.unlock-door-produces-door-unlocked</span></div>
+            <div class="edge-node"><strong>DoorUnlocked</strong><span>kind: Event</span><span>source digest: a0c34fb2…08e</span></div>
+          </div>
+          <div class="instance-branch">
+            <div><strong>Change one value</strong><p><code>body.state_change: "yes" → "no"</code></p></div>
+            <div class="arrow" aria-hidden="true">→</div>
+            <div><strong>The live compiler rejects it specifically</strong><p><code>FORMATION_INVALID</code> carrying <code>writes_state</code>, <code>attribute-equals</code>, and <code>ATTRIBUTE-VALUE-MISMATCH</code>.</p></div>
+          </div>
+          <p class="instance-boundary"><strong>Current boundary:</strong> the node, Event, <code>produces</code> edge, graph records, manifest joins, diagnostic, and receipt are real. They prove structural formation and preservation—not that runtime code unlocks a door correctly or that a complete BTE proof set exists.</p>
+        </article>
+
+        <article class="instance-panel" id="instance-proof" role="tabpanel" aria-labelledby="instance-tab-proof" tabindex="0" data-instance-panel="proof" hidden>
+          <div class="instance-heading">
+            <div><h3>Design-defined proof records for the same node</h3><p>The logical boundaries are frozen. The field values and readable IDs remain illustrative until Plan materializes and implementation validates the machine schemas.</p></div>
+            <span class="evidence-tag target">Requirements-backed · to build</span>
+          </div>
+          <div class="instance-chain target-chain">
+            <article class="record-card target"><span class="step">1 · ProofContext</span><h3>Fix the proof inputs</h3><p>One immutable envelope names the exact graph, manifest, build, profile, catalogues, and source set. It is not another graph.</p><pre>profile:
+  feature-with-independent-node-and-edge-files@1
+graph: 66a63b80…a65
+manifest: 3d5db5ae…831</pre></article>
+            <article class="record-card target"><span class="step">2 · O_spec</span><h3>Expected obligation</h3><p>The validation owner independently says this exact check must exist.</p><pre>catalogue:
+  formation-criterion@1
+obligation_id:
+  obl:formation:key-and-door.UnlockDoor:writes_state
+coverage_key:
+  formation-criterion@1::obl:…:writes_state</pre></article>
+            <article class="record-card target"><span class="step">3 · O_gen</span><h3>Derived obligation</h3><p>The engine derives the same coverage key from the canonical graph and governing criterion.</p><pre>derived_from:
+  key-and-door.UnlockDoor
+criterion_id:
+  writes_state
+graph_digest:
+  66a63b80…a65</pre></article>
+            <article class="record-card target"><span class="step">4 · TestCase</span><h3>The instruction</h3><p>Before running: what fixture to exercise and what predicate is expected. The expectation comes from <code>O_spec</code>, never <code>O_gen</code>.</p><pre>test_id:
+  test:…:writes_state
+fixture:
+  unlock-door.json
+expected:
+  no writes_state violation</pre></article>
+            <article class="record-card target"><span class="step">5 · Binding</span><h3>The wiring</h3><p>Exactly one adapter, runtime target, fixture, and role-typed evaluator for this test.</p><pre>binding_id:
+  binding:minted-operation-formation:v1
+runtime:
+  validateMintedNodeFormation
+evaluator:
+  evaluator:formation-structural:v1</pre></article>
+            <article class="record-card target"><span class="step">6 · Evaluator</span><h3>The independent judge</h3><p>A bounded checker interprets observed output without importing the compiler, criterion kernel, adapter, or <code>O_gen</code>.</p><pre>scope: formation-structural
+positive:
+  violations is empty
+negative:
+  code is ATTRIBUTE-VALUE-MISMATCH</pre></article>
+            <article class="record-card target"><span class="step">7 · ExecutionResult</span><h3>What happened</h3><p>After running: the raw observation for this exact test, binding, and evaluator.</p><pre>result_id:
+  result:…:positive
+observed_violations: []
+verdict: pass</pre></article>
+            <article class="record-card target"><span class="step">8 · MutationResult</span><h3>Can it discriminate?</h3><p>A fresh child-lineage source changes one value, recompiles, runs, and is rejected for the intended reason.</p><pre>parent_source: b2e4c83a…5686
+child_source:  9f73b81c…new
+change:
+  state_change: yes → no
+diagnostic:
+  ATTRIBUTE-VALUE-MISMATCH
+verdict: killed</pre></article>
+            <article class="record-card target"><span class="step">9 · ProofReceipt</span><h3>Index the causal chain</h3><p>The receipt points to every exact input and raw result. It is evidence to inspect, not a trusted pass statement.</p><pre>context ✓ obligation ✓ test ✓
+binding ✓ evaluator ✓
+positive result ✓ mutant ✓
+non_admitting: true</pre></article>
+            <article class="record-card target"><span class="step">10 · ReplayResult</span><h3>Recompute independently</h3><p>A separate replayer verifies schemas, digests, joins, observations, and exact sets from raw artifacts.</p><pre>receipt_digest: 41b7…
+joins_recomputed: true
+exact_sets_recomputed: true
+verdict: pass
+non_admitting: true</pre></article>
+          </div>
+          <div class="exact-set"><strong>Completeness is coverage-key equality, not five matching counts</strong><code>O_spec = O_gen = T_gen = E_run = M_killed</code><p>For this single instance, every record projects to <code>formation-criterion@1::obl:formation:key-and-door.UnlockDoor:writes_state</code>. The artifacts retain different IDs; missing, extra, duplicate, skipped, unrunnable, or surviving coverage keys fail.</p></div>
+        </article>
+
+        <article class="instance-panel" id="instance-edge" role="tabpanel" aria-labelledby="instance-tab-edge" tabindex="0" data-instance-panel="edge" hidden>
+          <div class="instance-heading">
+            <div><h3>Does the <code>enforces</code> relation survive and matter?</h3><p>The directed edge already exists in the generated graph and source manifest. The causal completeness test is still a target contract and remains admission-blocked.</p></div>
+            <span class="evidence-tag blocked">Existing edge · proof blocked</span>
+          </div>
+          <div class="edge-instance" aria-label="HasKeyRule enforces UnlockDoor">
+            <div class="edge-node"><strong>HasKeyRule</strong><span>kind: Rule</span><span>formal_return_type: boolean</span></div>
+            <div class="edge-arrow">────→<span>enforces</span><span>edge.has-key-rule-enforces-unlock-door</span></div>
+            <div class="edge-node"><strong>UnlockDoor</strong><span>kind: Operation</span><span>state_change: yes</span></div>
+          </div>
+          <div class="split">
+            <article class="card reuse"><h3>What exists now</h3><ul><li>The generated graph preserves the edge ID, type, source, and target.</li><li>The source manifest joins the edge to <code>has-key-rule.json</code> and digest <code>f847fa32…e2f4</code>.</li><li>The compiler rejects unknown, generated, unsupported, missing-endpoint, and endpoint-kind-invalid relations.</li></ul></article>
+            <article class="card build"><h3>What composability proof must add</h3><ul><li>Freeze the candidate obligation <code>obl:relationship:…:causal-effect</code>.</li><li>Remove only this edge as the paired mutant.</li><li>Require a relationship-specific check to fail; graph parsing or unchanged node count is not enough.</li><li>Bind the result to the admitted relationship set and exact graph/source digests.</li></ul></article>
+          </div>
+          <p class="instance-boundary"><strong>Why blocked:</strong> the edge is real and the causal evaluator interface is designed, but DomainSpec cannot claim relationship-family completeness until the owner admits the exact denominator and implementation evidence passes.</p>
+        </article>
+      </div>
+      <p class="instance-boundary">Machine-readable companion: <a href="instances.json"><code>instances.json</code></a>. It carries the full records, evidence references, requirement IDs, and source-backed/target-design boundary.</p>
+    </section>
+
+    <section class="section" data-lane="components internal_dependencies">
+      <div class="section-head">
+        <div><div class="kicker">Reuse vs build</div><h2>Design-defined code boundaries</h2></div>
+        <p>The validated Design requires a new proof path connected to existing compiler primitives. Plan may choose concrete modules and filenames, but it must preserve these logical boundaries and forbidden dependencies.</p>
+      </div>
+      <div class="cards">
+        <article class="card reuse">
+          <h3>Reuse and harden</h3>
+          <ul>
+            <li><code>meta-type-criteria.ts</code>: parser, preflight, evaluator, stable violations.</li>
+            <li><code>meta-type-body-adapter.ts</code>: node-body normalization and schema digest check.</li>
+            <li><code>resolver.ts</code>: path containment, aliases, source hashing, canonical source-set digest.</li>
+            <li><code>compiler.ts</code>: profile binding, node validation, deterministic graph/manifest output.</li>
+            <li>Existing keying, formal evaluation, deterministic serialization, and receipt-verification techniques where compatible.</li>
+          </ul>
+        </article>
+        <article class="card build">
+          <h3>Build as bounded modules</h3>
+          <ul>
+            <li>Versioned formation-replacement and JSON-retirement contract loaders.</li>
+            <li>Independent edge schema/root resolver and ordered graph model.</li>
+            <li>ProofContext resolver over the canonical graph, manifest, build, and governing handles.</li>
+            <li><code>O_spec</code> validator, <code>O_gen</code> deriver, exact-set comparator.</li>
+            <li>Strict binding resolver, evaluator registry, test/mutation runner.</li>
+            <li>Causal receipt schema, replay verifier, core/consumer aggregate runners.</li>
+          </ul>
+        </article>
+        <article class="card stop">
+          <h3>Do not carry forward</h3>
+          <ul>
+            <li>Current-v1 in-place widening or silent JSON retirement.</li>
+            <li>Node-embedded connections as the claimed independent-edge design.</li>
+            <li>Markdown/aspect parsing as minted graph authority.</li>
+            <li>First-match binding resolution.</li>
+            <li>Generated <code>todo</code>/<code>skip</code> as completeness evidence.</li>
+            <li>Count equality, literal pass fields, or producer-authored consumer receipts.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><div class="kicker">Logical module boundaries</div><h2>The implementation seams Plan must preserve</h2></div>
+        <p>Design freezes responsibilities and dependency direction. Homes below are still suggestions from the current checkout; Plan chooses concrete filenames.</p>
+      </div>
+      <div class="table-scroll" role="region" aria-label="Proposed module boundaries" tabindex="0">
+        <table class="module-table">
+          <thead><tr><th>Module boundary</th><th>Consumes</th><th>Emits</th><th>Suggested home (Plan decides)</th></tr></thead>
+          <tbody>
+            <tr><td>Replacement contract loader</td><td>Profile, YAML schemas, retirement map, registry handles</td><td>Verified immutable <code>FormationContractSet</code></td><td><code>impl/tools/minted-project/</code> plus machine schemas under <code>impl/spec/minted-project/</code></td></tr>
+            <tr><td>Edge source resolver</td><td>Feature-local and project-level edge JSON references</td><td>Ordered, hashed <code>EdgeSourceRecord[]</code></td><td>Extend <code>resolver.ts</code>; add edge JSON Schema</td></tr>
+            <tr><td>ProofContext resolver</td><td><code>MintedGraph</code>, <code>MintedSourceManifest</code>, build receipt, exact governing handles</td><td>Immutable context handle; optional lossless proof rows</td><td>Existing test-derivation engine package, separate from the Markdown parser</td></tr>
+            <tr><td>Obligation pipeline</td><td>ProofContext, admitted causal selections, independent catalogue</td><td><code>O_gen</code>, exact coverage-key diff, derivation evidence</td><td>New minted-project obligation modules inside the engine</td></tr>
+            <tr><td>Strict runtime</td><td>TestCase manifest, fixtures, typed bindings, evaluator registry, mutants</td><td>Execution and mutation result sets</td><td>New engine runtime modules; do not reuse first-match semantics unchanged</td></tr>
+            <tr><td>Evidence/replay</td><td>All raw contracts, sources, derived artifacts, commands, and results</td><td><code>ProofReceipt</code> plus separate <code>ReplayResult</code></td><td>New versioned receipt schemas and independent replay path</td></tr>
+            <tr><td>Aggregate runner</td><td>Required-check manifest and exact fresh replay handles</td><td><code>verify:bte:core</code>, consumers, terminal verdicts</td><td><code>impl/tools/</code> plus package scripts</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" data-lane="lifecycle internal_dependencies">
+      <div class="section-head">
+        <div><div class="kicker">Design dependency seed</div><h2>Nine ordered layers from contracts to terminal evidence</h2></div>
+        <p>The dependency order is validated Design. It is not yet a work plan: Invoke Plan must assign concrete tasks, files, owners, and validation commands.</p>
+      </div>
+      <div class="timeline">
+        <article class="slice gate"><span class="n">LAYER 0 · SHARED CONTRACTS</span><h3>Make identity and evidence joinable</h3><p>Artifact handles, logical IDs versus content digests, diagnostics, authority classes, and exact-set comparison contracts.</p></article>
+        <article class="slice"><span class="n">LAYER 1 · FORMATION MIGRATION</span><h3>Build the isolated replacement</h3><p><code>formation-v2/</code>, 13 structure bundles, 16 criteria, complete JSON retirement mapping, compatibility corpus, and the false-green reason control.</p></article>
+        <article class="slice"><span class="n">LAYER 2 · INDEPENDENT SOURCES</span><h3>Separate nodes from edges</h3><p>Versioned project, feature, node, and edge contracts plus exact migration from embedded connections to admitted same-feature and cross-feature roots.</p></article>
+        <article class="slice"><span class="n">LAYER 3 · COMPILER + GRAPH</span><h3>Emit the one canonical graph build</h3><p>Explicit profile dispatch, full validation, graph v2, manifest v2, compiler-owned BuildReceipt, and independent build replay.</p></article>
+        <article class="slice gate"><span class="n">LAYER 4 · INDEPENDENT CATALOGUES</span><h3>Freeze what must be proved</h3><p>Validation-owned <code>O_spec</code> plus admitted node-pattern and relationship-composition selections. The deriver cannot author these expectations.</p></article>
+        <article class="slice"><span class="n">LAYER 5 · ONE COMPLETE PROOF UNIT</span><h3>Close one obligation end to end</h3><p>ProofContext, <code>O_gen</code>, exact comparison, TestCase, binding, bounded evaluator, execution, child-lineage mutation, ProofReceipt, and ReplayResult.</p></article>
+        <article class="slice"><span class="n">LAYER 6 · FULL CORE</span><h3>Recompose six exact catalogues</h3><p>Complete formation, structure, node, relationship, and instance sets; then fail-closed <code>verify:bte:core</code>.</p></article>
+        <article class="slice"><span class="n">LAYER 7 · PARALLEL CONSUMERS</span><h3>Run IOLM and Body War independently</h3><p>Each consumer owns its runner and raw evidence; BTE owns replay. Neither consumer blocks the other's implementation lane.</p></article>
+        <article class="slice gate"><span class="n">LAYER 8 · TERMINAL AGGREGATE</span><h3>Join verified evidence without self-admission</h3><p><code>verify:bte:consumers</code> and terminal <code>verify:bte</code> require exact fresh ReplayResults. Lifecycle promotion remains external.</p></article>
+      </div>
+    </section>
+
+    <section class="section" data-lane="risk_questions">
+      <div class="section-head">
+        <div><div class="kicker">Remaining gates</div><h2>What still prevents a green BTE</h2></div>
+        <p>Architecture questions are closed. The remaining work is Plan regeneration, machine implementation, independent catalogue/admission actions, and consumer execution.</p>
+      </div>
+      <div class="risk-scroll" role="region" aria-label="Design gaps by responsibility" tabindex="0">
+        <div class="risk-grid">
+          <div class="risk-cell header"></div><div class="risk-cell header">Authority + formation</div><div class="risk-cell header">Graph + derivation</div><div class="risk-cell header">Runtime + evidence</div>
+          <div class="risk-cell axis">Plan must materialize</div><div class="risk-cell high"><strong>Formation package</strong><span>Implement isolated <code>formation-v2/</code>, retirement/source migration maps, compatibility corpus, and exact false-green diagnostics.</span></div><div class="risk-cell high"><strong>ProofContext path</strong><span>Resolve exact graph/manifest/build/governing handles without creating or trusting a second semantic graph.</span></div><div class="risk-cell high"><strong>Runtime contracts</strong><span>Materialize and validate TestCase, Binding, four evaluator interfaces, results, child-lineage mutation, ProofReceipt, ReplayResult, and aggregates.</span></div>
+          <div class="risk-cell axis">Owners must supply</div><div class="risk-cell high"><strong>Formation/profile admission</strong><span>The accepted successor identity is concrete, but its implemented machine package still needs exact owner admission.</span></div><div class="risk-cell high"><strong>Causal selections</strong><span>Node-pattern and exact 16-family relationship selections/catalogues need owner handles before their proof enters core.</span></div><div class="risk-cell high"><strong>Independent O_spec freezes</strong><span>The validation owner—not the deriver—must freeze every required catalogue and expected outcome.</span></div>
+          <div class="risk-cell axis">Must be regenerated or run</div><div class="risk-cell medium"><strong>Stale execution package</strong><span>Plan, implementation layering, and the work pack must be regenerated from the validated Design, including the missing explicit requirement trace.</span></div><div class="risk-cell medium"><strong>Full core evidence</strong><span>All six exact catalogues must execute, kill primary mutants, replay independently, and pass <code>verify:bte:core</code>.</span></div><div class="risk-cell medium"><strong>Consumer evidence</strong><span>IOLM and Body War need machine contracts, consumer-owned runs, BTE-owned replay, and exact fresh replay handles.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div><div class="kicker">Reader terms</div><h2>Plain language for the new architecture</h2></div>
+        <p>Each definition states the term’s role, its proof value, and its misuse boundary.</p>
+      </div>
+      <div class="terms">
+        <details open><summary>Contracts, admissions, and authored inputs</summary><p>Semantic contracts define allowed shape and meaning; owner decisions admit exact contracts or sets; authored inputs provide governed content. Derived graphs, evidence, aggregates, and lifecycle decisions remain separate roles.</p></details>
+        <details><summary>Compiler plane</summary><p>The source resolver, contract loader, validators, kernel, edge resolver, and graph builder. <strong>Why it matters:</strong> it is the only valid bridge from authored source to derivation input. Current code needs a successor path rather than in-place v1 widening.</p></details>
+        <details><summary>Proof plane</summary><p>The independent catalogue, derived obligations, exact comparison, tests, bindings, evaluators, runs, mutations, receipts, and replay. <strong>Why it matters:</strong> it detects omitted work rather than trusting a green summary. Most of this plane remains to build.</p></details>
+        <details><summary>Normalized graph</summary><p>The compiler’s deterministic generated node/edge view. <strong>Why it matters:</strong> all derivation sees one canonical input. It is a read model, not authored authority, and it is different from the legacy Markdown-derived ConceptGraph.</p></details>
+        <details><summary>Source manifest</summary><p>The join from graph IDs to exact source paths and hashes. <strong>Why it matters:</strong> every proof result can be traced to authored bytes. A graph item without a source join is an error.</p></details>
+        <details><summary>ProofContext</summary><p>An immutable envelope of exact profile, registry, formation, compiler, source-set, graph, manifest, and build handles. <strong>Why it matters:</strong> every proof record shares one complete context without copying or replacing the canonical graph.</p></details>
+        <details><summary>Independent catalogue</summary><p>The expected obligation set, frozen outside the generator implementation. <strong>Why it matters:</strong> a bug cannot shrink both output and denominator. The engine reads it but cannot overwrite it.</p></details>
+        <details><summary>Binding and evaluator</summary><p>A binding uniquely selects the runtime target and fixture; the evaluator independently judges one bounded claim. <strong>Why it matters:</strong> a test must say what it runs and who judges it. First-match selection and universal-oracle claims are forbidden.</p></details>
+        <details><summary>Mutation</summary><p>One declared semantic edit in a fresh child build, expected to trigger a named failure or remove a named causal effect. <strong>Why it matters:</strong> it proves the check distinguishes the intended defect. A stale digest or unrelated earlier error does not kill the targeted mutant.</p></details>
+        <details><summary>Receipt and replay</summary><p>The ProofReceipt indexes the causal identity/digest chain; a separate ReplayResult recomputes raw schemas, handles, joins, observations, and exact sets. <strong>Why it matters:</strong> stale or self-asserted evidence fails even when a stored field says pass. Neither one grants admission.</p></details>
+        <details><summary>Exact-set proof</summary><p>Compare the shared coverage key—catalogue ID plus obligation ID—not object shape or totals: <code>O_spec = O_gen = T_gen = E_run = M_killed</code> after projection. A blocking diff lists the exact missing, extra, duplicate, stale, or mismatched members. <strong>Why it matters:</strong> obligations, tests, results, and mutants retain different artifact IDs while incomplete coverage still fails.</p></details>
+        <details><summary>Typed residue</summary><p>A machine-readable blocking reason emitted when a required proof stage cannot complete. <strong>Why it matters:</strong> unsupported scope, missing bindings, stale evidence, and other failures remain explicit instead of becoming a generic pass or skip.</p></details>
+        <details><summary>Core aggregate</summary><p>The exact replay-backed, non-admitting structural result over all six BTE catalogues. <strong>Why it matters:</strong> consumers receive one verified core handle without gaining authority to redefine or admit DomainSpec.</p></details>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><div><div class="kicker">Evidence boundary</div><h2>What is observed and what is proposed</h2></div></div>
+      <div class="evidence-split">
+        <article class="source"><h3>Source-backed</h3><p>Live machine sources establish current compiler behavior, the graph and manifest shapes, the current-v1 bypass, and legacy-engine limits. The validated Design establishes the target contracts, catalogue identities, evaluator boundaries, failure order, and dependency seed.</p></article>
+        <article class="inference"><h3>Explanatory projection</h3><p>Layout, illustrative unimplemented record values, suggested internal code homes, and the local exact-proof-chain visual are presentation choices. They may change only while preserving the Design interfaces and claim boundary.</p></article>
+      </div>
+      <div class="legend" style="margin-top: 12px">
+        <span style="color: var(--exists)"><span class="dot"></span>source-backed existing code</span>
+        <span style="color: var(--proposed)"><span class="dot"></span>Design contract</span>
+        <span style="color: var(--runtime)"><span class="dot"></span>Build next</span>
+        <span style="color: var(--gate)"><span class="dot"></span>owner gate</span>
+        <span style="color: var(--external)"><span class="dot"></span>external topology</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="callout plain">
+        <div class="kicker">Reader outcomes · implementation status</div>
+        <h2>Four states govern the next BTE work</h2>
+        <ul class="reader-outcomes">
+          <li><strong>Runs now:</strong> compiler, graph, manifest, provenance, and current build-receipt behavior.</li>
+          <li><strong>Design contract:</strong> exact proof, mutation, replay, and consumer boundaries frozen for Plan.</li>
+          <li><strong>Build next:</strong> versioned schemas, runtime, evidence chain, aggregates, and consumer handshakes.</li>
+          <li><strong>Owner gate:</strong> exact contract or set admission, lifecycle promotion, and release.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><div><div class="kicker">Source ledger</div><h2>Files behind the architecture</h2></div><p>Local links only. Markdown explains the target; machine YAML/JSON/code remains the source or implementation evidence.</p></div>
+      <div class="source-list">
+        <a href="../../DEFINE.md">Current Define and architecture boundary</a>
+        <a href="../../REQUIREMENTS.md">Current proof requirements</a>
+        <a href="../../DESIGN.md">Validated six-view BTE Design</a>
+        <a href="../../GLOSSARY-CONSISTENCY.md">Design vocabulary and TestCase/ExecutionResult distinction</a>
+        <a href="../../DESIGN-LAYERING-SEED.md">Validated dependency seed for Invoke Plan</a>
+        <a href="../../DESIGN-VALIDATION.json">Design validation evidence</a>
+        <a href="../../IMPLEMENTATION-LAYERING.md">Stale implementation layering to regenerate</a>
+        <a href="../../PLAN.md">Stale Plan used only as historical design evidence</a>
+        <a href="../../decisions/DEC-BTE-FORMATION-AUTHORITY-001.md">Accepted Option 2 design direction</a>
+        <a href="../../work-pack/shared/GAPS.md">Current gaps and readiness consequence</a>
+        <a href="../../../../../definitions/minted-project/supported-profiles.yml">Current-v1 profile machine source</a>
+        <a href="../../../../../impl/tools/lib/meta-type-criteria.ts">Existing shared criterion kernel</a>
+        <a href="../../../../../impl/tools/minted-project/meta-type-body-adapter.ts">Existing minted-node body adapter</a>
+        <a href="../../../../../impl/tools/minted-project/resolver.ts">Existing source resolver</a>
+        <a href="../../../../../impl/tools/minted-project/compiler.ts">Existing minted compiler</a>
+        <a href="../../../../../impl/test-derivation-engine/__fixtures__/minted-project/contract/positive/key-and-door/expected/graph.json">Concrete Key and Door generated graph</a>
+        <a href="../../../../../impl/test-derivation-engine/__fixtures__/minted-project/contract/positive/key-and-door/expected/source-manifest.json">Concrete graph-to-source manifest</a>
+        <a href="../../../../../impl/tools/tests/minted-project-compiler.test.ts">Compiler positive and mutation controls</a>
+        <a href="../../../../../impl/test-derivation-engine/src/index.ts">Legacy test-derivation entrypoint</a>
+        <a href="../../../../../impl/test-derivation-engine/src/bindings/index.ts">Current first-match bindings</a>
+        <a href="lanes.json">Machine-readable architecture lanes</a>
+        <a href="instances.json">Machine-readable process instances</a>
+        <a href="WHISPER-RESULT.md">Whisper narrative and delivery-flow result</a>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p><strong>Status:</strong> x-ray 0.2.0-seed. The page explains a validated Design and its unimplemented target. It is not a machine contract, Plan, source patch, proof receipt, profile admission, or release decision.</p>
+      <details>
+        <summary>X-Ray provenance</summary>
+        <p><strong>Presentation:</strong> mixed architecture and process mode; L0 static HTML/SVG renderer.</p>
+        <p><strong>Maintainer trace:</strong> the stale execution package must restore the explicit requirement link to FPR-02 Decision 9 during Invoke Plan.</p>
+        <p><strong>Visual library:</strong> canonical <code>shape.node</code>, <code>shape.boundary</code>, <code>shape.layer-panel</code>, <code>shape.risk-marker</code>, <code>connector.arrow</code>, <code>connector.branch</code>, <code>connector.feedback-loop</code>, <code>chart.timeline-strip</code>, and <code>chart.risk-matrix</code>; composed through <code>pattern.dependency-boundary</code>, <code>pattern.lifecycle-stack</code>, and <code>pattern.evidence-inference-split</code>.</p>
+        <p><strong>Custom-pattern nudge:</strong> this target uses a local <code>exact-proof-chain</code> pattern for coverage-key equality and causal digest propagation. Add it to the canonical X-Ray library only after repeated examples validate the same visual contract.</p>
+      </details>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const toggles = [...document.querySelectorAll('[data-target]')];
+      const planes = [...document.querySelectorAll('.plane[data-layer]')];
+      const sync = () => {
+        const visible = new Set(toggles.filter((toggle) => toggle.checked).map((toggle) => toggle.dataset.target));
+        planes.forEach((plane) => plane.classList.toggle('is-hidden', !visible.has(plane.dataset.layer)));
+      };
+      const setVisible = (names) => {
+        toggles.forEach((toggle) => { toggle.checked = names.includes(toggle.dataset.target); });
+        sync();
+      };
+      toggles.forEach((toggle) => toggle.addEventListener('change', sync));
+      document.querySelectorAll('[data-preset]').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (button.dataset.preset === 'all') setVisible(['authority', 'runtime', 'proof', 'external']);
+          if (button.dataset.preset === 'compile') setVisible(['authority', 'runtime']);
+          if (button.dataset.preset === 'prove') setVisible(['runtime', 'proof']);
+          if (button.dataset.preset === 'handoff') setVisible(['proof', 'external']);
+        });
+      });
+      const instanceTabs = [...document.querySelectorAll('[role="tab"][data-instance]')];
+      const instancePanels = [...document.querySelectorAll('[data-instance-panel]')];
+      const activateTab = (tab, focus = false) => {
+        instanceTabs.forEach((candidate) => {
+          const active = candidate === tab;
+          candidate.setAttribute('aria-selected', String(active));
+          candidate.tabIndex = active ? 0 : -1;
+        });
+        instancePanels.forEach((panel) => {
+          const active = panel.dataset.instancePanel === tab.dataset.instance;
+          panel.classList.toggle('is-active', active);
+          panel.hidden = !active;
+        });
+        if (focus) tab.focus();
+      };
+      instanceTabs.forEach((tab) => {
+        tab.addEventListener('click', () => activateTab(tab));
+        tab.addEventListener('keydown', (event) => {
+          const current = instanceTabs.indexOf(tab);
+          let next = current;
+          if (event.key === 'ArrowRight') next = (current + 1) % instanceTabs.length;
+          else if (event.key === 'ArrowLeft') next = (current - 1 + instanceTabs.length) % instanceTabs.length;
+          else if (event.key === 'Home') next = 0;
+          else if (event.key === 'End') next = instanceTabs.length - 1;
+          else return;
+          event.preventDefault();
+          activateTab(instanceTabs[next], true);
+        });
+      });
+      sync();
+    })();
+  </script>
+</body>
+</html>

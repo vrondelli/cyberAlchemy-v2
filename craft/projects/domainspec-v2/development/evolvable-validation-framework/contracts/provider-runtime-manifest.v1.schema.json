@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/evf/provider-runtime-manifest.v1.schema.json",
+  "title": "EVF graph-law provider runtime requirements",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "network",
+    "datalog",
+    "alloy",
+    "claim_ceiling",
+    "authority_effect",
+    "release_admission"
+  ],
+  "properties": {
+    "schema_version": { "const": "evf.graph-law-runtime-manifest/v1" },
+    "manifest_id": { "$ref": "#/$defs/id" },
+    "network": { "const": "forbidden" },
+    "datalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "required_version", "execution_mode", "workers", "admission_artifact_path", "admission_schema_path", "required_probe"],
+      "properties": {
+        "provider": { "const": "souffle" },
+        "required_version": { "const": "2.5" },
+        "execution_mode": { "const": "interpreter" },
+        "workers": { "const": 1 },
+        "admission_artifact_path": { "$ref": "#/$defs/path" },
+        "admission_schema_path": { "$ref": "#/$defs/path" },
+        "required_probe": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "alloy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "version", "java_ref", "java_version", "jar_ref", "solver", "required_probe"],
+      "properties": {
+        "provider": { "const": "alloy" },
+        "version": { "const": "6.2.0" },
+        "java_ref": { "$ref": "#/$defs/exactRef" },
+        "java_version": { "const": "17.0.19+10" },
+        "jar_ref": { "$ref": "#/$defs/exactRef" },
+        "solver": { "const": "sat4j" },
+        "required_probe": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "claim_ceiling": { "const": "runtime-requirements-only-no-provider-result" },
+    "authority_effect": { "const": "none" },
+    "release_admission": { "const": "not-granted" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

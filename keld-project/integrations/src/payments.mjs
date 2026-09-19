@@ -26,6 +26,7 @@ export function createPaymentAdapters(config) {
   requireThat(/^sk_test_/.test(config.stripe.secret),'stripe-test-key-required');
   requireThat((config.mercadopago.api===ORDERS_API?/^APP_USR-/:/^TEST-/).test(config.mercadopago.accessToken),'mercadopago-test-key-required');
   for(const provider of ['stripe','mercadopago','paypal'])requireThat(typeof config[provider].account==='string'&&config[provider].account.length>0,'merchant-account-required');
+  const paypalCurrency=config.paypal.currency??'USD';requireThat(['USD','BRL'].includes(paypalCurrency),'paypal-currency-required');
   const stripe=new Stripe(config.stripe.secret,{timeout:10000,maxNetworkRetries:0,httpClient:Stripe.createFetchHttpClient()});
   const mp=new Payment(new MercadoPagoConfig({accessToken:config.mercadopago.accessToken,options:{timeout:10000,maxRetries:0}}));
   const paypal=new Client({environment:Environment.Sandbox,timeout:10000,
@@ -150,6 +151,7 @@ export function bindPaymentAdapters({stripe,mp,orders,captures},config) {
     },
     paypal:{
       account:config.paypal.account,
+      currency:config.paypal.currency??'USD',
       async localOrderFor(id){
         const {result:p}=await orders.getOrder({id:remoteId(id)});
         requireThat(p.id===id&&p.purchaseUnits?.length===1&&p.purchaseUnits[0].payee?.merchantId===config.paypal.account,'merchant-mismatch');return remoteId(p.purchaseUnits[0].referenceId);

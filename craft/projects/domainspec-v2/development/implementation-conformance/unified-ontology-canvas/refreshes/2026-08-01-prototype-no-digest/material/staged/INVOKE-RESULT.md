@@ -1,0 +1,51 @@
+# Invoke Result: Unified Ontology Canvas
+
+## Outcome
+
+Define, Design, and Plan are authored for one immutable ontology canvas that
+contains all loaded graph families and all four profiles at once. The canvas is
+organized into Meaning, Realization, Expectation, Observation, and Explanation
+bands. Profile selection changes emphasis only; it never changes graph identity.
+
+## Selected Design
+
+- Normalize the existing JSON sources into one typed `UnifiedCanvasGraph`.
+- Preserve constraints as nodes and derive bridges only from exact fields or a
+  named presentation rule.
+- Compute a deterministic five-band `UnifiedCanvasLayout`; do not use a
+  force-directed or external layout engine in the first slice.
+- Keep all identities present by default, emphasize the Rule trace, dim unrelated
+  objects, and expose an equivalent structured navigator.
+- Retain visible candidate, provenance, TypeScript-fixture, and
+  `authority_effect: none` boundaries.
+
+## Plan
+
+The Work Pack contains fifteen serial, independently accepted mutation SWUs and
+one terminal product-read-only verification task. The narrow first unit is the
+pure projection model and validator. Static HTML rendering begins only after the
+model, node layout, and edge-routing contracts pass.
+
+## Refresh Decision And Execution Evidence
+
+- Define: authored pass.
+- Design: denominator pass, fixed-point pass, replay byte-identical.
+- Plan quality: pass after bounded objection and repair.
+- Dispatch route: pass.
+- Direct-user Refresh selects only `SWU-UOC-004P`.
+- `SWU-UOC-001-003`: L0 Task Sessions and exact Invoke Refresh closeouts pass.
+- `SWU-UOC-004`: live Task Session result is `BLOCK`; the browser cannot load
+  the accepted L0 modules because both import Node-only `node:crypto`.
+- `SWU-UOC-004P`: ready for Task Session. It owns the smallest coherent local
+  prototype repair: fixed version IDs, structural replay, no generated digest
+  fields, and one native-browser static receipt marked `prototype-unverified`.
+- `SWU-UOC-005` and every later unit remain dependency-blocked until 004P
+  closes through Invoke Refresh.
+
+The earlier 004 BLOCK and 001-003 byte-bound receipts remain historical. They
+are not rewritten into proof for the changed 004P bytes. Current evidence still
+does not prove a browser render; 004P must rerun projection, node layout, edge
+routing, and static browser acceptance. Even a PASS proves only a local static
+prototype—not checksum/replay integrity, cache identity, a Node server,
+usability, adapter execution, promotion, release, deployment, or production
+readiness.

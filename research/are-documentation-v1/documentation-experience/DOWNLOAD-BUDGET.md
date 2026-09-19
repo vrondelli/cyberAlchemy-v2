@@ -8,9 +8,9 @@ Reduce the initial download after expanding the guide set and add an enforceable
 
 ## Implementation
 
-[CanvasGraph](../../../workspace/experiments/are-documentation/src/CanvasGraph.tsx) now owns the React Flow imports and graph rendering behind a lazy page boundary. The introduction's animation code and CSS also load only when needed. Workspace state, stable actions, and scroll persistence retain their existing owner and lifecycle. Loading status text covers asynchronous page loading.
+[CanvasGraph](../../../keld-project/are-documentation/src/CanvasGraph.tsx) now owns the React Flow imports and graph rendering behind a lazy page boundary. The introduction's animation code and CSS also load only when needed. Workspace state, stable actions, and scroll persistence retain their existing owner and lifecycle. Loading status text covers asynchronous page loading.
 
-[The budget](../../../workspace/experiments/are-documentation/performance-budget.json) applies to all initial JavaScript and CSS for each route, including shared dependencies and the selected lazy page. Assets are counted once per cold route. Compression uses gzip level 9 consistently. Images, fonts, HTML, API traffic, and later navigation are excluded; this is not a whole-page transfer or load-time promise.
+[The budget](../../../keld-project/are-documentation/performance-budget.json) applies to all initial JavaScript and CSS for each route, including shared dependencies and the selected lazy page. Assets are counted once per cold route. Compression uses gzip level 9 consistently. Images, fonts, HTML, API traffic, and later navigation are excluded; this is not a whole-page transfer or load-time promise.
 
 | Page | Previous gzip | Current gzip | Reduction | Gzip ceiling | Decoded ceiling |
 | --- | --- | --- | --- | --- | --- |
@@ -28,10 +28,10 @@ The targets preserve headroom for reviewed additions but remain below the origin
 
 - Production build, TypeScript, and documentation freshness passed.
 - Nine workspace/persistence tests and three budget tests passed. Budget tests cover dependency deduplication, missing roots, both size limits, and invalid/empty declarations.
-- [44 browser behavior checks](../../../workspace/experiments/are-documentation/evidence/canvas-docs/results.json) passed.
-- [All three cold-route asset checks](../../../workspace/experiments/are-documentation/evidence/performance/download-browser.json) passed.
-- [Six scrolling scenarios](../../../workspace/experiments/are-documentation/evidence/performance/download-split-scroll.json) passed, one repetition each, including nine cards on desktop and mobile. All had zero App/card renders and Markdown parses, two storage writes, no remount, and no viewport movement. Full-page return and drag checks passed.
-- [Baseline sizes](../../../workspace/experiments/are-documentation/evidence/performance/download-before.json) and [current asset sizes/hashes](../../../workspace/experiments/are-documentation/evidence/performance/download-current.json) are retained.
+- [44 browser behavior checks](../../../keld-project/are-documentation/evidence/canvas-docs/results.json) passed.
+- [All three cold-route asset checks](../../../keld-project/are-documentation/evidence/performance/download-browser.json) passed.
+- [Six scrolling scenarios](../../../keld-project/are-documentation/evidence/performance/download-split-scroll.json) passed, one repetition each, including nine cards on desktop and mobile. All had zero App/card renders and Markdown parses, two storage writes, no remount, and no viewport movement. Full-page return and drag checks passed.
+- [Baseline sizes](../../../keld-project/are-documentation/evidence/performance/download-before.json) and [current asset sizes/hashes](../../../keld-project/are-documentation/evidence/performance/download-current.json) are retained.
 
 No dependency was added. The build no longer reports a JavaScript chunk above Vite's 500 kB advisory threshold. Route totals, rather than individual chunk size alone, determine the new budget result.
 

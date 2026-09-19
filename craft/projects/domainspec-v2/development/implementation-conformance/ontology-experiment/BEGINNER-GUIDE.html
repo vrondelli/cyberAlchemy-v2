@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A plain-language guide to the DomainSpec architecture ontology experiment.">
+  <title>Beginner's Guide · Architecture Ontology</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b10;
+      --surface: #0d141d;
+      --surface-2: #121d28;
+      --line: #223444;
+      --ink: #eef6f7;
+      --muted: #a7bac0;
+      --faint: #718990;
+      --cyan: #63d8e5;
+      --violet: #b69cff;
+      --amber: #f6bd61;
+      --code: #101a24;
+      --max: 780px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(99, 216, 229, 0.1), transparent 28rem),
+        radial-gradient(circle at 88% 18%, rgba(182, 156, 255, 0.08), transparent 26rem),
+        var(--bg);
+      font: 16px/1.7 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--cyan); text-underline-offset: 3px; }
+    a:hover { color: #a5f3fa; }
+    .skip-link { position: fixed; top: 8px; left: 8px; z-index: 10; transform: translateY(-160%); padding: 8px 12px; border-radius: 8px; color: var(--bg); background: var(--cyan); }
+    .skip-link:focus { transform: none; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom: 1px solid rgba(99, 216, 229, 0.14);
+      background: rgba(7, 11, 16, 0.88);
+      backdrop-filter: blur(14px);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: min(calc(100% - 32px), 1080px);
+      min-height: 58px;
+      margin: 0 auto;
+    }
+
+    .brand { flex: 1; min-width: 0; }
+    .eyebrow { color: var(--cyan); font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.15em; text-transform: uppercase; }
+    .brand-title { overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .top-link { flex: none; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; text-decoration: none; }
+    .top-link:hover, .top-link:focus-visible { border-color: var(--cyan); color: var(--ink); outline: none; }
+
+    .jump {
+      width: min(280px, 32vw);
+      padding: 7px 32px 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--surface);
+      font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .shell { width: min(calc(100% - 32px), 1080px); margin: 0 auto; }
+    .hero { max-width: var(--max); padding: 72px 0 28px; }
+    .hero h1 { margin: 10px 0 14px; font-size: clamp(2.2rem, 7vw, 4.3rem); line-height: 1.02; letter-spacing: -0.045em; }
+    .hero p { max-width: 670px; margin: 0; color: var(--muted); font-size: 18px; }
+    .status { display: inline-flex; margin-top: 22px; padding: 6px 10px; border: 1px solid rgba(246, 189, 97, 0.28); border-radius: 999px; color: var(--amber); background: rgba(246, 189, 97, 0.08); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+
+    main {
+      max-width: var(--max);
+      min-height: 60vh;
+      padding: 20px 0 100px;
+    }
+
+    main h1 { display: none; }
+    main h2 { scroll-margin-top: 82px; margin: 64px 0 18px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 29px; line-height: 1.2; letter-spacing: -0.025em; }
+    main h3 { scroll-margin-top: 82px; margin: 36px 0 10px; color: #d9e9ec; font-size: 19px; line-height: 1.3; }
+    main p { margin: 0 0 18px; color: var(--muted); }
+    main strong { color: var(--ink); }
+    main ul, main ol { margin: 0 0 22px; padding-left: 24px; color: var(--muted); }
+    main li { margin: 7px 0; padding-left: 4px; }
+    main li::marker { color: var(--cyan); }
+    main code { padding: 2px 5px; border: 1px solid rgba(99, 216, 229, 0.12); border-radius: 5px; color: #c6f5f8; background: var(--code); font: 0.86em ui-monospace, SFMono-Regular, Menlo, monospace; }
+    main pre { overflow: auto; margin: 22px 0 28px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--code); box-shadow: inset 3px 0 0 rgba(99, 216, 229, 0.5); }
+    main pre code { padding: 0; border: 0; color: #d5e7e9; background: transparent; font-size: 13px; line-height: 1.65; }
+
+    .table-wrap { overflow-x: auto; margin: 22px 0 30px; border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; background: rgba(13, 20, 29, 0.78); font-size: 13px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--ink); background: var(--surface-2); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+    td { color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+    .load-error { padding: 18px; border: 1px solid rgba(246, 189, 97, 0.4); border-radius: 12px; color: var(--amber); background: rgba(246, 189, 97, 0.08); }
+
+    footer { padding: 28px 0 50px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; }
+
+    @media (max-width: 720px) {
+      .topbar-inner { flex-wrap: wrap; padding: 10px 0; }
+      .brand { order: 1; }
+      .top-link { order: 2; }
+      .jump { order: 3; width: 100%; }
+      .hero { padding-top: 50px; }
+      .hero p { font-size: 16px; }
+      main h2 { scroll-margin-top: 126px; }
+      main h3 { scroll-margin-top: 126px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#guide">Skip to guide</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="eyebrow">DomainSpec · Architecture ontology</div>
+        <div class="brand-title">Plain-language companion</div>
+      </div>
+      <select id="jump" class="jump" aria-label="Jump to a guide section">
+        <option value="">Jump to a section…</option>
+      </select>
+      <a class="top-link" href="architecture-ontology-view.html">Open canvas</a>
+      <a class="top-link" href="BEGINNER-GUIDE.md" download>Markdown source</a>
+    </div>
+  </header>
+
+  <div class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <div class="eyebrow">Start here</div>
+      <h1 id="page-title">Architecture ontologies, without the theory wall.</h1>
+      <p>Follow one Rule from semantic meaning, through an inspectable code shape and a language profile, to supplied evidence and an explainable finding.</p>
+      <div class="status">Candidate explanation · authority effect none</div>
+    </section>
+
+    <main id="guide" tabindex="-1" aria-busy="true">
+      <p>Loading the guide…</p>
+    </main>
+
+    <footer>
+      This page renders BEGINNER-GUIDE.md. It explains the candidate experiment
+      and does not create DomainSpec authority, profile admission, or a
+      source-code conformance claim.
+    </footer>
+  </div>
+
+  <script type="module">
+    const guide = document.querySelector("#guide");
+    const jump = document.querySelector("#jump");
+    const tick = String.fromCharCode(96);
+
+    const escapeHtml = (value) => String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+
+    const safeHref = (value) => {
+      const href = value.trim();
+      return /^(javascript|data):/i.test(href) ? "#" : href;
+    };
+
+    const inline = (value) => {
+      let text = escapeHtml(value);
+      const codePattern = new RegExp(tick + "([^" + tick + "]+)" + tick, "g");
+      text = text.replace(codePattern, "<code>$1</code>");
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => "<a href=\"" + safeHref(href) + "\">" + label + "</a>");
+      text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      return text;
+    };
+
+    const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+    const isTableDivider = (line) => /^\s*\|?\s*:?-{3,}/.test(line);
+    const slug = (value, index) => value.toLowerCase().replace(/<[^>]+>/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "section-" + index;
+
+    const renderMarkdown = (markdown) => {
+      const lines = markdown.replace(/\r/g, "").split("\n");
+      const output = [];
+      let paragraph = [];
+      let list = null;
+      let code = null;
+      let headingIndex = 0;
+
+      const flushParagraph = () => {
+        if (!paragraph.length) return;
+        output.push("<p>" + inline(paragraph.join(" ")) + "</p>");
+        paragraph = [];
+      };
+
+      const flushList = () => {
+        if (!list) return;
+        output.push("<" + list.kind + ">" + list.items.map((item) => "<li>" + inline(item) + "</li>").join("") + "</" + list.kind + ">");
+        list = null;
+      };
+
+      const flushBlocks = () => {
+        flushParagraph();
+        flushList();
+      };
+
+      for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
+        if (line.startsWith(tick.repeat(3))) {
+          flushBlocks();
+          if (code === null) code = [];
+          else {
+            output.push("<pre><code>" + escapeHtml(code.join("\n")) + "</code></pre>");
+            code = null;
+          }
+          continue;
+        }
+
+        if (code !== null) {
+          code.push(line);
+          continue;
+        }
+
+        const heading = line.match(/^(#{1,3})\s+(.+)$/);
+        if (heading) {
+          flushBlocks();
+          headingIndex += 1;
+          const level = heading[1].length;
+          const id = slug(heading[2], headingIndex);
+          output.push("<h" + level + " id=\"" + id + "\">" + inline(heading[2]) + "</h" + level + ">");
+          continue;
+        }
+
+        if (line.includes("|") && lines[index + 1] && isTableDivider(lines[index + 1])) {
+          flushBlocks();
+          const headers = cells(line);
+          index += 2;
+          const rows = [];
+          while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+            rows.push(cells(lines[index]));
+            index += 1;
+          }
+          index -= 1;
+          output.push("<div class=\"table-wrap\"><table><thead><tr>" + headers.map((cell) => "<th>" + inline(cell) + "</th>").join("") + "</tr></thead><tbody>" + rows.map((row) => "<tr>" + row.map((cell) => "<td>" + inline(cell) + "</td>").join("") + "</tr>").join("") + "</tbody></table></div>");
+          continue;
+        }
+
+        const unordered = line.match(/^\s*-\s+(.+)$/);
+        const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+        if (unordered || ordered) {
+          flushParagraph();
+          const kind = unordered ? "ul" : "ol";
+          if (list && list.kind !== kind) flushList();
+          if (!list) list = {kind, items: []};
+          list.items.push((unordered || ordered)[1]);
+          continue;
+        }
+
+        if (list && /^\s{2,}\S/.test(line)) {
+          list.items[list.items.length - 1] += " " + line.trim();
+          continue;
+        }
+
+        if (!line.trim()) {
+          flushBlocks();
+          continue;
+        }
+
+        flushList();
+        paragraph.push(line.trim());
+      }
+
+      flushBlocks();
+      if (code !== null) output.push("<pre><code>" + escapeHtml(code.join("\n")) + "</code></pre>");
+      return output.join("\n");
+    };
+
+    const buildJumpMenu = () => {
+      guide.querySelectorAll("h2").forEach((heading) => {
+        const option = document.createElement("option");
+        option.value = "#" + heading.id;
+        option.textContent = heading.textContent;
+        jump.append(option);
+      });
+    };
+
+    const load = async () => {
+      try {
+        const response = await fetch("BEGINNER-GUIDE.md", {cache: "no-store"});
+        if (!response.ok) throw new Error("Guide source returned HTTP " + response.status);
+        guide.innerHTML = renderMarkdown(await response.text());
+        guide.setAttribute("aria-busy", "false");
+        buildJumpMenu();
+      } catch (error) {
+        guide.setAttribute("aria-busy", "false");
+        guide.innerHTML = "<p class=\"load-error\">Unable to load BEGINNER-GUIDE.md. Serve this page from the ontology-experiment directory. " + escapeHtml(error.message) + "</p>";
+      }
+    };
+
+    jump.addEventListener("change", () => {
+      if (!jump.value) return;
+      document.querySelector(jump.value)?.scrollIntoView({behavior: "smooth"});
+      jump.value = "";
+    });
+
+    load();
+  </script>
+</body>
+</html>

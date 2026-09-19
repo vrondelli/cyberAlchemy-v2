@@ -14,7 +14,7 @@ export async function startPreview(port=4398){
    if(!allowed.has(file)){res.writeHead(404);return res.end();}
    const path=join(root,file),info=await stat(path);let start=0,end=info.size-1,status=200;
    const headers={'Content-Type':mime[file.split('.').pop()],'Accept-Ranges':'bytes','X-Content-Type-Options':'nosniff','Cache-Control':'no-store'};
-   if(req.headers.range){const m=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range);if(!m||Number(m[1])>=info.size){res.writeHead(416,{'Content-Range':`bytes */${info.size}`});return res.end();}start=Number(m[1]);end=m[2]?Math.min(Number(m[2]),end):end;if(end<start){res.writeHead(416);return res.end();}status=206;headers['Content-Range']=`bytes ${start}-${end}/${info.size}`;}
+   if(req.headers.range){const m=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range);if(!m||Number(m[1])>=info.size){res.writeHead(416,{'Content-Range':`bytes */${info.size}`});return res.end();}start=Number(m[1]);end=m[2]?Math.min(Number(m[2]),end):end;if(end<start){res.writeHead(416);return res.end();}status=206;headers['Content-Range']=['bytes ',start,'-',end,'/',info.size].join('');}
    headers['Content-Length']=end-start+1;res.writeHead(status,headers);if(req.method==='HEAD')return res.end();
    const stream=createReadStream(path,{start,end});stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
   }catch{if(!res.headersSent)res.writeHead(404);res.end();}

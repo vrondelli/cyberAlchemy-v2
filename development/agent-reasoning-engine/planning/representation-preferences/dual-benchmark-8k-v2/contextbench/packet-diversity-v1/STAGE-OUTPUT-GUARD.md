@@ -1,0 +1,15 @@
+# Prospective stage output guard
+
+`stage-output-guard.mjs` provides synchronous pre-write admission for later native-writer integration. It is not wired into any benchmark runtime and does not establish an end-to-end cap. Existing runtime files and frozen evidence remain unchanged.
+
+Create one `createStageOutputGuard({root})` for a private, existing canonical stage directory. All writers sharing that stage, including both workers, must share this guard. `reserve({path, bytes, operation, final, temporary_path})` returns a receipt and `complete()`/`cancel()` settlement methods. Paths are relative to the stage. Bytes are a safe upper bound on the encoded payload, not character count. Operations are exclusive create, append to an existing regular file, or replacement through an explicitly named fresh temporary file in the same directory. Replacement reserves the complete new allocation while retaining the old file's footprint. Simultaneous writes to the same target or temporary name are rejected.
+
+Admission scans regular files/directories using the greater of logical length and512-byte allocated-block count, includes all outstanding reservations and allows conservative filesystem-block padding plus missing-parent-directory allocation. The stage maximum is32MiB; ordinary writes cannot consume the final8MiB. Only root-level GENERATION-SEAL.json, RESULTS.json or RESULTS-V2.json may request final admission, and the complete final reservation must fit8MiB. Symlinks, special files, path escapes and more than4096 entries fail closed. The filesystem metadata boundaries are injectable for synthetic tests.
+
+Call settlement after successful persistence, or after a failed write and any chosen cleanup. Partial files remain in the observed footprint; cancelling a lease does not pretend they disappeared. Settlement detects an over-budget footprint and poisons future admission. It does not replace pre-write enforcement: callers must obey the exact payload bound, use the admitted paths and account for every write, temporary file and subprocess output. A private stage is required to avoid uncontrolled outside mutations. This module does not perform the write, fsync, rollback or provider cancellation itself.
+
+Eight synthetic tests pass: shared capacity, sparse/logical and allocated accounting, reserved final space, replacement overlap, append serialization, path/symlink rejection, partial failures/poisoning and missing-parent allocation. Tests use temporary synthetic files and injected metadata; no dataset/source trees, provider, tokenizer, network or evaluator references were accessed.
+
+## Open Questions
+
+Every source-restoration, transport ledger, recycler, wrapper and evaluator-subprocess writer still needs reviewed integration, as detailed in [BOUNDED-EXECUTION-PLAN.md](BOUNDED-EXECUTION-PLAN.md). Native writers must preserve received usage through rejection and retain fixed slots. This in-process reservation model does not itself impose an OS quota on subprocesses or unrelated processes. Independent review is pending; no live or storage-policy approval is implied.

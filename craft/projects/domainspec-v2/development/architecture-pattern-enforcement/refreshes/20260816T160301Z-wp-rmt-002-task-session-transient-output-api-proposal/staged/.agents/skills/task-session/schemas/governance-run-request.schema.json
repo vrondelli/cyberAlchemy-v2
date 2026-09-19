@@ -1,0 +1,692 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arcanum.dev/schemas/task-session/governance-run-request/1-0-0",
+  "title": "TaskSessionGovernanceRunRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "run_id",
+    "work_pack_ref",
+    "swu_ref",
+    "task_id",
+    "swu_id",
+    "control_refs",
+    "execution_contract",
+    "owner_identity",
+    "idempotency_key",
+    "closeout_contract"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "task-session.governance-run-request.v1"
+    },
+    "entry_profile": {
+      "enum": [
+        "pre-execution-prerequisite",
+        "work-pack-fast-entry"
+      ]
+    },
+    "pre_execution_prerequisite": {
+      "$ref": "#/$defs/preExecutionPrerequisite"
+    },
+    "fast_execution_entry": {
+      "$ref": "#/$defs/fastExecutionEntryRequest"
+    },
+    "admission_profile": {
+      "const": "plan-once-selected-unit"
+    },
+    "plan_admission": {
+      "$ref": "#/$defs/planAdmission"
+    },
+    "request_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "run_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "work_pack_ref": {
+      "$ref": "#/$defs/exactArtifactRef"
+    },
+    "swu_ref": {
+      "$ref": "#/$defs/exactArtifactRef"
+    },
+    "task_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "swu_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "control_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/exactArtifactRef"
+      }
+    },
+    "execution_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed_writes",
+        "declared_outputs",
+        "validation_commands",
+        "timeout_seconds",
+        "max_output_bytes"
+      ],
+      "properties": {
+        "allowed_writes": {
+          "$ref": "#/$defs/pathSet"
+        },
+        "declared_outputs": {
+          "$ref": "#/$defs/pathSet"
+        },
+        "transient_outputs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/transientOutput"
+          }
+        },
+        "validation_commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/structuredCommand"
+          }
+        },
+        "timeout_seconds": {
+          "$ref": "#/$defs/timeoutSeconds"
+        },
+        "max_output_bytes": {
+          "$ref": "#/$defs/maxOutputBytes"
+        }
+      }
+    },
+    "owner_identity": {
+      "$ref": "#/$defs/ownerIdentity"
+    },
+    "idempotency_key": {
+      "$ref": "#/$defs/idempotencyKey"
+    },
+    "closeout_contract": {
+      "$ref": "#/$defs/closeoutContract"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "admission_profile": {
+            "const": "plan-once-selected-unit"
+          }
+        },
+        "required": [
+          "admission_profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "plan_admission"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "entry_profile": {
+            "const": "pre-execution-prerequisite"
+          }
+        },
+        "required": [
+          "entry_profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "pre_execution_prerequisite"
+        ],
+        "not": {
+          "required": [
+            "fast_execution_entry"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "entry_profile": {
+            "const": "work-pack-fast-entry"
+          }
+        },
+        "required": [
+          "entry_profile"
+        ]
+      },
+      "then": {
+        "required": [
+          "fast_execution_entry",
+          "admission_profile",
+          "plan_admission"
+        ],
+        "properties": {
+          "admission_profile": {
+            "const": "plan-once-selected-unit"
+          }
+        },
+        "not": {
+          "required": [
+            "pre_execution_prerequisite"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "exactArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "pathSet": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "transientOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "path_kind",
+        "pre_execution_state",
+        "touch_evidence",
+        "cleanup_policy",
+        "terminal_state"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "path_kind": {
+          "enum": ["directory", "file"]
+        },
+        "pre_execution_state": {
+          "const": "absent"
+        },
+        "touch_evidence": {
+          "const": "required"
+        },
+        "cleanup_policy": {
+          "const": "remove-before-executor-receipt"
+        },
+        "terminal_state": {
+          "const": "absent"
+        }
+      }
+    },
+    "timeoutSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "maxOutputBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16777216
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "ownerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "subject"
+      ],
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "subject": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "structuredCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command_id",
+        "argv",
+        "cwd",
+        "timeout_seconds",
+        "max_output_bytes"
+      ],
+      "properties": {
+        "command_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "cwd": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "timeout_seconds": {
+          "$ref": "#/$defs/timeoutSeconds"
+        },
+        "max_output_bytes": {
+          "$ref": "#/$defs/maxOutputBytes"
+        }
+      }
+    },
+    "closeoutContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_owner_capabilities",
+        "continuation_policy",
+        "terminal_receipt_path"
+      ],
+      "properties": {
+        "required_owner_capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "continuation_policy": {
+          "const": "emit-cursor-never-execute-successor"
+        },
+        "terminal_receipt_path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "receipt_profile": {
+          "const": "precloseout-execution-v1"
+        },
+        "precloseout_execution_receipt_path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "precloseout_execution_schema_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "expected_owner_receipt_path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "expected_owner_receipt_schema_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "final_terminal_schema_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "receipt_profile": {
+                "const": "precloseout-execution-v1"
+              }
+            },
+            "required": [
+              "receipt_profile"
+            ]
+          },
+          "then": {
+            "required": [
+              "receipt_profile",
+              "precloseout_execution_receipt_path",
+              "precloseout_execution_schema_ref",
+              "expected_owner_receipt_path",
+              "expected_owner_receipt_schema_ref",
+              "final_terminal_schema_ref"
+            ],
+            "properties": {
+              "required_owner_capabilities": {
+                "const": [
+                  "invoke"
+                ]
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "precloseout_execution_receipt_path"
+                  ]
+                },
+                {
+                  "required": [
+                    "precloseout_execution_schema_ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "expected_owner_receipt_path"
+                  ]
+                },
+                {
+                  "required": [
+                    "expected_owner_receipt_schema_ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "final_terminal_schema_ref"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "planAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_epoch_id",
+        "unit_contract_digest",
+        "attempt_id",
+        "selection_receipt_ref",
+        "mutation_admission_receipt_ref",
+        "admission_token",
+        "target_baseline_digest",
+        "validation_contract_digest",
+        "consumption_ledger_path"
+      ],
+      "properties": {
+        "plan_epoch_id": {
+          "type": "string",
+          "pattern": "^epoch-[a-f0-9]{24}$"
+        },
+        "unit_contract_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "selection_receipt_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "mutation_admission_receipt_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "admission_token": {
+          "$ref": "#/$defs/sha256"
+        },
+        "target_baseline_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "validation_contract_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "consumption_ledger_path": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "fastExecutionEntryRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_ref",
+        "receipt_ref"
+      ],
+      "properties": {
+        "request_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "receipt_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        }
+      }
+    },
+    "preExecutionPrerequisite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "prerequisite_fingerprint",
+        "classification_receipt_ref",
+        "continuation_route_receipt_ref",
+        "owner_receipt_ref",
+        "owner_receipt_schema_ref",
+        "route",
+        "target_inventory",
+        "expected_package_id",
+        "expected_package_digest",
+        "expected_owner_validation_commands",
+        "satisfaction_predicate",
+        "resume_point",
+        "max_owner_hops",
+        "allowed_effect",
+        "consumption_ledger_path",
+        "resume_receipt_path"
+      ],
+      "properties": {
+        "attempt_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "prerequisite_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "classification_receipt_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "continuation_route_receipt_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "owner_receipt_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "owner_receipt_schema_ref": {
+          "$ref": "#/$defs/exactArtifactRef"
+        },
+        "route": {
+          "const": "invoke:refresh:apply-approved"
+        },
+        "target_inventory": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/targetBaseline"
+          }
+        },
+        "expected_package_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "expected_package_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "expected_owner_validation_commands": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "satisfaction_predicate": {
+          "$ref": "#/$defs/satisfactionPredicate"
+        },
+        "resume_point": {
+          "const": "task-session:context-build"
+        },
+        "max_owner_hops": {
+          "const": 1
+        },
+        "allowed_effect": {
+          "const": "pre-execution-prerequisite-resolution"
+        },
+        "consumption_ledger_path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "resume_receipt_path": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "targetBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "state",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "state": {
+          "enum": [
+            "absent",
+            "present"
+          ]
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "absent"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sha256": {
+                "type": "null"
+              },
+              "size_bytes": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "present"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "satisfactionPredicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "receipt_pointer",
+        "accepted_values"
+      ],
+      "properties": {
+        "kind": {
+          "const": "json-pointer-any-of"
+        },
+        "receipt_pointer": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "accepted_values": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "pass",
+              "no-op",
+              "ready"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

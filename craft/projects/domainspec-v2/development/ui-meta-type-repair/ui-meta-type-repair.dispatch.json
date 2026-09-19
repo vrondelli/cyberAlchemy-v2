@@ -1,0 +1,212 @@
+{
+  "dispatch_id": "domainspec-v2-ui-meta-type-repair",
+  "intent": {
+    "raw": "implement evidence-contract repairs for UIF-010 without promoting UI candidates",
+    "objective": "Produce reproducible S1-S7 evidence contracts and an audited owner handoff while preserving prior evidence and DS-D1/DS-D8 authority boundaries.",
+    "target_artifact": "projects/domainspec-v2/development/ui-meta-type-repair"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "scu_swu_reduction",
+    "recomposition_proof",
+    "validation_loop",
+    "owner_boundary_check",
+    "handle_handoff",
+    "residue_ledger",
+    "execution_receipt_handoff",
+    "authority_split_gate",
+    "artifact_contract_bridge",
+    "concrete_path_evidence",
+    "observability_grouping"
+  ],
+  "subagent_strategy": {
+    "status": "recommended",
+    "trigger": "W1 contains four disjoint producer contracts after W0 freezes shared identifiers and record schemas.",
+    "explanation": "W1 producer lanes are disjoint after W0 freezes shared contracts; W0 remains local and serialized.",
+    "roles": [
+      {
+        "role_id": "evidence-producer-worker",
+        "purpose": "Implement and validate exactly one mutation, reroute, corpus, or owner-packet SWU.",
+        "owns": "One disjoint SWU among SWU-UIR-004 through SWU-UIR-007.",
+        "applies_to_steps": ["s3"]
+      }
+    ],
+    "parallelism": "mixed",
+    "join_policy": "parent_synthesis",
+    "authorization": "requires_user_permission",
+    "permission_prompt": "Approve W1 runtime subagents only after W0 passes, with one disjoint SWU and the WORK-PACK receipt contract per worker.",
+    "receipt_requirements": [
+      "agent_id",
+      "role_id",
+      "spawn_status",
+      "join_status",
+      "close_status",
+      "dispatch_id",
+      "step_id",
+      "capability_ref",
+      "status",
+      "artifacts",
+      "validation",
+      "observer_status",
+      "blockers",
+      "residue",
+      "reroute",
+      "handoff_note"
+    ]
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b-invoke-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": ["s2", "s3", "s4", "s5"],
+        "contract": "Execute one selected SWU with declared write scope and return a receipt.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-evidence-authority",
+        "kind": "human_approval",
+        "from_owner": "UI evidence repair development",
+        "to_owner": "DS-D1 and DS-D8 governance",
+        "applies_to_steps": ["s1", "s3", "s4", "s5"],
+        "contract": "Receipts, dossiers, packets, and indexes cannot decide identity, relationships, or promotion.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-prior-evidence",
+        "kind": "artifact_import",
+        "from_owner": "accepted UIF evidence",
+        "to_owner": "UI evidence repair development",
+        "applies_to_steps": ["s1", "s2", "s3", "s4", "s5"],
+        "contract": "Prior generations are immutable inputs; repaired runs append successors.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "authoring": "invoke",
+      "execution": "task-session",
+      "validation": "validator contract owner",
+      "formation": "DS-D1 definitions governance",
+      "relationships": "DS-D8 relationship governance",
+      "promotion": "definitions-governance owner decision only"
+    },
+    "receipts": [
+      {
+        "receipt_id": "r-ui-repair-swu",
+        "producer": "task-session",
+        "required_fields": ["run_id", "dispatch_id", "step_id", "artifacts", "validation_result", "blockers", "residue", "handoff_note"],
+        "stores": ["task-session result artifact", ".arcanum/observability/signals/sigil-invocations.jsonl"],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "ui-repair-development",
+        "owner": "WP-UIR-001",
+        "write_policy": "One selected SWU writes only declared development and approved tool/test paths."
+      },
+      {
+        "namespace": "canonical-ds-d1-ds-d8-and-prior-uif",
+        "owner": "governance owners",
+        "write_policy": "Read-only to this dispatch."
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "s1",
+      "name": "Author and validate Invoke package",
+      "capability_ref": "invoke",
+      "pattern": "sequential",
+      "techniques": ["sequence", "scu_swu_reduction", "recomposition_proof", "residue_ledger", "owner_boundary_check"],
+      "inputs": [{"kind": "artifact", "ref": "research/2026-07-11-findings-repair-architecture/findings.md"}],
+      "outputs": [{"kind": "artifact", "ref": "SPEC.md"}, {"kind": "artifact", "ref": "ARCHITECTURE.md"}, {"kind": "artifact", "ref": "WORK-PACK.md"}],
+      "evidence_artifact": "INVOKE-TRANSPORT.md",
+      "stop_conditions": ["block if the package claims candidate or relationship authority"]
+    },
+    {
+      "step_id": "s2",
+      "name": "Freeze contract kernel and validator parity",
+      "capability_ref": "task-session",
+      "pattern": "sequential",
+      "techniques": ["artifact_contract_bridge", "validation_loop", "execution_receipt_handoff"],
+      "inputs": [{"kind": "artifact", "ref": "WORK-PACK.md#SWU-UIR-001..003"}],
+      "outputs": [{"kind": "artifact", "ref": "versioned contract and parity receipts"}],
+      "evidence_artifact": "W0 Task Session receipts",
+      "stop_conditions": ["block dependent work on ambiguous semantic fields or partial rule registration"]
+    },
+    {
+      "step_id": "s3",
+      "name": "Produce immutable evidence receipts",
+      "capability_ref": "task-session",
+      "pattern": "fanout",
+      "parallel": true,
+      "join_policy": "parent_synthesis",
+      "techniques": ["validation_loop", "handle_handoff", "execution_receipt_handoff", "observability_grouping"],
+      "inputs": [{"kind": "artifact", "ref": "W0 accepted contracts"}, {"kind": "artifact", "ref": "WORK-PACK.md#SWU-UIR-004..007"}],
+      "outputs": [{"kind": "ledger", "ref": "mutation, reroute, corpus, and owner-packet receipts"}],
+      "evidence_artifact": "W1 producer receipts",
+      "stop_conditions": ["block overlap, overwrite, absent lineage, or authority inference"]
+    },
+    {
+      "step_id": "s4",
+      "name": "Compose dossier and replay index",
+      "capability_ref": "task-session",
+      "pattern": "sequential",
+      "techniques": ["recomposition_proof", "validation_loop", "owner_boundary_check", "residue_ledger"],
+      "inputs": [{"kind": "ledger", "ref": "W1 producer receipts"}, {"kind": "artifact", "ref": "WORK-PACK.md#SWU-UIR-008..009"}],
+      "outputs": [{"kind": "artifact", "ref": "dossier and orchestration generations"}],
+      "evidence_artifact": "W2 replay receipt",
+      "stop_conditions": ["block scores, missing hard conjuncts, copied authority, or in-place updates"]
+    },
+    {
+      "step_id": "s5",
+      "name": "Audit and hand off evidence machinery",
+      "capability_ref": "task-session",
+      "pattern": "validation",
+      "techniques": ["validation_loop", "recomposition_proof", "authority_split_gate", "execution_receipt_handoff"],
+      "inputs": [{"kind": "artifact", "ref": "WORK-PACK.md#SWU-UIR-010"}],
+      "outputs": [{"kind": "artifact", "ref": "integrated audit and owner-route handoff"}],
+      "evidence_artifact": "W3 integrated audit receipt",
+      "stop_conditions": ["block unresolved acceptance-critical contract gates or any promotion claim"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g1-contract",
+      "kind": "validation",
+      "owner": "evidence-contract and validator owners",
+      "condition": "Canonical fields, code vocabulary, and total rule parity are frozen before dependent evidence production.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g2-immutable-producers",
+      "kind": "quality",
+      "owner": "task-session parent",
+      "condition": "Every required producer returns a schema-valid immutable receipt or explicit pending-owner state.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g3-authority",
+      "kind": "human_approval",
+      "owner": "DS-D1 and DS-D8 governance",
+      "condition": "Evidence may route owner questions but cannot change canonical identity or relationships.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": ["dispatch_validated", "contract_frozen", "swu_receipt_recorded", "producer_joined", "dossier_evaluated", "replay_completed", "integrated_audit_completed"],
+    "signal_grouping": "dispatch_id"
+  },
+  "promotion_guardrails": [
+    "Evidence completeness is not semantic identity.",
+    "DS-D8 endpoint use is not DS-D1 formation authority.",
+    "Owner packets and acknowledgements are not owner decisions.",
+    "All nine current UI candidates remain deferred until a separate owner route changes that state.",
+    "Prior UIF evidence is append-only and immutable."
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ucfe://contracts/candidate-run/v1",
+  "title": "UI candidate immutable run envelope v1",
+  "type": "object",
+  "required": ["schema_version", "contract_id", "contract_version", "record_id", "canonicalization", "digest_algorithm", "content_digest", "generation_id", "predecessor_generation_id", "input_handles", "status", "semantic"],
+  "properties": {
+    "schema_version": {"const": "ui-repair.record-envelope.v1"},
+    "contract_id": {"const": "ucfe.candidate-run"},
+    "contract_version": {"const": "1.0.0"},
+    "record_id": {"type": "string", "pattern": "^record:sha256:[a-f0-9]{64}$"},
+    "canonicalization": {"const": "canonical-json-v1"},
+    "digest_algorithm": {"const": "sha256-v1"},
+    "content_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "generation_id": {"type": "string", "pattern": "^generation:sha256:[a-f0-9]{64}$"},
+    "predecessor_generation_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^generation:sha256:[a-f0-9]{64}$"}]},
+    "input_handles": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "status": {"enum": ["valid", "invalid"]},
+    "semantic": {
+      "type": "object",
+      "required": ["schema_version", "candidate", "alternatives", "hypotheses", "policy_id", "evidence_planes", "coverage_evaluations", "distinct_evaluation", "requested_disposition", "run_state", "disposition", "errors", "prohibited_inferences"],
+      "properties": {
+        "schema_version": {"const": "ucfe.candidate-run.v1"},
+        "candidate": {"$ref": "#/$defs/candidate"},
+        "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
+        "hypotheses": {"$ref": "#/$defs/hypotheses"},
+        "policy_id": {"oneOf": [{"const": "DEC-UIR-008/009-v1"}, {"type": "null"}]},
+        "evidence_planes": {"$ref": "#/$defs/evidencePlanes"},
+        "coverage_evaluations": {"type": "array", "items": {"type": "object"}},
+        "distinct_evaluation": {"oneOf": [{"type": "object"}, {"type": "null"}]},
+        "requested_disposition": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "run_state": {"enum": ["invalid", "evidence-pending", "disposed"]},
+        "disposition": {"oneOf": [{"type": "object"}, {"type": "null"}]},
+        "errors": {"type": "array", "items": {"$ref": "#/$defs/error"}},
+        "prohibited_inferences": {"type": "array", "minItems": 5, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": false
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "storage_path": {"type": "string"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"semantic": {"properties": {"run_state": {"const": "invalid"}}}}},
+      "then": {
+        "properties": {
+          "status": {"const": "invalid"},
+          "semantic": {
+            "properties": {
+              "disposition": {"type": "null"},
+              "errors": {"minItems": 1}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"semantic": {"properties": {"run_state": {"const": "evidence-pending"}}}}},
+      "then": {
+        "properties": {
+          "status": {"const": "valid"},
+          "semantic": {
+            "properties": {
+              "requested_disposition": {"type": "null"},
+              "disposition": {"type": "null"},
+              "errors": {"maxItems": 0}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"semantic": {"properties": {"run_state": {"const": "disposed"}}}}},
+      "then": {
+        "properties": {
+          "status": {"const": "valid"},
+          "semantic": {
+            "properties": {
+              "requested_disposition": {"enum": ["covered-existing", "distinct-supported", "defer-missing"]},
+              "disposition": {"type": "object"},
+              "errors": {"maxItems": 0}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "required": ["id", "label", "law_version", "source_handle"],
+      "properties": {
+        "id": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "label": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "law_version": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "source_handle": {"oneOf": [{"type": "string"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "alternative": {
+      "type": "object",
+      "required": ["id", "label", "aliases", "source_handles"],
+      "properties": {
+        "id": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "label": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "source_handles": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "hypothesis": {
+      "type": "object",
+      "required": ["statement", "falsifiers"],
+      "properties": {
+        "statement": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+        "falsifiers": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "hypotheses": {
+      "type": "object",
+      "required": ["covered", "distinct", "defer"],
+      "properties": {
+        "covered": {"$ref": "#/$defs/hypothesis"},
+        "distinct": {"$ref": "#/$defs/hypothesis"},
+        "defer": {"$ref": "#/$defs/hypothesis"}
+      },
+      "additionalProperties": false
+    },
+    "evidencePlanes": {
+      "type": "object",
+      "required": ["literal", "coverage", "distinct", "review"],
+      "properties": {
+        "literal": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "coverage": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "distinct": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "review": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "message": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

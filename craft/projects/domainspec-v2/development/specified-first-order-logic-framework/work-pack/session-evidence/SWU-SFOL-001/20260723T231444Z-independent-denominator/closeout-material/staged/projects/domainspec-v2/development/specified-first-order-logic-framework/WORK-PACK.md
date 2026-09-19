@@ -1,0 +1,177 @@
+---
+module: specified-first-order-logic-framework
+version: 0.1.0
+status: approved-for-execution
+updatedAt: 2026-07-23
+docType: work-pack
+---
+
+# WORK-PACK: DS-SFOL
+
+## Control Fields
+
+| Field | Value |
+| --- | --- |
+| workPackGateStatus | pass |
+| executionAdmissionStatus | block: missing Invoke material package for SWU-SFOL-001 |
+| complexity | medium |
+| outputMode | split |
+| executionPackRef | [EXECUTION-PACK.md](EXECUTION-PACK.md) |
+| layeringArtifactRef | [IMPLEMENTATION-LAYERING.md](IMPLEMENTATION-LAYERING.md) |
+| dispatchTechniqueTrace | [DISPATCH-TRACE.md](DISPATCH-TRACE.md) |
+| distillValidationStatus | pass |
+| swuAtomicityStatus | pass |
+| firstUnitNarrownessStatus | pass |
+| closeoutSyncStatus | pass |
+| activeLayerWindow | L0 |
+| lastUpdatedAt | 2026-07-23 |
+| readinessProfile | pilot |
+
+## Objective Summary
+
+- Objective: implement a bounded, typed, source-owned, independently evaluated
+  semantic-test framework that works across DomainSpec features.
+- Primary inputs: [SPEC.md](SPEC.md), [DESIGN.md](DESIGN.md), and
+  [IMPLEMENTATION-LAYERING.md](IMPLEMENTATION-LAYERING.md).
+- Success condition: the framework corpus and two independent adopters satisfy
+  the exact identity/digest set equation with no admitted residue, while core
+  semantics remain adopter-neutral.
+- Explicit ceiling: this work pack establishes a pilot semantic-evidence
+  framework; it does not establish release, production, full-feature, or
+  arbitrary first-order-logic completeness.
+
+## Delivery Slices
+
+| Slice | Outcome | Layer | Wave | Dependencies | Validation |
+| --- | --- | --- | --- | --- | --- |
+| S-01 | Independent source accounting | L0 | [W0](work-pack/waves/W0.md) | none | denominator negative corpus |
+| S-02 | Bounded typed language | L0 | [W0](work-pack/waves/W0.md) | S-01 contract | parser/type/evaluator corpus |
+| S-03 | Repeatable pure semantic execution | L1 | [W1](work-pack/waves/W1.md) | S-01, S-02 | exact binding, observation, receipt, replay |
+| S-04 | Governed effect and source integration | L2 | [W2](work-pack/waves/W2.md) | S-03 | trace containment and source round-trip |
+| S-05 | Cross-feature adoption and closure | L3 | [W3](work-pack/waves/W3.md) | S-04 | two-adopter compatibility and final verification |
+
+## Task Status Board
+
+| Task | Goal | Layer | Wave | Gate | Status |
+| --- | --- | --- | --- | --- | --- |
+| [TASK-SFOL-DENOMINATOR](work-pack/tasks/TASK-SFOL-DENOMINATOR.md) | Independent exact clause set | L0 | W0 | blocked: B-SFOL-001-MATERIAL | blocked-at-admission |
+| [TASK-SFOL-LANGUAGE](work-pack/tasks/TASK-SFOL-LANGUAGE.md) | Typed language pipeline | L0 | W0 | dependency-ready | not-started |
+| [TASK-SFOL-PURE](work-pack/tasks/TASK-SFOL-PURE.md) | Pure bindings and observation | L1 | W1 | after L0 | not-started |
+| [TASK-SFOL-EFFECTS](work-pack/tasks/TASK-SFOL-EFFECTS.md) | Effect trace and harness SPI | L2 | W2 | after L1 | not-started |
+| [TASK-SFOL-AUTHORING](work-pack/tasks/TASK-SFOL-AUTHORING.md) | DomainSpec source extraction | L2 | W2 | after language | not-started |
+| [TASK-SFOL-ADOPTION](work-pack/tasks/TASK-SFOL-ADOPTION.md) | Two independent adopter proofs | L3 | W3 | source-owner entry gates | not-started |
+| [TASK-SFOL-VERIFY](work-pack/tasks/TASK-SFOL-VERIFY.md) | Closure and replay verification | L3 | W3 | all mutation SWUs | not-started |
+
+## SWU Manifest and Handoff
+
+| SWU | Parent | Primary Behavior | Dependencies | Write Scope | Validation | Owner | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| SWU-SFOL-001 | TASK-SFOL-DENOMINATOR | Build independent exact denominator | none | `src/sfol/denominator/`, denominator tests | targeted node test + dependency scan | local-fallback | blocked-missing-material-package |
+| SWU-SFOL-002 | TASK-SFOL-LANGUAGE | Define versioned AST and diagnostics | 001 | `src/sfol/language/ast.ts`, `contracts.ts`, tests | targeted node test + typecheck | local-fallback | ready-after-001 |
+| SWU-SFOL-003 | TASK-SFOL-LANGUAGE | Parse and normalize DS-SFOL v1 | 002 | `src/sfol/language/parser.ts`, parser tests | positive/negative parser corpus | local-fallback | ready-after-002 |
+| SWU-SFOL-004 | TASK-SFOL-LANGUAGE | Resolve types and finite domains | 003 | `src/sfol/language/typecheck.ts`, type tests | ambiguity/unknown-domain failures | local-fallback | ready-after-003 |
+| SWU-SFOL-005 | TASK-SFOL-LANGUAGE | Independently evaluate typed terms | 004 | `src/sfol/evaluator/`, evaluator tests | exact rational and indeterminate corpus | local-fallback | ready-after-004 |
+| SWU-SFOL-006 | TASK-SFOL-PURE | Resolve exactly one value-free binding | 005 | `src/sfol/bindings/`, binding tests | zero/multiple/stale/expected-value rejection | local-fallback | ready-after-005 |
+| SWU-SFOL-007 | TASK-SFOL-PURE | Derive, observe, judge, receipt, and replay pure cases | 006 | `src/sfol/cases/`, `runners/pure/`, `proof/`, tests | exact-set positive/negative/mutation/replay | local-fallback | ready-after-006 |
+| SWU-SFOL-008 | TASK-SFOL-EFFECTS | Define finite typed effect traces and evaluation | 007 | `src/sfol/runners/effect/contracts.ts`, evaluator extensions, tests | incomplete/extra/order trace tests | local-fallback | ready-after-007 |
+| SWU-SFOL-009 | TASK-SFOL-EFFECTS | Implement contained effect harness SPI | 008 | `src/sfol/runners/effect/`, harness tests | setup/run/teardown/containment failures | local-fallback | ready-after-008 |
+| SWU-SFOL-010 | TASK-SFOL-AUTHORING | Extract and validate source-owned logic blocks | 009 | `src/sfol/source/`, source fixtures/tests | anchor/version/digest/round-trip tests | local-fallback | ready-after-009 |
+| SWU-SFOL-011 | TASK-SFOL-ADOPTION | Adopt Financial Settlement | 010 + source approval | consumer-owned Financial Settlement source/adapters | feature exact-set report and replay | manual + local-fallback | ready-after-entry-gate |
+| SWU-SFOL-012 | TASK-SFOL-ADOPTION | Adopt Agent Execution Orchestrator unchanged | 011 + source approval | consumer-owned Agent Execution Orchestrator source/adapters | compatibility and no-core-change checks | manual + local-fallback | ready-after-entry-gate |
+
+Every row inherits the source anchors, done criteria, split analysis, and
+acceptance evidence in its parent task contract. Task Session must build a
+strict execution-time context pack; this plan intentionally does not
+pre-generate one.
+
+## SWU Atomicity Review
+
+| SWU | Independent Acceptance Boundary | Candidate Split Considered | Retained-Boundary Rationale | Verdict |
+| --- | --- | --- | --- | --- |
+| 001 | exact denominator API plus negative corpus | model vs validator | model without independent validation carries no trusted behavior | pass |
+| 002 | versioned data contracts compile | AST vs diagnostics | diagnostics are part of the public failure algebra | pass |
+| 003 | source text deterministically normalizes | lexer vs parser | neither alone accepts a coherent language behavior | pass |
+| 004 | a parsed module is fully typed or rejected | inference vs finite-domain rules | both decide one closed typed-module outcome | pass |
+| 005 | typed expressions evaluate independently | arithmetic vs predicates | shared value/error algebra is the smallest evaluator boundary | pass |
+| 006 | every role resolves exactly once without oracle data | schema vs resolver | schema alone cannot prove resolution behavior | pass |
+| 007 | one pure case completes observation-to-replay | derive vs run vs join | the first useful pure vertical proof requires the full chain | pass |
+| 008 | effect relation evaluates over a finite typed trace | trace model vs evaluation | a trace schema without relation semantics proves nothing | pass |
+| 009 | one harness lifecycle is contained and observable | lifecycle phases | setup/run/teardown are one containment transaction | pass |
+| 010 | a source block round-trips with identity/digest | extraction vs validation | an unvalidated extractor cannot admit source evidence | pass |
+| 011 | first adopter reaches exact-set closure | clauses vs adapters | only their joined result is an adopter proof | pass |
+| 012 | second adopter passes without core semantic change | adoption vs compatibility | compatibility is the acceptance boundary of the adoption | pass |
+
+`SWU-SFOL-001` is the narrowest reversible trust-building first unit because
+all later completeness claims depend on a denominator that does not grade
+itself.
+
+## Task Session Closeout Sync Contract
+
+Shared contract:
+
+- Lifecycle owner route: `invoke:refresh:apply-approved`
+- Terminal source receipt: `task-session-execution-receipt/v1`
+- Declared targets:
+  - `projects/domainspec-v2/development/specified-first-order-logic-framework/WORK-PACK.md`
+  - `projects/domainspec-v2/development/specified-first-order-logic-framework/INVOKE-EVIDENCE.json`
+- Baseline: live SHA-256 of both declared targets captured by Task Session
+  preflight.
+- Allowed deltas: `evidence_added`, `blocker_opened`, `blocker_resolved`,
+  `status_changed`, `route_changed`.
+- Owner validation:
+  `python3 projects/domainspec-v2/development/specified-first-order-logic-framework/scripts/validate-plan-package.py`
+- Receipt schema: `invoke-refresh-receipt/v1`
+- Receipt root:
+  `projects/domainspec-v2/development/specified-first-order-logic-framework/closeouts/`
+
+| SWU | Expected Receipt | Deterministic Successor |
+| --- | --- | --- |
+| SWU-SFOL-001 | `closeouts/SWU-SFOL-001/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-002 |
+| SWU-SFOL-002 | `closeouts/SWU-SFOL-002/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-003 |
+| SWU-SFOL-003 | `closeouts/SWU-SFOL-003/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-004 |
+| SWU-SFOL-004 | `closeouts/SWU-SFOL-004/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-005 |
+| SWU-SFOL-005 | `closeouts/SWU-SFOL-005/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-006 |
+| SWU-SFOL-006 | `closeouts/SWU-SFOL-006/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-007 |
+| SWU-SFOL-007 | `closeouts/SWU-SFOL-007/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-008 |
+| SWU-SFOL-008 | `closeouts/SWU-SFOL-008/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-009 |
+| SWU-SFOL-009 | `closeouts/SWU-SFOL-009/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-010 |
+| SWU-SFOL-010 | `closeouts/SWU-SFOL-010/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-011 when its L3 entry gate passes |
+| SWU-SFOL-011 | `closeouts/SWU-SFOL-011/INVOKE-REFRESH-RECEIPT.json` | SWU-SFOL-012 when its L3 entry gate passes |
+| SWU-SFOL-012 | `closeouts/SWU-SFOL-012/INVOKE-REFRESH-RECEIPT.json` | TASK-SFOL-VERIFY |
+
+The closeout owner may update only the declared planning/evidence targets and
+write the expected receipt. It cannot start the successor, mutate
+implementation, change authority, promote, publish, deploy, or accept new
+risk.
+
+## Blockers and Entry Gates
+
+`SWU-SFOL-001` remains selected but cannot cross mutation admission until
+Invoke owns and validates an exact digest-bound execution-material package.
+
+| Gate | Scope | State | Owner | Resolution |
+| --- | --- | --- | --- | --- |
+| B-SFOL-001-MATERIAL | SWU-001 mutation admission | open | Invoke Refresh | materialize and validate the exact allowed files, validation commands, owner, authority, and publication boundary |
+| G-SFOL-01 | SWU-011 Financial Settlement adoption | deferred, not blocking L0-L2 | Financial Settlement source owner | approve exact clauses and fixture universe before L3 |
+| G-SFOL-02 | SWU-012 Agent Execution Orchestrator adoption | deferred, not blocking L0-L2 | AEO source owner | approve exact clauses and fixture universe before L3 |
+
+External solver selection, release admission, production claims, and public
+publication remain explicitly out of scope rather than hidden blockers.
+
+## Distill and Dispatch Gates
+
+- Distill: pass; see [DISTILL-VALIDATION.md](DISTILL-VALIDATION.md).
+- Dispatch techniques: pass; see [DISPATCH-TRACE.md](DISPATCH-TRACE.md).
+- Recomposition: pass when all exact sets and compatible digests join.
+- First handoff after admission repair:
+  [SWU-SFOL-001](work-pack/tasks/TASK-SFOL-DENOMINATOR.md#swu-sfol-001).
+- Current next route: `invoke:refresh:apply-approved` to author and validate the
+  SWU-SFOL-001 material package. This closeout does not authorize that package.
+- Full subagent dispatch: not selected and not implied by this plan.
+
+## Change Log
+
+| Date | Change | Author |
+| --- | --- | --- |
+| 2026-07-23 | Recorded SWU-SFOL-001 mutation-admission blocker and routed material-package repair | Invoke Refresh closeout |
+| 2026-07-23 | Initial Define/Design/Plan package | Invoke |

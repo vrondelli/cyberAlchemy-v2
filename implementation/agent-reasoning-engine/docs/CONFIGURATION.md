@@ -1,6 +1,6 @@
 # Configuration
 
-ARE configuration is explicit and source-bound. Candidate 018 does not use one
+ARE configuration uses explicit settings linked to their sources. Candidate 018 does not use one
 global mutable configuration file.
 
 ## Product profile
@@ -16,11 +16,10 @@ profile and the definition and ontology sources. It also binds the selected prot
 and evolution toggles. Other bindings cover telemetry, journal limits, Reasoning
 State storage, gateway limits, clients, turn bindings, and effect defaults.
 
-Source paths and digests are checked when the profile loads. Update the profile
-and its evidence deliberately when an owned source changes.
-The current runtime and host boundaries are summarized in [Compatibility and
-lifecycle](COMPATIBILITY-AND-LIFECYCLE.md). Storage defaults and their limits
-are explained in [Privacy and retention](PRIVACY-AND-RETENTION.md).
+The loader checks source paths and digests when it loads the profile.
+When an owned source changes, update the profile. Update its evidence.
+[Compatibility and lifecycle](COMPATIBILITY-AND-LIFECYCLE.md) summarizes the runtime and host limits.
+[Privacy and retention](PRIVACY-AND-RETENTION.md) explains the storage defaults and limits.
 
 ## Gateway command options
 
@@ -34,7 +33,7 @@ Optional:
 
 - `--backend direct-stdio|daemon-proxy|websocket`
 - `--upstream-socket <app-server.sock>`
-- `--upstream-url <ws://...>`
+- `--upstream-url <wss://...>`
 - `--reasoning-state-dir <directory>`
 - `--session-store <gateway-sessions.jsonl>`
 

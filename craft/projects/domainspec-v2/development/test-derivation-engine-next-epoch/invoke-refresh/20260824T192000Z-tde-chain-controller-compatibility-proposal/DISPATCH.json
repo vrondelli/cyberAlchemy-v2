@@ -1,0 +1,338 @@
+{
+  "boundary_evidence": {
+    "authority": {
+      "evidence": "run-local",
+      "execution": "none",
+      "lifecycle": "proposal-only",
+      "memory": "none",
+      "promotion": "separate exact gates",
+      "validation": "isolated staged evidence"
+    },
+    "boundaries": [
+      {
+        "applies_to_steps": [
+          "s4-handoff"
+        ],
+        "boundary_id": "b-proposal-apply",
+        "contract": "Proposal completion does not authorize canonical target creation.",
+        "from_owner": "invoke-refresh proposal author",
+        "kind": "human_approval",
+        "on_violation": "block",
+        "to_owner": "Rondelli"
+      }
+    ],
+    "promotion_splits": [
+      {
+        "on_violation": "block",
+        "rule": "requires separate exact apply, validation, acceptance, selection, and chain-approval gates",
+        "source": "validated proposal",
+        "target": "canonical @3 apply and lifecycle admission"
+      }
+    ],
+    "receipts": [
+      {
+        "on_missing": "block",
+        "producer": "tde-chain-compatibility-refresh-author",
+        "receipt_id": "r-helper",
+        "required_fields": [
+          "dispatch_id",
+          "status",
+          "validation",
+          "blockers",
+          "residue",
+          "handoff_note"
+        ],
+        "stores": [
+          "HELPER-RECEIPT.json"
+        ]
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "tde-chain-controller-compatibility-proposal",
+        "owner": "invoke-refresh",
+        "write_policy": "exclusive to projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-refresh/20260824T192000Z-tde-chain-controller-compatibility-proposal/**"
+      }
+    ]
+  },
+  "dispatch_id": "invoke-refresh-tde-chain-controller-compatibility-20260824T192000Z",
+  "gates": [
+    {
+      "condition": "WPRA/readiness pass and installed controller clears MANIFEST_SHAPE_INVALID.",
+      "gate_id": "g-structure",
+      "kind": "validation",
+      "on_fail": "block",
+      "owner": "tde-chain-compatibility-refresh-author"
+    },
+    {
+      "condition": "Explicit exact proposal apply authorization exists.",
+      "gate_id": "g-apply",
+      "kind": "human_approval",
+      "on_fail": "block",
+      "owner": "Rondelli"
+    },
+    {
+      "condition": "Live bytes validate, exact owner acceptance exists, then real selection and chain approval exist.",
+      "gate_id": "g-lifecycle",
+      "kind": "promotion_guardrail",
+      "on_fail": "block",
+      "owner": "Rondelli plus WPRA/task-session-until-blocker owners"
+    },
+    {
+      "condition": "Parent inspects the complete helper receipt and source preservation evidence.",
+      "gate_id": "g-parent-join",
+      "kind": "validation",
+      "on_fail": "block",
+      "owner": "/root"
+    }
+  ],
+  "intent": {
+    "objective": "Repair the TDE @2 chain-controller compatibility blocker as an exact staged @3 proposal without applying it.",
+    "raw": "invoke:refresh:proposal-only",
+    "target_artifact": "projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-refresh/20260824T192000Z-tde-chain-controller-compatibility-proposal"
+  },
+  "mode": "sequence",
+  "observability": {
+    "dispatch_id_required": true,
+    "signal_grouping": "run-local dispatch_id and step_id; telemetry append explicitly out of scope",
+    "trace_events": [
+      "context_frozen",
+      "proposal_staged",
+      "wpra_validated",
+      "controller_structural_gate_cleared",
+      "lifecycle_gate_preserved",
+      "helper_receipt_returned"
+    ]
+  },
+  "promotion_guardrails": [
+    "No canonical @3 target is created by this proposal.",
+    "No @2 acceptance is transferred to @3.",
+    "No initial selection request/receipt or chain-selection approval is synthesized.",
+    "Victor remains later pre-merge only."
+  ],
+  "steps": [
+    {
+      "capability_ref": "context-builder",
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": ".arcanum/task-session-until-blocker/tde-multiformalism-profile-epoch-r2-20260824T191002Z/preflight/PREFLIGHT-EVIDENCE.json"
+        }
+      ],
+      "mode": "standard-strict-runtime-handoff",
+      "name": "Freeze exact source and strict context",
+      "outputs": [
+        {
+          "kind": "frame",
+          "ref": "context/CONTEXT-PACK.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "source/SOURCE-INVENTORY.json"
+        }
+      ],
+      "parallel": false,
+      "pattern": "sequential",
+      "step_id": "s1-context",
+      "stop_conditions": [
+        "stop on source digest drift or uncovered blocker obligation"
+      ],
+      "techniques": [
+        "concrete_path_evidence",
+        "state_namespace_boundary"
+      ]
+    },
+    {
+      "capability_ref": "invoke",
+      "depends_on_steps": [
+        "s1-context"
+      ],
+      "inputs": [
+        {
+          "kind": "frame",
+          "ref": "context/CONTEXT-PACK.md"
+        }
+      ],
+      "mode": "refresh-proposal-only",
+      "name": "Stage exact @3 postimages",
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "proposal/TARGET-INVENTORY.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "staging/"
+        }
+      ],
+      "parallel": false,
+      "pattern": "sequential",
+      "step_id": "s2-stage",
+      "stop_conditions": [
+        "stop if any target escapes the fresh run staging root or changes ten-unit semantics"
+      ],
+      "techniques": [
+        "artifact_contract_bridge",
+        "owner_boundary_check"
+      ]
+    },
+    {
+      "capability_ref": "invoke",
+      "depends_on_steps": [
+        "s2-stage"
+      ],
+      "evidence_artifact": "validation/CONTROLLER-COMPATIBILITY-VALIDATION.json",
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "staging/"
+        }
+      ],
+      "mode": "refresh-proposal-overlay-validation",
+      "name": "Validate staged WPRA and controller structure",
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "validation/CONTROLLER-COMPATIBILITY-VALIDATION.json"
+        }
+      ],
+      "parallel": false,
+      "pattern": "validation",
+      "step_id": "s3-validate",
+      "stop_conditions": [
+        "stop if WPRA or readiness fails, or controller returns MANIFEST_SHAPE_INVALID"
+      ],
+      "techniques": [
+        "validation_loop",
+        "artifact_contract_bridge"
+      ]
+    },
+    {
+      "capability_ref": "invoke",
+      "depends_on_steps": [
+        "s3-validate"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "validation/CONTROLLER-COMPATIBILITY-VALIDATION.json"
+        }
+      ],
+      "mode": "refresh-handoff",
+      "name": "Emit gated proposal and renewed owner request",
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "REFRESH-PATCH-PROPOSAL.md"
+        },
+        {
+          "kind": "receipt",
+          "ref": "acceptance/RONDELLI-PLAN-ACCEPTANCE-REQUEST.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "HELPER-RECEIPT.json"
+        }
+      ],
+      "parallel": false,
+      "pattern": "sequential",
+      "step_id": "s4-handoff",
+      "stop_conditions": [
+        "stop before apply, acceptance synthesis, selection synthesis, chain approval, or Task Session"
+      ],
+      "techniques": [
+        "authority_split_gate",
+        "residue_ledger",
+        "owner_boundary_check"
+      ]
+    }
+  ],
+  "subagent_strategy": {
+    "authorization": "approved",
+    "binding_mode": "descriptive",
+    "execution_owner": "/root",
+    "explanation": "One bounded helper owns only this fresh proposal run; the parent retains route, acceptance, apply, and final-claim authority.",
+    "join_policy": "parent_synthesis",
+    "parallelism": "fanout",
+    "permission_prompt": "invoke:refresh:proposal-only",
+    "receipt_requirements": [
+      "agent_id",
+      "role_id",
+      "dispatch_id",
+      "step_id",
+      "capability_ref",
+      "spawn_status",
+      "join_status",
+      "close_status",
+      "status",
+      "task_status",
+      "domain_gate_status",
+      "artifacts",
+      "changed_byte_inventory",
+      "validation",
+      "observer_status",
+      "blockers",
+      "residue",
+      "reroute",
+      "handoff_note",
+      "authority_effect"
+    ],
+    "roles": [
+      {
+        "agent_count": 1,
+        "applies_to_steps": [
+          "s1-context",
+          "s2-stage",
+          "s3-validate",
+          "s4-handoff"
+        ],
+        "capability_mode": "refresh-proposal-only",
+        "capability_ref": "invoke",
+        "capability_target": "dsv2-tde-multiformalism-profile-epoch@3",
+        "depends_on_roles": [],
+        "forbidden_write_scopes": [
+          "projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-define-design-plan/20260824T174651Z-tde-multiformalism-profile-epoch-r2",
+          "projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-define-design-plan/20260824T192000Z-tde-multiformalism-profile-epoch-r3",
+          ".arcanum/",
+          "projects/domainspec-v2/impl/",
+          "projects/domainspec-v2/authority/",
+          "projects/domainspec-v2/.craft/",
+          "arcanum/",
+          ".agents/",
+          ".git/",
+          "telemetry/"
+        ],
+        "input_refs": [
+          "projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-define-design-plan/20260824T174651Z-tde-multiformalism-profile-epoch-r2",
+          ".arcanum/task-session-until-blocker/tde-multiformalism-profile-epoch-r2-20260824T191002Z"
+        ],
+        "mutation_policy": "proposal-only",
+        "output_refs": [
+          "REFRESH-PATCH-PROPOSAL.md",
+          "REFRESH-REPORT.md",
+          "refresh-report.json",
+          "HELPER-RECEIPT.json"
+        ],
+        "owns": "only projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-refresh/20260824T192000Z-tde-chain-controller-compatibility-proposal/**",
+        "purpose": "Author and validate one exact proposal-only @3 compatibility package that clears the @2 controller structural blocker.",
+        "role_id": "tde-chain-compatibility-refresh-author",
+        "write_scope": [
+          "projects/domainspec-v2/development/test-derivation-engine-next-epoch/invoke-refresh/20260824T192000Z-tde-chain-controller-compatibility-proposal/**"
+        ]
+      }
+    ],
+    "status": "required",
+    "trigger": "Repository route delegates non-trivial bounded governance repair to one native helper."
+  },
+  "techniques": [
+    "sequence",
+    "concrete_path_evidence",
+    "artifact_contract_bridge",
+    "validation_loop",
+    "owner_boundary_check",
+    "authority_split_gate",
+    "residue_ledger",
+    "observability_grouping",
+    "state_namespace_boundary"
+  ]
+}

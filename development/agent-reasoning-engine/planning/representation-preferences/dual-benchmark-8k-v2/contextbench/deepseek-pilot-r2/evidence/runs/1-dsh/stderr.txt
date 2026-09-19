@@ -1,0 +1,18 @@
+dsh: reasoning:
+This is zstd repo. Issue about "first input position is valid for a match even during first usage of context by starting reference at 1" — this sounds like ZSTD_compressBlock_fast or the dictMatchState / row match finder, or ZSTD_updateDubordinatedOne... Actually known fix in zstd: in ZSTD_compressBlock_fast, ip starting... Or "ZSTD_ldm"... The known commit: "ensure first input position is valid for a match even during first usage of context" — relates to window_t   zstd commit fixing issue #1241? zstd issue #1241: "zstd 1.3.5 crash"? Actually known fix: in ZSTD_compress_insertDictionary / ZSTD_resetCCtx_byCopying... Hmm.
+
+Likely lib/compress/zstd_compress.c ZSTD_resetCCtx_internal: `zc->blockState.nextCBlock->rep` ... Or "starting reference at 1 (avoiding problematic 0)" — this matches ZSTD_cycle... Actually there's a known fix in ZSTD_compressBlock_fast generic: `U32 const mval = ...` no.
+
+I recall a fix in lib/compress/zstd_compress.c in ZSTD_resetCCtx_internal where zc->window or `zc->blockState.prevCBlock->rep` — "start dictMode ZSTD_dictMatchState"? Hmm "starting reference at 1" sounds like `cctx->refMultipleDDicts`? Or window log low limit `ZSTD_WINDOWLOG_ABSOLUTEMIN`?
+
+Actually zstd issue #1241 could be about `--ultra -22` crash? Let me search code for patterns like "avoid" "0". Search zstd_fast for "windowLow". Better: search for "ZSTD_getLowestMatchIndex" — there's a fix where `curr` starts... In zstd_fast there's: 
+
+```
+U32 const windowLow = ZSTD_getLowestMatchIndex(ms, curr, cParams->mml...)
+```
+and a known bug: when first block, `lowLimit` ... The fix commit "fix: ensure first input position is valid for a match even during first usage of context" — I believe it's in ZSTD_ldmBlockOptimizer? Hard. Search lib for "index" "1".
+dsh: reasoning:
+Old zstd version (before getLowestMatchIndex). "starting reference at 1" — maybe in zstd_compress_internal.h, ZSTD_getLowestPrefixIndex or `zc->appliedParams`? Actually "reference" — maybe `ZSTD_window_update` and `window->dictLimit`? The known fix: in zstd_fast.c, `U32 const maxRep = ms->window.dictLimit;` hmm.
+
+Alternatively issue #1241 in zstd: "invalid repcode with nbSeq"? Let me search for "dictLimit" usage and "0" — the fix likely: in zstd_compress.c, when loading dictionary, `ns->window.dictLimit = ...`? Search "window.base".
+dsh: RATE_LIMIT: 429 "transport-unavailable"

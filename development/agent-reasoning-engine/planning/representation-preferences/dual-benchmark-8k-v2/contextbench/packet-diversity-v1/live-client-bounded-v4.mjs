@@ -1,0 +1,60 @@
+// Additive bounded client. Open questions: BOUNDED-EXECUTION-PLAN.md.
+// Existing GLM transport plus a separately bounded, tokenizer-only index measurer.
+// Open questions: README.md. Construction creates no network requests by itself.
+import {createHash} from 'node:crypto';
+import {createGlmClient,postOnce,MODEL,stable} from './transport-bounded-v4.mjs';
+import {credentials} from '../../../../../../../implementation/agent-reasoning-engine/benchmarks/glm-episodes-v1/analysis/provider-study-v1/calibrate.mjs';
+const hash=x=>createHash('sha256').update(x).digest('hex');
+
+export function createIndexTokenizer({registry,reference,maximum_calls,maximum_transport_attempts=1,record=()=>{},signal,before_dispatch=()=>{},post=postOnce}){
+  if(!Number.isSafeInteger(maximum_calls)||maximum_calls<1||maximum_calls>512)throw Error('index-tokenizer.invalid-call-limit');
+  if(![1,2].includes(maximum_transport_attempts))throw Error('index-tokenizer.invalid-transport-attempt-limit');
+  const receipts=[],cache=new Map();
+  return {receipts,async measure(text){
+    const raw=stable({model:MODEL,messages:[{role:'user',content:text}],tools:[]}),key=hash(raw);
+    if(cache.has(key))return cache.get(key);
+    if(receipts.length>=maximum_calls)throw Error('index-tokenizer.call-limit');
+    const receipt={kind:'index-tokenizer',request_sha256:key,status:'started',dispatched:false,transport_attempts:[]};
+    receipts.push(receipt);await record({...receipt});
+    let response,consumerFailure;
+    try{
+      await registry.consume({secret_ref:reference,consumer_id:'glm-flash-transport',request_digest:key,consumer:async material=>{
+        await before_dispatch();if(signal?.aborted)throw Error('index-tokenizer.aborted-before-dispatch');receipt.dispatched=true;await record({...receipt});
+        for(let attempt=1;attempt<=maximum_transport_attempts;attempt++){
+          try{response=await post(new URL('https://api.z.ai/api/paas/v4/tokenizer'),raw,{apiKey:Buffer.from(material).toString('utf8'),timeout_ms:30000,maximum_response_bytes:65536,signal});receipt.transport_attempts.push({attempt,status:response.status,response_bytes:response.bytes??0});break;}
+          catch(error){const code=error?.code??'request-failed';receipt.transport_attempts.push({attempt,status:null,response_bytes:0,failure_code:code});await record({...receipt,transport_attempts:structuredClone(receipt.transport_attempts)});if(code==='request-failed'&&attempt<maximum_transport_attempts)continue;consumerFailure=error;throw error;}
+        }
+      }});
+      receipt.status=response.status;receipt.tokens=response.payload?.usage?.prompt_tokens;
+      if(receipt.status!==200||!Number.isSafeInteger(receipt.tokens)||receipt.tokens<0)throw Error('index-tokenizer.invalid-response');
+      cache.set(key,receipt.tokens);return receipt.tokens;
+    }catch(e){receipt.failure_code=(consumerFailure??e).code??'index-tokenizer-failed';throw Error(receipt.failure_code);}
+    finally{await record({...receipt});}
+  }};
+}
+
+export function liveClientFactory({credential_path,signal,persistence,before_dispatch}){
+  if(!persistence||typeof before_dispatch!=='function')throw Error('bounded-client.persistence-and-dispatch-check-required');
+  // Resolve credential reference/configuration only. Secret bytes remain with the provider.
+  const {registry,reference}=credentials(credential_path);
+  return {
+    create_client:({cell,record_event=()=>{}})=>{
+      const profile=cell.provider_profile;
+      if(!profile||!Number.isSafeInteger(profile.index_tokenizer_maximum_calls))throw Error('live-client.profile-required');
+      if(![1,2].includes(profile.index_tokenizer_transport_attempts??1))throw Error('live-client.tokenizer-transport-attempt-policy');
+      if(![1,2].includes(profile.request_tokenizer_transport_attempts??1))throw Error('live-client.request-tokenizer-transport-attempt-policy');
+      if(cell.limits.output_deferral===true&&(profile.request_budget!=='contextbench-deferral-v1'||
+        profile.request_tokenizer_maximum_calls!==3*(cell.limits.maximum_calls+1)))throw Error('live-client.deferral-tokenizer-policy-mismatch');
+      const client=createGlmClient({api_key_ref:reference,secret_registry:registry,maximum_requests:cell.limits.maximum_calls,
+        maximum_output_tokens:cell.limits.output_cap,maximum_model_retries:0,
+        maximum_tokenizer_transport_attempts:profile.request_tokenizer_transport_attempts??1,
+        request_budget:cell.limits.output_deferral===true?'contextbench-deferral-v1':cell.limits.finalization_reserve_tokens>0?'contextbench-budget-v1':'holdout-window-v1',
+        maximum_request_bytes:262144,token_margin:profile.token_margin,reasoning_effort:profile.reasoning_effort,
+        model_timeout_ms:profile.model_timeout_ms,signal,persistence,before_dispatch});
+      const index=createIndexTokenizer({registry,reference,maximum_calls:profile.index_tokenizer_maximum_calls,maximum_transport_attempts:profile.index_tokenizer_transport_attempts??1,
+        record:receipt=>record_event({kind:'index-tokenizer',receipt}),signal,before_dispatch});
+      return {...client,index_receipts:index.receipts,measure_index:index.measure};
+    },
+    measure_index_tokens:(text,client)=>client.measure_index(text)
+  };
+}

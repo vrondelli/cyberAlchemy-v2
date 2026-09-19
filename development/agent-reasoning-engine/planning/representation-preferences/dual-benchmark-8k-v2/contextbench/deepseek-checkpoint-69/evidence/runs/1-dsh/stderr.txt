@@ -1,0 +1,16 @@
+dsh: reasoning:
+Let's explore the repo for relevant code.
+dsh: reasoning:
+zstd repo. Issue about first input position in match, likely ZSTD_compressBlock_fast or repcode starting at 0... "first usage of context" — maybe ZSTD_compress_insertDictionary or windowLow... Likely fix in ZSTD_compressSequences? Actually "Ensure that first input position is valid for a match even during first usage of context by starting reference at 1 (avoiding the problematic 0)" — sounds like ZSTD_window_init or ZSTD_checkDictValidity? Search for "ip = " ... Search for known fix: in ZSTD_compress.c, ZSTD_compressBegin_internal? Maybe ZSTD_loadDictionaryContent: "assert(ip != NULL || ...)"? Actual zstd PR #1241? Search "window.dirOffset" or "ZSTD_window_update". The known fix: in ZSTD_compress.c ZSTD_compressBegin_internal sets base to ip - 1? Let's search.
+dsh: reasoning:
+Search engine seems literal grep on whole lines; lowercase? "window_init" appears in ZSTD_window_init. Try case-sensitive line "ZSTD_window_init(" maybe line is "    ZSTD_window_init(&cctx->blockState.nextCBlock->window);"? Hmm nothing found; maybe grep needs different. Try "ZSTD_window" prefix search.
+dsh: reasoning:
+This is zstd; issue #1241 likely "ZSTD_loadDictionaryContent: assert fails / invalid match at first position". The actual upstream fix (PR) was in ZSTD_compress.c ZSTD_compressBegin_internal: "Ensure that first input position is valid for a match even during first usage of context by starting reference at 1". That's the known fix in ZSTD_compress_insertDictionary? Actually upstream commit "fix #1241" — in ZSTD_loadDictionaryContent, they changed base from ip to ip-1? Let me recall: zstd commit "Fix #1241: ensure first input position is valid for match" — in ZSTD_compress.c, ZSTD_compressBegin_internal, they added:
+
+```
+/* Ensure that first input position is valid for a match, even during first usage of context
+ * by starting the reference at 1 (avoiding the problematic 0) */
+```
+
+Hmm, that was actually in ZSTD_compressSequences? I recall the fix in ZSTD_compress.c in ZSTD_compress_insertDictionary? Let me look at ZSTD_loadDictionaryContent and window init code around lines 1298 and in ZSTD_compressBegin.
+dsh: CONTEXT_WINDOW_EXCEEDED: 400: {"code":"context_length_exceeded","type":"invalid_request_error","message":"Maximum context length is 8000 tokens including the output reservation. Compact the context before trying again."}

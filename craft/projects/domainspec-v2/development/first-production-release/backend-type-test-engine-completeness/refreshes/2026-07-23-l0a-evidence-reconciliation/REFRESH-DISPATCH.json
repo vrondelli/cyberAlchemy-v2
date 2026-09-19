@@ -1,0 +1,373 @@
+{
+  "dispatch_id": "20260723-bte-l0a-evidence-reconciliation-refresh",
+  "intent": {
+    "raw": "Refresh the DomainSpec v2 BTE workflow after L0A execution evidence exposed stale projections and exact-byte receipt drift.",
+    "objective": "Author a proposal-only reconciliation that preserves historical receipts, introduces one bounded L0A repair route, keeps L0B owner-gated, and prepares a separately approved apply.",
+    "target_artifact": "projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/",
+    "operator_sentence": "Invoke refresh the current BTE state without silently editing implementation, receipts, Craft, Inventory, consumers, or production authority.",
+    "arcanum_vocabulary": [
+      "invoke",
+      "context-builder",
+      "inventory",
+      "dispatch-spec",
+      "task-session",
+      "craft"
+    ]
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "frame_handoff",
+    "handle_handoff",
+    "residue_ledger",
+    "owner_boundary_check",
+    "artifact_contract_bridge",
+    "authority_split_gate",
+    "validation_loop",
+    "concrete_path_evidence",
+    "execution_receipt_handoff",
+    "state_namespace_boundary",
+    "approval_semantics_map",
+    "observability_grouping"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "The evidence set is exact, local, and bounded to one byte-reconciliation route.",
+    "explanation": "No delegated or parallel work is needed to author or validate this proposal-only refresh package.",
+    "context": [
+      "All ten compared byte surfaces have deterministic current and expected digests.",
+      "The proposal performs no target lifecycle mutation."
+    ],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed",
+    "receipt_requirements": []
+  },
+  "subagent_lifecycle": {
+    "status": "none",
+    "agents": []
+  },
+  "steps": [
+    {
+      "step_id": "s01-inventory",
+      "name": "Resolve BTE target inventory and current non-authority projections",
+      "capability_ref": "inventory",
+      "capability_status": "local-extension",
+      "capability_metadata": {
+        "source": ".agents/skills/inventory/SKILL.md",
+        "owner": "Arcanum Inventory"
+      },
+      "mode": "lookup",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "concrete_path_evidence",
+        "owner_boundary_check",
+        "state_namespace_boundary"
+      ],
+      "inputs": [
+        {"kind": "artifact", "ref": ".arcanum/inventory/index.json"}
+      ],
+      "outputs": [
+        {"kind": "handle", "ref": "BTE target inventory and current read-model rows"}
+      ],
+      "stop_conditions": [
+        "the machine inventory is not lookup-ready",
+        "the BTE lifecycle owner is ambiguous"
+      ]
+    },
+    {
+      "step_id": "s02-context",
+      "name": "Select exact L0A receipt, byte, verifier, and projection evidence",
+      "capability_ref": "context-builder",
+      "mode": "deep-strict",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "frame_handoff",
+        "handle_handoff",
+        "concrete_path_evidence",
+        "execution_receipt_handoff"
+      ],
+      "inputs": [
+        {"kind": "handle", "ref": "s01-inventory"},
+        {"kind": "receipt", "ref": "SWU-BTE-L0A-001 execution receipt"},
+        {"kind": "artifact", "ref": "current L0A contract and diagnostic bytes"}
+      ],
+      "outputs": [
+        {"kind": "frame", "ref": "CONTEXT-PACK.md"},
+        {"kind": "artifact", "ref": "context-pack.json"}
+      ],
+      "stop_conditions": [
+        "any receipt or current byte handle is missing",
+        "the exact drift relation cannot be reproduced",
+        "L0B owner inputs are silently inferred"
+      ]
+    },
+    {
+      "step_id": "s03-refresh-proposal",
+      "name": "Author the typed proposal-only refresh delta",
+      "capability_ref": "invoke",
+      "mode": "refresh-proposal-only",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "sequence",
+        "artifact_contract_bridge",
+        "authority_split_gate",
+        "residue_ledger",
+        "approval_semantics_map"
+      ],
+      "inputs": [
+        {"kind": "frame", "ref": "s02-context"},
+        {"kind": "handle", "ref": "s01-inventory"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "REFRESH-REPORT.md"},
+        {"kind": "artifact", "ref": "REFRESH-PATCH-PROPOSAL.md"},
+        {"kind": "artifact", "ref": "refresh-report.json"}
+      ],
+      "stop_conditions": [
+        "the proposal rewrites a historical receipt",
+        "the proposal executes implementation or L0B",
+        "phase completion is conflated with mutation readiness"
+      ]
+    },
+    {
+      "step_id": "s04-dispatch-validation",
+      "name": "Validate the refresh technique trace and owner boundaries",
+      "capability_ref": "dispatch-spec",
+      "mode": "validate",
+      "pattern": "validation",
+      "parallel": false,
+      "techniques": [
+        "validation_loop",
+        "owner_boundary_check",
+        "observability_grouping"
+      ],
+      "inputs": [
+        {"kind": "artifact", "ref": "s03-refresh-proposal"},
+        {"kind": "artifact", "ref": "REFRESH-DISPATCH.json"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "REFRESH-DISPATCH-VALIDATION.json"}
+      ],
+      "evidence_artifact": "REFRESH-DISPATCH-VALIDATION.json",
+      "stop_conditions": [
+        "Dispatch Spec returns flag or block",
+        "a cited technique lacks a step, gate, evidence, or boundary effect"
+      ]
+    },
+    {
+      "step_id": "s05-apply-handoff",
+      "name": "Gate a later scoped apply through approval and material-package evidence",
+      "capability_ref": "invoke",
+      "mode": "refresh-apply-approved-handoff",
+      "pattern": "handoff",
+      "parallel": false,
+      "techniques": [
+        "handle_handoff",
+        "approval_semantics_map",
+        "artifact_contract_bridge",
+        "state_namespace_boundary"
+      ],
+      "inputs": [
+        {"kind": "artifact", "ref": "s03-refresh-proposal"},
+        {"kind": "artifact", "ref": "s04-dispatch-validation"},
+        {"kind": "human_answer", "ref": "explicit apply approval"},
+        {"kind": "receipt", "ref": "schema-valid ready material-package receipt"}
+      ],
+      "outputs": [
+        {"kind": "handoff", "ref": "approved planning and projection delta"}
+      ],
+      "stop_conditions": [
+        "explicit apply approval is absent",
+        "the material package is absent, stale, mismatched, rejected, or not ready",
+        "the apply scope includes implementation or receipt rewriting"
+      ]
+    },
+    {
+      "step_id": "s06-repair-handoff",
+      "name": "Expose exactly one L0A evidence-repair SWU to Task Session",
+      "capability_ref": "task-session",
+      "mode": "handoff-only",
+      "pattern": "handoff",
+      "parallel": false,
+      "techniques": [
+        "handle_handoff",
+        "execution_receipt_handoff",
+        "owner_boundary_check",
+        "validation_loop"
+      ],
+      "inputs": [
+        {"kind": "handle", "ref": "s05-apply-handoff"},
+        {"kind": "artifact", "ref": "SWU-BTE-L0A-REPAIR-001 contract"}
+      ],
+      "outputs": [
+        {"kind": "receipt", "ref": "SWU-BTE-L0A-REPAIR-001 execution receipt"}
+      ],
+      "stop_conditions": [
+        "the repair SWU is not explicitly selected",
+        "the write scope exceeds the nine mismatching byte surfaces",
+        "historical run evidence would be rewritten",
+        "the exact publication verifier does not pass"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g01-source-evidence",
+      "kind": "validation",
+      "owner": "Invoke Refresh",
+      "condition": "Every status or route delta maps to a current receipt, byte digest, verifier result, ledger row, or inventory handle.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g02-proposal-boundary",
+      "kind": "policy",
+      "owner": "Invoke Refresh",
+      "condition": "This run creates proposal artifacts only and does not edit target lifecycle artifacts.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g03-receipt-immutability",
+      "kind": "promotion_guardrail",
+      "owner": "BTE evidence owner",
+      "condition": "Historical L0A execution, publication, and write-manifest receipts remain byte-identical.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g04-l0a-reproduction",
+      "kind": "validation",
+      "owner": "Task Session and BTE verifier",
+      "condition": "Current L0A source bytes reproduce the immutable publication receipt and the existing verifier passes without overwrite.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g05-l0b-owner-freeze",
+      "kind": "promotion_guardrail",
+      "owner": "independent validation owner",
+      "condition": "L0B remains unavailable until a package-local red manifest and freeze receipt match the passing L0A handles.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g06-apply-authorization",
+      "kind": "human_approval",
+      "owner": "user",
+      "condition": "Any later target mutation requires explicit apply approval and a current ready material-package receipt.",
+      "on_fail": "defer"
+    },
+    {
+      "gate_id": "g07-publication-boundary",
+      "kind": "promotion_guardrail",
+      "owner": "DomainSpec v2 private lifecycle owner",
+      "condition": "No private DomainSpec prose or implementation state is copied into public Arcanum.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "20260723-bte-l0a-evidence-reconciliation-refresh:inventory-resolved",
+      "20260723-bte-l0a-evidence-reconciliation-refresh:context-selected",
+      "20260723-bte-l0a-evidence-reconciliation-refresh:proposal-authored",
+      "20260723-bte-l0a-evidence-reconciliation-refresh:dispatch-validated",
+      "20260723-bte-l0a-evidence-reconciliation-refresh:apply-gated",
+      "20260723-bte-l0a-evidence-reconciliation-refresh:repair-handoff-gated"
+    ],
+    "signal_grouping": "Group proposal authoring, future apply, repair execution, and validation-owner continuation by dispatch and step IDs without collapsing owner receipts."
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b01-receipt-to-current-bytes",
+        "kind": "evidence_return",
+        "from_owner": "immutable L0A receipt",
+        "to_owner": "current BTE implementation bytes",
+        "applies_to_steps": ["s02-context", "s03-refresh-proposal", "s06-repair-handoff"],
+        "contract": "Exact-byte mismatch blocks proof; neither side is silently rewritten by Invoke.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b02-invoke-to-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "Invoke-authored BTE proposal and later approved plan",
+        "to_owner": "Task Session",
+        "applies_to_steps": ["s03-refresh-proposal", "s05-apply-handoff", "s06-repair-handoff"],
+        "contract": "Invoke may author the repair contract; Task Session alone mutates implementation bytes.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b03-bte-to-validation-owner",
+        "kind": "capability_handoff",
+        "from_owner": "BTE contract publisher",
+        "to_owner": "independent validation owner",
+        "applies_to_steps": ["s03-refresh-proposal", "s06-repair-handoff"],
+        "contract": "The validation owner acts only after L0A proof is current and alone authors red inputs.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b04-source-to-projections",
+        "kind": "state_write",
+        "from_owner": "BTE owner receipts and Craft ledger",
+        "to_owner": "Inventory and visibility read models",
+        "applies_to_steps": ["s01-inventory", "s03-refresh-proposal", "s05-apply-handoff"],
+        "contract": "Read models synchronize after owner state changes and never become lifecycle authority.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "private DomainSpec v2 BTE development cycle",
+      "execution": "Task Session for one explicitly selected repair SWU",
+      "validation": "BTE deterministic verifier followed by independent validation owner",
+      "evidence": "immutable run and task-session receipts",
+      "memory": "Inventory is a generated non-authority lookup projection",
+      "promotion": "DomainSpec profile and release owners only"
+    },
+    "receipts": [
+      {
+        "receipt_id": "r01-l0a-repair",
+        "producer": "task-session",
+        "required_fields": ["run_id", "session_id", "dispatch_id", "step_id", "capability_ref", "artifacts", "validation_result", "status", "validation", "blockers", "residue", "handoff_note"],
+        "stores": ["projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/work-pack/session-evidence/SWU-BTE-L0A-REPAIR-001/<run>/"],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "r02-validation-owner-freeze",
+        "producer": "independent validation owner",
+        "required_fields": ["run_id", "artifacts", "validation_result", "status", "approval_record", "audit_reference", "blockers", "residue"],
+        "stores": ["projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/validation-inputs/l0/"],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "projects/domainspec-v2/impl/test-derivation-engine/src/bte",
+        "owner": "BTE implementation owner",
+        "write_policy": "Task Session only, exact selected repair scope."
+      },
+      {
+        "namespace": "projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness",
+        "owner": "BTE development cycle",
+        "write_policy": "Invoke proposal artifacts now; target planning changes only after approved material-package handoff."
+      },
+      {
+        "namespace": "projects/domainspec-v2/.craft and generated projections",
+        "owner": "Craft and projection owners",
+        "write_policy": "Synchronize only after owner receipts; never infer completion."
+      },
+      {
+        "namespace": "arcanum",
+        "owner": "public Arcanum",
+        "write_policy": "Forbidden for private BTE content in this route."
+      }
+    ]
+  },
+  "promotion_guardrails": [
+    "A historical pass receipt is not current proof when exact bytes drift.",
+    "Repair execution does not grant admission or production authorization.",
+    "Validation-owner red inputs cannot be authored by BTE implementation.",
+    "Craft, Inventory, and visibility are projections over owner evidence.",
+    "Invoke proposal completion does not authorize apply or Task Session execution."
+  ]
+}

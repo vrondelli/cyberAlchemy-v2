@@ -1,0 +1,144 @@
+{
+  "schema_version": "domainspec.governance-defect-decision-gate-proposal/v1",
+  "decision_id": "DG-WP-RMT-002-TASK-SESSION-TRANSIENT-OUTPUTS",
+  "result": "block",
+  "status": "owner-decision-required",
+  "route": "decision-gate",
+  "target_owner": "arcanum:task-session-public-api-owner",
+  "question": "Which public Task Session lifecycle contract should govern repository-local transient outputs that are admitted before execution, may exist during a command, must be cleaned, and must be absent before the terminal receipt?",
+  "rejected_freeze": {
+    "package_id": "20260816T120821Z-wp-rmt-002-execution-contract-refresh-proposal",
+    "file_count": 60,
+    "total_size_bytes": 7147141,
+    "sha256": "bda686d110d3f7491c6c04049ce242c6c3617fa97763e4f4920efe8c91a7b64b",
+    "proposal_receipt_created": false,
+    "classification": "historical-rejected-unreceipted"
+  },
+  "problem_statement": {
+    "root_cause": "The public Task Session contract has no distinct transient-output partition. governance-run request declared_outputs are durable staged postimages; executor receipt outputs must resolve to present regular exact-byte artifacts; reconcile maps those durable outputs positionally to material targets. WP-RMT-002 instead declares seven Cargo target directories that may exist only during execution and must be absent before its terminal receipt.",
+    "contradiction": "A Cargo target directory cannot simultaneously be a present regular exactArtifactRef required by executor receipt reconciliation and an absent-at-closeout transient output.",
+    "why_not_mechanical": "Changing only the WP-RMT-002 terminal validator or fast-entry terminal-only executionOutputs comparison would either misclassify a transient directory as a durable staged postimage, omit a real write from admission, or fabricate cleanup evidence. The repair changes the public request, ticket, admission, executor evidence, reconciliation, and skill semantics.",
+    "product_semantics_disputed": false,
+    "governance_mechanics_only": true
+  },
+  "affected_units": [
+    {
+      "swu_id": "RMT-OP-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/operation/cargo-target"
+    },
+    {
+      "swu_id": "RMT-RULE-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/rule/cargo-target"
+    },
+    {
+      "swu_id": "RMT-IFACE-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/interface/cargo-target"
+    },
+    {
+      "swu_id": "RMT-MAP-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/mapping/cargo-target"
+    },
+    {
+      "swu_id": "RMT-EVENT-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/event/cargo-target"
+    },
+    {
+      "swu_id": "RMT-SM-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/state-machine/cargo-target"
+    },
+    {
+      "swu_id": "RMT-WF-005",
+      "path": "projects/domainspec-v2/development/remaining-meta-types/runs/workflow/cargo-target"
+    }
+  ],
+  "invariants": [
+    "material target baselines remain material-writes-only",
+    "every repository write is admitted before the first write",
+    "durable staged postimages remain exact regular artifacts and retain one-to-one material-target reconciliation",
+    "transient paths are explicitly admitted, repository-contained, collision-checked, and disjoint from material and durable staged outputs",
+    "executor evidence proves whether each transient was touched and whether cleanup completed",
+    "every transient is absent before the terminal receipt is written",
+    "the terminal receipt remains the final write",
+    "no DomainSpec-private vocabulary or semantics enter public Arcanum contracts"
+  ],
+  "decision_dimensions": [
+    {
+      "id": "partition-shape",
+      "choice_required": "Whether to add an optional typed transient_outputs partition to governance request and execution ticket, and its exact closed row schema."
+    },
+    {
+      "id": "admission-closure",
+      "choice_required": "Whether mutation-admission executionOutputs denotes durable staged outputs, transient outputs, closeout terminal output, or their complete union, and how internal run evidence is excluded."
+    },
+    {
+      "id": "executor-evidence",
+      "choice_required": "The canonical touched and cleanup evidence that is verifiable after the transient path has been removed without treating the removed directory as an exactArtifactRef."
+    },
+    {
+      "id": "reconcile-sequence",
+      "choice_required": "Where transient cleanup is checked relative to executor receipt, durable postimage reconciliation, commit, and the final Task Session receipt."
+    },
+    {
+      "id": "compatibility",
+      "choice_required": "Whether the additive contract remains v1-compatible or requires versioned request, ticket, executor-receipt, and mutation-admission schemas."
+    }
+  ],
+  "options": [
+    {
+      "option_id": "A",
+      "label": "First-class transient partition",
+      "recommended": true,
+      "summary": "Add a public, optional typed transient_outputs partition across request, ticket, admission projection, executor receipt evidence, and reconciliation while preserving declared_outputs for durable staged postimages.",
+      "benefit": "Represents the actual lifecycle directly, retains material-only baselines, and can prove both bounded use and absence before terminal receipt.",
+      "cost_risk": "Requires an owner-approved public schema/version decision, migration rules, generated package parity, and a new cleanup-evidence protocol.",
+      "downstream_impact": "Task Session SKILL 37a/37g/48a; mutation admission request/receipt and verifier; governance request/ticket/executor schemas; runner; regression harness; generated Codex and Claude packages; WP-RMT-002 proposal regeneration."
+    },
+    {
+      "option_id": "B",
+      "label": "Executor-owned scratch profile",
+      "recommended": false,
+      "summary": "Move transient directories into a Task Session-owned isolated scratch root and exclude them from the Work Pack repository write partition, binding only the scratch-root lifecycle receipt.",
+      "benefit": "Avoids mixing transient directories with durable postimage reconciliation.",
+      "cost_risk": "Changes the seven Work Pack command and write-scope semantics, requires a generic scratch-root authority contract, and may weaken exact repository write accounting if under-specified.",
+      "downstream_impact": "Public executor sandbox contract plus fresh Work Pack planning, readiness audit, and exact-byte acceptance."
+    },
+    {
+      "option_id": "C",
+      "label": "Durable Cargo output",
+      "recommended": false,
+      "summary": "Retain each Cargo target directory as a durable declared output and inventory it as reconciliation material.",
+      "benefit": "Fits the current present-output model with fewer schema concepts.",
+      "cost_risk": "Contradicts the accepted cleanup-before-receipt semantics, creates large unstable build artifacts, and changes product evidence boundaries.",
+      "downstream_impact": "Reauthor all seven SWUs and repeat product-semantic owner acceptance; unsuitable without an explicit semantics reversal."
+    }
+  ],
+  "recommendation": {
+    "option_id": "A",
+    "rationale": "It preserves the accepted material and cleanup semantics and makes the missing lifecycle explicit. The owner must still choose the exact public row, admission-union, evidence, sequencing, and versioning contract before any candidate is authored."
+  },
+  "minimum_regression_matrix": [
+    "non-transient material-bound plan-once execution remains byte-compatible",
+    "declared durable staged postimages still map one-to-one to material targets",
+    "material targetBaselines remain exactly materialWrites",
+    "declared transient directory may be created, used, cleaned, and proven absent before terminal receipt",
+    "missing transient declaration blocks before executor launch",
+    "extra or substituted transient path blocks before executor launch",
+    "path escape, symlink, and overlap with material or durable outputs block",
+    "missing touched evidence blocks",
+    "missing or false cleanup evidence blocks",
+    "forged cleanup evidence with a live transient path blocks",
+    "transient residue blocks before executor and Task Session terminal receipts",
+    "durable output incorrectly labeled transient blocks",
+    "admission union omission or inflation blocks",
+    "Cargo coverage passes for exactly seven WP-RMT-002 units and fails on missing or substituted paths",
+    "canonical and generated runner/schema packages remain exact parity"
+  ],
+  "decision_effect": {
+    "authority": "none",
+    "mutation_authorized": false,
+    "candidate_authoring_authorized": false,
+    "live_apply_authorized": false,
+    "owner_acceptance_required_after_candidate": true
+  },
+  "next_action": "The public Task Session API owner selects and specifies one option; Invoke then authors a new isolated candidate with canonical tests and generated parity for fresh independent validation and exact-byte owner acceptance."
+}

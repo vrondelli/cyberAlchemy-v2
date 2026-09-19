@@ -1,0 +1,75 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdirSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {serveBuild} from './serve-build.mjs';
+const root=resolve(import.meta.dirname,'..');
+const require=createRequire(resolve(root,'../video/package.json'));
+const {chromium}=require('playwright-core');
+const preview=await serveBuild(resolve(root,'dist'));
+const browser=await chromium.launch({executablePath:process.env.ARE_CHROMIUM??'/home/vrondelli/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',args:['--no-sandbox']});
+const output=resolve(root,'evidence/sculptures');mkdirSync(output,{recursive:true});const checks=[],errors=[];
+const check=(name,ok)=>{assert.ok(ok,name);checks.push(name);console.log('PASS',name)};
+const context=await browser.newContext({viewport:{width:1366,height:768}});const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));
+const final=async()=>{await p.getByRole('button',{name:'Chapter 4:'}).click();await p.locator('.final-engine-map').waitFor();await p.waitForFunction(()=>[...document.querySelectorAll('.final-map-link img')].every(i=>i.complete&&i.naturalWidth>0));};
+try{
+ await p.goto(preview.url);await p.locator('.are-offer').waitFor();await p.mouse.wheel(0,120);await final();
+ check('eight labelled links',await p.locator('.final-map-link').count()===8);
+ check('pause control remains visible',await p.locator('.hero-pause').evaluate(e=>getComputedStyle(e).opacity==='1'));
+ const start=await p.locator('.final-engine-map').getAttribute('data-phase');
+ await p.waitForFunction(start=>document.querySelector('.final-engine-map').dataset.phase!==start,start);
+ await p.waitForFunction(()=>Number(document.querySelector('.final-engine-map').dataset.phase)===Number(document.querySelector('.final-engine-map').dataset.steps)-1);
+ await p.waitForFunction(()=>document.querySelector('.final-engine-map').dataset.phase==='0');
+ check('final scene completes and repeats its cycle',true);
+ await p.getByRole('button',{name:'Pause animation',exact:true}).click();
+ const held=await p.locator('.final-engine-map').getAttribute('data-time');await p.waitForTimeout(400);
+ check('pause freezes scene',await p.locator('.final-engine-map').getAttribute('data-time')===held);
+ await p.getByRole('button',{name:'Replay ↺',exact:true}).click();
+ check('replay does not erase pause',await p.getByRole('button',{name:'Resume animation',exact:true}).count()===1);
+ await final();
+ await p.locator('.final-map-link').filter({hasText:'Progress'}).click();
+ await p.locator('[data-document="working-memory"]').waitFor();
+ check('hero link opens matching canvas document',await p.locator('[data-document="working-memory"]').count()===1);
+ check('pause persists across navigation',await p.getByRole('button',{name:'Resume signal motion',exact:true}).count()===1);
+ await p.screenshot({path:resolve(output,'canvas.png')});
+ await p.getByRole('link',{name:'Introduction',exact:true}).click();await p.locator('.are-offer').waitFor();await p.mouse.wheel(0,120);await final();
+ for(const [width,height]of [[1366,768],[1366,650],[1024,640],[640,360],[420,650],[390,844],[320,640]]){
+  await p.setViewportSize({width,height});await p.waitForTimeout(200);
+  const geometry=await p.locator('.final-map-link').evaluateAll(links=>links.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom}}));
+  check(`${width}×${height} no horizontal overflow`,await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  check(`${width}×${height} all component targets fit`,geometry.every(r=>r.x>=0&&r.right<=width&&r.w>=24&&r.h>=24));
+  check(`${width}×${height} component targets do not overlap`,geometry.every((a,i)=>geometry.every((b,j)=>i===j||a.right<=b.x||b.right<=a.x||a.bottom<=b.y||b.bottom<=a.y)));
+  const heading=await p.locator('.intro-heading').boundingBox();
+  check(`${width}×${height} components below heading`,geometry.every(r=>r.y>=heading.y+heading.height));
+  const caption=await p.locator('.hero-sticky>.visual-caption').boundingBox();
+  check(`${width}×${height} caption below components`,geometry.every(r=>r.bottom<=caption.y+2));
+  if(width===1366&&height===768||width===390||width===320)await p.screenshot({path:resolve(output,`hero-${width}.png`)});
+ }
+ await p.setViewportSize({width:1366,height:768});
+ await p.getByRole('button',{name:'Resume animation',exact:true}).click();
+ await p.locator('.sculpture-cycles').scrollIntoViewIfNeeded();
+ await p.waitForFunction(()=>document.querySelector('.final-engine-map').dataset.running==='false');
+ const hidden=await p.locator('.final-engine-map').getAttribute('data-time');await p.waitForTimeout(350);check('offscreen pauses clock',hidden===await p.locator('.final-engine-map').getAttribute('data-time'));
+ await p.locator('.sculpture-cycles button').click();check('cycle control shares pause preference',await p.locator('.hero-pause').getAttribute('aria-pressed')==='true');
+ await p.emulateMedia({reducedMotion:'reduce'});
+ await p.locator('.static-map').waitFor();check('reduced motion retains eight component links',await p.locator('.static-map .final-map-link').count()===8);
+ check('OS preference disables motion control',await p.locator('.sculpture-cycles button').isDisabled());
+ await p.screenshot({path:resolve(output,'reduced.png')});
+ await p.emulateMedia({reducedMotion:'no-preference'});await p.goto(preview.url+'#view=docs');
+ check('documentation remains available',await p.getByRole('heading',{name:'What would you like to do?'}).count()===1);
+ // Broken images retain the correct semantic line glyph, not a missing box.
+ const fail=await context.newPage();await fail.route('**/light-sculptures/context.webp',route=>route.abort());await fail.goto(preview.url);await fail.locator('.are-offer').waitFor();await fail.mouse.wheel(0,120);await fail.getByRole('button',{name:'Chapter 4:'}).click();
+ const contextLink=fail.locator('.final-map-link').filter({hasText:'Useful context'});await contextLink.locator('.sculpture-fallback').waitFor();check('failed asset keeps labelled fallback',await contextLink.getAttribute('href')==='#view=continuity&node=context');await fail.close();
+ // Exercise the visibility event branch deterministically in headless Chromium.
+ await p.goto(preview.url);await p.locator('.are-offer').waitFor();await p.mouse.wheel(0,120);await final();await p.getByRole('button',{name:'Resume animation',exact:true}).click();
+ await p.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))});
+ await p.waitForFunction(()=>document.querySelector('.final-engine-map').dataset.running==='false');
+ const tabHeld=await p.locator('.final-engine-map').getAttribute('data-time');await p.waitForTimeout(400);
+ check('visibility suspension freezes clock',tabHeld===await p.locator('.final-engine-map').getAttribute('data-time'));
+ await p.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))});
+ await p.waitForFunction(()=>document.querySelector('.final-engine-map').dataset.running==='true');
+ const timing=await p.evaluate(()=>new Promise(resolve=>{const intervals=[];let last=performance.now(),start=last;function tick(now){intervals.push(now-last);last=now;if(now-start<1500)requestAnimationFrame(tick);else{intervals.sort((a,b)=>a-b);resolve({samples:intervals.length,medianMs:intervals[Math.floor(intervals.length*.5)],p95Ms:intervals[Math.floor(intervals.length*.95)],scope:'Informational headless timing on shared WSL host; not a physical-device performance guarantee'})}}requestAnimationFrame(tick)}));
+ writeFileSync(resolve(output,'frame-timing.json'),JSON.stringify(timing,null,2)+'\n');
+ check('no runtime errors',errors.length===0);
+ writeFileSync(resolve(output,'interaction.json'),JSON.stringify({status:'PASS',checks,errors},null,2)+'\n');
+}catch(error){await p.screenshot({path:resolve(output,'failure.png')});writeFileSync(resolve(output,'interaction.json'),JSON.stringify({status:'FAIL',checks,errors,error:String(error)},null,2)+'\n');throw error}finally{await browser.close();await preview.close()}

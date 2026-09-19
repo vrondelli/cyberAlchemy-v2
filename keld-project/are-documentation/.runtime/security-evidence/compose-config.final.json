@@ -1,0 +1,317 @@
+{
+  "name": "aresecurityroute",
+  "networks": {
+    "chat-ingress": {
+      "name": "aresecurityroute_chat-ingress",
+      "ipam": {},
+      "internal": true
+    },
+    "host-edge": {
+      "name": "aresecurityroute_host-edge",
+      "ipam": {}
+    },
+    "inference": {
+      "name": "aresecurityroute_inference",
+      "ipam": {},
+      "internal": true
+    },
+    "provider-egress": {
+      "name": "aresecurityroute_provider-egress",
+      "ipam": {}
+    },
+    "provider-link": {
+      "name": "aresecurityroute_provider-link",
+      "ipam": {},
+      "internal": true
+    }
+  },
+  "secrets": {
+    "model_api_key": {
+      "name": "aresecurityroute_model_api_key",
+      "file": "/home/vrondelli/projects/cyberAlchemy-v2/keld-project/are-documentation/.runtime/model-api-key.fixture"
+    }
+  },
+  "services": {
+    "edge": {
+      "build": {
+        "context": "/home/vrondelli/projects/cyberAlchemy-v2/keld-project/are-documentation",
+        "dockerfile": "deploy/edge.Dockerfile"
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 1,
+      "command": null,
+      "depends_on": {
+        "public-chat": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "ARE_CHAT_ACCESS_MODE": "anonymous-public",
+        "ARE_CHAT_PUBLIC_HOST": "127.0.0.1:14194"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/healthz').then(r=\u003eprocess.exit(r.ok?0:1)).catch(()=\u003eprocess.exit(1))"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 12
+      },
+      "image": "are-chat-edge:security-candidate",
+      "init": true,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "5m"
+        }
+      },
+      "mem_limit": "402653184",
+      "networks": {
+        "chat-ingress": null,
+        "host-edge": null
+      },
+      "pids_limit": 64,
+      "ports": [
+        {
+          "mode": "ingress",
+          "host_ip": "127.0.0.1",
+          "target": 8080,
+          "published": "14194",
+          "protocol": "tcp"
+        }
+      ],
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true",
+        "seccomp=./seccomp-node.json"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"
+      ],
+      "user": "65532:65532"
+    },
+    "inference-broker": {
+      "build": {
+        "context": "/home/vrondelli/projects/cyberAlchemy-v2/keld-project/are-documentation",
+        "dockerfile": "deploy/broker.Dockerfile"
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 1,
+      "command": null,
+      "depends_on": {
+        "provider-gateway": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "ARE_BROKER_HOURLY_MICROUSD_LIMIT": "1000000",
+        "ARE_BROKER_MONTHLY_MICROUSD_LIMIT": "10000000",
+        "ARE_PROVIDER_INPUT_MICROUSD_PER_MILLION_TOKENS": "100000",
+        "ARE_PROVIDER_OUTPUT_MICROUSD_PER_MILLION_TOKENS": "100000"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "fetch('http://127.0.0.1:4194/healthz').then(r=\u003eprocess.exit(r.ok?0:1)).catch(()=\u003eprocess.exit(1))"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 12
+      },
+      "image": "are-inference-broker:security-candidate",
+      "init": true,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "5m"
+        }
+      },
+      "mem_limit": "402653184",
+      "networks": {
+        "inference": null,
+        "provider-link": null
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true",
+        "seccomp=./seccomp-node.json"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"
+      ],
+      "user": "65532:65532",
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "broker-quota",
+          "target": "/var/lib/are-broker-quota",
+          "volume": {}
+        }
+      ]
+    },
+    "provider-gateway": {
+      "build": {
+        "context": "/home/vrondelli/projects/cyberAlchemy-v2/keld-project/are-documentation",
+        "dockerfile": "deploy/provider-gateway.Dockerfile"
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 1,
+      "command": null,
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "fetch('http://127.0.0.1:4195/healthz').then(r=\u003eprocess.exit(r.ok?0:1)).catch(()=\u003eprocess.exit(1))"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 12
+      },
+      "image": "are-provider-gateway:security-candidate",
+      "init": true,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "5m"
+        }
+      },
+      "mem_limit": "402653184",
+      "networks": {
+        "provider-egress": null,
+        "provider-link": null
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "secrets": [
+        {
+          "source": "model_api_key",
+          "target": "model_api_key",
+          "uid": "65532",
+          "gid": "65532",
+          "mode": "0400"
+        }
+      ],
+      "security_opt": [
+        "no-new-privileges:true",
+        "seccomp=./seccomp-node.json"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"
+      ],
+      "user": "65532:65532"
+    },
+    "public-chat": {
+      "build": {
+        "context": "/home/vrondelli/projects/cyberAlchemy-v2/keld-project/are-documentation",
+        "dockerfile": "deploy/chat.Dockerfile"
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "cpus": 1,
+      "command": null,
+      "depends_on": {
+        "inference-broker": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "ARE_CHAT_IDLE_RETENTION_SECONDS": "1800",
+        "ARE_CHAT_PUBLIC_ORIGIN": "http://127.0.0.1:14194"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "fetch('http://127.0.0.1:4193/healthz').then(r=\u003eprocess.exit(r.ok?0:1)).catch(()=\u003eprocess.exit(1))"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 12
+      },
+      "image": "are-public-chat:security-candidate",
+      "init": true,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-file": "2",
+          "max-size": "5m"
+        }
+      },
+      "mem_limit": "402653184",
+      "networks": {
+        "chat-ingress": null,
+        "inference": null
+      },
+      "pids_limit": 64,
+      "read_only": true,
+      "restart": "no",
+      "security_opt": [
+        "no-new-privileges:true",
+        "seccomp=./seccomp-node.json"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"
+      ],
+      "user": "65532:65532"
+    }
+  },
+  "volumes": {
+    "broker-quota": {
+      "name": "aresecurityroute_broker-quota"
+    }
+  },
+  "x-runtime": {
+    "cap_drop": [
+      "ALL"
+    ],
+    "cpus": 1,
+    "init": true,
+    "logging": {
+      "driver": "json-file",
+      "options": {
+        "max-file": "2",
+        "max-size": "5m"
+      }
+    },
+    "mem_limit": "384m",
+    "pids_limit": 64,
+    "read_only": true,
+    "restart": "no",
+    "security_opt": [
+      "no-new-privileges:true",
+      "seccomp=./seccomp-node.json"
+    ],
+    "tmpfs": [
+      "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"
+    ],
+    "user": "65532:65532"
+  }
+}

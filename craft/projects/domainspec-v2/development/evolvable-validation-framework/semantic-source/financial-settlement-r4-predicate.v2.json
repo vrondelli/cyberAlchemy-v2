@@ -1,0 +1,89 @@
+{
+  "schema_version": "evf.financial-settlement-r4-predicate/v2",
+  "semantic_id": "evf.semantic.financial-settlement.r4.v2",
+  "rule_id": "financial-settlement.NoDuplicateMakeupRule",
+  "edge_id": "financial-settlement.edge.no-duplicate-makeup-rule-enforces-generation",
+  "target_id": "financial-settlement.GenerateSettlement",
+  "theory_profile_id": "evf.smt.qf-lia.r4-candidate-local.v1",
+  "variables": [
+    {"name": "totalAppliedMakeup", "sort": "Int", "role": "owner-premise-input"},
+    {"name": "sameDateMakeupAppliedCount", "sort": "Int", "role": "exact-derived-abstraction-input"},
+    {"name": "shouldCreateMakeupAppliedEvent", "sort": "Bool", "role": "pure-decision-output"}
+  ],
+  "abstractions": [
+    {
+      "abstraction_id": "r4-same-date-makeup-applied-count",
+      "output_variable": "sameDateMakeupAppliedCount",
+      "definition": "cardinality(existingTransactions where transaction.type = MAKEUP_APPLIED and transaction.date = periodEnd)",
+      "binding_requirement": "both-type-and-date-match-exactly",
+      "translation_treatment": "owner-supplied-nonnegative-Int-symbol"
+    }
+  ],
+  "assumptions": [
+    {"assumption_id": "r4-eligible-positive-makeup", "expression": "totalAppliedMakeup > 0"},
+    {"assumption_id": "r4-count-domain", "expression": "sameDateMakeupAppliedCount >= 0"}
+  ],
+  "predicate": {
+    "predicate_id": "financial-settlement.r4.no-duplicate-makeup.general.v2",
+    "expression": "shouldCreateMakeupAppliedEvent iff sameDateMakeupAppliedCount = 0",
+    "normalized_ast": {
+      "operator": "iff",
+      "left": {"symbol": "shouldCreateMakeupAppliedEvent"},
+      "right": {
+        "operator": "eq",
+        "left": {"symbol": "sameDateMakeupAppliedCount"},
+        "right": {"integer": 0}
+      }
+    }
+  },
+  "scope": {
+    "included": [
+      "R4 pure decision under totalAppliedMakeup > 0",
+      "all nonnegative same-date MAKEUP_APPLIED counts",
+      "exact type-and-date filtering abstraction"
+    ],
+    "excluded": [
+      "database-write",
+      "event-emission",
+      "P3",
+      "P4",
+      "full-settlement-preconditions",
+      "behavior when totalAppliedMakeup <= 0",
+      "implementation-conformance",
+      "full-FOL-validity",
+      "release-readiness",
+      "production-correctness"
+    ]
+  },
+  "source_authority": {
+    "semantic_source": {
+      "path": "projects/domainspec-v2/development/evolvable-validation-framework/semantic-source/financial-settlement-r4-predicate.v1.json",
+      "sha256": "82e81dd1a2e3e1788e2b4e56b9cfb4bd12e8a62199c3225b6700a2d870c175a7",
+      "size_bytes": 1672,
+      "authority_role": "semantic-source"
+    },
+    "regression_sources": [
+      {
+        "path": "projects/domainspec-v2/development/evolvable-validation-framework/contracts/financial-settlement-r4-obligations.v1.json",
+        "sha256": "b6fca7568be22e048ee8ace6c11853ce6268a217fb417019d5cf2ced1520ff47",
+        "size_bytes": 1343,
+        "authority_role": "regression-only"
+      },
+      {
+        "path": "projects/domainspec-v2/impl/test-derivation-engine/src/minted-project/l1/r4.ts",
+        "sha256": "8d1dfc7bd2fc1b61b92cbd44113bf2f9f2a9fa2793c33fbb68c201f81a40b836",
+        "size_bytes": 6966,
+        "authority_role": "regression-only"
+      }
+    ]
+  },
+  "owner_acceptance": {
+    "owner": "domainspec-semantic-owner:user",
+    "status": "approved-by-external-exact-byte-receipt",
+    "receipt_locator": ".arcanum/invoke/refresh/evf-smt-r4-semantic-postimage-20260824T031754Z/SEMANTIC-OWNER-ACCEPTANCE-RECEIPT.json",
+    "scope": "candidate-local-r4-pure-decision-predicate-v2"
+  },
+  "authority_effect": "none",
+  "release_admission": "not-granted",
+  "claim_ceiling": "owner-authored-r4-pure-decision-predicate-only"
+}

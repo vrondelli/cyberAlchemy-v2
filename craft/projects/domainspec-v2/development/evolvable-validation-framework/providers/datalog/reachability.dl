@@ -1,0 +1,23 @@
+.decl Node(node_id:symbol, feature_id:symbol, kind:symbol)
+.input Node
+
+.decl Edge(edge_id:symbol, predicate:symbol, from_id:symbol, to_id:symbol)
+.input Edge
+
+.decl RequiredSource(rule_id:symbol)
+.input RequiredSource
+
+.decl Target(target_id:symbol)
+.input Target
+
+.decl SelectedEdge(from_id:symbol, to_id:symbol)
+SelectedEdge(from_id, to_id) :- Edge(_, "enforces", from_id, to_id).
+SelectedEdge(from_id, to_id) :- Edge(_, "produces", from_id, to_id).
+
+.decl Reach(from_id:symbol, to_id:symbol)
+Reach(from_id, to_id) :- SelectedEdge(from_id, to_id).
+Reach(from_id, to_id) :- Reach(from_id, intermediate), SelectedEdge(intermediate, to_id).
+
+.decl Violation(rule_id:symbol)
+Violation(rule_id) :- RequiredSource(rule_id), Target(target_id), !Reach(rule_id, target_id).
+.output Violation

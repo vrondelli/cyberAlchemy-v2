@@ -1,0 +1,145 @@
+schema_version: ui-formalization.protocol.v0.1
+protocol_id: UIF-E0-v0.1
+protocol_version: ui-formalization.v0.1
+status: frozen-before-execution
+frozen_at: 2026-07-11
+created_by: SWU-UIF-002
+hypothesis_matrix_ref: ../baseline/CANDIDATE-HYPOTHESIS-MATRIX.md
+result_schema_ref: result.schema.yml
+corpus_ref: corpus.yml
+authority_boundary: method evidence only; all UI labels remain formation-deferred
+promotion_eligible: false
+
+witness_classes:
+  - structural-table
+  - exercised-ds-d8-edge
+  - separating-fixture
+
+forbidden_shortcuts:
+  - self-declared-type-or-kind-only
+  - filename-or-framework-convention
+  - raw-edge-participation-set-difference
+  - ds-d8-endpoint-use-as-formation-authority
+  - semantic-inference-or-application-execution
+
+run_policy:
+  repetitions: 2
+  compare_fields:
+    - method_outcome
+    - reason_codes
+    - evidence
+    - residue
+  on_mismatch: protocol-failure
+  protocol_changes_after_first_run: forbidden-without-version-bump-and-full-rerun
+
+method_outcomes:
+  - structural-separation-survives
+  - structural-collapse-observed
+  - inconclusive
+  - protocol-failure
+
+provisional_outcomes:
+  - not-adjudicated
+  - candidate-schema-ready
+  - merge-candidate
+  - relation-not-node
+  - framework-vocabulary
+  - split-candidate
+  - defer-evidence-gap
+
+pairs:
+  - pair_id: UIF-E0-FORM-COMPONENT
+    candidate:
+      id: DS-D1.20
+      label: Form
+    neighbor:
+      id: DS-D1.17
+      label: Component
+    hypothesis: A field-validation-submission aggregate is structurally separable from a typed visual unit.
+    method_expectation: structural-separation-survives
+    provisional_outcome: not-adjudicated
+    criterion_probe:
+      required_tables:
+        Fields: [Name, Type, Input, Validation, Error]
+        Contract: [Attribute, Value]
+      minimum_rows:
+        Fields: 1
+      required_attributes:
+        Contract: [submission_action, target_interface, error_mapping]
+      supporting_edges:
+        - submits: Form -> Action
+        - contracts: Form -> Interface
+      edge_evidence_role: supporting-only
+    fixtures:
+      positive: fixtures/e0-form-component/form-positive.md
+      malformed_negative: fixtures/e0-form-component/form-malformed.md
+      neighbor_probe: fixtures/e0-form-component/component-neighbor.md
+    expected:
+      positive: accept
+      malformed_negative: reject
+      neighbor_probe: reroute
+      neighbor_route: Component
+      reason_codes:
+        - form-structure-present
+        - form-required-structure-missing
+        - neighbor-is-component
+    correction_contract:
+      malformed: add typed fields, validation/error cells, submission action, target interface, and error mapping
+      neighbor: reroute to Component unless the field-validation-submission aggregate is added
+
+  - pair_id: UIF-E0-ADAPTER-MAPPING
+    candidate:
+      id: DS-D1.24
+      label: Adapter
+    neighbor:
+      id: DS-D1.13
+      label: Mapping
+    hypothesis: UI-boundary shaping does not earn a distinct node when Adapter and Mapping expose the same constructible transform structure.
+    method_expectation: structural-collapse-observed
+    provisional_outcome: not-adjudicated
+    criterion_probe:
+      required_tables:
+        Contract: [Attribute, Value]
+        Field Mapping: [Source Field, Target Field, Transform]
+      minimum_rows:
+        Field Mapping: 1
+      required_attributes:
+        Contract: [source_schema, target_schema, direction]
+      supporting_edges:
+        - shapes: Adapter -> View Model
+      edge_evidence_role: supporting-only
+      forbidden_separators:
+        - boundary-ui-tag
+        - adapter-name
+        - shapes-edge-alone
+    fixtures:
+      positive: fixtures/e0-adapter-mapping/adapter-positive.md
+      malformed_negative: fixtures/e0-adapter-mapping/adapter-malformed.md
+      neighbor_probe: fixtures/e0-adapter-mapping/mapping-neighbor.md
+    expected:
+      positive: accept
+      malformed_negative: reject
+      neighbor_probe: accept-collapse-signal
+      neighbor_route: Mapping
+      reason_codes:
+        - transform-structure-present
+        - transform-required-structure-missing
+        - adapter-mapping-structural-collapse
+    correction_contract:
+      malformed: add source and target schemas plus at least one field transform
+      neighbor: merge into Mapping with UI boundary metadata unless a new separating structural witness is registered
+
+stop_conditions:
+  - stop if a criterion requires semantic inference or application execution
+  - stop if a run edits this protocol without a version bump and full E0 rerun
+  - stop W1 fanout if either pair is incomplete or non-deterministic
+  - stop promotion claims because E0 corpus is synthetic-only
+
+pre_execution_corrections:
+  - correction_id: UIF-PRE-001
+    field: run_policy.compare_fields
+    from: evidence_refs
+    to: evidence
+    reason: align the comparison selector with the frozen result schema field
+    applied_before_any_run: true
+    evidence_invalidated: none

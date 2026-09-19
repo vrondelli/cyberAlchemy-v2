@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ui-repair://contracts/relationship-owner-packet/v1",
+  "title": "UI repair relationship-owner transport packet v1",
+  "type": "object",
+  "required": ["schema_version", "authority", "owner", "questions", "examples", "changed_consequences", "closure", "packet_state", "prohibited_inferences"],
+  "properties": {
+    "schema_version": {"const": "ui-repair.relationship-owner-packet.v1"},
+    "authority": {
+      "type": "object",
+      "required": ["id", "source_path", "digest", "version", "status", "signature_count"],
+      "properties": {
+        "id": {"const": "DS-D8"},
+        "source_path": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "version": {"type": "integer", "minimum": 1},
+        "status": {"const": "active"},
+        "signature_count": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "owner": {
+      "type": "object",
+      "required": ["handle", "authority_scope"],
+      "properties": {"handle": {"type": "string", "minLength": 1}, "authority_scope": {"const": "DS-D8 relationship signatures"}},
+      "additionalProperties": false
+    },
+    "questions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/question"}},
+    "examples": {
+      "type": "object",
+      "required": ["positive", "negative"],
+      "properties": {
+        "positive": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/example"}},
+        "negative": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/example"}}
+      },
+      "additionalProperties": false
+    },
+    "changed_consequences": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/consequence"}},
+    "closure": {
+      "type": "object",
+      "required": ["acknowledgement", "decision", "required_decision_fields"],
+      "properties": {
+        "acknowledgement": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["owner_handle", "acknowledged_at"], "properties": {"owner_handle": {"type": "string", "minLength": 1}, "acknowledged_at": {"type": "string", "format": "date-time"}}, "additionalProperties": false}]},
+        "decision": {"type": "null"},
+        "required_decision_fields": {"const": ["authority_digest", "question_id", "selected_option_id", "rationale", "decided_at"]}
+      },
+      "additionalProperties": false
+    },
+    "packet_state": {"const": "pending-owner"},
+    "prohibited_inferences": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "question": {
+      "type": "object",
+      "required": ["id", "question", "affected_signatures", "alternatives"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "affected_signatures": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "alternatives": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/alternative"}}
+      },
+      "additionalProperties": false
+    },
+    "alternative": {
+      "type": "object",
+      "required": ["id", "description", "authority_consequence"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "description": {"type": "string", "minLength": 1}, "authority_consequence": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    },
+    "example": {
+      "type": "object",
+      "required": ["kind", "signature", "outcome", "evidence_ref"],
+      "properties": {
+        "kind": {"enum": ["authored-edge", "endpoint-only"]},
+        "signature": {"type": "string", "minLength": 1},
+        "outcome": {"type": "string", "minLength": 1},
+        "evidence_ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "consequence": {
+      "type": "object",
+      "required": ["property_id", "question_id", "consequence"],
+      "properties": {"property_id": {"pattern": "^domainspec-v2-D2[0-5]$"}, "question_id": {"type": "string", "minLength": 1}, "consequence": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    }
+  }
+}

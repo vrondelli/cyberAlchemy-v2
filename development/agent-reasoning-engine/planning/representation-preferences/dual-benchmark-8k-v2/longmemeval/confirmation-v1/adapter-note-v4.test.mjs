@@ -1,0 +1,56 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';import{join}from'node:path';import{tmpdir}from'node:os';
+import{IDS,SOURCE,sha,createTokenizerSession,validateSourceRow,loadSourceManifest,flattenHistory,project,answerMessages,admitActualWire,fitProjection,planIngestion,planConfirmation,ingestionMessages}from'./adapter-note-v4.mjs';
+import{project as legacyProject}from'../../../dual-benchmark-8k-v1/longmemeval/adapter.mjs';
+const row=(id=IDS[0])=>({question_id:id,question_type:'multi-session',question:'What source event occurred?',question_date:'2024/02/01 (Thu) 12:00',haystack_dates:['2024/01/01 (Mon) 12:00'],haystack_sessions:[[{role:'user',content:'A source event occurred.'},{role:'assistant',content:'An assistant response.'},{role:'user',content:'Another fact.'}]]});
+const meter=async request=>({input_tokens:Math.ceil(JSON.stringify(request).length/4),wire_sha256:sha(request)});
+test('strict source-only schema; both answer policies and question match exactly',()=>{const r=row();const c=answerMessages(r,{arm:'control',notes:'notes'}),t=answerMessages(r,{arm:'treatment'});assert.equal(c[0].content,t[0].content);assert.deepEqual(c.at(-1),t.at(-1));assert.throws(()=>validateSourceRow({...r,answer:'not allowed'}));const bad=structuredClone(r);bad.haystack_sessions[0][0].has_answer=true;assert.throws(()=>flattenHistory(bad));});
+test('short-history projection ranking matches predecessor; long whole turn does not invoke14k chunker',()=>{const r=row(),old={question:r.question,history:r.haystack_sessions.map((messages,i)=>({date:r.haystack_dates[i],messages}))};const expected=legacyProject(old,200);const p=project(r,200);assert.deepEqual(p.units,expected.units);assert.deepEqual(p.omitted_source_ids,expected.omitted_source_ids);const large=row();large.haystack_sessions[0].push({role:'user',content:'x'.repeat(20000)});assert.equal(flattenHistory(large).at(-1).content.length,20000);assert.ok(project(large).omitted_source_ids.includes('s0-m3'));});
+test('source loader binds all four acquisition rows, query identity and raw hashes',()=>{const dir=mkdtempSync(join(tmpdir(),'full-s-manifest-'));try{const selected=IDS.map(id=>{const r=row(id),path=`source-${id}.json`,raw=JSON.stringify(r);writeFileSync(join(dir,path),raw);return{question_id:id,path,sha256:sha(raw),question_sha256:sha(r.question),question_date:r.question_date};});const receipt={status:'verified-source-only-projection',pinned_upstream_source_verified:true,source_sha256:SOURCE.sha256,source_bytes:SOURCE.bytes,source_revision:SOURCE.revision,source_filename:SOURCE.filename,source_records:500,evaluation_references_emitted:false,selected};writeFileSync(join(dir,'acquisition.json'),JSON.stringify(receipt));const manifest={schema:'longmemeval-full-s-source-manifest/v1',variant:SOURCE.filename,source_sha256:SOURCE.sha256,source_revision:SOURCE.revision,package_directory:dir,acquisition_sha256:sha(JSON.stringify(receipt)),rows:selected};assert.equal(loadSourceManifest(manifest).rows.length,4);assert.throws(()=>loadSourceManifest({...manifest,rows:[...selected].reverse()}));writeFileSync(join(dir,selected[0].path),'{}');assert.throws(()=>loadSourceManifest(manifest),/hash drift/);}finally{rmSync(dir,{recursive:true,force:true});}});
+test('actual wire admission enforces exactcontext and rejects unbound measurements',async()=>{const messages=answerMessages(row(),{arm:'control',notes:'actual notes'});for(const n of[6976,6977]){const result=await admitActualWire(messages,1024,async wire=>({input_tokens:n,wire_sha256:sha(wire)}));assert.equal(result.admitted,n===6976);assert.equal(result.request.max_tokens,1024);}await assert.rejects(admitActualWire(messages,768,async()=>({input_tokens:1,wire_sha256:'bad'})),/unbound/);});
+test('fit removes lowest ranked whole units, restores chronology and reports completeomissions',async()=>{const r=row(),fit=await fitProjection(r,async wire=>({input_tokens:JSON.parse(wire.messages[1].content).archived_evidence.length>1?7000:100,wire_sha256:sha(wire)}));assert.equal(fit.units.length,1);assert.equal(fit.units[0].source_id,'s0-m0');assert.equal(fit.fit_removed_source_ids.length,2);assert.equal(fit.omitted_source_ids.length,2);assert.equal(fit.admission.admitted,true);assert.equal(fit.measurements.length,3);});
+test('wholeturn planning preserves coverage, omits query during ingestion, and fails overlong turn',async()=>{const r=row();r.haystack_sessions[0]=Array.from({length:12},(_,i)=>({role:i%2?'assistant':'user',content:`item${i} `+'words '.repeat(800)}));const measured=async wire=>{assert.ok(!wire.messages.some(m=>m.content.includes(r.question)));return meter(wire);};const plan=await planIngestion(r,measured);assert.ok(plan.admitted);assert.deepEqual(plan.chunks.flat(),flattenHistory(r));assert.equal(plan.reservation_tokens,7744*plan.chunk_count);const bad=row();bad.haystack_sessions[0]=[{role:'user',content:'x'.repeat(40000)}];const blocked=await planIngestion(bad,meter);assert.equal(blocked.admitted,false);assert.equal(blocked.reason,'unfit-whole-turn');assert.equal(blocked.measurements.length,1);});
+test('full fixed schedule plans all ingestion and judges but never invents realqualifiedlength',async()=>{const rows=IDS.map(id=>{const r=row(id);r.haystack_sessions[0]=Array.from({length:12},(_,i)=>({role:i%2?'assistant':'user',content:'source words '.repeat(400)}));return r;});const p=await planConfirmation(rows,meter);assert.equal(p.admitted,true);assert.equal(p.planned_answer_slots,8);assert.deepEqual(p.tasks.map(t=>t.order),[['control','treatment'],['treatment','control'],['control','treatment'],['treatment','control']]);assert.equal(p.judge_reservation,64000);assert.equal(p.generation_reservation,p.tasks.reduce((n,t)=>n+7744*t.ingestion.chunk_count+16000,0));assert.equal(p.total_reservation,p.generation_reservation+64000);assert.equal(p.judge_prompt_admission_pending,true);const short=await planConfirmation(IDS.map(id=>row(id)),meter);assert.equal(short.admitted,false);assert.equal(short.tasks.filter(t=>t.original_history.long).length,0);});
+
+test('thousand-turn sizing measures chunks rather than every turn',async()=>{
+ const r=row();r.haystack_sessions[0]=Array.from({length:1000},(_,i)=>({role:i%2?'assistant':'user',content:`event ${i} `+'word '.repeat(20)}));
+ const plan=await planIngestion(r,meter);
+ assert.ok(plan.admitted);assert.equal(plan.measurements.length,plan.proposal_count);assert.ok(plan.measurements.length<20);assert.deepEqual(plan.chunks.flat(),flattenHistory(r));
+});
+test('rejected chunks split chronologically and each child is independently measured',async()=>{
+ const r=row();r.haystack_sessions[0]=Array.from({length:8},(_,i)=>({role:'user',content:`unique${i}`}));
+ let calls=0;const measured=async request=>{calls++;const count=(JSON.stringify(request).match(/unique[0-9]/g)??[]).length;return {input_tokens:count>2?7000:100,wire_sha256:sha(request)};};
+ const plan=await planIngestion(r,measured);
+ assert.equal(plan.proposal_count,1);assert.equal(calls,7);assert.deepEqual(plan.chunks.map(c=>c.length),[2,2,2,2]);assert.deepEqual(plan.chunks.flat(),flattenHistory(r));
+ assert.equal(plan.measurements[0].carry_estimate,0);assert.equal(plan.measurements.at(-1).carry_estimate,768);
+ // Smaller inputs need not measure smaller: a singleton can fail after its rejected parent.
+ const nonmonotone=await planIngestion(r,async request=>{const count=(JSON.stringify(request).match(/unique[0-9]/g)??[]).length;return {input_tokens:count===2?9000:8000,wire_sha256:sha(request)};});
+ assert.equal(nonmonotone.admitted,false);assert.equal(nonmonotone.unfit_source_id,'s0-m0');assert.equal(nonmonotone.measurements.length,4);
+});
+test('shared global budget includes ingestion and fit; exhaustion dispatches nothing further',async()=>{
+ let calls=0;const bounded=createTokenizerSession(async request=>{calls++;return {input_tokens:request.max_tokens===768?100:7000,wire_sha256:sha(request)};},{max_calls:2,timeout_ms:1000});
+ await planIngestion(row(),bounded);
+ await assert.rejects(fitProjection(row(),bounded),error=>error.message==='tokenizer-call-budget-exhausted'&&error.tokenizer_budget.calls===2);
+ await assert.rejects(admitActualWire(answerMessages(row(),{arm:'control'}),1024,bounded),/budget-exhausted/);assert.equal(calls,2);
+ let cohortCalls=0;await assert.rejects(planConfirmation(IDS.map(id=>row(id)),async request=>{cohortCalls++;return meter(request);},{tokenizer_limits:{max_calls:5,timeout_ms:1000}}),/budget-exhausted/);assert.equal(cohortCalls,5);
+});
+test('whole-session deadline aborts stuck meter and permanently blocks continuation',async()=>{
+ let calls=0,signal;const bounded=createTokenizerSession((_request,options)=>{calls++;signal=options.signal;return new Promise(()=>{});},{max_calls:20,timeout_ms:15});
+ await assert.rejects(fitProjection(row(),bounded),error=>error.message==='tokenizer-deadline-exceeded'&&error.tokenizer_budget.calls===1);
+ assert.equal(signal.aborted,true);await assert.rejects(planIngestion(row(),bounded),/deadline-exceeded/);assert.equal(calls,1);
+});
+
+test('unsorted dated sessions preserve original order through flattening, projection and ingestion',async()=>{
+ const r=row();r.haystack_dates=['2024/02/01 (Thu) 12:00','2024/01/01 (Mon) 12:00'];r.haystack_sessions=[[{role:'user',content:'later date first'}],[{role:'user',content:'earlier date second'}]];
+ const units=flattenHistory(r);assert.deepEqual(units.map(u=>u.date),r.haystack_dates);assert.deepEqual(project(r).units,units);
+ const plan=await planIngestion(r,meter);assert.ok(plan.admitted);assert.deepEqual(plan.chunks.flat(),units);assert.match(ingestionMessages(units,'control')[0].content,/original source order/);assert.doesNotMatch(ingestionMessages(units,'control')[0].content,/chronological/);
+ for(const date of['yesterday','2024/02/31 (Mon) 12:00','2024/01/01 (Mon) 25:00',123]){const bad=structuredClone(r);bad.haystack_dates[0]=date;assert.throws(()=>validateSourceRow(bad),/date format/);}
+ const bad=structuredClone(r);bad.haystack_dates.pop();assert.throws(()=>validateSourceRow(bad),/cardinality/);
+});
+test('note-v4 changes only note allowance and preserves exact message/projection policy',async()=>{
+ const old=await import('./adapter.mjs'),current=await import('./adapter-note-v4.mjs'),r=row();
+ assert.deepEqual(current.ingestionMessages(flattenHistory(r),'control','notes'),old.ingestionMessages(flattenHistory(r),'control','notes'));
+ for(const arm of ['control','treatment'])assert.deepEqual(current.answerMessages(r,{arm,notes:'notes'}),old.answerMessages(r,{arm,notes:'notes'}));assert.deepEqual(current.project(r),old.project(r));
+ assert.equal(current.wire([],768).max_tokens,768);assert.equal(current.wire([],1024).max_tokens,1024);assert.throws(()=>current.wire([],384),/invalid wire/);
+ for(const input of [6976,6977,7232,7233]){const admission=await current.admitActualWire([],768,async request=>({input_tokens:input,wire_sha256:sha(request)}));assert.equal(admission.admitted,input<=6976);if(admission.admitted)assert.ok(input+768<=8000);}
+});

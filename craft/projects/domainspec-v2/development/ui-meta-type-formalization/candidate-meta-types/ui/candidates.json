@@ -1,0 +1,175 @@
+{
+  "schema_version": "ui-candidate-generation.v0.1",
+  "authority_boundary": "candidate artifacts only; no canonical promotion",
+  "candidates": [
+    {
+      "id": "DS-D1.15", "label": "Page", "slug": "page", "neighbor": "Component",
+      "law": "A terminal route owns primary content, layout/access context, and a rendered unit inventory.",
+      "distinguisher": "A Page owns a terminal route and primary content; a Component is non-routable.",
+      "criteria": [
+        {"name": "route_path", "rule": "attribute-present", "key": "route_path"},
+        {"name": "terminal", "rule": "attribute-equals", "key": "terminal", "value": "true"},
+        {"name": "access_context", "rule": "attribute-present", "key": "access_context"},
+        {"name": "primary_content", "rule": "attribute-present", "key": "primary_content"},
+        {"name": "layout_ref", "rule": "attribute-present", "key": "layout_ref"},
+        {"name": "unit_inventory", "rule": "attribute-present", "key": "unit_inventory"}
+      ],
+      "positive": {"route_path": "/players", "terminal": "true", "access_context": "authenticated", "primary_content": "player-list", "layout_ref": "DashboardLayout", "unit_inventory": "PlayersTable,CreatePlayerButton"},
+      "malformed": {"route_path": "/players", "terminal": "true", "layout_ref": "DashboardLayout"},
+      "neighbor_attributes": {"typed_inputs": "PlayerView", "typed_outputs": "PlayerId", "independent_route": "false"},
+      "correction": "Add terminal route/content ownership or reroute a non-routable unit to Component.",
+      "edge_source": ["renders"], "edge_target": ["wraps", "protects"],
+      "limitations": "Adapted corpus; independent route-framework replication pending."
+    },
+    {
+      "id": "DS-D1.16", "label": "Layout", "slug": "layout", "neighbor": "Page",
+      "law": "A shell owns finite named slots and shared chrome, contains no page-specific primary content, and wraps Pages.",
+      "distinguisher": "A Layout owns shell slots; a Page owns terminal primary content.",
+      "criteria": [
+        {"name": "slots", "rule": "attribute-present", "key": "slots"},
+        {"name": "shared_chrome", "rule": "attribute-present", "key": "shared_chrome"},
+        {"name": "page_specific_content", "rule": "attribute-equals", "key": "page_specific_content", "value": "false"},
+        {"name": "wrap_target", "rule": "attribute-equals", "key": "wrap_target", "value": "Page"}
+      ],
+      "positive": {"slots": "global-nav,page-content", "shared_chrome": "header", "page_specific_content": "false", "wrap_target": "Page"},
+      "malformed": {"shared_chrome": "header", "page_specific_content": "false"},
+      "neighbor_attributes": {"route_path": "/players", "terminal": "true", "primary_content": "player-list", "layout_ref": "DashboardLayout"},
+      "correction": "Add finite slots/shared chrome and a Page wrap target, or reroute primary-content ownership to Page.",
+      "edge_source": ["wraps"], "edge_target": [],
+      "limitations": "Finite shell law; independent corpus pending."
+    },
+    {
+      "id": "DS-D1.17", "label": "Component", "slug": "component", "neighbor": "Form",
+      "law": "A narrow non-routable visual unit has typed inputs/outputs and no route, domain, validation, or access authority.",
+      "distinguisher": "A narrow Component lacks the specialized aggregate authority of Page, Form, Guard, or State Indicator.",
+      "criteria": [
+        {"name": "typed_inputs", "rule": "attribute-present", "key": "typed_inputs"},
+        {"name": "typed_outputs", "rule": "attribute-present", "key": "typed_outputs"},
+        {"name": "independent_route", "rule": "attribute-equals", "key": "independent_route", "value": "false"},
+        {"name": "domain_data_authority", "rule": "attribute-equals", "key": "domain_data_authority", "value": "false"},
+        {"name": "validation_authority", "rule": "attribute-equals", "key": "validation_authority", "value": "false"},
+        {"name": "access_authority", "rule": "attribute-equals", "key": "access_authority", "value": "false"}
+      ],
+      "positive": {"typed_inputs": "PlayerView", "typed_outputs": "PlayerId", "independent_route": "false", "domain_data_authority": "false", "validation_authority": "false", "access_authority": "false"},
+      "malformed": {"typed_inputs": "PlayerView", "independent_route": "false"},
+      "neighbor_attributes": {"typed_fields": "name,email", "validation_contract": "player-input", "submission_action": "CreatePlayer", "target_interface": "PlayerWrite"},
+      "correction": "Add typed I/O and explicit non-authority flags, or reroute specialized laws to their named candidates.",
+      "edge_source": ["composes", "consumes", "displays"], "edge_target": ["renders", "composes"],
+      "limitations": "Narrow fallback only; umbrella Component meaning is rejected."
+    },
+    {
+      "id": "DS-D1.18", "label": "View Model", "slug": "view-model", "neighbor": "Value Object",
+      "law": "A typed display-scoped shape declares sources, display roles/context, and no domain authority.",
+      "distinguisher": "A View Model is display-scoped and non-authoritative; a Value Object owns domain equality.",
+      "criteria": [
+        {"name": "typed_fields", "rule": "attribute-present", "key": "typed_fields"},
+        {"name": "source_refs", "rule": "attribute-present", "key": "source_refs"},
+        {"name": "display_context", "rule": "attribute-present", "key": "display_context"},
+        {"name": "display_roles", "rule": "attribute-present", "key": "display_roles"},
+        {"name": "domain_authority", "rule": "attribute-equals", "key": "domain_authority", "value": "false"}
+      ],
+      "positive": {"typed_fields": "display_name:string,active_label:string", "source_refs": "Player.name,Player.active", "display_context": "player-list", "display_roles": "formatted,computed", "domain_authority": "false"},
+      "malformed": {"typed_fields": "name:string", "source_refs": "Player.name"},
+      "neighbor_attributes": {"fields": "amount:decimal,currency:Currency", "equality": "amount,currency"},
+      "correction": "Add source-backed display structure and non-domain authority, or reroute domain equality to Value Object.",
+      "edge_source": ["derives"], "edge_target": ["shapes", "displays"],
+      "limitations": "Display-shape law; independent corpus pending."
+    },
+    {
+      "id": "DS-D1.19", "label": "Hook", "slug": "hook", "neighbor": "Binding",
+      "law": "A framework-neutral reactive contract has typed inputs/returns and explicit behavior, lifecycle, and effects.",
+      "distinguisher": "A Hook owns reactive lifecycle behavior; a Binding owns a durable endpoint/cache record.",
+      "criteria": [
+        {"name": "typed_inputs", "rule": "attribute-present", "key": "typed_inputs"},
+        {"name": "typed_returns", "rule": "attribute-present", "key": "typed_returns"},
+        {"name": "reactive_behavior", "rule": "attribute-present", "key": "reactive_behavior"},
+        {"name": "lifecycle", "rule": "attribute-present", "key": "lifecycle"},
+        {"name": "effects", "rule": "attribute-present", "key": "effects"}
+      ],
+      "positive": {"typed_inputs": "PlayerFilter", "typed_returns": "PlayerResource", "reactive_behavior": "resource-state", "lifecycle": "consumer-scope", "effects": "load-players,cancel-request"},
+      "malformed": {"typed_inputs": "PlayerFilter", "typed_returns": "PlayerResource"},
+      "neighbor_attributes": {"mode": "fetch", "target_kind": "Query", "target_ref": "GetPlayers", "cache_key": "players"},
+      "correction": "Add neutral reactive/lifecycle structure, or reroute endpoint records to Binding and framework-only helpers to implementation vocabulary.",
+      "edge_source": [], "edge_target": ["consumes"],
+      "limitations": "Framework-neutral law only; Hook-Binding signature request pending."
+    },
+    {
+      "id": "DS-D1.20", "label": "Form", "slug": "form", "neighbor": "Component",
+      "law": "A typed input aggregate declares validation/error contracts, submission action, target interface, and error mapping.",
+      "distinguisher": "A Form owns a field-validation-submission aggregate; a Component owns only typed visual I/O.",
+      "criteria": [
+        {"name": "typed_fields", "rule": "attribute-present", "key": "typed_fields"},
+        {"name": "validation_contract", "rule": "attribute-present", "key": "validation_contract"},
+        {"name": "error_contract", "rule": "attribute-present", "key": "error_contract"},
+        {"name": "submission_action", "rule": "attribute-present", "key": "submission_action"},
+        {"name": "target_interface", "rule": "attribute-present", "key": "target_interface"},
+        {"name": "error_mapping", "rule": "attribute-present", "key": "error_mapping"}
+      ],
+      "positive": {"typed_fields": "name:string,email:email", "validation_contract": "player-input", "error_contract": "field-errors", "submission_action": "CreatePlayer", "target_interface": "PlayerWrite", "error_mapping": "api-to-fields"},
+      "malformed": {"typed_fields": "name:string,email:email", "submission_action": "CreatePlayer"},
+      "neighbor_attributes": {"typed_inputs": "PlayerView", "typed_outputs": "PlayerId", "independent_route": "false"},
+      "correction": "Add the full validation/submission aggregate, or reroute passive typed visual units to Component.",
+      "edge_source": ["submits", "contracts"], "edge_target": [],
+      "limitations": "Adapted corpus; independent form corpus pending."
+    },
+    {
+      "id": "DS-D1.21", "label": "Action", "slug": "action", "neighbor": "event handler",
+      "law": "A named user intent declares trigger, target kind, effect boundary, and observable success/error outcomes.",
+      "distinguisher": "An Action owns a complete intent/outcome contract; a passive event handler does not.",
+      "criteria": [
+        {"name": "intent", "rule": "attribute-present", "key": "intent"},
+        {"name": "trigger", "rule": "attribute-present", "key": "trigger"},
+        {"name": "target_kind", "rule": "attribute-present", "key": "target_kind"},
+        {"name": "effect_boundary", "rule": "attribute-present", "key": "effect_boundary"},
+        {"name": "success_outcome", "rule": "attribute-present", "key": "success_outcome"},
+        {"name": "error_outcome", "rule": "attribute-present", "key": "error_outcome"}
+      ],
+      "positive": {"intent": "create-player", "trigger": "form-submit", "target_kind": "binding", "effect_boundary": "player-write", "success_outcome": "player-created", "error_outcome": "creation-failed"},
+      "malformed": {"trigger": "click", "success_outcome": "handled"},
+      "neighbor_attributes": {"event": "hover", "callback": "highlight-row"},
+      "correction": "Add a named intent/target/effect/outcome contract, or reroute passive handlers to framework vocabulary.",
+      "edge_source": [], "edge_target": ["submits"],
+      "limitations": "Action-source relationship request pending."
+    },
+    {
+      "id": "DS-D1.22", "label": "Guard", "slug": "guard", "neighbor": "Rule",
+      "law": "A non-authoritative UI gate declares protected surface, source rule, conditions, fallback, and UI enforcement scope.",
+      "distinguisher": "A Guard projects an authoritative Rule into UI behavior; it never owns the access decision.",
+      "criteria": [
+        {"name": "protected_surface", "rule": "attribute-present", "key": "protected_surface"},
+        {"name": "source_rule", "rule": "attribute-present", "key": "source_rule"},
+        {"name": "conditions", "rule": "attribute-present", "key": "conditions"},
+        {"name": "fallback", "rule": "attribute-present", "key": "fallback"},
+        {"name": "decision_authority", "rule": "attribute-equals", "key": "decision_authority", "value": "false"},
+        {"name": "enforcement_scope", "rule": "attribute-present", "key": "enforcement_scope"}
+      ],
+      "positive": {"protected_surface": "/admin", "source_rule": "AdminAccess", "conditions": "authenticated,admin-role", "fallback": "/forbidden", "decision_authority": "false", "enforcement_scope": "ui-projection"},
+      "malformed": {"protected_surface": "/admin", "conditions": "admin-role"},
+      "neighbor_attributes": {"condition": "actor.role == admin", "decision": "allow", "authority": "domain"},
+      "correction": "Add source/fallback/non-authority structure, or reroute authoritative decisions to Rule.",
+      "edge_source": ["protects", "mirrors"], "edge_target": [],
+      "limitations": "Non-authoritative Page gate only; component target scope unresolved."
+    },
+    {
+      "id": "DS-D1.23", "label": "Binding", "slug": "binding", "neighbor": "DS-D8 relation",
+      "law": "A durable integration record declares one endpoint mode, target, mappings, trigger, cache key, and invalidation.",
+      "distinguisher": "A Binding is a durable record with endpoint/cache structure; a pure connection remains a relation.",
+      "criteria": [
+        {"name": "mode", "rule": "attribute-present", "key": "mode"},
+        {"name": "target_kind", "rule": "attribute-present", "key": "target_kind"},
+        {"name": "target_ref", "rule": "attribute-present", "key": "target_ref"},
+        {"name": "trigger", "rule": "attribute-present", "key": "trigger"},
+        {"name": "parameter_mapping", "rule": "attribute-present", "key": "parameter_mapping"},
+        {"name": "result_mapping", "rule": "attribute-present", "key": "result_mapping"},
+        {"name": "cache_key", "rule": "attribute-present", "key": "cache_key"},
+        {"name": "invalidation", "rule": "attribute-present", "key": "invalidation"}
+      ],
+      "positive": {"mode": "fetch", "target_kind": "Query", "target_ref": "GetPlayers", "trigger": "filter-change", "parameter_mapping": "ui.filter->query.filter", "result_mapping": "result->PlayerView[]", "cache_key": "players,filter", "invalidation": "player-write"},
+      "malformed": {"mode": "fetch", "target_kind": "Query", "target_ref": "GetPlayers"},
+      "neighbor_attributes": {"relationship": "fetches", "source": "Binding", "target": "Query"},
+      "correction": "Add the durable endpoint/mapping/cache contract, or reroute an edge-only connection to relation-not-node.",
+      "edge_source": ["fetches", "mutates"], "edge_target": [],
+      "limitations": "Durable record only; Hook-Binding signature request pending."
+    }
+  ]
+}

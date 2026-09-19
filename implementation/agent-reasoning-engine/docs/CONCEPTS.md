@@ -2,23 +2,25 @@
 
 ## Request and route
 
-A request carries the user's raw text plus explicitly supplied or inferred
-fields. A route selects one repository workflow contract. Route selection says
-where work belongs. It does not authorize the work's effects.
+A request contains the user's exact text and fields that the caller supplies or infers.
+A route selects the contract for one repository workflow.
+The route identifies the workflow for the request. It does not authorize actions that change files, systems, or external state.
 
 ## Context basis and Context Envelope
 
-The context basis is the smallest selected set of source-bound information for
-the current request. A Context Envelope is its immutable projection for use by
-an agent or host. It records provenance, omissions, contradictions, freshness,
-and a digest so later decisions can identify the exact context they used.
+The context basis is the smallest selected set of information for the current request.
+Each item remains linked to its source.
+A Context Envelope contains a fixed version of this information for an agent or host.
+It records the sources, omitted information, contradictions, and how current the information is.
+It also records a digest, which identifies the exact content used in later decisions.
 
 ## Reasoning State
 
-Reasoning State is the durable, append-only record of reasoning events and
-derived checkpoints. Epochs delimit stable snapshots. Branches, reductions,
-counterevidence, and transition receipts preserve why state changed. Derived
-indexes can be rebuilt. The append-only evidence remains primary.
+Reasoning State is a stored record of reasoning events and checkpoints derived from those events.
+An append-only record accepts new entries but does not replace earlier entries.
+Epochs mark the boundaries of stable snapshots.
+Branches, reductions, contrary evidence, and records of transitions explain why the state changed.
+The runtime can rebuild derived indexes. The append-only evidence remains the primary record.
 
 ## Runtime journal
 
@@ -29,8 +31,9 @@ contracts.
 
 ## Proposal, effect, and authority
 
-ARE can assess an exact proposed effect and identify consequence or owner
-gates. That assessment does not execute the proposal or create permission.
+ARE can assess a specific proposed effect and identify checks for consequences or required owner decisions.
+An effect is an action that changes files, systems, or external state.
+This assessment does not execute the proposal or grant permission.
 Authorization comes from the relevant owner and host policy. Most ARE records
 therefore carry `authority_effect: "none"`.
 
@@ -49,8 +52,8 @@ one user-facing conversation identity.
 ## Improvement and learning
 
 Failures become structured Improvement Signals and Research Hypotheses. A
-candidate change must pass development and disjoint holdout evidence before it
-can be retained. Learning records can guide later work but do not silently
+candidate change must pass development tests and separate holdout tests before ARE can retain it.
+Holdout tests use evidence that did not guide development. Learning records can guide later work but do not silently
 activate behavior.
 
 ## Open Questions

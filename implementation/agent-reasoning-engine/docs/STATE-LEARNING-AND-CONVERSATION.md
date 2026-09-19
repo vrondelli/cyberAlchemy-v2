@@ -5,7 +5,7 @@
 Reasoning State uses append-only events and content-bound epochs. The runtime
 can checkpoint by risk, create branches, record reductions and counterevidence,
 export portable epochs, compare provenance, and execute verified transition
-plans. File-backed sinks flush durable records. Derived indexes are rebuilt
+plans. Storage sinks write durable records to files. The runtime rebuilds derived indexes
 from verified logs.
 
 The runtime journal separately records operational event order and supports
@@ -16,9 +16,10 @@ history.
 ## Context refresh and reuse
 
 Context reuse depends on the current request, selected sources, and a Context
-Refresh Assessment. A changed dependency creates a successor projection.
-Exact-prefix and cache-affinity signals are optimizations. They never establish
-semantic correctness or provider cache use without observed provider fields.
+Refresh Assessment. A changed dependency creates a new version of the selected context.
+Exact-prefix and cache-affinity signals help optimize context reuse.
+These signals alone do not prove that the context has the correct meaning.
+They also do not prove provider cache use without observed provider fields.
 
 ## Conversation runtime
 
@@ -37,9 +38,9 @@ decision boundaries.
 
 ## Failure learning
 
-The improvement chain starts with a concrete failure and forms an exact
-hypothesis. It implements a bounded variant, evaluates development evidence,
-and checks a disjoint holdout. The chain then produces `KEEP` or `REJECT`.
+The improvement process starts with a specific failure and a testable hypothesis.
+It implements a variant with a defined scope. It evaluates development evidence and tests separate holdout evidence.
+The process then produces `KEEP` or `REJECT`.
 Candidate 018's failure-learning
 canary reduces stale-reuse incidents from five to zero in its deterministic
 fixture and records `KEEP`. It does not observe provider caching or activate a

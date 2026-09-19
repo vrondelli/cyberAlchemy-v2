@@ -1,0 +1,165 @@
+TAP version 13
+# Traceback (most recent call last):
+#   File "<string>", line 16, in <module>
+#     members = {typing.get_args(typing.get_type_hints(method)['key'])[0]: typing.get_type_hints(method)['return'] for method in methods}
+#                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+# KeyError: 'key'
+# (node:1902460) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: R10 Python Query planning binds same-graph fields, profiles and stable source-only artifacts
+ok 1 - R10 Python Query planning binds same-graph fields, profiles and stable source-only artifacts
+  ---
+  duration_ms: 1288.930018
+  type: 'test'
+  ...
+# Subtest: R10 Python Query planner rejects active, stale, cross-graph and semantically incompatible inputs
+ok 2 - R10 Python Query planner rejects active, stale, cross-graph and semantically incompatible inputs
+  ---
+  duration_ms: 1007.994826
+  type: 'test'
+  ...
+# Subtest: R10 Python Queries execute complete structured semantics, immutable typed results and observed read-only bounds
+not ok 3 - R10 Python Queries execute complete structured semantics, immutable typed results and observed read-only bounds
+  ---
+  duration_ms: 2256.479102
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-queries.test.ts:103:3011'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -I -B -c 
+    import copy, dataclasses, importlib, json, os, pathlib, sys, typing
+    data = json.load(sys.stdin); sys.path.insert(0, data['root']); f = {}
+    def thaw(value):
+        if dataclasses.is_dataclass(value) and hasattr(value, 'entries'): return {k: thaw(v) for k, v in value.entries}
+        if type(value) is tuple: return [thaw(v) for v in value]
+        if hasattr(value, 'items'): return {k: thaw(v) for k, v in value.items()}
+        return value
+    for m in data['modules']:
+        module = importlib.import_module(m['import_name']); fn = getattr(module, m['callable']); f[m['selector'].split('read-', 1)[1]] = fn
+        assert thaw(fn.descriptor) == m['descriptor']
+        annotations = typing.get_type_hints(fn.__call__)
+        assert typing.get_origin(annotations['return']) is tuple
+        shape = typing.get_args(annotations['return'])[0]
+        methods = typing.get_overloads(shape.__getitem__) or [shape.__getitem__]
+        members = {typing.get_args(typing.get_type_hints(method)['key'])[0]: typing.get_type_hints(method)['return'] for method in methods}
+        assert list(members) == data['contracts'][m['selector']]['projection']
+        for field in m['descriptor']['result_fields']:
+            if field['type']['kind'] == 'scalar': assert members[field['name']] is {'String': str, 'Bool': bool, 'UInt64': int}[field['type']['name']]
+        params = typing.get_type_hints(annotations['parameters'])
+        assert set(params) == {p['name'] for p in m['descriptor']['inputs']}
+        for action in [lambda: setattr(fn, 'descriptor', {}), lambda: fn.descriptor.__setitem__('limit', 0), lambda: fn.descriptor['read_targets'][0].__setitem__('selector', 'foreign')]:
+            try: action()
+            except (TypeError, AttributeError): pass
+            else: raise AssertionError('MUTABLE_BINDING')
+    params = {'min': 0, 'enabled': True, 'label': 'unused'}
+    money = lambda amount=4: {'amount': amount, 'currency': 'GBP'}
+    def row(id='a', amount=10, label='a'):
+        m = money(); c = {'id': 'customer', 'label': 'first'}
+        return {'id': id, 'amount': amount, 'label': label, 'active': True, 'class': 'premium', 'money': m, 'other_money': copy.deepcopy(m), 'customer': c, 'other_customer': {'id': 'customer', 'label': 'second'}, 'items': [money(1), money(1)], 'other_items': [money(1), money(1)], 'labels': ['z','a'], 'other_labels': ['a','z'], 'state': {'variant':'Ready'}, 'other_state': {'variant':'Ready'}, 'choice': {'variant':'Money','payload':money('18446744073709551615')}, 'other_choice': {'variant':'Money','payload':money('18446744073709551615')}}
+    def error(fn, rows, parameters=params):
+        try: fn(rows, parameters)
+        except TypeError as e: assert str(e) == 'QUERY_INPUT', str(e)
+        else: raise AssertionError('QUERY_INPUT_MISSING')
+    events = []; armed = False
+    def audit(event, args):
+        if armed and (event in ('open', 'exec', 'compile', 'import') or event.startswith(('os.', 'socket.', 'subprocess.'))): events.append(event)
+    sys.addaudithook(audit)
+    armed = True
+    a, b, c = row('same','18446744073709551615','z'), row('same','9007199254740992','a'), row('other',2,'b')
+    caller = [a,b,c]; before = copy.deepcopy(caller)
+    out = f['amount'](caller, {**params, 'min':'9007199254740992'})
+    assert type(out) is tuple and [v['amount'] for v in out] == [9007199254740992,18446744073709551615]
+    assert [v['id'] for v in out] == ['same','same']
+    assert out[1]['choice']['payload']['amount'] == 18446744073709551615
+    assert out[0]['note'] is None and out[0]['labels'] == ('a','z') and len(out[0]['items']) == 2
+    assert list(thaw(out[0])) == data['contracts']['alpha:read-all']['projection']
+    assert caller == before
+    a['money']['amount'] = 999; a['items'][0]['amount'] = 999
+    assert out[1]['money']['amount'] == 4 and out[1]['items'][0]['amount'] == 1
+    for value in [out[0], out[0]['money'], out[0]['choice']]:
+        try: value.entries = ()
+        except (TypeError, AttributeError): pass
+        else: raise AssertionError('MUTABLE_READ_MODEL')
+    ties = [row('first',1),row('second',1),row('third',1)]
+    assert [v['id'] for v in f['amount'](ties,params)] == ['first','second']
+    assert f['all']([],params) == () and f['label']([row()],{**params,'label':'absent'}) == ()
+    unicode_rows = [row(str(i),1,x) for i,x in enumerate(['é','e\u0301','😀','\ue000'])]
+    assert [r['label'] for r in f['sorted'](unicode_rows,params)] == sorted([r['label'] for r in unicode_rows],key=lambda s:s.encode('utf-16-be','surrogatepass'))
+    assert [r['label'] for r in f['descending'](unicode_rows,params)] == sorted([r['label'] for r in unicode_rows],key=lambda s:s.encode('utf-16-be','surrogatepass'),reverse=True)
+    assert [r['id'] for r in f['literal']([row('astral',1,'😀'),row('bmp',1,'\ue000')],params)] == ['astral']
+    assert len(f['label']([row('pair',1,'\ud83d\ude00')],{**params,'label':'😀'})) == 1
+    truth = [row('true'),{**row('false'),'active':False}]
+    assert [r['id'] for r in f['enabled'](truth,{**params,'enabled':False})] == ['true','false']
+    predicates = [row(str(v),v) for v in [5,6,8,9,10]] + [{**row('inactive',0),'active':False}]
+    assert [r['id'] for r in f['predicate'](predicates,{**params,'min':8})] == ['6','8','inactive']
+    for name in ['identity','value','list','set','optional','sum','enum']: assert len(f[name]([row()],params)) == 1
+    changes = {'identity': ('other_customer', {'id':'other','label':'second'}), 'value':('other_money', {'amount':4,'currency':'USD'}), 'list':('other_items',[money(1)]), 'set':('other_labels',['a']), 'optional':('other_note','present'), 'sum':('other_choice',{'variant':'Amount','payload':4}), 'enum':('other_state',{'variant':'Pending'})}
+    for name,(key,value) in changes.items():
+        changed = row(); changed[key] = value; assert f[name]([changed],params) == ()
+    changed = row(); changed['items']=[money(1),money(2)];changed['other_items']=[money(2),money(1)];assert f['list']([changed],params) == ()
+    assert len(f['all']([row()],params)) == 1  # Authored false VO invariant is not executed.
+    assert thaw(f['empty']([row()],{})) == [{'id':'a','note':None}]
+    for choice in [{'variant':'None'},{'variant':'Amount','payload':'18446744073709551615'},{'variant':'Money','payload':money(0)}]:
+        assert f['all']([{**row(),'choice':choice}],params)[0]['choice']['variant'] == choice['variant']
+    for value in [True,1.0,-1,'01','+1','1\n','18446744073709551616',{},None]: error(f['all'],[row()],{**params,'min':value})
+    for value in [1,'true',None]: error(f['all'],[row()],{**params,'enabled':value})
+    error(f['all'],[],{**params,'label':1})
+    for value in [None,{},[],{**params,'extra':1},{'min':0,'enabled':True}]: error(f['all'],[row()],value)
+    bad = row(); bad['other_money']['amount'] = True
+    error(f['amount'],[row('valid'),{**bad,'amount':0}],{**params,'min':10})
+    for patch in [{'labels':['a','a']},{'state':{'variant':'Unknown'}},{'choice':{'variant':'None','payload':None}},{'note':3},{'extra':0}]: error(f['all'],[{**row(),**patch}])
+    bad = row(); del bad['other_money'];error(f['all'],[bad])
+    calls=[]
+    class ActiveList(list):
+        def __iter__(self): calls.append('iterate'); return super().__iter__()
+    class ActiveDict(dict):
+        def __getitem__(self,key): calls.append('get');return super().__getitem__(key)
+    class ActiveStr(str):
+        def __eq__(self,other): calls.append('equal');return True
+        def __hash__(self): return str.__hash__(self)
+    class ActiveInt(int):
+        def __int__(self):calls.append('int');return 0
+    for rows in [ActiveList([row()]),[ActiveDict(row())],None,iter([row()])]:error(f['all'],rows)
+    for value in [ActiveInt(1),ActiveStr('1')]:error(f['all'],[row()],{**params,'min':value})
+    error(f['all'],[row()],ActiveDict(params))
+    hostile={ActiveStr('min'):0,'enabled':True,'label':'x'};calls.clear();error(f['all'],[row()],hostile);assert calls == []
+    result=thaw(f['all']([row()],params))
+    armed=False
+    assert events == [], events
+    for file in data['files']: compile(pathlib.Path(data['root'],file).read_bytes(),file,'exec')
+    print(json.dumps({'pid':os.getpid(),'result':result,'queries':len(f),'effects':events}))
+    
+    Traceback (most recent call last):
+      File "<string>", line 16, in <module>
+        members = {typing.get_args(typing.get_type_hints(method)['key'])[0]: typing.get_type_hints(method)['return'] for method in methods}
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+    KeyError: 'key'
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-queries.test.ts:214:29)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+  ...
+# Subtest: R10 independent Python Query observation kills compiling predicate, ordering, projection and effect mutants
+ok 4 - R10 independent Python Query observation kills compiling predicate, ordering, projection and effect mutants
+  ---
+  duration_ms: 8040.612397
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15770.724207

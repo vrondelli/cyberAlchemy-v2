@@ -1,8 +1,7 @@
 # Privacy and retention
 
-ARE persists explicit operational and reasoning records so decisions can be
-recovered and audited. It does not claim to persist hidden model
-chain-of-thought. Operators must decide which user and repository data may enter
+ARE stores explicit records of operations and reasoning so operators can recover and audit decisions.
+It does not claim to store the model's hidden chain-of-thought. Operators must decide which user and repository data may enter
 each record before enabling durable use.
 
 ## Data classes
@@ -42,14 +41,12 @@ owning values live in [`repository-v1.json`](../packages/codex-app-server-wrappe
 
 ## Collection and projection rules
 
-- Select request-relative context and record exclusions rather than scanning
-  arbitrary ambient files into a prompt.
-- Preserve source and transformation provenance for included context.
+- Select context for the current request. Record excluded information. Do not add unrelated files to the prompt.
+- Record the sources of included context. Record the transformations applied to that context.
 - Keep credentials and provider reasoning content outside Context Envelopes,
   ledgers, receipts, examples, and research artifacts.
-- Treat interaction corrections as attributable scoped records, not account-wide
-  truth.
-- Distinguish a projected lesson from proof that it was applied or beneficial.
+- Record the source and permitted scope of each interaction correction. Do not treat corrections as account-wide truth.
+- Distinguish lesson delivery from proof that the model used the lesson or that the lesson helped.
 - Record provider cache use only from configured observed fields.
 - Do not place raw sensitive content in identifiers, filenames, or diagnostic
   reason codes.
@@ -57,9 +54,8 @@ owning values live in [`repository-v1.json`](../packages/codex-app-server-wrappe
 ## Retention, revision, and deletion
 
 Runtime-journal eviction removes eligible closed operational segments under its
-policy. It does not rewrite the append-only Reasoning State ledger. Interaction
-lessons can be revised or revoked by appending successor records that prevent
-future projection while preserving history.
+policy. It does not rewrite the append-only Reasoning State ledger. To revise or revoke an interaction lesson, append a new record.
+This record prevents future delivery of the earlier lesson and preserves its history.
 
 Session expiry, logical revocation, cache compaction, and physical deletion are
 different operations. Candidate 018 has bounded session and journal mechanisms.
@@ -92,9 +88,10 @@ boundaries outside ARE's local records.
 
 ## Incident handling
 
-If sensitive content enters a record unexpectedly, stop projection and new
-writes. Identify every derived record and external dispatch. Preserve only the
+If sensitive content enters a record unexpectedly, stop projection. Stop new writes.
+Identify every derived record and external dispatch. Preserve only the
 minimum incident evidence that policy permits. Rotate exposed credentials.
+
 Follow the owning repository or provider deletion process. Do not edit an
 append-only log in place and then claim its digest chain remains valid.
 

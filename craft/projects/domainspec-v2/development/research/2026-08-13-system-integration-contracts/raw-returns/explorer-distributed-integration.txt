@@ -1,0 +1,279 @@
+## Bounded action receipt
+
+```yaml
+receipt_version: host-native-research-action/v1
+action: spawn-0003
+role: distributed-integration-explorer
+capability: research
+mode: explore
+status: complete
+mutation: none
+intended_output_ref: projects/domainspec-v2/development/research/2026-08-13-system-integration-contracts/receipts/explorer-distributed-integration.json
+input_digests:
+  strategy-inventory-packet.json: 669cd99d5771d0e041e0a6a4b8b3c924829f31bfc2f18f91398cda334804f3cf
+  dispatch-sheet.json: 49d3a4682b0c388501a7f344dc827382fecab36ce4be701db3e12fd112fe1c96
+execution:
+  repository_mutation: false
+  tests_or_product_execution: false
+  external_effects: false
+  evidence_status: local-sources-observed-and-primary-external-sources-verified
+```
+
+### Direct finding
+
+DomainSpec v2 already owns the logical integration story:
+
+- `Interface` is the boundary.
+- `Operation` and `Query` are callable behavior.
+- `Mapping` transforms boundary shapes.
+- `Event` is a past domain fact.
+- `Workflow` coordinates ordered operations.
+- `State Machine` owns valid domain transitions.
+- DS-D8 owns `exposes`, `maps`, `produces`, `triggers-cross`, `transitions`, and `orchestrates`.
+
+Those concepts do not establish HTTP, webhook, broker, channel, serialization, retry, delivery, ordering, deduplication, outbox/inbox, or cross-system consistency. The smallest non-collapsing addition is a separate integration-binding stack plus scoped guarantee obligations, evaluators, and evidence—not new product-named DS-D1 meta-types.
+
+The current minted-project profile cannot execute the proposed full fixture: it admits only `Entity`, `Event`, `Operation`, and `Rule`, with `enforces`, `performs`, and `produces`; release admission remains ungranted.
+
+### Concern taxonomy and layer ownership
+
+| Concern | Proper layer and owner | Required validation/evidence |
+|---|---|---|
+| Inbound API | Existing `Interface --exposes--> Operation\|Query`; request `Mapping`; separate transport binding | Static contract/schema compatibility; runtime request, mapping, response, and failure receipts |
+| Outbound API / client-provider ports | Application port role attached to an `Interface`; provider/client implementation behind a binding | Provider conformance and finite remote-failure observations |
+| Authentication | Security-scheme reference in API/operation contract; verifier configuration in implementation profile | Positive/negative auth evaluator; never infer identity from declared scheme alone |
+| Secret ownership | Opaque `secret_ref` in deployment/binding layer only | Resolver-access receipt with redaction; never store secret material in DomainSpec |
+| Request/response mapping | Existing `Mapping --maps--> Interface\|Entity` | Field-level mapping evaluator; current DomainSpec checks direction only |
+| Versioning/compatibility | Contract-version and immutable schema reference in binding layer | Compatibility diff plus old/new consumer fixtures |
+| Timeout | `FailurePolicy` scoped to one call/binding | Inject delayed/no response; record unknown outcome |
+| Retry/backoff | `FailurePolicy`; retry eligibility must depend on idempotency or an outcome probe | Attempt timeline, backoff bounds, terminal verdict |
+| Rate limit | Provider contract plus `FailurePolicy`; actual quota remains runtime/provider state | Limit response and recovery evidence |
+| Circuit breaker | Technology-profile implementation of `FailurePolicy` | State-transition evidence under finite failures; declaration is not availability proof |
+| Webhook | Inbound API binding; OpenAPI webhook/callback shape plus security binding | Signature, timestamp/nonce, schema, and replay negatives before mapping or mutation |
+| Event/message envelope | Binding from existing `Event` to a versioned envelope profile such as CloudEvents | Required envelope attributes, payload schema, correlation, compatibility |
+| Topic/queue/channel | `MessageChannel` in integration-binding layer | Address, allowed messages, publisher/consumer references, profile binding |
+| Publisher/subscriber | Application roles referring to existing `Operation`, `Event`, and `triggers-cross`; transport realization stays separate | Publish, broker-acceptance, receive, application-commit evidence |
+| Serialization | Transport/message profile | Encode/decode round trip plus incompatible payload cases |
+| Ordering | `DeliveryPolicy`, explicitly scoped by key/partition/channel | Reordering mutant; never claim global ordering from partition-local evidence |
+| Delivery semantics | `DeliveryPolicy` plus exact provider configuration | Ack/confirm/offset/application-commit boundaries; scoped failure injection |
+| Deduplication/idempotency | Application contract plus inbox or write-side uniqueness owner | Repeated request/message yields one business effect |
+| Outbox/inbox | Infrastructure implementation pattern bridging local transactions and messaging | Store rows, transaction boundaries, dispatcher/consumer receipts, reconciliation |
+| Dead-letter handling | `FailurePolicy` plus technology profile and terminal route | Poison-message attempts, terminal routing, and DLQ publish outcome |
+| Replay | Operational policy distinct from accidental redelivery | Original identity, replay run identity, side-effect mode, selected range, outcome |
+| Observability | Evidence binding/profile, preferably trace/message correlation | Traces/logs/metrics prove observation only, not correctness |
+| Workflow/compensation | Existing `Workflow`; compensation steps and triggers are application contracts | Reachability, invoked compensation, final residue; `Workflow` alone proves no distributed consistency |
+
+### Mapping to current DomainSpec owners
+
+- `Interface` remains the logical inbound/outbound boundary. Its current criterion only checks `interface_kind`; its card explicitly says request/response semantics are not checked.
+- `Event` remains the past domain fact. A transported message or broker delivery is not an `Event` synonym.
+- `Mapping` remains the shape-transform owner; transport codecs and envelope serialization are binding/profile concerns.
+- `Operation`/`Query` own state-changing/read-only domain behavior, not client libraries or endpoints.
+- `Policy` may express a domain strategy. A transport retry or breaker configuration must not silently become DS-D1 `Policy`.
+- `Workflow` owns ordered coordination. Compensation can reference a Workflow, but runtime execution and consistency require separate obligations and evidence.
+- `State Machine` owns valid domain-state transitions, not transport ordering.
+- `produces` means successful operation → domain event; it does not mean broker publication.
+- `triggers-cross` means event → cross-feature operation; it does not specify subscription, delivery, acknowledgement, or deduplication.
+- Existing `Binding` is a candidate UI concept and the DS-D8 `fetches`/`mutates` signatures are explicitly UI-backend. A new integration binding must not overload that term or imply UI `Binding` promotion.
+
+### Candidate verdicts
+
+| Candidate | Verdict | Reason |
+|---|---|---|
+| `ExternalApi` | `MERGE` | Already represented by `Interface(interface_kind=external)` plus `exposes` and `Mapping`; HTTP realization belongs in a binding profile |
+| `ApiBinding` | `MERGE` | Make it the request/response branch of `TransportBinding`; an independent type would duplicate lifecycle and ownership |
+| `EventBus` | `PROFILE-LOCAL` | Product/topology role realized by servers, channels, and bindings; no domain invariant |
+| `MessageChannel` | `KEEP` | Distinct shared routing/address and allowed-message invariant; AsyncAPI separates channel, operation, message, and protocol binding |
+| `TransportBinding` | `KEEP` | Owns the exact bridge from logical Interface/Event to versioned protocol contract and provider profile |
+| `DeliveryPolicy` | `KEEP` | Ack boundary, ordering scope, redelivery, and deduplication change observable failure verdicts |
+| `FailurePolicy` | `KEEP` | Timeout, retry eligibility, backoff, breaker, terminal route, and unknown-outcome handling have a distinct lifecycle |
+| `ConsistencyPolicy` | `KEEP` conditionally | Keep only when bound to exact invariants, participants, boundaries, and hostile witnesses; kill vague “strong/eventual” labels |
+| `ValidatorBinding` | `MERGE` | Reuse the generic obligation → evaluator → fixture → receipt architecture; do not create an integration-specific validator meta-type |
+
+No DS-D1 or DS-D8 addition is justified by this lane yet.
+
+### Minimal candidate record shapes
+
+`TransportBinding`
+
+```text
+binding_id
+mode: request-response | webhook | message
+logical_ref: Interface | Event
+direction: inbound | outbound | publish | subscribe
+contract_ref: {uri, version, sha256}
+protocol_profile_ref
+endpoint_ref | channel_ref
+request_mapping_ref?
+response_mapping_ref?
+envelope_binding?
+security_binding_ref?
+failure_policy_ref?
+delivery_policy_ref?
+observability_profile_ref?
+```
+
+`MessageChannel`
+
+```text
+channel_id
+address
+transport_binding_ref
+message_schema_refs[]
+publisher_refs[]
+consumer_refs[]
+ordering_scope: none | channel | partition-key
+partition_key_ref?
+dead_letter_channel_ref?
+compatibility_rule
+```
+
+`EnvelopeBinding`
+
+```text
+event_ref
+envelope_spec_ref
+type
+source_ref
+id_source
+dataschema_ref
+content_type
+correlation_id_ref?
+causation_id_ref?
+serialization_ref
+```
+
+`DeliveryPolicy`
+
+```text
+scope_ref
+declared_semantics: at-most-once | at-least-once | scoped-exactly-once
+publish_acceptance_boundary
+consumer_ack_boundary
+application_commit_boundary
+ordering_scope
+dedupe_identity_ref
+redelivery_limit
+replay_mode
+required_runtime_evaluators[]
+```
+
+Reject `scoped-exactly-once` unless every participant and destination lies inside a tested atomic/transactional boundary.
+
+`FailurePolicy`
+
+```text
+scope_ref
+timeout_ms
+retry_eligibility
+max_attempts
+backoff_profile
+jitter
+rate_limit_response
+unknown_outcome_probe_ref?
+circuit_breaker_profile_ref?
+terminal_route
+compensation_workflow_ref?
+```
+
+`ConsistencyPolicy`
+
+```text
+invariant_refs[]
+participants[]
+consistency_mode
+commit_boundaries[]
+visibility_rule
+staleness_bound?
+outbox_ref?
+inbox_ref?
+reconciliation_rule
+compensation_workflow_ref?
+required_runtime_evaluators[]
+```
+
+`SecurityBinding` stores references only:
+
+```text
+auth_scheme_ref
+secret_ref?
+verification_key_ref?
+signature_profile_ref?
+required_covered_components[]
+timestamp_window?
+nonce_policy?
+```
+
+### Finite paper-executable fixture
+
+Use existing DS-D1/DS-D8 example names:
+
+```text
+PaymentAPI --exposes--> ProcessPayment
+RequestToTransaction --maps--> PaymentTransaction
+ProcessPayment --produces--> PaymentCompleted
+PaymentCompleted --triggers-cross--> ScheduleShipment
+PaymentCompleted --transitions--> PaymentStatus
+```
+
+Candidate realization:
+
+1. An inbound HTTP binding references OpenAPI 3.2.0, a request schema, an opaque auth/secret reference, `RequestToTransaction`, an idempotency key, and a bounded failure policy.
+2. `ProcessPayment` commits `PaymentTransaction` plus an outbox entry for `PaymentCompleted` in one local transaction.
+3. A dispatcher maps the Event to a CloudEvents 1.0.2 envelope and publishes it to a versioned `MessageChannel`.
+4. Broker acceptance is recorded separately from application success.
+5. The consumer validates envelope/schema compatibility, inserts `(consumer, source, id)` into an inbox, runs `ScheduleShipment`, and commits inbox plus application state atomically.
+6. A receipt connects request, local commit, outbox, publish, broker acceptance, receive, inbox, application commit, and final state by immutable identities.
+
+This fixture is proposed and unexecuted. The minted profile cannot currently admit `Interface`, `Mapping`, `Workflow`, `State Machine`, `exposes`, `maps`, `triggers-cross`, or `transitions`.
+
+### Hostile cases
+
+| Case | Expected diagnostic/verdict | Required evidence | Claim ceiling |
+|---|---|---|---|
+| Remote success followed by timeout | `UNKNOWN_REMOTE_OUTCOME`; retry only with same idempotency identity or outcome probe | Server state, request identity, retry trace, one resulting effect | One bounded recovery path |
+| Duplicate delivery | `DUPLICATE_SUPPRESSED` | Same CloudEvents `source+id`, inbox uniqueness result, one application mutation | Consumer idempotency for this fixture |
+| Reordering | `ORDER_SCOPE_VIOLATION` or policy-defined hold/quarantine | Sequence/key/partition data and unchanged invalid state transition | Ordering only within declared scope |
+| Poison message | `TERMINAL_FAILURE_ROUTED` after finite attempts | Attempt ledger, negative ack, DLQ outcome, no application commit | Failure isolation, not delivery success |
+| Deliberate replay | `REPLAY_APPLIED` or `REPLAY_SIDE_EFFECT_SUPPRESSED` | Original IDs, replay-run ID, range/purpose, selected side-effect mode | One controlled replay |
+| Schema-version mismatch | `MESSAGE_SCHEMA_INCOMPATIBLE` before Operation execution | Envelope `dataschema`, consumer-supported versions, zero mutation | Compatibility rejection |
+| Broken webhook signature | `WEBHOOK_SIGNATURE_INVALID` before Mapping | Covered components, key reference, timestamp/nonce decision, zero mutation | Verification for selected signature profile |
+| Outbox committed, not published | `OUTBOX_PUBLICATION_PENDING` | Local commit plus unpublished row; later reconciliation/publish result | Local durability only until publish |
+| Published, inbox/application not committed | `CONSUMER_APPLICATION_PENDING` | Broker delivery, absent/rolled-back inbox, redelivery, later atomic commit | Broker delivery only until application commit |
+| Inbox recorded without business mutation | `INBOX_ATOMICITY_BREACH` | Divergent rows/state and failed invariant | Detects invalid consumer implementation |
+
+### Exact local evidence
+
+- [meta-types.yml](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/definitions/meta-types/meta-types.yml:99), lines 99–206 and 207–278, SHA-256 `4394968327b785d50cd323ad58a799feb71b9debf7e06b650b4fd1e4008f9ede`.
+- [relationships.yml](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/definitions/relationships/relationships.yml:36), lines 36–49, 85–98, 133–210, SHA-256 `ffc97f2c358e4bebeebd8ceeb25aef59628be9c970cf6a7e510f7a37c9876d9f`.
+- [supported-profiles.yml](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/definitions/minted-project/supported-profiles.yml:1), lines 1–69, SHA-256 `0868785499944ce2b21b915962cba48f8b21d627b840c24d81c77194e8864478`.
+- [interface.md](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/spec/meta-types/connective/interface.md:17), lines 17–32, SHA-256 `98d3a92e126b2fd1c33924bf3b4323297d6b762a9282c4c3bd0e4f59dd951559`.
+- [event.md](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/spec/meta-types/connective/event.md:17), lines 17–32, SHA-256 `bd034f87074c93f2b9bc0453bfe617fe4d9ec93702c43d27a1fb0b68b71e587d`.
+- [mapping.md](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/spec/meta-types/connective/mapping.md:17), lines 17–32, SHA-256 `dc6f1126fd07464dc6f2508b2fec5298d8145457e2eaeefd3b1a0b29549df879`.
+- [workflow.md](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/spec/meta-types/behavioral/workflow.md:17), lines 17–34, SHA-256 `bfd271b471e6a4ceb60bc16af638f8ed27d57de0196a03674fb6ad6154e3d913`.
+- [policy.md](/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/spec/meta-types/behavioral/policy.md:17), lines 17–32, SHA-256 `d4121a7478a1a5b584b27d32d880c7f52eedd3eb815f37f55efa18eb8f634b11`.
+- [Living Archive precedent](/home/vrondelli/projects/domainspec-core/development/resonantos-integration/findings.md:21), lines 21–32 and 64–81, SHA-256 `b013cf2fef7a9ac11c501b63cc67b928a55f942fbbd7c19a3f071c21438a2500`. This is consumer precedent, not DomainSpec authority.
+- An exact canonical-ID scan across current definitions, meta-type schemas, minted-project specs, and minted-project tools returned no `Database`, `ORM`, `Repository`, `ExternalApi`, `ApiBinding`, `EventBus`, `MessageChannel`, `TransportBinding`, `DeliveryPolicy`, `FailurePolicy`, `ConsistencyPolicy`, `ValidatorBinding`, `Webhook`, `Broker`, `Outbox`, or `Inbox` owner. This is bounded absence evidence, not a whole-repository universal claim.
+
+### Primary external evidence and limits
+
+- [RFC 9110 §9.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods) defines HTTP method idempotency and restricts automatic retry of non-idempotent requests; [§10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after) defines `Retry-After`. It does not make an application operation idempotent or resolve unknown remote outcomes.
+- [OpenAPI 3.2.0](https://spec.openapis.org/oas/v3.2.0.html) describes operations, responses, security requirements, callbacks, and incoming webhooks. It does not prove implementation, authentication success, signature verification, or runtime compatibility.
+- [AsyncAPI 3.1.0](https://www.asyncapi.com/docs/reference/specification/v3.1.0) is protocol-agnostic and separately models operations, messages, channels, and protocol bindings. A valid document does not prove broker configuration or delivery semantics.
+- [CloudEvents 1.0.2](https://github.com/cloudevents/spec/blob/ce%40v1.0.2/cloudevents/spec.md) distinguishes occurrence, Event, message, protocol, and protocol binding. It defines required `id`, `source`, `specversion`, and `type`; identical `source+id` may identify duplicates. It does not prescribe consumer processing or delivery.
+- [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) supplies HTTP message-signature construction and verification. Key trust, required covered components, timestamp windows, nonce/replay policy, and secret resolution remain application-specific.
+- [Apache Kafka 4.1 design](https://kafka.apache.org/41/design/design/#message-delivery-semantics) demonstrates that ordering is partition-scoped and delivery/processing guarantees depend on offsets, idempotence, transactions, isolation, and destination cooperation. This is technology-profile evidence, not a DomainSpec default.
+- [RabbitMQ 4.2 reliability](https://www.rabbitmq.com/docs/4.2/reliability) separates publisher confirms from consumer acknowledgements, documents possible duplicates and redelivery, and requires application idempotency; [dead-lettering](https://www.rabbitmq.com/docs/4.2/dlx) can itself fail. These are product-profile facts, not vendor selection.
+- [OpenTelemetry 1.60.0](https://opentelemetry.io/docs/specs/otel/) and its [messaging semantic conventions](https://opentelemetry.io/docs/specs/semconv/messaging/messaging-spans/) provide observation/correlation vocabulary. Telemetry presence is not proof of business correctness, delivery, or consistency.
+
+### Claim ceiling and next gates
+
+This receipt supports a proposed non-collapsing contract architecture and finite hostile test design. It does not define or promote vocabulary, admit a profile, implement transport, validate product code, prove delivery or consistency, select a vendor, publish, release, deploy, or establish production readiness.
+
+Before adoption, owners must decide:
+
+1. The authority and namespace for integration-binding records.
+2. Whether `MessageChannel`, `DeliveryPolicy`, `FailurePolicy`, and exact-invariant `ConsistencyPolicy` survive independent non-collapse fixtures.
+3. How binding records connect to existing DS-D1/DS-D8 without overloading UI `Binding`.
+4. Profile admission for the logical concepts and relations needed by the fixture.
+5. Exact evaluator, evidence-schema, and human acceptance routes.

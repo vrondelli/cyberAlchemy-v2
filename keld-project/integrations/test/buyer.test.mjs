@@ -90,10 +90,10 @@ test('logout retains uncertain checkout on revocation failure and clears it only
 });
 
 test('sign-out remains usable with damaged storage and reports successful revocation separately',async t=>{
- const originals=new Map(['document','location','sessionStorage','fetch'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
+ const originals=new Map(['document','location','sessionStorage','fetch','setInterval'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
  t.after(()=>{for(const [k,v] of originals){if(v)Object.defineProperty(globalThis,k,v);else delete globalThis[k];}});
  const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{hidden:true,disabled:false,addEventListener(event,callback){this[event]=callback;}});return elements.get(id);};
- globalThis.document={getElementById:element};globalThis.location={pathname:'/',assign(){throw Error('must report storage failure');}};
+ globalThis.setInterval=()=>0;globalThis.document={getElementById:element,addEventListener(){}};globalThis.location={pathname:'/',assign(){throw Error('must report storage failure');}};
  Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem(){throw Error('corrupt');},removeItem(){throw Error('cannot clear');}}});
  let loggedOut=false;globalThis.fetch=async path=>{if(path==='/api/session')return response({csrf:'csrf'});assert.equal(path,'/auth/logout');loggedOut=true;return response({});};
  await import('../public/buyer.mjs?logout-storage-test');await new Promise(resolve=>setImmediate(resolve));
@@ -106,7 +106,7 @@ test('Pix preparing response survives reload and refreshes with the same request
  const fetch=async(path,options)=>{
   if(path==='/api/session')return response({csrf:'csrf'});
   keys.push(JSON.parse(options.body).requestKey);calls++;
-  return response({mode:'sandbox',orderId,amountCents:25000,currency:'BRL',expiresAt:2000000000,
+  return response({mode:'sandbox',orderId,amountCents:25000,currency:'BRL',usdAmountCents:5000,quoteReference:'test-rate',expiresAt:2000000000,
    ...(calls===1?{checkoutState:'preparing'}:{checkoutState:'ready',pixCode:'000201-test'})});
  };
  const input={provider:'mercadopago',amountCents:5000,payerEmail:'buyer@example.test'};
@@ -123,4 +123,22 @@ test('expired Pix instructions disappear at the deadline, including restored sta
  for(const now of [100,201]){const view=paymentPresentation(JSON.parse(JSON.stringify(r)),now);assert.equal(view.pixCode,undefined);assert.equal(view.checkoutUrl,undefined);assert.equal(view.checkoutState,'expired');}
  assert.equal(paymentPresentation({...r,paymentExpiresAt:300},200).checkoutState,'expired');
  assert.equal(r.pixCode,'fixture');
+});
+
+test('open and restored buyer page hides Pix when timer or tab visibility crosses expiry',async t=>{
+ const names=['document','location','sessionStorage','fetch','setInterval'];
+ const originals=new Map(names.map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)]));
+ const oldNow=Date.now;let time=1900000000000,tick,visible;
+ t.after(()=>{Date.now=oldNow;for(const [k,v] of originals){if(v)Object.defineProperty(globalThis,k,v);else delete globalThis[k];}});
+ Date.now=()=>time;
+ const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{hidden:false,disabled:false,value:'',addEventListener(){}});return elements.get(id);};
+ globalThis.document={hidden:false,getElementById:element,addEventListener:(name,fn)=>{if(name==='visibilitychange')visible=fn;}};
+ globalThis.location={pathname:'/'};globalThis.setInterval=fn=>{tick=fn;return 0;};
+ const saved={state:'pending',requestKey:'expiry',input:{provider:'mercadopago',amountCents:5000,payerEmail:'test@example.test'},result:{mode:'sandbox',orderId,amountCents:25000,currency:'BRL',usdAmountCents:5000,quoteReference:'test-rate',checkoutState:'ready',pixCode:'fixture',paymentExpiresAt:1900000001,expiresAt:1900003600}};
+ Object.defineProperty(globalThis,'sessionStorage',{configurable:true,value:{getItem:()=>JSON.stringify(saved)}});
+ globalThis.fetch=async()=>response({csrf:'fixture'});
+ await import('../public/buyer.mjs?expiry-review');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(element('pix').value,'fixture');
+ time+=1000;tick();assert.equal(element('pix').value,'');assert.equal(element('pix').hidden,true);
+ element('pix').value='stale';visible();assert.equal(element('pix').value,'');
 });

@@ -1,0 +1,241 @@
+#!/usr/bin/env node
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const validatorPath = fileURLToPath(import.meta.url);
+const here = dirname(validatorPath);
+const root = resolve(here, "..");
+let repo = here;
+while (!existsSync(resolve(repo, "AGENTS.md"))) {
+  const parent = resolve(repo, "..");
+  if (parent === repo) throw new Error("repository root not found");
+  repo = parent;
+}
+
+const text = (path) => readFileSync(path, "utf8");
+const json = (path) => JSON.parse(text(path));
+const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const sortValue = (value) => Array.isArray(value)
+  ? value.map(sortValue)
+  : value && typeof value === "object"
+    ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortValue(value[key])]))
+    : value;
+const canonical = (value) => sha(JSON.stringify(sortValue(value)));
+const equal = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+let checks = 0;
+const assert = (condition, message) => {
+  checks += 1;
+  if (!condition) throw new Error(message);
+};
+
+const required = [
+  "ARCHITECTURE-BUNDLE.md",
+  "DESIGN-AUTHORED-CONCERNS.json",
+  "DESIGN-CONTEXT.md",
+  "DESIGN-DECISION-EXAMPLES.md",
+  "DESIGN-DENOMINATOR-RECEIPT.json",
+  "DESIGN-DISTILL-VALIDATION.md",
+  "DESIGN-PLANNED-WITNESSES.json",
+  "DESIGN-RESULT.md",
+  "DESIGN-RISKS-AND-GAPS.md",
+  "DESIGN-SCOPE-MANIFEST.json",
+  "DESIGN-SELECTION-RESULT.json",
+  "DESIGN-TRANSPORT.json",
+  "decisions/N40-EMITS-CLOSURE-SNAPSHOT-CURRENTNESS/DECISION-GATE.md",
+  "decisions/N40-EMITS-CLOSURE-SNAPSHOT-CURRENTNESS/OPTION-ADMISSIBILITY-REQUEST.json",
+  "decisions/N40-EMITS-CLOSURE-SNAPSHOT-CURRENTNESS/OPTION-PREFILTER-RECEIPT.json",
+  "DESIGN-VALIDATION.json"
+];
+for (const file of required) assert(existsSync(resolve(root, file)), `missing ${file}`);
+
+const manifest = json(resolve(root, "DESIGN-SCOPE-MANIFEST.json"));
+const manifestMaterial = { ...manifest };
+delete manifestMaterial.input_digest;
+assert(canonical(manifestMaterial) === manifest.input_digest, "manifest input digest drift");
+assert(manifest.manifest_id === "BMC-REL-CONSTRAINT-COMPLETION-N40-DESIGN-SCOPE", "manifest id drift");
+assert(manifest.target_id === "BMC-REL-NONNUMERIC-40-EMITS-CLOSURE-SNAPSHOT-CURRENTNESS", "target id drift");
+assert(manifest.authored_by !== "invoke-design-scope-extractor", "manifest self-issued");
+assert(manifest.unknowns.length === 0, "manifest unknowns must be empty");
+assert(manifest.target_footprint.inclusions.length === 9, "source denominator drift");
+assert(manifest.target_footprint.exclusions.length === 4, "scope exclusion drift");
+for (const item of manifest.target_footprint.inclusions) {
+  assert(sha(readFileSync(resolve(repo, item.path))) === item.digest, `source drift ${item.selector}`);
+}
+
+const denominator = json(resolve(root, "DESIGN-DENOMINATOR-RECEIPT.json"));
+const denominatorMaterial = { ...denominator };
+delete denominatorMaterial.receipt_digest;
+assert(denominator.verdict === "pass", "denominator must pass");
+assert(denominator.manifest_input_digest === manifest.input_digest, "denominator manifest binding drift");
+assert(canonical(denominatorMaterial) === denominator.receipt_digest, "denominator digest drift");
+assert(denominator.denominator_signal_ids.length === 7, "denominator signal count drift");
+assert(denominator.unbound_signal_ids.length === 0, "unbound denominator signal");
+assert(denominator.missing_detector_inputs.length === 0, "missing detector input");
+assert(denominator.diagnostics.length === 0, "denominator diagnostics present");
+
+const authored = json(resolve(root, "DESIGN-AUTHORED-CONCERNS.json"));
+assert(authored.concerns.length === 1, "authored concern count drift");
+assert(authored.concerns[0].concern_id === "concern:snapshot-result-currentness-boundary", "authored concern drift");
+assert(authored.concerns[0].primary_class === "authority", "currentness concern class drift");
+
+const selection = json(resolve(root, "DESIGN-SELECTION-RESULT.json"));
+const selectionMaterial = { ...selection };
+delete selectionMaterial.result_digest;
+assert(selection.verdict === "pass", "Design selection must pass");
+assert(selection.fixed_point === true, "Design selection must reach fixed point");
+assert(selection.pass_1_digest === selection.pass_2_digest, "pass two changed");
+assert(selection.evidence_state === "design-validator-pass", "Design evidence state drift");
+assert(selection.manifest_input_digest === manifest.input_digest, "selection manifest binding drift");
+assert(selection.denominator_receipt_digest === denominator.receipt_digest, "selection denominator binding drift");
+assert(canonical(selectionMaterial) === selection.result_digest, "selection result digest drift");
+assert(equal(selection.selected_outputs, [
+  "architecture",
+  "architecture:authority-trust",
+  "architecture:integration-versioning",
+  "validation-contracts"
+]), "selected output set drift");
+
+const gateRoot = resolve(root, "decisions/N40-EMITS-CLOSURE-SNAPSHOT-CURRENTNESS");
+const request = json(resolve(gateRoot, "OPTION-ADMISSIBILITY-REQUEST.json"));
+const prefilter = json(resolve(gateRoot, "OPTION-PREFILTER-RECEIPT.json"));
+const actionId = "BMC-REL-NONNUMERIC-40-A-SNAPSHOT-RELATIVE-EVALUATION-CURRENTNESS-EXTERNAL";
+const deferId = "BMC-REL-NONNUMERIC-40-B-DEFER";
+const stopId = "BMC-REL-NONNUMERIC-40-C-STOP";
+const presented = [actionId, deferId, stopId];
+const rejected = [
+  "BMC-REL-NONNUMERIC-40-W-REWRITE-HISTORICAL-RECEIPTS",
+  "BMC-REL-NONNUMERIC-40-X-TTL-OR-TIMESTAMP-CURRENTNESS",
+  "BMC-REL-NONNUMERIC-40-Y-LATEST-PATH-MEANS-CURRENT",
+  "BMC-REL-NONNUMERIC-40-Z-EVALUATOR-OWNS-CURRENT-HEAD"
+];
+assert(canonical(request) === prefilter.requestDigest, "N40 request digest drift");
+assert(prefilter.routeOutcome === "gate" && prefilter.decisionGateRequired === true, "N40 must remain a gate");
+assert(prefilter.directOptionId === null && prefilter.ownerGate === null, "N40 direct route inferred");
+assert(equal(prefilter.admissibleOptionIds, presented), "N40 admissible option set drift");
+assert(equal(prefilter.presentedOptionIds, presented), "N40 presentation drift");
+assert(equal(prefilter.rejectedOptions.map((item) => item.optionId), rejected), "N40 rejected-control set drift");
+assert(request.candidates.length === 7, "N40 candidate cardinality drift");
+assert(equal(request.candidates.filter((item) => item.structuralStatus === "admissible").map((item) => item.optionId), presented), "N40 admitted candidates drift");
+assert(equal(request.candidates.filter((item) => item.structuralStatus === "inadmissible").map((item) => item.optionId).sort(), [...rejected].sort()), "N40 rejected candidates drift");
+const action = request.candidates.find((item) => item.optionId === actionId);
+assert(action.optionKind === "action" && action.hazardClass === "authority", "N40 action classification drift");
+assert(action.ownerGate === "relationship-decision-owner:owner-decision", "N40 action owner gate drift");
+
+const architecture = text(resolve(root, "ARCHITECTURE-BUNDLE.md"));
+for (const view of [
+  "## 1. Context view",
+  "## 2. High-level structure view",
+  "## 3. Low-level components view",
+  "## 4. Workflow process view",
+  "## 5. Decision flow view",
+  "## 6. Dependency interface view"
+]) assert(architecture.includes(view), `missing ${view}`);
+assert(architecture.includes("currentness owned elsewhere"), "external currentness owner boundary missing");
+assert(architecture.includes("never inferred by the evaluator"), "implicit-currentness rejection missing");
+assert(architecture.includes("never rewrites the old receipt"), "historical receipt immutability missing");
+assert(architecture.includes("These are Design contracts, not executed Plan evidence."), "planned witness ceiling missing");
+
+const examples = text(resolve(root, "DESIGN-DECISION-EXAMPLES.md"));
+assert((examples.match(/^## (Low|Medium|Complex)$/gm) ?? []).length === 3, "complexity ladder must have 3 rungs");
+assert(examples.includes("Decision effect: none"), "example decision effect drift");
+assert(examples.includes("Coverage: 3/3 rungs; A/defer/stop covered evenly; unsupported claims: 0; decision effect: none."), "example coverage drift");
+const distill = text(resolve(root, "DESIGN-DISTILL-VALIDATION.md"));
+assert(distill.includes("Mode: Standard; one proposal track; Proposer and read-only Balancer; two rounds."), "Distill mode drift");
+assert(distill.includes("## Round 1") && distill.includes("## Round 2"), "Distill round count drift");
+assert(distill.includes("pass-one-admissible-currentness-policy-owner-pending"), "Distill verdict drift");
+
+const witnesses = json(resolve(root, "DESIGN-PLANNED-WITNESSES.json"));
+assert(witnesses.fixtures.length === 3, "planned witness count drift");
+assert(witnesses.evidence_state === "design-planned-unexecuted", "planned witness evidence inflation");
+
+const transport = json(resolve(root, "DESIGN-TRANSPORT.json"));
+assert(transport.target_id === request.decisionId, "transport target drift");
+assert(transport.status === "selected-through-n41-n42-owner-decision-pending", "transport status drift");
+assert(transport.selection === actionId, "N40 selection drift");
+const n41Selection = json(resolve(root, "../N41-EMITS-CLOSURE-SIDECAR-IDENTITY-LIFECYCLE/decisions/N41-EMITS-CLOSURE-SIDECAR-IDENTITY-LIFECYCLE/OWNER-SELECTION-RECEIPT.json"));
+assert(n41Selection.selection.response === "A", "N41 exact response drift");
+assert(n41Selection.selection.selected_option_id === "BMC-REL-NONNUMERIC-41-A-DIGEST-ADDRESSED-COEXISTENCE-NO-SUPERSESSION", "N41 selection drift");
+assert(transport.n41_selection === n41Selection.selection.selected_option_id, "transport N41 selection drift");
+assert(transport.current_decision === "BMC-REL-NONNUMERIC-42-EMITS-CLOSURE-PAYLOAD-REPRESENTATION", "N42 current decision drift");
+assert(transport.n42_selection === null, "premature N42 selection");
+assert(transport.recommended_option === "BMC-REL-NONNUMERIC-42-A-INLINE-EXACT-PAYLOAD-SETS", "N42 recommendation drift");
+assert(transport.authority_effect === "none", "N40 authority effect drift");
+assert(transport.canonical_mutation === false && transport.packet_mutation === false, "canonical or packet mutation inferred");
+assert(transport.implementation_authorized === false && transport.profile_admission_authorized === false, "implementation or profile authority inferred");
+assert(transport.d06_reopened === false, "D06 reopened");
+const ownerSelection = json(resolve(gateRoot, "OWNER-SELECTION-RECEIPT.json"));
+assert(ownerSelection.selection.response === "A", "N40 exact response drift");
+assert(ownerSelection.selection.selected_option_id === actionId, "N40 selected option drift");
+assert(ownerSelection.admissibility_binding.requestDigest === prefilter.requestDigest, "N40 selection request binding drift");
+
+const validation = json(resolve(root, "DESIGN-VALIDATION.json"));
+assert(validation.result === "pass", "persisted validation result drift");
+assert(validation.target_id === request.decisionId, "persisted validation target drift");
+assert(validation.validator.sha256 === "b0eb2c75e9f4d40111698aff0d4b29e7a3a510b8279e77d9905f7b3a5cacfc55", "historical validator digest drift");
+assert(validation.manifest_input_digest === manifest.input_digest, "persisted manifest digest drift");
+assert(validation.denominator_receipt_digest === denominator.receipt_digest, "persisted denominator digest drift");
+assert(validation.selection_result_digest === selection.result_digest, "persisted selection digest drift");
+assert(validation.request_digest === prefilter.requestDigest, "persisted request digest drift");
+assert(validation.gate.selection === null && validation.authority_effect === "none", "persisted authority inflation");
+assert(validation.hostile_probes_rejected === 13, "persisted hostile-probe count drift");
+
+const baseline = {
+  snapshotRelative: true,
+  currentnessExternal: true,
+  implicitCurrentness: false,
+  ttlCurrentness: false,
+  latestPathCurrentness: false,
+  evaluatorOwnsCurrentness: false,
+  rewriteHistoricalReceipt: false,
+  n40Selected: true,
+  n41Selected: true,
+  n42Selected: false,
+  schemaMutation: false,
+  packetMutation: false,
+  profileAdmission: false,
+  implementation: false,
+  d06: false
+};
+function validateBoundary(value) {
+  if (!value.snapshotRelative) throw new Error("snapshot-relative claim weakened");
+  if (!value.currentnessExternal) throw new Error("external currentness boundary weakened");
+  if (value.implicitCurrentness) throw new Error("implicit currentness");
+  if (value.ttlCurrentness) throw new Error("TTL or timestamp currentness");
+  if (value.latestPathCurrentness) throw new Error("latest path currentness");
+  if (value.evaluatorOwnsCurrentness) throw new Error("evaluator-owned currentness");
+  if (value.rewriteHistoricalReceipt) throw new Error("historical receipt rewrite");
+  if (!value.n40Selected) throw new Error("N40 selection lost");
+  if (!value.n41Selected) throw new Error("N41 selection lost");
+  if (value.n42Selected) throw new Error("premature N42 selection");
+  if (value.schemaMutation || value.packetMutation || value.profileAdmission || value.implementation || value.d06) throw new Error("authority overreach");
+}
+validateBoundary(baseline);
+const probes = Object.keys(baseline);
+for (const key of probes) {
+  const hostile = { ...baseline, [key]: baseline[key] ? false : true };
+  let rejectedProbe = false;
+  try {
+    validateBoundary(hostile);
+  } catch {
+    rejectedProbe = true;
+  }
+  assert(rejectedProbe, `hostile probe accepted ${key}`);
+}
+
+console.log(JSON.stringify({
+  result: "pass",
+  checks,
+  sources: manifest.target_footprint.inclusions.length,
+  fixed_point: selection.fixed_point,
+  six_views: 6,
+  complexity_examples: 3,
+  presented_options: prefilter.presentedOptionIds.length,
+  rejected_controls: prefilter.rejectedOptions.length,
+  hostile_probes_rejected: probes.length,
+  n40_selection: ownerSelection.selection.selected_option_id,
+  n41_selection: n41Selection.selection.selected_option_id,
+  n42_selection: null,
+  authority_effect: "none"
+}, null, 2));

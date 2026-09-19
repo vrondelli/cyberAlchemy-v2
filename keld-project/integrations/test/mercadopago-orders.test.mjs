@@ -13,6 +13,7 @@ import {processEvents} from '../src/event-worker.mjs';
 import {createEventVerifiers,createEventInbox} from '../src/events.mjs';
 const c={api:'orders-v1',account:'123',applicationId:'456',accessToken:'APP_USR-fixture'};
 const oid='ORD01JP84C939T20S0P1DN382FQ6K',pid='PAY01JP84C939T20S0P1DN6FCMWQC';
+const liveOid='ORD'+'A'.repeat(29),livePid='PAY'+'B'.repeat(29);
 const now=1800000000,bytes=Buffer.from('Orders sandbox fixture'),digest=createHash('sha256').update(bytes).digest('hex');
 const terms={providerApi:'orders-v1',pixRequestVersion:2,pixExpirationSeconds:1800,pixExpiresAt:now+1800,orderId:'a'.repeat(32),releaseDigest:digest,currency:'BRL',amountCents:25000,expiresAt:now+3600,payerEmail:'test_user_br@testuser.com'};
 const seller={id:123,site_id:'MLB',country_id:'BR',tags:['test_user']};
@@ -25,6 +26,9 @@ test('Orders validator collects field paths without including provider data',()=
   const o=paid(terms);o.user_id='wrong';o.currency='USD';o.total_amount='251.00';o.transactions.payments[0].paid_amount='249.00';
   assert.throws(()=>validateOrder(o,terms,c,{paid:true}),e=>{assert.deepEqual(e.issues.map(x=>x.path),['user_id','total_amount','currency','transactions.payments[0].paid_amount']);assert.ok(!JSON.stringify(e.issues).includes('wrong'));return true;});
   for(const edit of [o=>delete o.currency,o=>o.live_mode=true,o=>o.transactions.refunds=[{}],o=>o.transactions.chargebacks=[{}],o=>o.transactions.payments.push(o.transactions.payments[0]),o=>o.external_reference='a'.repeat(32),o=>o.integration_data.application_id='999']){const o=paid(terms);edit(o);assert.throws(()=>validateOrder(o,terms,c,{paid:true}));}
+  const live=paid(terms);live.id=liveOid;live.transactions.payments[0].id=livePid;
+  assert.equal(validateOrder(live,terms,c,{id:liveOid,paid:true}).id,livePid);
+  for(const bad of ['ORD'+'A'.repeat(25),'ORD'+'A'.repeat(30),'ord'+'A'.repeat(29)]){const value=paid(terms);value.id=bad;assert.throws(()=>validateOrder(value,terms,c));}
 });
 
 test('Orders SDK → asynchronous QR refresh → paid ledger → owned download, without a second POST',async t=>{
@@ -69,6 +73,7 @@ test('Orders webhook authenticates raw case and seconds/milliseconds, ignores un
     const e=await verify(Buffer.from('{"type":"payment","data":{"id":"forged","status":"processed"}}'),headers(ts),'/?data.id='+oid);
     assert.equal(e.resourceId,oid);assert.equal(e.resourceKind,'order');assert.equal(e.eventType,'order.notification');
   }
+  const live=await verify(Buffer.from('{}'),headers(now,liveOid),'/?data.id='+liveOid);assert.equal(live.resourceId,liveOid);assert.equal(live.resourceKind,'order');
   await assert.rejects(()=>verify(Buffer.from('{}'),headers(now-301),'/?data.id='+oid));
   await assert.rejects(()=>verify(Buffer.from('{}'),headers(now),'/?data.id='+oid+'&data.id='+oid));
   await assert.rejects(()=>verify(Buffer.from('{}'),headers(now,oid.toLowerCase()),'/?data.id='+oid));
@@ -94,7 +99,7 @@ test('bound operator resume succeeds, replay cannot downgrade ready, and stale f
  const root=await mkdtemp(join(tmpdir(),'orders-repair-'));t.after(()=>rm(root,{recursive:true,force:true}));
  const repository=createRepository({database:join(root,'ledger.db'),releaseDigest:digest});
  const base={customer:'oidc:'+'c'.repeat(64),now};
- const make=key=>repository('prepare',{...base,requestKey:key,provider:'mercadopago',account:'123',amountCents:5000,terms});
+ const make=(key,customer=base.customer)=>repository('prepare',{...base,customer,requestKey:key,provider:'mercadopago',account:'123',amountCents:5000,terms});
  const a=await make('bound'),input={...base,orderId:a.id,remoteId:oid};
  const claim=await repository('claim',input);
  const pending={remoteId:oid,checkoutState:'preparing'},ready={remoteId:oid,checkoutState:'ready',pixCode:'fixture'};
@@ -105,10 +110,10 @@ test('bound operator resume succeeds, replay cannot downgrade ready, and stale f
  await repository('bind',{...input,...claim,response:pending});
  assert.deepEqual((await repository('get',input)).response,ready);
  await assert.rejects(()=>repository('bind',{...input,...claim,remoteId:'ORD'+'0'.repeat(26),response:pending}));
- const b=await make('stale'),other={...base,orderId:b.id,remoteId:'ORD'+'1'.repeat(26)};
+ const secondCustomer='oidc:'+'d'.repeat(64);const b=await make('stale',secondCustomer),other={...base,customer:secondCustomer,orderId:b.id,remoteId:'ORD'+'1'.repeat(26)};
  const first=await repository('claim',other);
  const second=await repository('claim',{...other,now:now+61});
- await assert.rejects(()=>repository('bind',{...other,now:now+61,...first,response:pending}),e=>e.code==='checkout-attempt-changed');
+ await assert.rejects(()=>repository('bind',{...other,now:now+61,...first,response:{...pending,remoteId:other.remoteId}}),e=>e.code==='checkout-attempt-changed');
  await repository('bind',{...other,now:now+61,...second,response:{...pending,remoteId:other.remoteId}});
  assert.equal((await repository('get',other)).remote_id,other.remoteId);
 });

@@ -1,0 +1,254 @@
+{
+  "schema_version": "domainspec.system-integration-binding-manifest/v1",
+  "binding_set_id": "local-recovery",
+  "subject_ref": "recovery:reconcile-restart",
+  "profile": {
+    "profile_id": "domainspec.system-integration-profile/provider-neutral-v1",
+    "profile_digest": "4b223f7ad48512fbd9568ff427de7d151792567bb96d64e65d869e094b82a5ab",
+    "language_profile_id": "domainspec.system-integration-language-profile/python/provider-neutral-v1",
+    "language_profile_digest": "04359fdcb77a2038806a6e50cf615620dcffa97649dd730f560ae96389b2ee2a",
+    "architecture_id": "domainspec-durable-recovery@2",
+    "architecture_sha256": "9be9592838500b7997934cd10b1d95b0689f0d744bc2a59a90103f25d75da394"
+  },
+  "language": "python",
+  "source_digest": "2e730805d6447c4dbf1a7d6f68a6234a93b8f6f32a2e02078b0d90ac901feb6e",
+  "canonical_bindings": {
+    "schema_version": "domainspec.system-integration-binding-set/v1",
+    "binding_set_id": "local-recovery",
+    "profile_id": "domainspec.system-integration-profile/provider-neutral-v1",
+    "subject_ref": "recovery:reconcile-restart",
+    "dependency_contracts": [
+      {
+        "contract_id": "operation-replay-ledger",
+        "concern": "operation-replay-ledger",
+        "consumer_roles": [
+          "operation-runtime"
+        ],
+        "operation_signatures": [
+          "recognize-invocation-identity"
+        ],
+        "failure_surface": [
+          "result-unknown"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      },
+      {
+        "contract_id": "operation-unit-of-work",
+        "concern": "operation-unit-of-work",
+        "consumer_roles": [
+          "example-operation"
+        ],
+        "operation_signatures": [
+          "apply-or-recognize-result"
+        ],
+        "failure_surface": [
+          "conflict",
+          "unknown-commit"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      },
+      {
+        "contract_id": "recovery-clock",
+        "concern": "recovery-clock",
+        "consumer_roles": [
+          "claim-and-lease-runtime"
+        ],
+        "operation_signatures": [
+          "now"
+        ],
+        "failure_surface": [
+          "clock-unavailable"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      },
+      {
+        "contract_id": "recovery-coordination-repository",
+        "concern": "recovery-coordination-repository",
+        "consumer_roles": [
+          "durable-recovery-runtime"
+        ],
+        "operation_signatures": [
+          "commit-transition-and-outbox",
+          "load-intent"
+        ],
+        "failure_surface": [
+          "conflict",
+          "unknown-commit"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      },
+      {
+        "contract_id": "recovery-coordination-unit-of-work",
+        "concern": "recovery-coordination-unit-of-work",
+        "consumer_roles": [
+          "durable-recovery-runtime"
+        ],
+        "operation_signatures": [
+          "execute-local-transaction"
+        ],
+        "failure_surface": [
+          "rollback-failed",
+          "unknown-commit"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      },
+      {
+        "contract_id": "recovery-scheduler",
+        "concern": "recovery-scheduler",
+        "consumer_roles": [
+          "retry-runtime"
+        ],
+        "operation_signatures": [
+          "schedule-not-before"
+        ],
+        "failure_surface": [
+          "schedule-failed"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      },
+      {
+        "contract_id": "recovery-wakeup",
+        "concern": "recovery-wakeup",
+        "consumer_roles": [
+          "dispatch-runtime"
+        ],
+        "operation_signatures": [
+          "notify-eligible-work"
+        ],
+        "failure_surface": [
+          "notification-lost"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "domain_interface_ref": null
+      }
+    ],
+    "persistence_bindings": [
+      {
+        "binding_id": "operation-persistence",
+        "logical_subject_refs": [
+          "recovery:invocation-result"
+        ],
+        "dependency_contract_ref": "operation-replay-ledger",
+        "adapter_ref": "r02:sqlite-operation",
+        "resource_ref": "r02:operation-database",
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "logical_physical_mapping_ref": "r02:operation-schema",
+        "evidence_boundary": "prototype-schema-and-contract-only"
+      },
+      {
+        "binding_id": "recovery-coordination-persistence",
+        "logical_subject_refs": [
+          "recovery:dispatch"
+        ],
+        "dependency_contract_ref": "recovery-coordination-repository",
+        "adapter_ref": "r02:sqlite-coordination",
+        "resource_ref": "r02:coordination-database",
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "logical_physical_mapping_ref": "r02:coordination-schema",
+        "evidence_boundary": "prototype-schema-and-contract-only"
+      }
+    ],
+    "transaction_guarantee_bindings": [
+      {
+        "binding_id": "operation-transaction",
+        "unit_of_work_contract_ref": "operation-unit-of-work",
+        "participant_refs": [
+          "business-state",
+          "invocation-result",
+          "operation-outbox"
+        ],
+        "atomicity_scope": "one-operation-local-transaction",
+        "selected_guarantees": [
+          "atomicity"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "failure_outcome_binding_ref": "operation-unknown-commit",
+        "evidence_boundary": "prototype-no-runtime-atomicity-proof"
+      },
+      {
+        "binding_id": "recovery-coordination-transaction",
+        "unit_of_work_contract_ref": "recovery-coordination-unit-of-work",
+        "participant_refs": [
+          "attempts",
+          "claims",
+          "dispatch",
+          "dispatch-outbox",
+          "intent",
+          "leases",
+          "occurrences",
+          "progress",
+          "retries",
+          "terminal",
+          "transitions"
+        ],
+        "atomicity_scope": "one-coordination-transition-and-dispatch-outbox",
+        "selected_guarantees": [
+          "atomicity"
+        ],
+        "implementation_profile_ref": "domainspec.system-integration-profile/provider-neutral-v1",
+        "failure_outcome_binding_ref": "recovery-unknown-commit",
+        "evidence_boundary": "prototype-no-runtime-atomicity-proof"
+      }
+    ],
+    "failure_outcome_bindings": [
+      {
+        "binding_id": "operation-unknown-commit",
+        "concern_ref": "operation-unit-of-work",
+        "provider_outcome_ref": "r02:sqlite-ambiguous-commit",
+        "outcome_class": "unknown",
+        "evidence_refs": [
+          "r02:future-raw-observation"
+        ],
+        "continuation_owner_ref": "recovery-runtime:continuation-policy"
+      },
+      {
+        "binding_id": "recovery-unknown-commit",
+        "concern_ref": "recovery-coordination-unit-of-work",
+        "provider_outcome_ref": "r02:sqlite-ambiguous-commit",
+        "outcome_class": "unknown",
+        "evidence_refs": [
+          "r02:future-raw-observation"
+        ],
+        "continuation_owner_ref": "recovery-runtime:continuation-policy"
+      }
+    ],
+    "durable_workflow_runtime_bindings": [
+      {
+        "binding_id": "local-durable-recovery",
+        "workflow_profile_ref": "r02:python-sqlite-same-boot-v1",
+        "persistence_binding_refs": [
+          "operation-persistence",
+          "recovery-coordination-persistence"
+        ],
+        "transaction_guarantee_binding_refs": [
+          "operation-transaction",
+          "recovery-coordination-transaction"
+        ],
+        "failure_outcome_binding_refs": [
+          "operation-unknown-commit",
+          "recovery-unknown-commit"
+        ],
+        "scheduler_contract_ref": "recovery-scheduler",
+        "clock_contract_ref": "recovery-clock",
+        "wakeup_contract_ref": "recovery-wakeup",
+        "replay_contract_ref": "operation-replay-ledger",
+        "version_compatibility_ref": "r02:exact-schema-v1",
+        "evidence_boundary": "prototype-no-runtime-guarantee"
+      }
+    ],
+    "message_channels": [],
+    "transport_bindings": [],
+    "delivery_policies": [],
+    "transport_failure_policies": [],
+    "authority_effect": "none"
+  },
+  "runtime_guarantees_observed": false,
+  "authority_effect": "none",
+  "binding_digest": "649e2085fdb62afc157492c78302a9be42417b768c82b17548508b4e3c7f3291"
+}

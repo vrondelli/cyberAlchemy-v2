@@ -42,7 +42,7 @@ export function createCheckoutService({auth,repository,adapters,origin,quoteBrl,
         if(attempt.provider!==provider||attempt.account!==adapter.account||attempt.amount!==amountCents||attempt.terms.payerEmail!==(payerEmail??null))throw new Rejected('checkout-conflict',409);
       } else {
         let quote={amountCents,currency:'USD'};
-        if(provider==='mercadopago'){
+        if(provider==='mercadopago'||adapter.currency==='BRL'){
           requireThat(typeof quoteBrl==='function','brl-quote-required');
           quote=await quoteBrl(amountCents);
           requireThat(quote?.currency==='BRL'&&Number.isSafeInteger(quote.amountCents)&&quote.amountCents>0&&quote.amountCents<=100000000&&typeof quote.reference==='string'&&quote.reference.length>0,'brl-quote-invalid');

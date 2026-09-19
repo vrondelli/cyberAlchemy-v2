@@ -1,0 +1,172 @@
+{
+  "schema_version": "domainspec.governance-defect-sidecar/v1",
+  "receipt_id": "VC-SFC-002-003-COMMAND-BINDING-SIDECAR",
+  "generated_at": "2026-08-21T22:20:05Z",
+  "work_pack_id": "WP-SFC-001",
+  "scope": {
+    "validation_contracts": [
+      "VC-SFC-002",
+      "VC-SFC-003"
+    ],
+    "swus": [
+      "SWU-SFC-002",
+      "SWU-SFC-003"
+    ],
+    "write_scope": [
+      "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/refreshes/20260821T210000Z-wp-sfc-001-source-binding-fast-lane/validation-command-sidecar/VC-SFC-002-003-COMMAND-BINDING-SIDECAR.json"
+    ],
+    "forbidden_effects_observed": []
+  },
+  "classification": {
+    "kind": "governance-only-command-binding-defect",
+    "governance_only": true,
+    "product_or_domain_behavior_disputed": false,
+    "semantic_or_implementation_decision_required": false,
+    "authority_effect": "none",
+    "affected_edge": "canonical validation-command binding and later lifecycle reconciliation",
+    "candidate_local_product_execution_may_continue": true,
+    "claim_ceiling": "This receipt establishes command-binding mechanics only. It does not close either SWU, change accepted planning bytes, prove the supported Node/npm runtime, promote, publish, deploy, or authorize release."
+  },
+  "bound_evidence": [
+    {
+      "path": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/work-pack/shared/VALIDATION-CONTRACTS.json",
+      "sha256": "5a820373d8b9ee27cd22f5df304b0491ab36a65833b4cba850d29c3443de0e3a",
+      "size": 5768
+    },
+    {
+      "path": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/EXECUTION-ENTRY.json",
+      "sha256": "95bb3aca4d9efcf38ff6e9531d3868870b938ec00b8d205a61051ae11eb0fe07",
+      "size": 26000
+    },
+    {
+      "path": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/work-pack/tasks/TASK-SFC-CONTRACT.md",
+      "sha256": "0baf1388e4f3368ca08dea0b5d983d7f173ebb0d0a838b355dc437ad86743978",
+      "size": 3738
+    },
+    {
+      "path": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/work-pack/tasks/TASK-SFC-INPUT.md",
+      "sha256": "ba3a173977ea41c530bc3a69eb00961ab3f8aa7c33923c862742efc9970c52d4",
+      "size": 3886
+    },
+    {
+      "path": "projects/domainspec-v2/impl/package.json",
+      "sha256": "f5d68ea28ab2442307b3a608d184dbd8d877c54436cf5c2b700ad73f2b141692",
+      "size": 4283
+    },
+    {
+      "path": "projects/domainspec-v2/impl/cli/package.json",
+      "sha256": "171e32b1a9725a94da0f6961b0a39fe0524f989197c2a54f07884a176fd27dae",
+      "size": 543
+    }
+  ],
+  "environment": {
+    "repository_cwd": "/home/vrondelli/projects/domainspec-core",
+    "observed_node": "v22.13.0",
+    "observed_npm": "10.9.2",
+    "resolved_typescript": "5.9.3",
+    "declared_cli_engine_node": "24.19.0",
+    "declared_cli_engine_npm": "11.17.0",
+    "runtime_note": "The observed command-binding result is candidate-local evidence under Node 22.13.0/npm 10.9.2. It is not evidence that the declared Node 24.19.0/npm 11.17.0 runtime has passed."
+  },
+  "findings": [
+    {
+      "id": "SFC_VALIDATION_EXEC_PREFIX_CWD",
+      "validation_contract": "VC-SFC-002",
+      "root_cause": "npm --prefix selects the npm package context but npm exec does not change the shell working directory used to resolve tsc's --project argument. The declared relative path cli/tsconfig.json is therefore resolved from the repository root, where it does not exist.",
+      "declared": {
+        "cwd": "/home/vrondelli/projects/domainspec-core",
+        "command": "npm --prefix projects/domainspec-v2/impl exec -- tsc --project cli/tsconfig.json --noEmit && node --test projects/domainspec-v2/impl/cli/test/contract/package-boundary.test.mjs",
+        "exit": 1,
+        "diagnostic": "TS5058: The specified path does not exist: 'cli/tsconfig.json'."
+      },
+      "accepted_equivalent": {
+        "cwd": "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl",
+        "command": "npm exec -- tsc --project cli/tsconfig.json --noEmit && node --test cli/test/contract/package-boundary.test.mjs",
+        "exit": 0,
+        "tests": {
+          "total": 5,
+          "pass": 5,
+          "fail": 0
+        },
+        "equivalence_basis": "It invokes the same locally resolved TypeScript compiler with --noEmit and the same package-boundary test bytes; only the explicit working directory and consequently relative path spelling differ."
+      }
+    },
+    {
+      "id": "SFC_VALIDATION_SCRIPT_PRECEDES_WRITE_AUTHORITY",
+      "validation_contract": "VC-SFC-003",
+      "root_cause": "The declared command requires the root package script cli:test:input, but projects/domainspec-v2/impl/package.json has no such script. SWU-SFC-003's exact write scope excludes that package manifest; the first route allowed to write it is SWU-SFC-009. The validation command therefore depends on a future write edge.",
+      "declared": {
+        "cwd": "/home/vrondelli/projects/domainspec-core",
+        "command": "npm --prefix projects/domainspec-v2/impl run cli:test:input",
+        "exit": 1,
+        "diagnostic": "npm error Missing script: cli:test:input"
+      },
+      "accepted_equivalent_proposal": {
+        "cwd": "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl",
+        "command": "node --import tsx --test cli/test/input/project-root.test.ts",
+        "execution_state": "not-executed-target-not-yet-present",
+        "equivalence_basis": "It directly invokes the exact SWU-SFC-003 test target with the already declared root dev dependency tsx and requires no unauthorized package.json mutation."
+      },
+      "forward_coverage_note": "VC-SFC-004 through VC-SFC-008 use the same pre-SWU-009 root-script pattern and should be audited by the permanent regression before execution; this receipt does not adjudicate their product results."
+    }
+  ],
+  "affected_invariants": [
+    "An acceptance-critical command must be executable against the exact staged bytes at the lifecycle point where it is declared.",
+    "A command contract must bind an explicit working directory whenever it contains relative paths whose meaning changes by cwd.",
+    "A validation command must not depend on a script or manifest mutation owned only by a later SWU.",
+    "The first failing validation status must remain visible and cannot be masked by a later successful command."
+  ],
+  "minimal_live_repair_proposal": {
+    "status": "proposal-only-not-applied",
+    "changes": [
+      {
+        "target": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/work-pack/shared/VALIDATION-CONTRACTS.json#VC-SFC-002",
+        "replace_command_with": "cd projects/domainspec-v2/impl && npm exec -- tsc --project cli/tsconfig.json --noEmit && node --test cli/test/contract/package-boundary.test.mjs"
+      },
+      {
+        "target": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/work-pack/shared/VALIDATION-CONTRACTS.json#VC-SFC-003",
+        "replace_command_with": "cd projects/domainspec-v2/impl && node --import tsx --test cli/test/input/project-root.test.ts"
+      }
+    ],
+    "non_changes": [
+      "No product code or test semantics",
+      "No SWU write scope",
+      "No acceptance predicate or expected pass statement",
+      "No authority, promotion, publication, deployment, or release state"
+    ]
+  },
+  "required_revalidation": [
+    "After SWU-SFC-002 staged bytes are frozen, run the proposed VC-SFC-002 command from the recorded cwd and require TypeScript exit 0 plus package-boundary 5/5.",
+    "After SWU-SFC-003 creates its exact target bytes, run the proposed VC-SFC-003 command from the recorded cwd and require all declared positive and hostile cases to pass.",
+    "Run a plan validator that resolves every validation contract's cwd, executable, relative target, and referenced npm script against bytes available no later than its owning SWU.",
+    "Preserve each command's exit code independently and fail the aggregate on the first nonzero acceptance-critical result.",
+    "Recompute the validation-contract inventory, digest, source bindings, review binding, and final acceptance request if the canonical command strings change."
+  ],
+  "renewed_owner_acceptance": {
+    "required_for_candidate_local_product_continuation": false,
+    "required_before_canonical_contract_refresh_or_closeout": true,
+    "reason": "Changing VALIDATION-CONTRACTS.json changes acceptance-bound planning bytes. The current fast-lane authorization permits candidate-local execution and deferred governance; it does not silently extend an older digest over repaired canonical bytes."
+  },
+  "permanent_workflow_regression_fix": {
+    "proposal": "Add a pre-acceptance validation-command reachability check that runs from each declared cwd and verifies that every executable, relative file target, npm script, and required package mutation exists in the initial bytes or in the same/prior SWU write scope.",
+    "minimum_negative_fixtures": [
+      "npm --prefix exec with a project path that only resolves after an implicit cwd change",
+      "npm run referencing a missing script introduced only by a later SWU",
+      "a first failing validation followed by a successful cleanup command"
+    ],
+    "required_behavior": "All three fixtures fail before owner acceptance and retain the first nonzero status."
+  },
+  "changed_byte_inventory": [
+    {
+      "path": "projects/domainspec-v2/development/first-production-release/stable-foundation-cli/refreshes/20260821T210000Z-wp-sfc-001-source-binding-fast-lane/validation-command-sidecar/VC-SFC-002-003-COMMAND-BINDING-SIDECAR.json",
+      "change": "create",
+      "role": "governance-only diagnostic and repair proposal",
+      "product_or_canonical_plan_byte": false
+    }
+  ],
+  "disposition": {
+    "affected_canonical_validation_edge": "stopped-pending-refresh-and-renewed-acceptance",
+    "candidate_local_execution": "may-continue-with-exact-equivalent-command-and-explicit-prototype-claim-ceiling",
+    "rollback": "not-required-no-product-or-plan-mutation-performed-by-sidecar"
+  }
+}

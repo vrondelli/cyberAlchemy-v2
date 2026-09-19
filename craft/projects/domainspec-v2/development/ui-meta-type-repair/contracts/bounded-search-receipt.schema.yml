@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ui-repair://contracts/bounded-search-receipt/v1",
+  "title": "UI repair finite bounded-search receipt v1",
+  "type": "object",
+  "required": ["schema_version", "search_id", "universe_complete", "extractor", "sources", "selectors", "outcomes", "completeness", "observation_status", "failures", "prohibited_inferences"],
+  "properties": {
+    "schema_version": {"const": "ui-repair.bounded-search-receipt.v1"},
+    "search_id": {"type": "string", "minLength": 1},
+    "universe_complete": {"type": "boolean"},
+    "extractor": {"$ref": "#/$defs/extractor"},
+    "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+    "selectors": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/selector"}},
+    "outcomes": {"type": "array", "items": {"$ref": "#/$defs/outcome"}},
+    "completeness": {"$ref": "#/$defs/completeness"},
+    "observation_status": {"enum": ["observed", "observed-absent", "not-observed"]},
+    "failures": {"type": "array", "items": {"$ref": "#/$defs/failure"}},
+    "prohibited_inferences": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "nullableDigest": {"oneOf": [{"$ref": "#/$defs/digest"}, {"type": "null"}]},
+    "nullableString": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+    "extractor": {
+      "type": "object",
+      "required": ["id", "version", "expected_digest", "observed_digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "expected_digest": {"$ref": "#/$defs/digest"},
+        "observed_digest": {"$ref": "#/$defs/nullableDigest"}
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["source_id", "repository", "path", "expected_revision", "observed_revision", "expected_file_digest", "observed_file_digest", "visited", "parse_status", "extraction_status"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "repository": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "expected_revision": {"type": "string", "minLength": 1},
+        "observed_revision": {"$ref": "#/$defs/nullableString"},
+        "expected_file_digest": {"$ref": "#/$defs/digest"},
+        "observed_file_digest": {"$ref": "#/$defs/nullableDigest"},
+        "visited": {"type": "boolean"},
+        "parse_status": {"enum": ["ok", "error", "not-run"]},
+        "extraction_status": {"enum": ["ok", "error", "not-run"]}
+      },
+      "additionalProperties": false
+    },
+    "selector": {
+      "type": "object",
+      "required": ["selector_id", "source_id", "locator"],
+      "properties": {
+        "selector_id": {"type": "string", "minLength": 1},
+        "source_id": {"type": "string", "minLength": 1},
+        "locator": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "type": "object",
+      "required": ["selector_id", "source_id", "status", "match_count"],
+      "properties": {
+        "selector_id": {"type": "string", "minLength": 1},
+        "source_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["match", "no-match", "selector-moved", "error"]},
+        "match_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "completeness": {
+      "type": "object",
+      "required": ["complete", "declared_source_count", "visited_source_count", "declared_selector_count", "evaluated_selector_count", "error_count", "match_count"],
+      "properties": {
+        "complete": {"type": "boolean"},
+        "declared_source_count": {"type": "integer", "minimum": 1},
+        "visited_source_count": {"type": "integer", "minimum": 0},
+        "declared_selector_count": {"type": "integer", "minimum": 1},
+        "evaluated_selector_count": {"type": "integer", "minimum": 0},
+        "error_count": {"type": "integer", "minimum": 0},
+        "match_count": {"oneOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": "object",
+      "required": ["code", "detail", "source_id", "selector_id"],
+      "properties": {
+        "code": {"enum": ["universe-incomplete", "extractor-digest-mismatch", "source-unvisited", "revision-mismatch", "source-digest-mismatch", "parse-error", "extraction-error", "selector-result-missing", "unexpected-selector", "selector-source-mismatch", "selector-moved", "selector-error"]},
+        "detail": {"type": "string", "minLength": 1},
+        "source_id": {"$ref": "#/$defs/nullableString"},
+        "selector_id": {"$ref": "#/$defs/nullableString"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

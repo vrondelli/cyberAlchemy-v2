@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/contracts/language-realization.schema.json",
+  "title": "DomainSpec language realization decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "language",
+    "profile_ref",
+    "profile_sha256",
+    "decision_status",
+    "candidate_forms",
+    "selected_form",
+    "decision_ref",
+    "forbidden_forms",
+    "owner_route"
+  ],
+  "properties": {
+    "language": {"enum": ["typescript", "python", "rust"]},
+    "profile_ref": {"type": "string", "minLength": 1},
+    "profile_sha256": {"$ref": "#/$defs/sha256"},
+    "decision_status": {
+      "enum": ["unproposed", "proposed", "selected", "blocked", "unsupported", "not-applicable"]
+    },
+    "candidate_forms": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/stableId"}
+    },
+    "selected_form": {
+      "anyOf": [{"$ref": "#/$defs/stableId"}, {"type": "null"}]
+    },
+    "decision_ref": {
+      "anyOf": [{"$ref": "#/$defs/exactRef"}, {"type": "null"}]
+    },
+    "forbidden_forms": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/stableId"}
+    },
+    "owner_route": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"decision_status": {"const": "selected"}},
+        "required": ["decision_status"]
+      },
+      "then": {
+        "properties": {
+          "selected_form": {"$ref": "#/$defs/stableId"},
+          "decision_ref": {"$ref": "#/$defs/exactRef"},
+          "candidate_forms": {"minItems": 1}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision_status": {"enum": ["unproposed", "proposed", "blocked", "unsupported", "not-applicable"]}
+        },
+        "required": ["decision_status"]
+      },
+      "then": {
+        "properties": {
+          "selected_form": {"type": "null"},
+          "decision_ref": {"type": "null"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

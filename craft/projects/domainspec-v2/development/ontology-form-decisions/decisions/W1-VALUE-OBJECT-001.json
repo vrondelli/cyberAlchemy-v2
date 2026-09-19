@@ -1,0 +1,238 @@
+{
+  "schema_version": "ArchitectureMappingDecision/v1",
+  "decision_id": "DS-OF-W1-VALUE-OBJECT-001",
+  "campaign_id": "domainspec-all-meta-type-forms-20260808",
+  "wave_id": "W1",
+  "meta_type_id": "DS-D1.2",
+  "meta_type_label": "Value Object",
+  "scope": "Value Object portable architecture and TypeScript, Python, and Rust target realizations only",
+  "status": "accepted-target-awaiting-ontology-and-profile-materialization",
+  "selected_option_id": "W1-VALUE-A-OWNED-VALUE-PROTOCOL",
+  "selected_option_label": "Owned immutable Value Object protocol",
+  "decision_source": {
+    "kind": "user-message",
+    "exact_text": "approved",
+    "accepted_at": "2026-08-08T17:07:15Z",
+    "context": "Approval immediately followed the W1-VALUE-A-OWNED-VALUE-PROTOCOL TypeScript code example and its complete-tuple equality explanation.",
+    "scope_evidence": "immediate-conversation-context-only",
+    "independent_scope_proof": false
+  },
+  "admissibility": {
+    "request_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W1-VALUE-OBJECT-OPTION-ADMISSIBILITY-REQUEST.json",
+      "sha256": "143ad38d71f1e40c637aee77c4064f93d21de58f8321a71aa1d75af2b3c30d65"
+    },
+    "receipt_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W1-VALUE-OBJECT-OPTION-ADMISSIBILITY.json",
+      "sha256": "d3f487e9484d9d8cfb49eb1bd1f123f6f4e22131a75947e721338773219a631d"
+    },
+    "request_digest": "94949a16e3298118f29285c690919fcbd9c2d1e8347a47c3bc4bd44d07de34c7",
+    "route_outcome": "gate"
+  },
+  "considered_options": [
+    {
+      "option_id": "W1-VALUE-A-OWNED-VALUE-PROTOCOL",
+      "outcome": "selected"
+    },
+    {
+      "option_id": "W1-VALUE-B-BARE-NATIVE-RECORDS",
+      "outcome": "structurally-inadmissible",
+      "tradeoff": "Less provider code, but readonly does not prove runtime immutability and host object identity does not provide complete-tuple equality."
+    },
+    {
+      "option_id": "W1-VALUE-C-DEFER",
+      "outcome": "not-selected"
+    },
+    {
+      "option_id": "W1-VALUE-D-STOP",
+      "outcome": "not-selected"
+    }
+  ],
+  "portable_architecture": {
+    "type_id": "architecture.ValueObjectImplementation",
+    "factory_provider_type_id": "architecture.ValueObjectFactoryProvider",
+    "portable_invariants": [
+      "equality compares the complete declared value tuple after canonical normalization",
+      "hashing uses the same complete normalized tuple as equality",
+      "value has no designated identity or independent lifecycle",
+      "construction runs owner-bound validation before formation",
+      "formed values and every nested owned value component are immutable",
+      "factory extension can strengthen validation but cannot change tuple equality hashing or construction",
+      "every tuple component uses a language-profile-admitted equality and hash protocol",
+      "nested Value Objects compose through their owned equality and hash protocols"
+    ],
+    "candidate_property_additions": [
+      "creation.extension_policy",
+      "creation.validator_count",
+      "value.equality_mode",
+      "value.hash_mode",
+      "value.immutability_mode"
+    ],
+    "candidate_relation_additions": [
+      "architecture.constructed_by",
+      "architecture.validated_by",
+      "architecture.extends_factory"
+    ],
+    "relation_contracts": [
+      {
+        "relation_id": "architecture.constructed_by",
+        "source": "architecture.ValueObjectImplementation",
+        "target": "architecture.ValueObjectFactoryProvider",
+        "cycle_policy": "not-applicable"
+      },
+      {
+        "relation_id": "architecture.validated_by",
+        "source": "architecture.ValueObjectFactoryProvider",
+        "target": "architecture.RuleImplementation",
+        "cycle_policy": "not-applicable"
+      },
+      {
+        "relation_id": "architecture.extends_factory",
+        "source": "architecture.ValueObjectFactoryProvider",
+        "target": "architecture.ValueObjectFactoryProvider",
+        "cycle_policy": "acyclic"
+      }
+    ],
+    "forbidden_collapses": [
+      "the factory provider is not a canonical DomainSpec meta-type",
+      "TypeScript reference equality is not Value Object equality",
+      "readonly typing alone is not runtime immutability evidence",
+      "serialization bytes are not equality evidence unless their canonical encoding is explicitly owned",
+      "equal hashes do not prove equal values",
+      "a factory extension that changes the field tuple creates a different canonical Value Object rather than a specialization"
+    ]
+  },
+  "validator_contract": {
+    "binding_time": "factory-definition",
+    "cardinality": "zero-or-more",
+    "validator_kind": "owner-bound architecture.RuleImplementation reference with exact identity",
+    "per_creation_arbitrary_validator": "forbidden",
+    "composition": "all base and extension validators must pass",
+    "failure": "construction returns structured validation failure and produces no Value Object"
+  },
+  "factory_extension_contract": {
+    "mode": "additive-validation-only",
+    "may_add": [
+      "owner-bound validators"
+    ],
+    "may_not": [
+      "remove or replace base validators",
+      "add remove or reorder declared tuple fields",
+      "change canonical normalization",
+      "replace equality or hashing",
+      "change the canonical concept binding",
+      "make the output mutable",
+      "accept per-creation arbitrary validation callbacks",
+      "introduce an extension cycle"
+    ],
+    "pipeline": [
+      "apply base canonical normalization",
+      "run base validators",
+      "run extension validators",
+      "construct the complete value tuple",
+      "freeze or enforce language-native immutability",
+      "expose provider-owned equality and hashing"
+    ]
+  },
+  "equality_hash_contract": {
+    "equality_basis": "every declared field in canonical tuple order after normalization",
+    "hash_basis": "the same normalized complete tuple used by equality",
+    "nested_values": "delegate equality and hashing to each nested Value Object owned protocol",
+    "reference_identity": "forbidden",
+    "collision_claim": "none",
+    "component_domain": {
+      "status": "unresolved-for-profile-admission",
+      "admission_rule": "every component type must have an exact language-profile-owned equality and hash protocol",
+      "typescript": "admit primitives and provider-bound owned values; reject ambient object equality and hashing",
+      "python": "admit fields whose complete immutable structure is equality-compatible and hashable; reject unhashable mutable components",
+      "rust": "require every field type to satisfy PartialEq Eq and Hash at compile time",
+      "collection_rule": "admit a collection only when its immutability ordering equality and hashing are explicit"
+    }
+  },
+  "language_target_realizations": [
+    {
+      "language": "typescript",
+      "form_id": "typescript.value-object-factory",
+      "protocol_id": "typescript.owned-value-object-factory/v1",
+      "requirements": [
+        "provider-owned arrow-function factory",
+        "branded readonly output with runtime freezing",
+        "provider-owned complete-tuple equals and hash functions",
+        "nested components are primitives or separately immutable owned Value Objects",
+        "factory extension adds validators through composition and never changes the tuple protocol"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "python",
+      "form_id": "python.frozen-dataclass-value-object",
+      "protocol_id": "python.owned-value-object-factory/v1",
+      "requirements": [
+        "frozen slotted dataclass value",
+        "every declared field participates in equality and hashing",
+        "construction is mediated by the validated factory",
+        "nested fields use compatible owned value semantics",
+        "factory extension uses composition rather than subclass overrides"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "rust",
+      "form_id": "rust.value-object-struct",
+      "protocol_id": "rust.owned-value-object-factory/v1",
+      "requirements": [
+        "private immutable fields",
+        "PartialEq Eq and Hash cover every declared field",
+        "validated constructor returns Result",
+        "nested fields implement compatible Eq and Hash",
+        "factory extension composes validators without changing the struct tuple"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    }
+  ],
+  "proof_contract": {
+    "positive_obligations": [
+      "base and extension validators run before formation",
+      "two independently formed values with the same complete tuple compare equal and hash equally",
+      "changing any one tuple component makes values unequal",
+      "formed values and nested owned components cannot mutate",
+      "factory extension preserves base validators equality hashing and tuple shape",
+      "profile admission rejects a tuple component without an owned equality and hash protocol",
+      "nested Value Objects compare recursively through their owned protocols"
+    ],
+    "negative_controls": [
+      "object reference equality replaces complete-tuple equality",
+      "partial-tuple equality passes",
+      "equal complete tuples produce different hashes",
+      "mutable nested component passes",
+      "per-call validator bypasses a bound invariant",
+      "factory extension changes the equality tuple",
+      "component without an owned equality and hash protocol is admitted",
+      "invalid input produces a Value Object"
+    ],
+    "claim_ceiling": "candidate-local Value Object validation immutability complete-tuple equality hashing and factory-composition behavior only"
+  },
+  "matrix_transition": {
+    "target_state": "tension-reviewed",
+    "architecture_form_status": "owner-decided",
+    "language_forms_status": "proposed until exact profile protocols and providers exist",
+    "implementation_ready": false
+  },
+  "remaining_blockers": [
+    "materialize ValueObjectImplementation and ValueObjectFactoryProvider candidate ontology types properties and relations",
+    "close the recursively equality-compatible and hashable component domain in each language profile",
+    "admit exact Value Object protocols in TypeScript Python and Rust profiles",
+    "implement and digest-bind language providers",
+    "select language realizations against the materialized profiles",
+    "generate realization descriptor factory kit and pre-queue readiness receipt"
+  ],
+  "non_effects": [
+    "no canonical Value Object definition mutation",
+    "no ontology or language-profile promotion",
+    "no provider or product implementation",
+    "no implementation-queue admission",
+    "no Enum decision",
+    "no independent transcript-bound or cryptographic authentication of the one-word approval"
+  ],
+  "authority_effect": "none"
+}

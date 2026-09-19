@@ -40,4 +40,14 @@ body under their existing idempotency key. Resolve uncertain old attempts by loo
 Merchant response proof, webhook registration, asynchronous provider issuance and
 actual expiration behavior remain owned by
 [MERCADO-PAGO-ORDERS-IMPLEMENTATION.md](MERCADO-PAGO-ORDERS-IMPLEMENTATION.md#open-questions--blockers).
-Results will be added after validation; this DAG is not execution admission.
+This DAG is not execution admission. Local construction and verification A–H are complete. I remains a separate live acceptance gate.
+
+## Candidate evidence
+
+- Image: `keld-sandbox:orders-repair-candidate`, 472,895,007 bytes.
+- Image ID: `sha256:07fc61c6ea0e6e7c76b1a015a4be68bd9942da8f65ceb908b4c7fdb85b598e09`.
+- [Source manifest](../deploy/orders-repair-source-manifest.json): 49 allowlisted files; 36 implementation files compared against current checkout bytes.
+- Non-root, read-only container with networking disabled passed accepted-ID retention, bound resume, replay protection, late receipt binding, and explicit frozen Pix TTL.
+- Full integration suite: **91/91 passed**, zero failures, using `npm --prefix keld-project/integrations test`. Includes SDK/SQLite missing-evidence recovery, stale generation and replay, repeated bound resume, immutable TTL/cutoff checks, expiry on timer/tab return, and Stripe/PayPal regressions.
+- Earlier runs exposed two mistakes in the new test fixture (reusing a buyer with an open order, then a mismatched synthetic remote ID); both fixtures were corrected before this final complete run.
+- Historical baseline image remains separate; no deployment or merchant request occurred.

@@ -1,0 +1,639 @@
+diff --git a/projects/domainspec-v2/impl/cli/test/release/release-candidate.test.mjs b/projects/domainspec-v2/impl/cli/test/release/release-candidate.test.mjs
+index 81a0486a1..f21a6a26d 100644
+--- a/projects/domainspec-v2/impl/cli/test/release/release-candidate.test.mjs
++++ b/projects/domainspec-v2/impl/cli/test/release/release-candidate.test.mjs
+@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
+ import test from "node:test";
+ 
+ import { buildReleaseCandidate } from "../../tools/build-release-candidate.mjs";
+-import { canonicalJson, verifyReleaseCandidate } from "../../tools/verify-release-candidate.mjs";
++import { canonicalJson, sha256, verifyReleaseCandidate, verifyQualificationEvidence } from "../../tools/verify-release-candidate.mjs";
+ 
+ function run(command, args, cwd) {
+   const result = spawnSync(command, args, {
+@@ -63,23 +63,16 @@ function createSource(root, fakeGit) {
+ }
+ 
+ function createQualification(root) {
+-  const certificate = {
+-    schema_version: "domainspec.recipe-qualification-certificate/v1",
+-    result: "pass",
+-    certificate_sha256: "a".repeat(64),
+-    authority_effect: "none",
+-  };
+-  writeJson(path.join(root, "qualification-profile.json"), { schema_version: "domainspec.recipe-qualification-profile/v1", authority_effect: "none" });
+-  writeJson(path.join(root, "run-1", "qualification-certificate.json"), certificate);
+-  writeJson(path.join(root, "run-2", "qualification-certificate.json"), certificate);
+-  writeJson(path.join(root, "equivalence.json"), {
+-    schema_version: "domainspec.recipe-qualification-l1-equivalence/v1",
+-    result: "pass",
+-    checks: [{ id: "certificate-byte-equivalence", result: "pass" }],
+-    observed: { certificate_sha256: certificate.certificate_sha256 },
+-    evidence_root: root,
+-    authority_effect: "none",
+-  });
++  const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/qualification.json", import.meta.url), "utf8"));
++  writeJson(path.join(root, "qualification-profile.json"), fixture.profile);
++  for (const run of ["run-1", "run-2"]) {
++    for (const [name, value] of [["plan", fixture.plan], ["certificate", fixture.certificate], ["run-receipt", fixture.receipt]]) {
++      writeJson(path.join(root, run, `qualification-${name}.json`), value);
++    }
++    fs.mkdirSync(path.join(root, run, "evidence"));
++    for (const [name, value] of Object.entries(fixture.evidence)) fs.writeFileSync(path.join(root, run, name), value);
++  }
++  writeJson(path.join(root, "equivalence.json"), { ...fixture.equivalence, evidence_root: root });
+ }
+ 
+ function byteInventory(root) {
+@@ -107,7 +100,61 @@ function installAndObserve(tarball, consumer) {
+   return { imported, version };
+ }
+ 
+-test("release candidate is deterministic, independently verifiable, installable, hostile-sensitive, and source-sensitive", () => {
++function mutateJson(root, relative, mutate, digestKey = null) {
++  const file = path.join(root, relative);
++  let value = JSON.parse(fs.readFileSync(file, "utf8"));
++  value = mutate(value) ?? value;
++  if (digestKey && value && typeof value === "object" && !Array.isArray(value)) {
++    delete value[digestKey]; value[digestKey] = sha256(canonicalJson(value));
++  }
++  writeJson(file, value);
++}
++
++// Refresh outer bindings deliberately: checksum rejection alone cannot prove
++// that semantic inconsistencies inside qualification records are detected.
++function refreshBundle(root) {
++  const certificate = JSON.parse(fs.readFileSync(path.join(root, "qualification/run-1/qualification-certificate.json"), "utf8"));
++  const rows = () => byteInventory(root).map(({ path, size, sha256 }) => ({ path, size_bytes: size, sha256 }));
++  mutateJson(root, "candidate.json", (c) => {
++    c.artifacts = rows().filter(({ path }) => !["candidate.json", "SHA256SUMS", "verify-release-candidate.mjs"].includes(path));
++    c.qualification.evidence_inventory_sha256 = sha256(canonicalJson(c.artifacts.filter(({ path }) => path.startsWith("qualification/"))));
++    c.qualification.certificate_sha256 = certificate?.certificate_sha256;
++  }, "manifest_sha256");
++  fs.writeFileSync(path.join(root, "SHA256SUMS"), rows().filter(({ path }) => path !== "SHA256SUMS").sort((a, b) => a.path < b.path ? -1 : 1).map(({ path, sha256 }) => `${sha256}  ${path}`).join("\n") + "\n");
++}
++
++const qualificationMutants = [
++  ["C04 stale certificate digest with failed observation", "observations-pass", "certificate", (c) => { c.observations[0].result = "fail"; }, null],
++  ["failed observation with refreshed self-digest", "observations-pass", "certificate", (c) => { c.observations[0].result = "fail"; }, "certificate_sha256"],
++  ["not evaluable observation", "observations-pass", "certificate", (c) => { c.observations[0].result = "not_evaluable"; }, "certificate_sha256"],
++  ["missing observation", "observations-pass", "certificate", (c) => { c.observations.pop(); }, "certificate_sha256"],
++  ["duplicate observation", "observations-pass", "certificate", (c) => { c.observations[1] = c.observations[0]; }, "certificate_sha256"],
++  ["wrong observation binding", "observations-pass", "certificate", (c) => { c.observations[0].input_sha256 = "0".repeat(64); }, "certificate_sha256"],
++  ["causal blocker on pass", "observations-pass", "certificate", (c) => { c.observations[0].causal_blockers = ["terraform-init-backendless"]; }, "certificate_sha256"],
++  ["unknown certificate member", "certificate", "certificate", (c) => { c.approved = true; }, "certificate_sha256"],
++  ["malformed observations", "observations-pass", "certificate", (c) => { c.observations = {}; }, "certificate_sha256"],
++  ["null observation", "observations-pass", "certificate", (c) => { c.observations[0] = null; }, "certificate_sha256"],
++  ["wrong certificate schema", "certificate", "certificate", (c) => { c.schema_version = "unexpected"; }, "certificate_sha256"],
++  ["certificate plan link", "certificate", "certificate", (c) => { c.plan_sha256 = "0".repeat(64); }, "certificate_sha256"],
++  ["certificate subject link", "certificate", "certificate", (c) => { c.subject.project_id = "wrong-project"; }, "certificate_sha256"],
++  ["certificate profile link", "certificate", "certificate", (c) => { c.profile_id = "wrong-profile"; }, "certificate_sha256"],
++  ["authority ceiling", "certificate", "certificate", (c) => { c.authority_effect = "release"; }, "certificate_sha256"],
++  ["missing tools", "toolchain", "certificate", (c) => { c.toolchain = []; }, "certificate_sha256"],
++  ["stale tool identity", "toolchain", "certificate", (c) => { c.toolchain[0].executable_sha256 = "0".repeat(64); }, "certificate_sha256"],
++  ["tool reference", "observations-pass", "certificate", (c) => { c.observations[1].tool_identity_sha256 = "0".repeat(64); }, "certificate_sha256"],
++  ["provider lock reference", "observations-pass", "certificate", (c) => { c.observations[3].provider_lock_sha256 = "0".repeat(64); }, "certificate_sha256"],
++  ["stale plan digest", "plan", "plan", (p) => { p.subject.project_id = "wrong-project"; }, null],
++  ["weakened required check", "plan", "plan", (p) => { p.checks[0].required = false; }, "plan_sha256"],
++  ["stale receipt digest", "receipt", "run-receipt", (r) => { r.evidence[0].exit_code = 1; }, null],
++  ["failed process with pass receipt", "evidence", "run-receipt", (r) => { r.evidence[0].exit_code = 1; }, "receipt_sha256"],
++  ["blocked process with pass receipt", "evidence", "run-receipt", (r) => { r.evidence[0].termination = "blocked"; }, "receipt_sha256"],
++  ["receipt certificate link", "receipt", "run-receipt", (r) => { r.certificate_sha256 = "0".repeat(64); }, "receipt_sha256"],
++  ["receipt evidence digest", "evidence", "run-receipt", (r) => { r.evidence[0].stdout_sha256 = "0".repeat(64); }, "receipt_sha256"],
++  ["receipt evidence path traversal", "evidence", "run-receipt", (r) => { r.evidence[0].stdout_path = "../../outside.txt"; }, "receipt_sha256"],
++  ["malformed receipt evidence", "evidence", "run-receipt", (r) => { r.evidence = {}; }, "receipt_sha256"],
++];
++
++test("release candidate is deterministic, independently verifiable, installable, hostile-sensitive, and source-sensitive", async (t) => {
+   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-release-candidate-test-"));
+   try {
+     const source = path.join(temporary, "source");
+@@ -130,6 +177,37 @@ test("release candidate is deterministic, independently verifiable, installable,
+     assert.equal(command.status, 0, command.stderr);
+     assert.equal(JSON.parse(command.stdout).result, "pass");
+ 
++    for (const [index, [name, expectedCheck, record, mutate, digestKey]] of qualificationMutants.entries()) {
++      await t.test(name, () => {
++        const mutant = path.join(temporary, `internal-mutant-${index}`);
++        fs.cpSync(first, mutant, { recursive: true });
++        for (const run of ["run-1", "run-2"]) mutateJson(mutant, `qualification/${run}/qualification-${record}.json`, mutate, digestKey);
++        refreshBundle(mutant);
++        const verification = verifyReleaseCandidate(mutant, firstCommit);
++        assert.equal(verification.result, "fail");
++        assert.equal(verification.checks.find(({ id }) => id === "checksums-current").result, "pass");
++        assert.equal(verification.checks.find(({ id }) => id === "candidate-self-digest").result, "pass");
++        assert.equal(verification.checks.find(({ id }) => id === `run-1:${expectedCheck}`).result, "fail");
++        const rejectedOutput = path.join(temporary, `rejected-${index}`);
++        assert.throws(() => buildReleaseCandidate({ repositoryRoot: source, packageRoot: source, qualificationEvidenceRoot: path.join(mutant, "qualification"), outputRoot: rejectedOutput, sourceCommit: firstCommit, gitExecutable: fakeGit, sourceSnapshotRoot: source }), /qualification evidence is inconsistent/);
++        assert.equal(fs.existsSync(rejectedOutput), false);
++      });
++    }
++    await t.test("profile, equivalence and raw evidence cannot contradict the passing summary", () => {
++      const cases = [
++        ["profile", (root) => mutateJson(root, "qualification-profile.json", (p) => { p.required_checks = []; }, "profile_sha256")],
++        ["equivalence", (root) => mutateJson(root, "equivalence.json", (e) => { e.checks[0].result = "fail"; })],
++        ["evidence", (root) => fs.appendFileSync(path.join(root, "run-1/evidence/recipe-byte-verify.stdout.txt"), "changed")],
++        ["extra", (root) => fs.writeFileSync(path.join(root, "unexpected.txt"), "extra")],
++        ["symlink", (root) => { const file = path.join(root, "run-1/evidence/recipe-byte-verify.stdout.txt"); fs.unlinkSync(file); fs.symlinkSync("/unreadable-outside", file); }],
++      ];
++      for (const [name, mutate] of cases) {
++        const root = path.join(temporary, `bad-${name}`);
++        fs.cpSync(qualification, root, { recursive: true }); mutate(root);
++        assert.equal(verifyQualificationEvidence(root).result, "fail", name);
++      }
++    });
++
+     const tarball = path.join(first, "package", "domainspec-v2-cli-1.0.0.tgz");
+     assert.deepEqual(installAndObserve(tarball, path.join(temporary, "consumer-one")), { imported: "one", version: "1.0.0" });
+     assert.deepEqual(installAndObserve(tarball, path.join(temporary, "consumer-two")), { imported: "one", version: "1.0.0" });
+diff --git a/projects/domainspec-v2/impl/cli/tools/build-release-candidate.mjs b/projects/domainspec-v2/impl/cli/tools/build-release-candidate.mjs
+index 16ebef501..d0ed65a76 100644
+--- a/projects/domainspec-v2/impl/cli/tools/build-release-candidate.mjs
++++ b/projects/domainspec-v2/impl/cli/tools/build-release-candidate.mjs
+@@ -7,7 +7,7 @@ import path from "node:path";
+ import { spawnSync } from "node:child_process";
+ import { fileURLToPath } from "node:url";
+ 
+-import { canonicalJson, sha256, verifyReleaseCandidate } from "./verify-release-candidate.mjs";
++import { canonicalJson, sha256, verifyReleaseCandidate, verifyQualificationEvidence } from "./verify-release-candidate.mjs";
+ 
+ const EXPECTED_NODE = "26.8.1";
+ const EXPECTED_NPM = "11.19.0";
+@@ -117,6 +117,8 @@ function checkedGitIdentity(repositoryRoot, sourceCommit, selectedGitExecutable)
+ }
+ 
+ function qualificationBinding(evidenceRoot, targetRoot) {
++  const verification = verifyQualificationEvidence(evidenceRoot);
++  if (verification.result !== "pass") throw new Error(`qualification evidence is inconsistent\n${JSON.stringify(verification, null, 2)}`);
+   const equivalencePath = path.join(evidenceRoot, "equivalence.json");
+   const leftPath = path.join(evidenceRoot, "run-1", "qualification-certificate.json");
+   const rightPath = path.join(evidenceRoot, "run-2", "qualification-certificate.json");
+@@ -292,10 +294,10 @@ export function buildReleaseCandidate(options) {
+   try {
+     fs.mkdirSync(path.join(stage, "package"), { recursive: true, mode: 0o700 });
+     fs.mkdirSync(path.join(stage, "evidence"), { recursive: true, mode: 0o700 });
++    const qualification = qualificationBinding(qualificationEvidenceRoot, path.join(stage, "qualification"));
+     const snapshotPackageRoot = sourceSnapshot(repositoryRoot, packageRoot, source.commit_sha, scratch, options.gitExecutable ?? gitExecutable, options.sourceSnapshotRoot ?? null);
+     const inventory = packageInventory(snapshotPackageRoot, path.join(stage, "package"), scratch);
+     writeJson(path.join(stage, "evidence", "package-inventory.json"), inventory);
+-    const qualification = qualificationBinding(qualificationEvidenceRoot, path.join(stage, "qualification"));
+     const packageBinding = Object.freeze({
+       name: EXPECTED_PACKAGE,
+       version: EXPECTED_VERSION,
+diff --git a/projects/domainspec-v2/impl/cli/tools/verify-release-candidate.mjs b/projects/domainspec-v2/impl/cli/tools/verify-release-candidate.mjs
+index f5cbcfea5..73d32df5d 100644
+--- a/projects/domainspec-v2/impl/cli/tools/verify-release-candidate.mjs
++++ b/projects/domainspec-v2/impl/cli/tools/verify-release-candidate.mjs
+@@ -161,6 +161,125 @@ function check(checks, id, predicate, detail = null) {
+   checks.push(Object.freeze({ id, result: predicate ? "pass" : "fail", detail }));
+ }
+ 
++// Self-contained release evidence checks. Keep this in the portable verifier so
++// the builder and an offline consumer enforce exactly the same L1 contract.
++const QUALIFICATION_CHECKS = [
++  ["recipe-byte-verify", "exact-artifact-membership-and-digests", "pure"],
++  ["terraform-fmt-check", "terraform-format-current", "pure"],
++  ["terraform-init-backendless", "terraform-provider-resolution-closed", "network-read-only"],
++  ["terraform-validate", "terraform-configuration-valid", "bounded-local-cache"],
++  ["docker-buildx-bake-check", "all-declared-build-targets-check", "network-read-only"],
++];
++const QUALIFICATION_IDS = QUALIFICATION_CHECKS.map(([id]) => id);
++const ADAPTER_PROTOCOL = "domainspec.oci-tool-adapter/v1";
++const L1_TOOLCHAIN = {
++  terraform: { version: "1.16.0", adapter_protocol: ADAPTER_PROTOCOL, image: "hashicorp/terraform:1.16.0@sha256:fb5ea091b84f35e111e3a83eb8a6cdeb264bba11687c2eebc52253ade183022f" },
++  docker: { version: "28.0.1", buildx_version: "0.21.3", adapter_protocol: ADAPTER_PROTOCOL, image: "docker:28.0.1-cli@sha256:043c259759666d273afa94a9c9175a87a11f16cde2f613f4c527e4395b703a1f" },
++};
++const same = (a, b) => canonicalJson(a) === canonicalJson(b);
++const digestValue = (value) => typeof value === "string" && DIGEST.test(value);
++function selfDigest(value, key) {
++  if (!value || !digestValue(value[key])) return false;
++  const body = { ...value }; delete body[key];
++  return value[key] === sha256(canonicalJson(body));
++}
++const identityValue = (value) => typeof value === "string" && value.length <= 128 && /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(value);
++
++export function verifyQualificationEvidence(evidenceRoot) {
++  const checks = [];
++  const add = (id, ok) => check(checks, id, ok);
++  // Discover regular files before parsing; never follow an evidence symlink.
++  let observed;
++  try {
++    const root = path.resolve(evidenceRoot);
++    if (fs.realpathSync(root) !== root || !fs.lstatSync(root).isDirectory()) throw new Error("unsafe root");
++    observed = walk(root);
++  } catch { observed = { safe: false, rows: [] }; }
++  add("qualification-files-regular", observed.safe);
++  if (!observed.safe) return { result: "fail", checks };
++  const rows = new Map(observed.rows.map((row) => [row.path, row]));
++  const read = (relative) => rows.has(relative) ? readJson(path.join(evidenceRoot, relative)) : null;
++  const profile = read("qualification-profile.json");
++  add("qualification-profile", exactKeys(profile, ["schema_version", "profile_id", "ontology_id", "qualification_level", "recipe_target", "required_checks", "optional_checks", "toolchain", "network_policy", "normalization_profile", "effect_ceiling", "authority_effect", "profile_sha256"])
++    && profile.schema_version === "domainspec.recipe-qualification-profile/v1" && identityValue(profile.profile_id)
++    && profile.ontology_id === "domainspec.recipe-qualification-ontology@1" && profile.qualification_level === "recipe-executable-v1"
++    && profile.recipe_target === "aws-ecs-fargate-postgres-v1" && same(profile.required_checks, QUALIFICATION_IDS)
++    && same(profile.optional_checks, []) && same(profile.toolchain, L1_TOOLCHAIN)
++    && profile.network_policy === "provider-registry-read-only" && profile.normalization_profile === "domainspec.recipe-qualification-normalization/v1"
++    && profile.effect_ceiling === "no-external-effect" && profile.authority_effect === "none" && selfDigest(profile, "profile_sha256"));
++  const expectedFiles = ["qualification-profile.json", "equivalence.json"];
++  for (const run of ["run-1", "run-2"]) {
++    const plan = read(`${run}/qualification-plan.json`);
++    const cert = read(`${run}/qualification-certificate.json`);
++    const receipt = read(`${run}/qualification-run-receipt.json`);
++    expectedFiles.push(...["qualification-plan.json", "qualification-certificate.json", "qualification-run-receipt.json"].map((name) => `${run}/${name}`));
++    const subjectDigests = ["source_manifest_sha256", "compiled_certificate_sha256", "checked_interchange_sha256", "request_sha256", "target_implementation_sha256", "manifest_sha256", "recipe_plan_sha256", "recipe_receipt_sha256", "artifact_inventory_sha256"];
++    const subject = plan?.subject;
++    add(`${run}:plan`, exactKeys(plan, ["schema_version", "subject", "profile_id", "profile_sha256", "checks", "authority_effect", "plan_sha256"])
++      && plan.schema_version === "domainspec.recipe-qualification-plan/v1" && plan.authority_effect === "none" && selfDigest(plan, "plan_sha256")
++      && plan.profile_id === profile?.profile_id && plan.profile_sha256 === profile?.profile_sha256
++      && exactKeys(subject, ["request_id", "target", "project_id", ...subjectDigests])
++      && identityValue(subject.request_id) && identityValue(subject.project_id) && subject.target === profile?.recipe_target
++      && subjectDigests.every((key) => digestValue(subject[key]))
++      && Array.isArray(plan.checks) && plan.checks.length === QUALIFICATION_IDS.length
++      && plan.checks.every((item, i) => exactKeys(item, ["check_id", "adapter_id", "predicate_id", "effect_class", "input_sha256", "required"])
++        && item.check_id === QUALIFICATION_IDS[i] && item.adapter_id === `${item.check_id}-v1`
++        && item.predicate_id === QUALIFICATION_CHECKS[i][1] && item.effect_class === QUALIFICATION_CHECKS[i][2]
++        && item.required === true && digestValue(item.input_sha256)));
++    add(`${run}:certificate`, exactKeys(cert, ["schema_version", "subject", "profile_id", "profile_sha256", "plan_sha256", "toolchain", "observations", "result", "denied_claims", "authority_effect", "certificate_sha256"])
++      && cert.schema_version === "domainspec.recipe-qualification-certificate/v1" && selfDigest(cert, "certificate_sha256")
++      && cert.plan_sha256 === plan?.plan_sha256 && cert.profile_id === profile?.profile_id && cert.profile_sha256 === profile?.profile_sha256
++      && same(cert.subject, subject) && cert.authority_effect === "none" && same(cert.denied_claims, ["release", "publication", "deployment", "runtime-conformance"]));
++    const tools = Array.isArray(cert?.toolchain) ? cert.toolchain : [];
++    add(`${run}:toolchain`, tools.length === 2 && tools.every((item, i) => {
++      const expected = i === 0 ? L1_TOOLCHAIN.terraform : L1_TOOLCHAIN.docker;
++      return exactKeys(item, ["tool", "version", "secondary_version", "adapter_protocol", "image", "executable_sha256", "identity_sha256"])
++        && item.tool === (i === 0 ? "terraform" : "docker-buildx") && item.version === expected.version
++        && item.secondary_version === (i === 0 ? null : expected.buildx_version) && item.image === expected.image
++        && item.adapter_protocol === ADAPTER_PROTOCOL && digestValue(item.executable_sha256) && selfDigest(item, "identity_sha256");
++    }));
++    const observations = Array.isArray(cert?.observations) ? cert.observations : [];
++    const lock = observations[2]?.provider_lock_sha256;
++    add(`${run}:observations-pass`, cert?.result === "pass" && observations.length === QUALIFICATION_IDS.length && observations.every((item, i) => {
++      const planned = Array.isArray(plan?.checks) ? plan.checks[i] : null;
++      return exactKeys(item, ["check_id", "adapter_id", "predicate_id", "input_sha256", "result", "detail_code", "tool_identity_sha256", "provider_lock_sha256", "causal_blockers"])
++        && item.check_id === QUALIFICATION_IDS[i] && planned != null && item.adapter_id === planned.adapter_id
++        && item.predicate_id === planned.predicate_id && item.input_sha256 === planned.input_sha256
++        && item.result === "pass" && same(item.causal_blockers, [])
++        && typeof item.detail_code === "string" && item.detail_code.length > 0 && item.detail_code.length <= 256 && !/[\0\r\n]/.test(item.detail_code)
++        && item.tool_identity_sha256 === (i === 0 ? null : tools[i === 4 ? 1 : 0]?.identity_sha256)
++        && (i === 2 || i === 3 ? digestValue(lock) && item.provider_lock_sha256 === lock : item.provider_lock_sha256 === null);
++    }));
++    add(`${run}:receipt`, exactKeys(receipt, ["schema_version", "certificate_sha256", "evidence", "result", "authority_effect", "receipt_sha256"])
++      && receipt.schema_version === "domainspec.recipe-qualification-run-receipt/v1" && selfDigest(receipt, "receipt_sha256")
++      && receipt.certificate_sha256 === cert?.certificate_sha256 && receipt.result === "pass" && receipt.authority_effect === "none");
++    for (const id of QUALIFICATION_IDS) expectedFiles.push(`${run}/evidence/${id}.stdout.txt`, `${run}/evidence/${id}.stderr.txt`);
++    add(`${run}:evidence`, Array.isArray(receipt?.evidence) && receipt.evidence.length === QUALIFICATION_IDS.length && receipt.evidence.every((item, i) => {
++      const id = QUALIFICATION_IDS[i];
++      return exactKeys(item, ["check_id", "stdout_path", "stdout_sha256", "stderr_path", "stderr_sha256", "exit_code", "termination"])
++        && item.check_id === id && item.exit_code === 0 && item.termination === "exited"
++        && ["stdout", "stderr"].every((stream) => item[`${stream}_path`] === `evidence/${id}.${stream}.txt`
++          && digestValue(item[`${stream}_sha256`]) && item[`${stream}_sha256`] === rows.get(`${run}/evidence/${id}.${stream}.txt`)?.sha256);
++    }));
++  }
++  const left = read("run-1/qualification-certificate.json");
++  const right = read("run-2/qualification-certificate.json");
++  const equivalence = read("equivalence.json");
++  const equivalenceIds = ["run-1-pass", "run-2-pass", "run-1-verifies", "run-2-verifies", "certificate-byte-equivalence", "expected-baseline"];
++  add("qualification-equivalence-consistent", exactKeys(equivalence, ["schema_version", "result", "checks", "observed", "evidence_root", "authority_effect"])
++    && equivalence.schema_version === "domainspec.recipe-qualification-l1-equivalence/v1" && equivalence.result === "pass"
++    && equivalence.authority_effect === "none" && typeof equivalence.evidence_root === "string" && equivalence.evidence_root.length > 0
++    && same(equivalence.checks, equivalenceIds.map((id) => ({ id, result: "pass" }))) && left != null && same(left, right)
++    && same(equivalence.observed, {
++      schema_version: "domainspec.recipe-qualification-l1-baseline/v1", authority_effect: "none",
++      certificate_sha256: left?.certificate_sha256, plan_sha256: left?.plan_sha256, profile_sha256: left?.profile_sha256,
++      provider_lock_sha256: Array.isArray(left?.observations) ? left.observations[2]?.provider_lock_sha256 : null,
++      source_manifest_sha256: left?.subject?.source_manifest_sha256, target_implementation_sha256: left?.subject?.target_implementation_sha256,
++    }));
++  add("qualification-artifact-set-exact", same([...rows.keys()].sort(), expectedFiles.sort()));
++  return { result: checks.every(({ result }) => result === "pass") ? "pass" : "fail", checks };
++}
++
+ export function verifyReleaseCandidate(bundleRoot, expectedSourceCommit = null) {
+   const root = path.resolve(bundleRoot);
+   const checks = [];
+@@ -247,6 +366,8 @@ export function verifyReleaseCandidate(bundleRoot, expectedSourceCommit = null)
+     && resolvedDependencies.some((dependency) => dependency?.digest?.gitCommit === sourceCommit)
+     && provenance?.predicate?.runDetails?.metadata?.sourceTree === "clean");
+ 
++  const qualificationVerification = verifyQualificationEvidence(path.join(root, "qualification"));
++  checks.push(...qualificationVerification.checks);
+   const leftCertificate = readJson(path.join(root, "qualification", "run-1", "qualification-certificate.json"));
+   const rightCertificate = readJson(path.join(root, "qualification", "run-2", "qualification-certificate.json"));
+   const equivalence = readJson(path.join(root, "qualification", "equivalence.json"));
+diff --git a/projects/domainspec-v2/impl/cli/test/release/fixtures/qualification.json b/projects/domainspec-v2/impl/cli/test/release/fixtures/qualification.json
+new file mode 100644
+index 000000000..beed4395c
+--- /dev/null
++++ b/projects/domainspec-v2/impl/cli/test/release/fixtures/qualification.json
+@@ -0,0 +1,312 @@
++{
++  "profile": {
++    "authority_effect": "none",
++    "effect_ceiling": "no-external-effect",
++    "network_policy": "provider-registry-read-only",
++    "normalization_profile": "domainspec.recipe-qualification-normalization/v1",
++    "ontology_id": "domainspec.recipe-qualification-ontology@1",
++    "optional_checks": [],
++    "profile_id": "domainspec.recipe-qualification.l1",
++    "profile_sha256": "1830b42832688c35292747e0ad20dcdd781ed70e6013a0b85ee2993453543173",
++    "qualification_level": "recipe-executable-v1",
++    "recipe_target": "aws-ecs-fargate-postgres-v1",
++    "required_checks": [
++      "recipe-byte-verify",
++      "terraform-fmt-check",
++      "terraform-init-backendless",
++      "terraform-validate",
++      "docker-buildx-bake-check"
++    ],
++    "schema_version": "domainspec.recipe-qualification-profile/v1",
++    "toolchain": {
++      "docker": {
++        "adapter_protocol": "domainspec.oci-tool-adapter/v1",
++        "buildx_version": "0.21.3",
++        "image": "docker:28.0.1-cli@sha256:043c259759666d273afa94a9c9175a87a11f16cde2f613f4c527e4395b703a1f",
++        "version": "28.0.1"
++      },
++      "terraform": {
++        "adapter_protocol": "domainspec.oci-tool-adapter/v1",
++        "image": "hashicorp/terraform:1.16.0@sha256:fb5ea091b84f35e111e3a83eb8a6cdeb264bba11687c2eebc52253ade183022f",
++        "version": "1.16.0"
++      }
++    }
++  },
++  "plan": {
++    "authority_effect": "none",
++    "checks": [
++      {
++        "adapter_id": "recipe-byte-verify-v1",
++        "check_id": "recipe-byte-verify",
++        "effect_class": "pure",
++        "input_sha256": "29cb8dc4adaf84f3e6789cc3f1df4988577b91cfa1e8b8e32dcfc5d3cf9db969",
++        "predicate_id": "exact-artifact-membership-and-digests",
++        "required": true
++      },
++      {
++        "adapter_id": "terraform-fmt-check-v1",
++        "check_id": "terraform-fmt-check",
++        "effect_class": "pure",
++        "input_sha256": "74d3abcb8debd1259a045d46889720b3187529cc9644714a0605cfcc576adaf7",
++        "predicate_id": "terraform-format-current",
++        "required": true
++      },
++      {
++        "adapter_id": "terraform-init-backendless-v1",
++        "check_id": "terraform-init-backendless",
++        "effect_class": "network-read-only",
++        "input_sha256": "b0c7181f242e59da55d15087825632f5bc6c913ec6aa4cf892360baa3a50d13e",
++        "predicate_id": "terraform-provider-resolution-closed",
++        "required": true
++      },
++      {
++        "adapter_id": "terraform-validate-v1",
++        "check_id": "terraform-validate",
++        "effect_class": "bounded-local-cache",
++        "input_sha256": "4eea7409abd8a96ff9ce6bd15d04918c63afa0346f7b9f4939a373bc03ebc795",
++        "predicate_id": "terraform-configuration-valid",
++        "required": true
++      },
++      {
++        "adapter_id": "docker-buildx-bake-check-v1",
++        "check_id": "docker-buildx-bake-check",
++        "effect_class": "network-read-only",
++        "input_sha256": "1947a783b3477f422210e23d6913fa660164663a16c8222e03c793d369cd5bbd",
++        "predicate_id": "all-declared-build-targets-check",
++        "required": true
++      }
++    ],
++    "profile_id": "domainspec.recipe-qualification.l1",
++    "profile_sha256": "1830b42832688c35292747e0ad20dcdd781ed70e6013a0b85ee2993453543173",
++    "schema_version": "domainspec.recipe-qualification-plan/v1",
++    "subject": {
++      "artifact_inventory_sha256": "66eb583524b7e4a0a73e4e121068c9764e43c520f027f0df73ee3c6f9eae9ba3",
++      "checked_interchange_sha256": "14a8a656d175272161aae8fe803396bdbbaf932874ce8a4cb0e4e73cfecbac3d",
++      "compiled_certificate_sha256": "469974c237eb9c68abf2db9f6da9d8ddce207be017e543489f64cfcc77fb336d",
++      "manifest_sha256": "e639905214e6d0e05cfd148eccf18681837e94d90fa2fc6f5c9a66e624a437d3",
++      "project_id": "synthetic-release-fixture",
++      "recipe_plan_sha256": "3df011ab72f47905e32c4e7ad104b59c11a52a662b31e83884d08a1498485a0c",
++      "recipe_receipt_sha256": "0c967eba7b285e3cefd5d1aa6ad4f50f4ed21086b82503101a384cd5aeb2231a",
++      "request_id": "synthetic-release-recipe",
++      "request_sha256": "7bf1ea53f75376f7fad0b1e1d0c71d0207bbdfba637d5d6bd1d25f17065d55eb",
++      "source_manifest_sha256": "5307334c8859f3f9ee9b74739e8b1a9d61cbc54e41f68a45e0d5345e2e248782",
++      "target": "aws-ecs-fargate-postgres-v1",
++      "target_implementation_sha256": "2ee5e9ae6699998200259f452d6940c619ffe76715cefbd4d09a0ebc8d0c72f4"
++    },
++    "plan_sha256": "8d33bf034240d30378a6f5a82a86b331ee21947bc57af7201aa390c78438a3d4"
++  },
++  "certificate": {
++    "authority_effect": "none",
++    "denied_claims": [
++      "release",
++      "publication",
++      "deployment",
++      "runtime-conformance"
++    ],
++    "observations": [
++      {
++        "adapter_id": "recipe-byte-verify-v1",
++        "causal_blockers": [],
++        "check_id": "recipe-byte-verify",
++        "detail_code": "recipe-bytes-current",
++        "input_sha256": "29cb8dc4adaf84f3e6789cc3f1df4988577b91cfa1e8b8e32dcfc5d3cf9db969",
++        "predicate_id": "exact-artifact-membership-and-digests",
++        "provider_lock_sha256": null,
++        "result": "pass",
++        "tool_identity_sha256": null
++      },
++      {
++        "adapter_id": "terraform-fmt-check-v1",
++        "causal_blockers": [],
++        "check_id": "terraform-fmt-check",
++        "detail_code": "terraform-format-current",
++        "input_sha256": "74d3abcb8debd1259a045d46889720b3187529cc9644714a0605cfcc576adaf7",
++        "predicate_id": "terraform-format-current",
++        "provider_lock_sha256": null,
++        "result": "pass",
++        "tool_identity_sha256": "112947b100085b1acadb2bd1e6364e1a157b461c36883742e734b9b7672b465a"
++      },
++      {
++        "adapter_id": "terraform-init-backendless-v1",
++        "causal_blockers": [],
++        "check_id": "terraform-init-backendless",
++        "detail_code": "terraform-provider-lock-current",
++        "input_sha256": "b0c7181f242e59da55d15087825632f5bc6c913ec6aa4cf892360baa3a50d13e",
++        "predicate_id": "terraform-provider-resolution-closed",
++        "provider_lock_sha256": "c05f7409a1720f96c0cdd623f9a763631c4860b5cbe93ba40fd301565371b9f5",
++        "result": "pass",
++        "tool_identity_sha256": "112947b100085b1acadb2bd1e6364e1a157b461c36883742e734b9b7672b465a"
++      },
++      {
++        "adapter_id": "terraform-validate-v1",
++        "causal_blockers": [],
++        "check_id": "terraform-validate",
++        "detail_code": "terraform-configuration-valid",
++        "input_sha256": "4eea7409abd8a96ff9ce6bd15d04918c63afa0346f7b9f4939a373bc03ebc795",
++        "predicate_id": "terraform-configuration-valid",
++        "provider_lock_sha256": "c05f7409a1720f96c0cdd623f9a763631c4860b5cbe93ba40fd301565371b9f5",
++        "result": "pass",
++        "tool_identity_sha256": "112947b100085b1acadb2bd1e6364e1a157b461c36883742e734b9b7672b465a"
++      },
++      {
++        "adapter_id": "docker-buildx-bake-check-v1",
++        "causal_blockers": [],
++        "check_id": "docker-buildx-bake-check",
++        "detail_code": "docker-build-targets-valid",
++        "input_sha256": "1947a783b3477f422210e23d6913fa660164663a16c8222e03c793d369cd5bbd",
++        "predicate_id": "all-declared-build-targets-check",
++        "provider_lock_sha256": null,
++        "result": "pass",
++        "tool_identity_sha256": "4e85adbd6f0b1914e0f7bcd57c82bf239ce83568022d6e6f72c48d3a32dd39ae"
++      }
++    ],
++    "plan_sha256": "8d33bf034240d30378a6f5a82a86b331ee21947bc57af7201aa390c78438a3d4",
++    "profile_id": "domainspec.recipe-qualification.l1",
++    "profile_sha256": "1830b42832688c35292747e0ad20dcdd781ed70e6013a0b85ee2993453543173",
++    "result": "pass",
++    "schema_version": "domainspec.recipe-qualification-certificate/v1",
++    "subject": {
++      "artifact_inventory_sha256": "66eb583524b7e4a0a73e4e121068c9764e43c520f027f0df73ee3c6f9eae9ba3",
++      "checked_interchange_sha256": "14a8a656d175272161aae8fe803396bdbbaf932874ce8a4cb0e4e73cfecbac3d",
++      "compiled_certificate_sha256": "469974c237eb9c68abf2db9f6da9d8ddce207be017e543489f64cfcc77fb336d",
++      "manifest_sha256": "e639905214e6d0e05cfd148eccf18681837e94d90fa2fc6f5c9a66e624a437d3",
++      "project_id": "synthetic-release-fixture",
++      "recipe_plan_sha256": "3df011ab72f47905e32c4e7ad104b59c11a52a662b31e83884d08a1498485a0c",
++      "recipe_receipt_sha256": "0c967eba7b285e3cefd5d1aa6ad4f50f4ed21086b82503101a384cd5aeb2231a",
++      "request_id": "synthetic-release-recipe",
++      "request_sha256": "7bf1ea53f75376f7fad0b1e1d0c71d0207bbdfba637d5d6bd1d25f17065d55eb",
++      "source_manifest_sha256": "5307334c8859f3f9ee9b74739e8b1a9d61cbc54e41f68a45e0d5345e2e248782",
++      "target": "aws-ecs-fargate-postgres-v1",
++      "target_implementation_sha256": "2ee5e9ae6699998200259f452d6940c619ffe76715cefbd4d09a0ebc8d0c72f4"
++    },
++    "toolchain": [
++      {
++        "adapter_protocol": "domainspec.oci-tool-adapter/v1",
++        "executable_sha256": "895363430f9ea348d2180faeb4f7fb56877658767f683f2bd9e2fb8941dc79a2",
++        "image": "hashicorp/terraform:1.16.0@sha256:fb5ea091b84f35e111e3a83eb8a6cdeb264bba11687c2eebc52253ade183022f",
++        "secondary_version": null,
++        "tool": "terraform",
++        "version": "1.16.0",
++        "identity_sha256": "112947b100085b1acadb2bd1e6364e1a157b461c36883742e734b9b7672b465a"
++      },
++      {
++        "adapter_protocol": "domainspec.oci-tool-adapter/v1",
++        "executable_sha256": "43c50e7906dce24569fd1648b1ad58d765824c60c9e7a6a0b79b1f1dfb84595b",
++        "image": "docker:28.0.1-cli@sha256:043c259759666d273afa94a9c9175a87a11f16cde2f613f4c527e4395b703a1f",
++        "secondary_version": "0.21.3",
++        "tool": "docker-buildx",
++        "version": "28.0.1",
++        "identity_sha256": "4e85adbd6f0b1914e0f7bcd57c82bf239ce83568022d6e6f72c48d3a32dd39ae"
++      }
++    ],
++    "certificate_sha256": "0dba3aaeaa1726fa66431293969361965eddd73b33fdee5e56afd86851790605"
++  },
++  "receipt": {
++    "authority_effect": "none",
++    "certificate_sha256": "0dba3aaeaa1726fa66431293969361965eddd73b33fdee5e56afd86851790605",
++    "evidence": [
++      {
++        "check_id": "recipe-byte-verify",
++        "exit_code": 0,
++        "stderr_path": "evidence/recipe-byte-verify.stderr.txt",
++        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++        "stdout_path": "evidence/recipe-byte-verify.stdout.txt",
++        "stdout_sha256": "e9f1df2807b6a1c8611c925a9ccf91076e2ab81ee2e2a2a83d8bdc56d014a9ae",
++        "termination": "exited"
++      },
++      {
++        "check_id": "terraform-fmt-check",
++        "exit_code": 0,
++        "stderr_path": "evidence/terraform-fmt-check.stderr.txt",
++        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++        "stdout_path": "evidence/terraform-fmt-check.stdout.txt",
++        "stdout_sha256": "495b6d9cc5644864b0fa1455d05c678049c35eca42f8b0e9e58e3b57b9e7099a",
++        "termination": "exited"
++      },
++      {
++        "check_id": "terraform-init-backendless",
++        "exit_code": 0,
++        "stderr_path": "evidence/terraform-init-backendless.stderr.txt",
++        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++        "stdout_path": "evidence/terraform-init-backendless.stdout.txt",
++        "stdout_sha256": "fb52c8e1327073798496db364cff24f0fdb46bbd5c29c05827e81fb85fbc7f72",
++        "termination": "exited"
++      },
++      {
++        "check_id": "terraform-validate",
++        "exit_code": 0,
++        "stderr_path": "evidence/terraform-validate.stderr.txt",
++        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++        "stdout_path": "evidence/terraform-validate.stdout.txt",
++        "stdout_sha256": "7f4616ee7aa8e99717c0e9b2adfed4ddd9a0c8db5bfce66bbe0b92c7eda2ade5",
++        "termination": "exited"
++      },
++      {
++        "check_id": "docker-buildx-bake-check",
++        "exit_code": 0,
++        "stderr_path": "evidence/docker-buildx-bake-check.stderr.txt",
++        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++        "stdout_path": "evidence/docker-buildx-bake-check.stdout.txt",
++        "stdout_sha256": "c53e59b8bfdcbea5ea213f3554ac60b2359e782dc1a8e419edc5222eaa8aba03",
++        "termination": "exited"
++      }
++    ],
++    "result": "pass",
++    "schema_version": "domainspec.recipe-qualification-run-receipt/v1",
++    "receipt_sha256": "351ebbb73a9ed8a5ac68defe83c32e17fdffaf4a785d5456189c30f3e4ce4f55"
++  },
++  "equivalence": {
++    "authority_effect": "none",
++    "checks": [
++      {
++        "id": "run-1-pass",
++        "result": "pass"
++      },
++      {
++        "id": "run-2-pass",
++        "result": "pass"
++      },
++      {
++        "id": "run-1-verifies",
++        "result": "pass"
++      },
++      {
++        "id": "run-2-verifies",
++        "result": "pass"
++      },
++      {
++        "id": "certificate-byte-equivalence",
++        "result": "pass"
++      },
++      {
++        "id": "expected-baseline",
++        "result": "pass"
++      }
++    ],
++    "evidence_root": "qualification",
++    "observed": {
++      "authority_effect": "none",
++      "certificate_sha256": "0dba3aaeaa1726fa66431293969361965eddd73b33fdee5e56afd86851790605",
++      "plan_sha256": "8d33bf034240d30378a6f5a82a86b331ee21947bc57af7201aa390c78438a3d4",
++      "profile_sha256": "1830b42832688c35292747e0ad20dcdd781ed70e6013a0b85ee2993453543173",
++      "provider_lock_sha256": "c05f7409a1720f96c0cdd623f9a763631c4860b5cbe93ba40fd301565371b9f5",
++      "schema_version": "domainspec.recipe-qualification-l1-baseline/v1",
++      "source_manifest_sha256": "5307334c8859f3f9ee9b74739e8b1a9d61cbc54e41f68a45e0d5345e2e248782",
++      "target_implementation_sha256": "2ee5e9ae6699998200259f452d6940c619ffe76715cefbd4d09a0ebc8d0c72f4"
++    },
++    "result": "pass",
++    "schema_version": "domainspec.recipe-qualification-l1-equivalence/v1"
++  },
++  "evidence": {
++    "evidence/recipe-byte-verify.stdout.txt": "synthetic recipe-byte-verify\n",
++    "evidence/recipe-byte-verify.stderr.txt": "",
++    "evidence/terraform-fmt-check.stdout.txt": "synthetic terraform-fmt-check\n",
++    "evidence/terraform-fmt-check.stderr.txt": "",
++    "evidence/terraform-init-backendless.stdout.txt": "synthetic terraform-init-backendless\n",
++    "evidence/terraform-init-backendless.stderr.txt": "",
++    "evidence/terraform-validate.stdout.txt": "synthetic terraform-validate\n",
++    "evidence/terraform-validate.stderr.txt": "",
++    "evidence/docker-buildx-bake-check.stdout.txt": "synthetic docker-buildx-bake-check\n",
++    "evidence/docker-buildx-bake-check.stderr.txt": ""
++  }
++}

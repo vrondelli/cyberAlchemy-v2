@@ -1,0 +1,116 @@
+{
+  "authority_effect": "none",
+  "blocking_defects": [
+    {
+      "affected_invariant": "The pre-apply validator must preserve distinct candidate-postimage and material-package digest identities while cryptographically binding the parsed material package, its producer receipt, and the ready handoff to one exact material-package digest.",
+      "defect_id": "EVF-L1-REV6-BLOCK-001-unbound-material-package-digest",
+      "evidence": {
+        "adversarial_case": {
+          "candidate_postimage_digest": "d1fade2a90995805e49a92e6cf9e0957019ce7625c69031df356fc112670c639",
+          "computed_synthetic_material_package_digest": "a3a387c87b8bfe6d141b0516146ac4f990eb77aefed60f334795a6b77d950497",
+          "forged_receipt_and_handoff_material_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "validator_exit_code": 0,
+          "validator_failures": [],
+          "validator_verdict": "pass"
+        },
+        "source_observation": "The pre-apply branch accepts material_receipt.packageDigest when it is any 64-character string, repeats it through the handoff checks, and never recomputes the parsed material package's canonical digest or compares that result to the receipt value."
+      },
+      "impact": "A stale or fabricated material-package digest can pass the pre-apply gate when the receipt and handoff repeat it, even though it is not the digest of the supplied material package. The required candidate-to-material bridge is therefore not proven and exact-byte owner acceptance must not be requested from this review.",
+      "minimal_repair": "Recompute the material package digest from the exact parsed package using the producer's declared canonical digest algorithm, require equality with the producer receipt's packageDigest, preserve the distinct candidate digest binding through review and owner acceptance, and add a negative regression in which only the receipt and handoff material digest are changed. Regenerate all acceptance-bound candidate metadata, validation evidence, and the independent-review request after repair.",
+      "severity": "blocking-governance-validation-gap"
+    }
+  ],
+  "candidate_binding": {
+    "inventory_sha256": "ac1f5b0c4d1d59285676d897b5470cf66bea6de428cabc48e59c1820b9ca3ab4",
+    "package_digest": "d1fade2a90995805e49a92e6cf9e0957019ce7625c69031df356fc112670c639",
+    "target_count": 20
+  },
+  "checks": [
+    {
+      "check": "request-bound-exact-file-bindings",
+      "evidence": "All 20 path/hash/size records in Review 006 were independently rehashed and matched; the candidate inventory's 50 source, postimage, and predecessor references also matched.",
+      "status": "pass"
+    },
+    {
+      "check": "candidate-inventory-byte-replay",
+      "evidence": "An isolated replay exited zero and was byte-identical at SHA-256 ac1f5b0c4d1d59285676d897b5470cf66bea6de428cabc48e59c1820b9ca3ab4.",
+      "status": "pass"
+    },
+    {
+      "check": "pre-review-validation-byte-replay",
+      "evidence": "An isolated pre-review replay exited zero and was byte-identical at SHA-256 48dd7e7bfec509c75a767667885e10bc4be979e426d26401b59dedb716291d5b.",
+      "status": "pass"
+    },
+    {
+      "check": "live-baseline-denominator",
+      "evidence": "All live targets matched the frozen denominator: 11 present exact and 9 absent exact, with no drift.",
+      "status": "pass"
+    },
+    {
+      "check": "full-20-target-recomposition-and-package-digest",
+      "evidence": "Twenty unique sorted canonical paths recomputed package digest d1fade2a90995805e49a92e6cf9e0957019ce7625c69031df356fc112670c639.",
+      "status": "pass"
+    },
+    {
+      "check": "four-overrides-sixteen-byte-identical-reuses",
+      "evidence": "Exactly four declared lifecycle postimages differ from their predecessor and all sixteen reuse postimages are byte-identical; no canonical path is omitted or added.",
+      "status": "pass"
+    },
+    {
+      "check": "PROPOSED_POSTAPPLY_LIFECYCLE_STATE-and-regression-fixtures",
+      "evidence": "The candidate has zero forbidden lifecycle hits; the predecessor is killed on exactly PLAN.md, WORK-PACK.md, shared/GAPS.md, and shared/CROSS-TASK-GAPS.md; all 10 fixtures are killed and the clean control remains clean.",
+      "status": "pass"
+    },
+    {
+      "check": "proposal-only-metadata-and-nonrecursive-durable-state",
+      "evidence": "Candidate metadata remains proposal-only, review and acceptance pending, canonical apply not authorized, mutation_ready false, authority none, and release not granted. Durable postimages project the post-apply state without embedding the current digest or future Review 006, acceptance, material, or handoff receipt identifiers.",
+      "status": "pass"
+    },
+    {
+      "check": "four-file-lifecycle-only-change-and-semantic-preservation",
+      "evidence": "Independent predecessor diffs alter only lifecycle status, blocker, and next-route assertions. P4 then R4 ordering, graph/source ownership, semantic ceilings, target scope, commands, closeout, execution-entry block, and L2/provider exclusions remain intact.",
+      "status": "pass"
+    },
+    {
+      "check": "complete-20-target-content-hygiene",
+      "evidence": "All 20 postimages, including nine create targets, passed UTF-8, no-BOM, final-newline, and trailing-whitespace checks; all three JSON postimages parsed.",
+      "status": "pass"
+    },
+    {
+      "check": "preapply-candidate-to-material-digest-bridge",
+      "evidence": "A valid synthetic case with distinct candidate and material digests passed, but a second case that left the material package unchanged and replaced only receipt/handoff packageDigest with 64 f characters also exited zero with verdict pass.",
+      "status": "block"
+    },
+    {
+      "check": "postapply-receipt-live-byte-and-lifecycle-binding",
+      "evidence": "An isolated exact post-apply case passed; changing the apply receipt's candidate digest failed with POSTAPPLY_RECEIPT_INVALID, and changing one live canonical byte failed with POSTAPPLY_TARGET_MISMATCH.",
+      "status": "pass"
+    },
+    {
+      "check": "review-005-invalidation-and-nonreuse",
+      "evidence": "The exact Review 005 request and its exact invalidation are bound by Review 006; the invalidation records interrupted-before-receipt and PLAN-INDEPENDENT-REVIEW-005.json does not exist.",
+      "status": "pass"
+    },
+    {
+      "check": "updatedAt-logical-tranche-date",
+      "evidence": "The three retained updatedAt fields remain 2026-08-20, and REFRESH-PATCH-PROPOSAL.md explicitly classifies that value as the accepted logical tranche date rather than byte-authoring time.",
+      "status": "pass"
+    },
+    {
+      "check": "no-canonical-or-downstream-action",
+      "evidence": "Exact live baselines remain 11 present and 9 absent; candidate metadata keeps apply unauthorized and execution blocked; the proposal explicitly excludes readiness, Task Session, P4, R4, C0, providers, Git mutation, publication, release, deployment, and production. The exact review scope has no staged Git paths.",
+      "status": "pass"
+    }
+  ],
+  "flags": [],
+  "maximum_honest_claim": "The exact proposal-only 20-target candidate with digest d1fade2a90995805e49a92e6cf9e0957019ce7625c69031df356fc112670c639 recomposes correctly, contains exactly four lifecycle-only overrides plus sixteen exact predecessor postimages, passes projected-state, baseline, content-hygiene, fixture, semantic-ceiling, and post-apply binding checks, and leaves canonical and downstream lifecycle state unchanged. Independent Review 006 is nevertheless BLOCK because the pre-apply validator does not cryptographically bind the material package to the material digest repeated by its receipt and handoff. This receipt is not owner acceptance and authorizes no material assembly, canonical apply, readiness activation, Task Session, proof/provider execution, Git action, authority, release, publication, deployment, or production claim.",
+  "release_admission": "not-granted",
+  "request_binding": {
+    "path": "projects/domainspec-v2/development/evolvable-validation-framework/development/planning-runs/20260821T023256Z-postapply-lifecycle-repair/reviews/PLAN-INDEPENDENT-REVIEW-006-REQUEST.json",
+    "sha256": "9f9e6b087d006df435716d13e4ea940d3db233266e4af337962a743e5e1bfb97",
+    "size_bytes": 12741
+  },
+  "review_id": "PLAN-INDEPENDENT-REVIEW-006",
+  "schema_version": "evf.independent-plan-review/v1",
+  "verdict": "block"
+}

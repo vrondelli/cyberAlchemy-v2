@@ -1,0 +1,57 @@
+diff --git a/projects/domainspec-v2/impl/architecture-conformance/factory/tests/proof-accounting.test.ts b/projects/domainspec-v2/impl/architecture-conformance/factory/tests/proof-accounting.test.ts
+--- a/projects/domainspec-v2/impl/architecture-conformance/factory/tests/proof-accounting.test.ts
++++ b/projects/domainspec-v2/impl/architecture-conformance/factory/tests/proof-accounting.test.ts
+@@ -283,5 +283,5 @@
+   });
+ 
+-  it("requires locked proof evidence and rejects provider-authored totals", () => {
++  it("requires locked proof evidence and rejects provider-authored totals or claim ceilings", () => {
+     const fixture = evidenceFor();
+     expect(() => normalizeFactorySemanticReceipt({
+@@ -300,14 +300,12 @@
+     expect(() => normalizeFactorySemanticReceipt({
+       plan: plan(null),
+       nodes: [node(fixture.evidence)],
+     })).toThrow("FACTORY_PROOF_EVIDENCE_UNLOCKED");
+-    const providerOverclaim = normalizeFactorySemanticReceipt({
++    expect(() => normalizeFactorySemanticReceipt({
+       plan: plan(fixture.digest),
+       nodes: [Object.freeze({
+         ...node(fixture.evidence),
+         claim_ceiling: "provider-expanded claim",
+       })],
+-    });
+-    expect(providerOverclaim.receipt.ordered_nodes[0]!.claim_ceiling)
+-      .toBe("candidate proof accounting only");
++    })).toThrow("FACTORY_CLAIM_CEILING_MISMATCH:proof-node");
+   });
+@@ -407,11 +405,22 @@
+     const replayResult = clone(providerOwned);
+     const directSha256 = sha256(canonicalJson(providerOwned));
+     const replaySha256 = sha256(canonicalJson(replayResult));
+     const stable = bindReplayVerifiedSemanticResult({
+       node_id: "proof-node",
++      locked_claim_ceiling: "candidate proof accounting only",
+       direct_sha256: directSha256,
+       replay_result: replayResult,
+       replay_result_sha256: replaySha256,
+     });
++    const providerExpanded = clone(providerOwned);
++    providerExpanded.claim_ceiling = "provider-expanded claim";
++    const expandedSha256 = sha256(canonicalJson(providerExpanded));
++    expect(() => bindReplayVerifiedSemanticResult({
++      node_id: "proof-node",
++      locked_claim_ceiling: "candidate proof accounting only",
++      direct_sha256: expandedSha256,
++      replay_result: clone(providerExpanded),
++      replay_result_sha256: expandedSha256,
++    })).toThrow("FACTORY_CLAIM_CEILING_MISMATCH:proof-node");
+ 
+     providerOwned.accounting.positives_declared = 999;
+@@ -431,5 +440,6 @@ describe("proof accounting", () => {
+     expect(() => bindReplayVerifiedSemanticResult({
+       node_id: "proof-node",
++      locked_claim_ceiling: "candidate proof accounting only",
+       direct_sha256: "0".repeat(64),
+       replay_result: clone(providerOwned),
+       replay_result_sha256: sha256(canonicalJson(providerOwned)),

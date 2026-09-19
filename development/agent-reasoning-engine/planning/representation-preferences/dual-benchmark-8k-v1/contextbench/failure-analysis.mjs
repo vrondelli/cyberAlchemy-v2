@@ -1,0 +1,43 @@
+// Sealed Stage1 and supplementary first exposure only; no gold/model calls.
+// Open questions: FAILURE-ANALYSIS.md. Frozen experiment files remain unchanged.
+import {readFileSync,readdirSync,writeFileSync,statSync} from 'node:fs';
+import {join,resolve,relative} from 'node:path';
+import {createHash} from 'node:crypto';
+import {bindDelivery,bodyForReceipt,stable} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/delivery.mjs';
+import {diagnoseSourceSelection} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/provenance-validator.mjs';
+import {projectObservationsToBase} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/source-map.mjs';
+const here=import.meta.dirname,D=resolve(here,'..'),root=resolve(here,'../../../../../..');
+const hash=x=>createHash('sha256').update(x).digest('hex'),read=p=>{if(statSync(p).size>64*1024*1024)throw Error('bounded analysis size');return JSON.parse(readFileSync(p));};
+const cases=[];
+for(const[stage,id,arm]of[['live/stage1',1,'control'],['live/stage1',3,'control'],['live/stage1',3,'treatment'],['live/stage1',1,'treatment'],['amended-live/first-exposure-cb4',4,'control']]){
+  const pair=join(D,stage,'pairs','contextbench-'+id,'run');read(join(pair,'result.json')); // Requires a sealed pair.
+  const directory=join(pair,arm),path=join(directory,'result.json'),r=read(path),binding=bindDelivery(r),last=r.response_captures.at(-1),receipt=r.receipts[last.receipt_index];
+  const capture=r.captures.find(c=>hash(stable(bodyForReceipt(c.prompt,receipt)))===last.request_sha256);if(!capture)throw Error('terminal request reconstruction missing');
+  const prompt=JSON.parse(capture.prompt),call=last.public_response.message.tool_calls?.find(c=>c.function.name==='submit_context_selection'),raw=call?call.function.arguments:last.public_response.message.content;
+  const snapshots=readdirSync(join(directory,'snapshots')).filter(n=>n.endsWith('.json')).map(n=>read(join(directory,'snapshots',n)));
+  const diagnostic=diagnoseSourceSelection({raw,reads:binding.read_observations,snapshots,repoRoot:join(directory,'base')});
+  const terminal=JSON.parse(raw),known=new Map(binding.read_observations.map(r=>[r.id,r])),selected=terminal.context_read_ids.map(id=>known.get(id)).filter(Boolean);
+  const projections=projectObservationsToBase(selected,snapshots,join(directory,'base')).projections.map((p,i)=>({read_id:p.read_id,path:selected[i].path,start_line:selected[i].start_line,end_line:selected[i].end_line,source_sha256:p.source_sha256,base_source_sha256:p.base_source_sha256,matches_base_hash:p.source_sha256===p.base_source_sha256,unmapped_current_lines:p.unmapped_current_lines,projectable_fragments:p.fragments,projectable_events:p.event_ids.length}));
+  const tools={};for(const e of r.events??[]){const key=e.tool+':'+e.output?.ok;tools[key]=(tools[key]??0)+1;}
+  const cell=read(join(directory,'started.json')).cell;
+  cases.push({task_id:'contextbench-'+id,arm,stage,status:r.status,error:r.error,source:{result_path:relative(root,path),result_sha256:hash(readFileSync(path)),terminal_request_sha256:last.request_sha256,terminal_response_capture_sha256:last.capture_sha256},
+    diagnostic:{ok:diagnostic.ok,category:diagnostic.category,instrument_error:diagnostic.instrument_error,issues:diagnostic.issues.map(({recovery,...x})=>x)},
+    terminal_format:call?'submit_context_selection':'raw-JSON-stop',selected_ids:terminal.context_read_ids,selected_id_count:terminal.context_read_ids.length,selected_ids_all_delivered:terminal.context_read_ids.every(id=>known.has(id)),projections,
+    delivered_reads_whole_trajectory:binding.read_observations.length,delivery_unmapped:binding.unmapped.length,terminal_request_delivered_read_ids:binding.requests.find(x=>x.receipt_index===last.receipt_index)?.read_ids??[],historically_delivered_ids_occurring_in_terminal_prompt:binding.read_observations.filter(x=>capture.prompt.includes(x.id)).length,
+    terminal_tools:prompt.tools.map(x=>x.function.name),terminal_generation:capture.generation,context_recycles:r.recycling.recycles,model_calls:r.receipts.filter(x=>x.kind==='model'&&x.dispatched).length,model_tokens:binding.token_accounting.known_total_tokens,finalizing:r.finalizing,
+    finalization_reserve_trigger:r.admissions.findLast(x=>x.reason==='token-budget.finalization-reserved')??null,final_admission:r.admissions.at(-1),tool_outcomes:tools,output_deferrals:r.tool_output_deferrals?.length??0,
+    compact_representation:cell.limits.compact_representation,maximum_terminal_corrections:cell.limits.maximum_terminal_corrections,task_state_projection:cell.limits.task_state_projection,decision_state:cell.limits.decision_state,decision_state_handles:cell.limits.decision_state_handles,task_state_presentations:r.task_state_presentations?.length??0});
+}
+const code_sources=['implementation/agent-reasoning-engine/benchmarks/contextbench-v1/provenance-validator.mjs','implementation/agent-reasoning-engine/benchmarks/contextbench-v1/source-map.mjs','implementation/agent-reasoning-engine/benchmarks/contextbench-v1/terminal-schema.mjs','development/agent-reasoning-engine/planning/representation-preferences/dual-benchmark-8k-v1/contextbench/episode.mjs','agent-reasoning-engine/research/contextbench-v1/round55-closeout.json'].map(path=>({path,sha256:hash(readFileSync(join(root,path)))}));
+const output={schema_version:'dual8k.contextbench-failure-analysis/v1',scope:'sealed original Stage1 and repaired CB4 first model exposure; no Stage2 outcomes inspected',cases,code_sources,
+  exact_predicate:'diagnoseSourceSelection rejects a selected delivered read when projectObservationsToBase(...).projections[0].unmapped_current_lines.length > 0; category invalid-source-provenance, code changed-source-lines.',
+  excluded_mechanisms:'Reconstructed invalid cases contain no undelivered-read-id, invalid JSON/schema, body/path/span integrity exception, or source-integrity-failure. Changed source lines, not missing IDs, caused rejection.',
+  h72_posture:'Confirmed Round55 request-local terminal handle review was not included. Both full-trajectory arms have decision_state=false, decision_state_handles=false, task_state_projection=false and zero terminal corrections. Copying standard episode does not inherit H72.',
+  hypotheses:[
+    {id:'eligible-terminal-state',hypothesis:'Receipt-bound base-valid terminal handles recover usable selections after recycling.',competition:'Extra review may cost more tokens or add irrelevant evidence; H72 transfer to this full-trajectory successor is unproven.',candidate_design:'Separately freeze compact/no-compact crossed with terminal-handles/no-handles, including all review tokens and unchanged native quality gates.'},
+    {id:'prospective-terminal-readiness',hypothesis:'Check provenance of a held candidate while base/recovery tools are still available, reserving bounded correction capacity before terminal tool removal.',competition:'More validation/recovery can consume the savings; generic readiness is not proof of source relevance.',candidate_design:'Only actual delivered evidence, no hidden gold or automatic substitution; matched full-budget accounting and bounded repair policy.'},
+    {id:'compact-instruction-effect',hypothesis:'Compact repeated instructions alter early stopping or exploration independently of source-byte preservation.',competition:'Same provenance failure in control and treatment plus native recycling can explain observed outcomes without a compact-specific defect.',candidate_design:'Predeclare factorial comparison of instruction compaction versus metadata-only compaction on fixed development identities; do not tune task-specific prompts.'},
+    {id:'whole-trajectory-budget-null',hypothesis:'Under budget-driven finalization, lower per-call input cost permits more exploration instead of15percent lower cumulative use.',competition:'Reliable earlier completion could still reduce total spending; premature empty completion is not an efficiency success.',candidate_design:'Report actual call-count/mean-cost decomposition and completion; do not manufacture savings by lowering treatment cap.'}
+  ],model_calls:0,gold_access:false,frozen_files_modified:[],authority_effect:'none',open_questions_ref:'FAILURE-ANALYSIS.md'};
+writeFileSync(join(here,'FAILURE-ANALYSIS.json'),JSON.stringify(output,null,2)+'\n',{flag:'wx'});
+console.log(JSON.stringify(cases.map(c=>({task:c.task_id,arm:c.arm,status:c.status,codes:c.diagnostic.issues.map(i=>i.code),delivered_reads:c.delivered_reads_whole_trajectory,terminal_visible_ids:c.historically_delivered_ids_occurring_in_terminal_prompt,model_tokens:c.model_tokens,finalizing:c.finalizing}))));

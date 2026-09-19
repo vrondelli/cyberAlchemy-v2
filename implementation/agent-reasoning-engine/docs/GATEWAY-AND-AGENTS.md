@@ -2,7 +2,7 @@
 
 The persistent gateway keeps authenticated agent sessions alive across client
 disconnects and selected process restarts. It listens on a Unix socket and
-speaks JSON-RPC 2.0 over JSON lines.
+uses JSON-RPC 2.0 over JSON lines.
 
 ## Backend adapter contract
 
@@ -38,7 +38,7 @@ const gatewayOptions = {
 // createPersistentGateway(gatewayOptions).
 ```
 
-This excerpt shows the boundary, not a complete runnable host. Read
+This example shows the adapter interface. It does not provide a complete host that you can run. Read
 [`src/backend-adapter.mjs`](../packages/codex-app-server-wrapper/src/backend-adapter.mjs)
 and the gateway tests for the exact contract.
 The wider package and wire-contract map is in [API and data
@@ -46,10 +46,10 @@ contracts](API-AND-DATA-CONTRACTS.md).
 
 ## Session continuity
 
-The gateway assigns a runtime epoch, authenticates reconnects with resume
-tokens, retains stable request identities, buffers bounded deliveries, and
-tracks acknowledgements. Completed requests can replay. Requests with unknown
-crash-time outcomes block instead of being dispatched twice.
+The gateway assigns a runtime epoch and uses resume tokens to authenticate clients that reconnect.
+It keeps stable request identities, limits buffered deliveries, and tracks acknowledgements.
+The gateway can replay completed requests.
+If a crash leaves a request's outcome unknown, the gateway blocks the request instead of sending it twice.
 
 The reusable gateway session client retains credentials and stable request IDs
 across reconnects. The host must persist or protect credentials according to
@@ -60,7 +60,7 @@ its own threat model.
 1. Implement or wrap a JSON-lines process backend.
 2. Validate the adapter before starting the gateway.
 3. Map host messages to the wrapper's expected request semantics.
-4. Use stable request IDs and acknowledge deliveries.
+4. Use stable request IDs. Acknowledge deliveries.
 5. Test disconnect, reconnect, duplicate, timeout, and unknown-outcome paths.
 6. Keep effect authorization in the host. The adapter must not infer it.
 

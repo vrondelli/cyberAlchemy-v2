@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/evf/graph-law-provider-receipt.v1.schema.json",
+  "title": "GraphLawProviderReceipt/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "receipt_family", "request_ref", "fact_manifest_ref", "property_definition_ref", "comparison_contract_ref", "scope_contract_ref", "request_id", "facts_digest", "universe_digest", "selected_relation_digest", "scope_digest", "property_id", "property_version", "provider", "translation", "execution", "native_result", "normalized_result", "semantic_result_digest", "residue", "authority_effect", "release_admission", "claim_ceiling"],
+  "properties": {
+    "schema_version":{"const":"evf.graph-law-provider-receipt/v1"},
+    "receipt_id":{"$ref":"#/$defs/id"},
+    "receipt_family":{"enum":["graph-relation","formal-static"]},
+    "request_ref":{"$ref":"#/$defs/exactRef"},
+    "fact_manifest_ref":{"$ref":"#/$defs/exactRef"},
+    "property_definition_ref":{"$ref":"#/$defs/exactRef"},
+    "comparison_contract_ref":{"$ref":"#/$defs/exactRef"},
+    "scope_contract_ref":{"$ref":"#/$defs/exactRef"},
+    "request_id":{"$ref":"#/$defs/id"},
+    "facts_digest":{"$ref":"#/$defs/digest"},
+    "universe_digest":{"$ref":"#/$defs/digest"},
+    "selected_relation_digest":{"$ref":"#/$defs/digest"},
+    "scope_digest":{"$ref":"#/$defs/digest"},
+    "property_id":{"$ref":"#/$defs/id"},
+    "property_version":{"type":"string","minLength":1},
+    "provider": {
+      "type":"object","additionalProperties":false,
+      "required":["kind","id","version","runtime_ref","adapter_ref","query_or_model_ref","invocation_contract_ref","solver_id","solver_version","options_digest"],
+      "properties":{"kind":{"enum":["datalog","alloy"]},"id":{"$ref":"#/$defs/id"},"version":{"type":"string","minLength":1},"runtime_ref":{"$ref":"#/$defs/exactRef"},"adapter_ref":{"$ref":"#/$defs/exactRef"},"query_or_model_ref":{"$ref":"#/$defs/exactRef"},"invocation_contract_ref":{"$ref":"#/$defs/exactRef"},"solver_id":{"type":["string","null"]},"solver_version":{"type":["string","null"]},"options_digest":{"$ref":"#/$defs/digest"}}
+    },
+    "translation": {
+      "type":"object","additionalProperties":false,
+      "required":["provider_input_ref","source_facts_digest","projection_receipt_ref","omitted_fact_count","invented_fact_count","translation_digest"],
+      "properties":{"provider_input_ref":{"$ref":"#/$defs/exactRef"},"source_facts_digest":{"$ref":"#/$defs/digest"},"projection_receipt_ref":{"$ref":"#/$defs/exactRef"},"omitted_fact_count":{"const":0},"invented_fact_count":{"const":0},"translation_digest":{"$ref":"#/$defs/digest"}}
+    },
+    "execution": {
+      "type":"object","additionalProperties":false,
+      "required":["run_id","status","exit_code","timed_out","started_at","finished_at","stdout_ref","stderr_ref","raw_output_ref","exact_command"],
+      "properties":{"run_id":{"$ref":"#/$defs/id"},"status":{"enum":["completed","blocked","failed","stale"]},"exit_code":{"type":["integer","null"]},"timed_out":{"type":"boolean"},"started_at":{"type":["string","null"]},"finished_at":{"type":["string","null"]},"stdout_ref":{"anyOf":[{"$ref":"#/$defs/exactRef"},{"type":"null"}]},"stderr_ref":{"anyOf":[{"$ref":"#/$defs/exactRef"},{"type":"null"}]},"raw_output_ref":{"anyOf":[{"$ref":"#/$defs/exactRef"},{"type":"null"}]},"exact_command":{"type":"array","minItems":1,"items":{"type":"string","minLength":1}}}
+    },
+    "native_result": {
+      "oneOf": [
+        {"type":"null"},
+        {
+          "type":"object","additionalProperties":false,
+          "required":["kind","relation_name","row_schema_digest","row_count","rows_digest","rows_ref","complete"],
+          "properties":{"kind":{"const":"violation-relation"},"relation_name":{"$ref":"#/$defs/id"},"row_schema_digest":{"$ref":"#/$defs/digest"},"row_count":{"type":"integer","minimum":0},"rows_digest":{"$ref":"#/$defs/digest"},"rows_ref":{"$ref":"#/$defs/exactRef"},"complete":{"const":true}}
+        },
+        {
+          "type":"object","additionalProperties":false,
+          "required":["kind","command_kind","command_label","scope","scope_digest","outcome","instance_or_counterexample_ref","solution_count","cli_receipt_ref"],
+          "properties":{"kind":{"const":"alloy-command"},"command_kind":{"const":"check"},"command_label":{"$ref":"#/$defs/id"},"scope":{"type":"object"},"scope_digest":{"$ref":"#/$defs/digest"},"outcome":{"enum":["sat","unsat","unknown"]},"instance_or_counterexample_ref":{"anyOf":[{"$ref":"#/$defs/exactRef"},{"type":"null"}]},"solution_count":{"type":["integer","null"],"minimum":0},"cli_receipt_ref":{"$ref":"#/$defs/exactRef"}}
+        }
+      ]
+    },
+    "normalized_result": {
+      "type":"object","additionalProperties":false,
+      "required":["outcome","domain_kind","evaluation_mode","evidence_refs","result_payload_digest"],
+      "properties":{"outcome":{"enum":["counterexample","no-counterexample","witness","no-witness","unresolved"]},"domain_kind":{"const":"exact-closed-world-fact-set"},"evaluation_mode":{"const":"exact-instance"},"evidence_refs":{"type":"array","minItems":1,"items":{"$ref":"#/$defs/exactRef"}},"result_payload_digest":{"$ref":"#/$defs/digest"}}
+    },
+    "semantic_result_digest":{"$ref":"#/$defs/digest"},
+    "residue":{"type":"array","items":{"$ref":"#/$defs/residue"}},
+    "authority_effect":{"const":"none"},
+    "release_admission":{"const":"not-granted"},
+    "claim_ceiling":{"enum":["exact-finite-corpus-relation-result-only","bounded-static-model-result-only","no-property-claim"]}
+  },
+  "allOf": [
+    {
+      "if":{"properties":{"execution":{"properties":{"status":{"const":"completed"}}}},"required":["execution"]},
+      "then":{"properties":{"execution":{"properties":{"exit_code":{"const":0},"timed_out":{"const":false},"started_at":{"type":"string","format":"date-time"},"finished_at":{"type":"string","format":"date-time"},"raw_output_ref":{"$ref":"#/$defs/exactRef"}}},"native_result":{"not":{"type":"null"}}}}
+    },
+    {
+      "if":{"properties":{"execution":{"properties":{"status":{"enum":["blocked","failed","stale"]}}}}},
+      "then":{"properties":{"native_result":{"type":"null"},"normalized_result":{"properties":{"outcome":{"const":"unresolved"}}},"claim_ceiling":{"const":"no-property-claim"}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"datalog"}}}},"required":["provider"]},
+      "then":{"properties":{"receipt_family":{"const":"graph-relation"},"native_result":{"properties":{"kind":{"const":"violation-relation"}}},"claim_ceiling":{"enum":["exact-finite-corpus-relation-result-only","no-property-claim"]}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"alloy"}}}},"required":["provider"]},
+      "then":{"properties":{"receipt_family":{"const":"formal-static"},"native_result":{"properties":{"kind":{"const":"alloy-command"}}},"claim_ceiling":{"enum":["bounded-static-model-result-only","no-property-claim"]}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"datalog"}}},"execution":{"properties":{"status":{"const":"completed"}}},"native_result":{"properties":{"row_count":{"const":0}}}}},
+      "then":{"properties":{"normalized_result":{"properties":{"outcome":{"const":"no-counterexample"}}}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"datalog"}}},"execution":{"properties":{"status":{"const":"completed"}}},"native_result":{"properties":{"row_count":{"minimum":1}}}}},
+      "then":{"properties":{"normalized_result":{"properties":{"outcome":{"const":"counterexample"}}}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"alloy"}}},"execution":{"properties":{"status":{"const":"completed"}}},"native_result":{"properties":{"outcome":{"const":"sat"}}}}},
+      "then":{"properties":{"native_result":{"properties":{"instance_or_counterexample_ref":{"$ref":"#/$defs/exactRef"},"solution_count":{"type":"integer","minimum":1}}},"normalized_result":{"properties":{"outcome":{"const":"counterexample"}}}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"alloy"}}},"execution":{"properties":{"status":{"const":"completed"}}},"native_result":{"properties":{"outcome":{"const":"unsat"}}}}},
+      "then":{"properties":{"native_result":{"properties":{"instance_or_counterexample_ref":{"type":"null"},"solution_count":{"const":0}}},"normalized_result":{"properties":{"outcome":{"const":"no-counterexample"}}}}}
+    },
+    {
+      "if":{"properties":{"provider":{"properties":{"kind":{"const":"alloy"}}},"execution":{"properties":{"status":{"const":"completed"}}},"native_result":{"properties":{"outcome":{"const":"unknown"}}}}},
+      "then":{"properties":{"native_result":{"properties":{"instance_or_counterexample_ref":{"type":"null"}}},"normalized_result":{"properties":{"outcome":{"const":"unresolved"}}}}}
+    }
+  ],
+  "$defs": {
+    "id":{"type":"string","minLength":1,"pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "digest":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "path":{"type":"string","minLength":1,"pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+    "exactRef":{"type":"object","additionalProperties":false,"required":["path","sha256","size_bytes"],"properties":{"path":{"$ref":"#/$defs/path"},"sha256":{"$ref":"#/$defs/digest"},"size_bytes":{"type":"integer","minimum":0}}},
+    "residue":{"type":"object","additionalProperties":false,"required":["residue_id","class","severity","message","source_refs","claim_effect"],"properties":{"residue_id":{"$ref":"#/$defs/id"},"class":{"enum":["bounded-scope-only","counterexample-not-minimal","provider-disagreement","domain-not-comparable","property-owner-open","l1-prerequisite-open","datalog-runtime-acquisition-open","formal-tower-claim-surface-drift","unsupported-property","stale-input","coverage-gap"]},"severity":{"enum":["blocking","nonblocking"]},"message":{"type":"string","minLength":1},"source_refs":{"type":"array","items":{"$ref":"#/$defs/exactRef"}},"claim_effect":{"type":"string","minLength":1}}}
+  }
+}

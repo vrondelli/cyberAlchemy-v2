@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:domainspec-v2:bmc-rel-001:relationship-constraint-decision-packet:v1",
+  "title": "BMC-REL-001 Relationship Constraint Decision Packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "packet_id",
+    "status",
+    "authority_effect",
+    "canonical_source",
+    "evidence_baseline",
+    "scope",
+    "claim_ceiling",
+    "rows",
+    "owner_disposition"
+  ],
+  "properties": {
+    "schema_version": {"const": "domainspec.bmc-rel-001-decision-packet/v1"},
+    "packet_id": {"const": "BMC-REL-001"},
+    "status": {"enum": ["candidate-pending-owner-decision", "owner-returned", "owner-rejected", "owner-accepted"]},
+    "authority_effect": {"const": "none"},
+    "canonical_source": {"$ref": "#/$defs/canonicalSource"},
+    "evidence_baseline": {"$ref": "#/$defs/evidenceBaseline"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "claim_ceiling": {"type": "string", "minLength": 1},
+    "rows": {
+      "type": "array",
+      "minItems": 31,
+      "maxItems": 31,
+      "items": {"$ref": "#/$defs/row"}
+    },
+    "owner_disposition": {"$ref": "#/$defs/ownerDisposition"}
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "stringList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "canonicalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "signature_count"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "signature_count": {"const": 31}
+      }
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "observed_result"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "observed_result": {"enum": ["pass", "flag", "block"]}
+      }
+    },
+    "evidenceBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bmc_matrix", "bmc_receipt"],
+      "properties": {
+        "bmc_matrix": {"$ref": "#/$defs/evidenceBinding"},
+        "bmc_receipt": {"$ref": "#/$defs/evidenceBinding"}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend_implementation_ids", "ui_audit_only_ids", "ui_backend_audit_only_ids"],
+      "properties": {
+        "backend_implementation_ids": {
+          "type": "array",
+          "minItems": 17,
+          "maxItems": 17,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "ui_audit_only_ids": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "ui_backend_audit_only_ids": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "inverse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"enum": ["none", "generated_view", "authored-canonical", "bidirectional-pair"]},
+        "id": {"type": ["string", "null"]}
+      }
+    },
+    "currentAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction", "source_types", "target_types", "multiplicity_token", "feature_scope", "inverse"],
+      "properties": {
+        "direction": {"const": "canonical"},
+        "source_types": {"$ref": "#/$defs/stringList"},
+        "target_types": {"$ref": "#/$defs/stringList"},
+        "multiplicity_token": {"type": "string", "minLength": 1},
+        "feature_scope": {"$ref": "#/$defs/stringList"},
+        "inverse": {"$ref": "#/$defs/inverse"}
+      }
+    },
+    "boundMax": {
+      "anyOf": [
+        {"type": "integer", "minimum": 0},
+        {"const": "unbounded"},
+        {"type": "null"}
+      ]
+    },
+    "numericBounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_min", "source_max", "target_min", "target_max"],
+      "properties": {
+        "source_min": {"type": ["integer", "null"], "minimum": 0},
+        "source_max": {"$ref": "#/$defs/boundMax"},
+        "target_min": {"type": ["integer", "null"], "minimum": 0},
+        "target_max": {"$ref": "#/$defs/boundMax"}
+      }
+    },
+    "numericBoundsEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "source_min", "source_max", "target_min", "target_max", "closure_scope", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["complete", "unresolved"]},
+        "source_min": {"type": ["integer", "null"], "minimum": 0},
+        "source_max": {"$ref": "#/$defs/boundMax"},
+        "target_min": {"type": ["integer", "null"], "minimum": 0},
+        "target_max": {"$ref": "#/$defs/boundMax"},
+        "closure_scope": {"type": ["string", "null"]},
+        "evidence_refs": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "numericBoundsDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {
+          "anyOf": [
+            {"$ref": "#/$defs/numericBounds"},
+            {"type": "null"}
+          ]
+        },
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "closureDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["same-feature", "cross-feature", "declared-feature-scopes", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "multiEndpointDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["pooled", "per-type", "not-applicable", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "partialViewDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["skip", "unsupported", "owner-blocked", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "duplicatesDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["reject", "coalesce", "allow", "not-applicable", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "selfRelationsDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["reject", "allow", "not-applicable-by-endpoint-types", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "orderingDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["ordered", "unordered", "not-applicable", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "occurrenceDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["concept-level", "runtime-occurrence", "both-with-separate-bounds", "separate-concept-degree-and-declared-step-count", "separate-concept-degree-and-declared-role-count", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "inverseDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["none", "generated-view", "authored-canonical", "bidirectional-pair", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "representationDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["authored-edge", "generated-projection", "canonical-edge-plus-generated-projection", "attribute-only", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "runtimeCardinalityDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["separate-from-concept-cardinality", "same-as-concept-cardinality", "not-applicable", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "compatibilityTokenDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "value": {"enum": ["retain", "replace", "deprecate", null]},
+        "rationale": {"type": ["string", "null"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "proposedDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "numeric_bounds",
+        "closure",
+        "multi_endpoint_semantics",
+        "partial_view",
+        "duplicates",
+        "self_relations",
+        "ordering",
+        "occurrence_semantics",
+        "inverse_semantics",
+        "representation",
+        "runtime_cardinality",
+        "compatibility_token"
+      ],
+      "properties": {
+        "status": {"enum": ["unresolved", "owner-selected", "retain-canonical"]},
+        "numeric_bounds": {"$ref": "#/$defs/numericBoundsDecision"},
+        "closure": {"$ref": "#/$defs/closureDecision"},
+        "multi_endpoint_semantics": {"$ref": "#/$defs/multiEndpointDecision"},
+        "partial_view": {"$ref": "#/$defs/partialViewDecision"},
+        "duplicates": {"$ref": "#/$defs/duplicatesDecision"},
+        "self_relations": {"$ref": "#/$defs/selfRelationsDecision"},
+        "ordering": {"$ref": "#/$defs/orderingDecision"},
+        "occurrence_semantics": {"$ref": "#/$defs/occurrenceDecision"},
+        "inverse_semantics": {"$ref": "#/$defs/inverseDecision"},
+        "representation": {"$ref": "#/$defs/representationDecision"},
+        "runtime_cardinality": {"$ref": "#/$defs/runtimeCardinalityDecision"},
+        "compatibility_token": {"$ref": "#/$defs/compatibilityTokenDecision"}
+      }
+    },
+    "ownershipTopology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "policy", "registry_path", "registry_sha256", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"const": "owner-selected"},
+        "policy": {"const": "one-owner-per-admitted-dimension"},
+        "registry_path": {"const": "projects/domainspec-v2/definitions/ownership-dimensions/ownership-dimensions.json"},
+        "registry_sha256": {"const": "91898f538b49f29a1be659560f6b442644a34b3ecb3f0a8916b7a0e53680bad4"},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "membershipTopology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "policy", "registry_path", "registry_sha256", "rationale", "evidence_refs"],
+      "properties": {
+        "status": {"const": "owner-selected"},
+        "policy": {"const": "one-parent-per-admitted-membership-kind"},
+        "registry_path": {"const": "projects/domainspec-v2/definitions/membership-kinds/membership-kinds.json"},
+        "registry_sha256": {"const": "854ff80f309e38f48f3f278d13d661983652b6809bf3f2bf0e06688b9bf37d5c"},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "decisionTests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positive", "hostile"],
+      "properties": {
+        "positive": {"$ref": "#/$defs/stringList"},
+        "hostile": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signature_id",
+        "lane",
+        "current_authority",
+        "numeric_bounds_evidence",
+        "owner_question",
+        "proposed_decision",
+        "decision_tests",
+        "decision_evidence_refs"
+      ],
+      "properties": {
+        "signature_id": {"type": "string", "minLength": 1},
+        "lane": {"enum": ["backend-implementation", "ui-audit-only", "ui-backend-audit-only"]},
+        "current_authority": {"$ref": "#/$defs/currentAuthority"},
+        "numeric_bounds_evidence": {"$ref": "#/$defs/numericBoundsEvidence"},
+        "owner_question": {"type": "string", "minLength": 1},
+        "proposed_decision": {"$ref": "#/$defs/proposedDecision"},
+        "ownership_topology": {"$ref": "#/$defs/ownershipTopology"},
+        "membership_topology": {"$ref": "#/$defs/membershipTopology"},
+        "decision_tests": {"$ref": "#/$defs/decisionTests"},
+        "decision_evidence_refs": {"$ref": "#/$defs/stringList"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"signature_id": {"const": "owns"}},
+            "required": ["signature_id"]
+          },
+          "then": {"required": ["ownership_topology"]},
+          "else": {"not": {"required": ["ownership_topology"]}}
+        },
+        {
+          "if": {
+            "properties": {"signature_id": {"const": "belongs-to"}},
+            "required": ["signature_id"]
+          },
+          "then": {"required": ["membership_topology"]},
+          "else": {"not": {"required": ["membership_topology"]}}
+        }
+      ]
+    },
+    "ownerDisposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "acceptance_receipt_path", "decided_by", "decided_at", "notes"],
+      "properties": {
+        "status": {"enum": ["pending", "accepted", "rejected", "returned"]},
+        "acceptance_receipt_path": {"type": ["string", "null"]},
+        "decided_by": {"type": ["string", "null"]},
+        "decided_at": {"type": ["string", "null"]},
+        "notes": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+toolchain_dir="$(cd "${script_dir}/.." && pwd)"
+repo_root="$(git -C "${toolchain_dir}" rev-parse --show-toplevel)"
+manifest="${toolchain_dir}/toolchain.json"
+image="$(jq -r '.container_image' "${manifest}")"
+node_image="$(jq -r '.node.image' "${manifest}")"
+shared_playwright_root="${DOMAINSPEC_PLAYWRIGHT_ROOT:-/home/vrondelli/.nvm/versions/node/v22.12.0/lib/node_modules/playwright}"
+shared_browser_cache="${DOMAINSPEC_PLAYWRIGHT_BROWSERS_PATH:-/home/vrondelli/.cache/ms-playwright}"
+module_mount_targets=()
+
+cleanup_empty_mount_targets() {
+  local index
+  for ((index=${#module_mount_targets[@]}-1; index>=0; index--)); do
+    rmdir "${module_mount_targets[index]}" 2>/dev/null || true
+  done
+}
+
+usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  node-env build-image' \
+    '  node-env versions' \
+    '  node-env validate' \
+    '  node-env doctor [--enforce]' \
+    '  node-env install --project <repo-relative-path>' \
+    '  node-env run --project <repo-relative-path> -- <command> [args...]' \
+    '  node-env shell --project <repo-relative-path>'
+}
+
+project_context() {
+  local requested="$1"
+  if [[ -z "${requested}" || "${requested}" == /* || "${requested}" == *..* ]]; then
+    printf 'Invalid project path: %s\n' "${requested}" >&2
+    exit 2
+  fi
+
+  project="${requested#./}"
+  project_root="$(realpath -m "${repo_root}/${project}")"
+  case "${project_root}" in
+    "${repo_root}"/*) ;;
+    *) printf 'Project escapes repository: %s\n' "${requested}" >&2; exit 2 ;;
+  esac
+
+  if [[ ! -f "${project_root}/package.json" ]]; then
+    printf 'Missing package.json: %s\n' "${project_root}" >&2
+    exit 2
+  fi
+
+  workspace_mode=false
+  workspace_root=""
+  workspace_member_rels=()
+  local cursor candidate_manager member relative member_root
+  if [[ -f "${repo_root}/package.json" && -f "${repo_root}/pnpm-workspace.yaml" ]]; then
+    candidate_manager="$(jq -r '.packageManager // "" | split("@")[0]' "${repo_root}/package.json")"
+    if [[ "${candidate_manager}" == "pnpm" ]]; then
+      member=false
+      [[ "${project_root}" == "${repo_root}" ]] && member=true
+      mapfile -t workspace_member_rels < <(jq -r '.workspaces[]?' "${repo_root}/package.json")
+      for relative in "${workspace_member_rels[@]}"; do
+        if [[ -z "${relative}" || "${relative}" == /* || "${relative}" == *..* || ! "${relative}" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+          printf 'Workspace member paths must be exact safe relative paths: %s\n' "${relative}" >&2
+          exit 2
+        fi
+        member_root="$(realpath -m "${repo_root}/${relative}")"
+        [[ "${project_root}" == "${member_root}" ]] && member=true
+      done
+      if [[ "${member}" == true ]]; then
+        workspace_mode=true
+        workspace_root="${repo_root}"
+      fi
+    fi
+  fi
+
+  cursor="${project_root}"
+  while [[ "${workspace_mode}" == false && ( "${cursor}" == "${repo_root}" || "${cursor}" == "${repo_root}"/* ) ]]; do
+    if [[ -f "${cursor}/package.json" && -f "${cursor}/pnpm-workspace.yaml" ]]; then
+      candidate_manager="$(jq -r '.packageManager // "" | split("@")[0]' "${cursor}/package.json")"
+      if [[ "${candidate_manager}" == "pnpm" ]]; then
+        member=false
+        [[ "${project_root}" == "${cursor}" ]] && member=true
+        mapfile -t workspace_member_rels < <(jq -r '.workspaces[]?' "${cursor}/package.json")
+        for relative in "${workspace_member_rels[@]}"; do
+          if [[ -z "${relative}" || "${relative}" == /* || "${relative}" == *..* || ! "${relative}" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            printf 'Workspace member paths must be exact safe relative paths: %s\n' "${relative}" >&2
+            exit 2
+          fi
+          member_root="$(realpath -m "${cursor}/${relative}")"
+          [[ "${project_root}" == "${member_root}" ]] && member=true
+        done
+        if [[ "${member}" == true ]]; then
+          workspace_mode=true
+          workspace_root="${cursor}"
+          break
+        fi
+      fi
+    fi
+    [[ "${cursor}" == "${repo_root}" ]] && break
+    cursor="$(dirname "${cursor}")"
+  done
+
+  if [[ "${workspace_mode}" == true ]]; then
+    manager="pnpm"
+    lock_file="${workspace_root}/pnpm-lock.yaml"
+    if [[ ! -f "${lock_file}" ]]; then
+      printf 'Workspace pnpm-lock.yaml is absent in %s\n' "${workspace_root}" >&2
+      exit 2
+    fi
+    install_root="${workspace_root}"
+    if [[ "${workspace_root}" == "${repo_root}" ]]; then
+      install_project="."
+    else
+      install_project="${workspace_root#${repo_root}/}"
+    fi
+  else
+    install_root="${project_root}"
+    install_project="${project}"
+
+    local npm_lock="${project_root}/package-lock.json"
+    local pnpm_lock="${project_root}/pnpm-lock.yaml"
+    local declared_manager
+    declared_manager="$(jq -r '.packageManager // "" | split("@")[0]' "${project_root}/package.json")"
+
+    case "${declared_manager}" in
+      npm)
+        if [[ ! -f "${npm_lock}" ]]; then
+          printf 'packageManager declares npm but package-lock.json is absent in %s\n' "${project}" >&2
+          exit 2
+        fi
+        manager="npm"
+        lock_file="${npm_lock}"
+        ;;
+      pnpm)
+        if [[ ! -f "${pnpm_lock}" ]]; then
+          printf 'packageManager declares pnpm but pnpm-lock.yaml is absent in %s\n' "${project}" >&2
+          exit 2
+        fi
+        manager="pnpm"
+        lock_file="${pnpm_lock}"
+        ;;
+      "")
+        if [[ -f "${npm_lock}" && -f "${pnpm_lock}" ]]; then
+          printf 'Ambiguous dependency authority: both npm and pnpm locks exist in %s and packageManager is absent\n' "${project}" >&2
+          exit 2
+        elif [[ -f "${npm_lock}" ]]; then
+          manager="npm"
+          lock_file="${npm_lock}"
+        elif [[ -f "${pnpm_lock}" ]]; then
+          manager="pnpm"
+          lock_file="${pnpm_lock}"
+        else
+          printf 'No supported lockfile in %s\n' "${project}" >&2
+          exit 2
+        fi
+        ;;
+      *)
+        printf 'Unsupported packageManager %s in %s\n' "${declared_manager}" "${project}" >&2
+        exit 2
+        ;;
+    esac
+  fi
+
+  local lock_digest slug
+  lock_digest="$(sha256sum "${lock_file}" | cut -d ' ' -f 1)"
+  slug="$(printf '%s' "${install_project}" | tr '/._' '---' | tr -cd '[:alnum:]-')"
+  [[ -z "${slug}" ]] && slug="root"
+  modules_volume="domainspec-node-modules-${slug}-${lock_digest:0:16}"
+}
+
+require_image() {
+  if ! docker image inspect "${image}" >/dev/null 2>&1; then
+    printf 'Missing toolchain image %s; run node-env build-image first.\n' "${image}" >&2
+    exit 2
+  fi
+}
+
+ensure_modules_volume() {
+  if ! docker volume inspect "${modules_volume}" >/dev/null 2>&1; then
+    docker volume create "${modules_volume}" >/dev/null
+  fi
+  if [[ "${workspace_mode}" == true ]]; then
+    local layout=(root) relative member_slug
+    for relative in "${workspace_member_rels[@]}"; do
+      member_slug="$(printf '%s' "${relative}" | tr '/._' '---' | tr -cd '[:alnum:]-')"
+      layout+=("members/${member_slug}")
+    done
+    docker run --rm \
+      --mount "type=volume,src=${modules_volume},dst=/data" \
+      "${image}" sh -c 'for path do mkdir -p "/data/${path}"; chmod 0777 "/data/${path}"; done' sh "${layout[@]}"
+  else
+    docker run --rm \
+      --mount "type=volume,src=${modules_volume},dst=/data" \
+      "${image}" chmod -R a+rwX /data
+  fi
+}
+
+container_mounts() {
+  mounts=(
+    --mount "type=bind,src=${repo_root},dst=/workspace"
+    --mount 'type=volume,src=domainspec-node-npm-cache,dst=/var/cache/node/npm'
+    --mount 'type=volume,src=domainspec-node-pnpm-store,dst=/var/cache/node/pnpm'
+  )
+  if [[ "${workspace_mode}" == true ]]; then
+    local workspace_target member_slug relative member_target
+    workspace_target="/workspace/${install_project}"
+    [[ "${install_project}" == "." ]] && workspace_target="/workspace"
+    mounts+=(--mount "type=volume,src=${modules_volume},dst=${workspace_target}/node_modules,volume-subpath=root,volume-nocopy")
+    module_mount_targets+=("${install_root}/node_modules")
+    for relative in "${workspace_member_rels[@]}"; do
+      member_slug="$(printf '%s' "${relative}" | tr '/._' '---' | tr -cd '[:alnum:]-')"
+      member_target="${workspace_target}/${relative}/node_modules"
+      mounts+=(--mount "type=volume,src=${modules_volume},dst=${member_target},volume-subpath=members/${member_slug},volume-nocopy")
+      module_mount_targets+=("${install_root}/${relative}/node_modules")
+    done
+  else
+    mounts+=(--mount "type=volume,src=${modules_volume},dst=/workspace/${project}/node_modules,volume-nocopy")
+    module_mount_targets+=("${project_root}/node_modules")
+  fi
+  runtime_env=()
+  if [[ -d "${shared_playwright_root}" && -d "${shared_browser_cache}" ]]; then
+    mounts+=(
+      --mount "type=bind,src=${shared_playwright_root},dst=/opt/shared/playwright,readonly"
+      --mount "type=bind,src=${shared_browser_cache},dst=/ms-playwright,readonly"
+    )
+    runtime_env+=(
+      --env 'OEW_PLAYWRIGHT_ROOT=/opt/shared/playwright'
+      --env 'PLAYWRIGHT_BROWSERS_PATH=/ms-playwright'
+    )
+  fi
+}
+
+command="${1:-}"
+case "${command}" in
+  build-image)
+    docker build \
+      --build-arg "NODE_IMAGE=${node_image}" \
+      --tag "${image}" \
+      "${toolchain_dir}"
+    ;;
+  versions)
+    require_image
+    docker run --rm "${image}" versions
+    ;;
+  validate)
+    require_image
+    docker run --rm "${image}" node /opt/node-toolchain/scripts/validate-toolchain.mjs
+    ;;
+  doctor)
+    require_image
+    shift
+    docker run --rm \
+      --mount "type=bind,src=${repo_root},dst=/workspace,readonly" \
+      "${image}" node /opt/node-toolchain/scripts/doctor.mjs "$@"
+    ;;
+  install|run|shell)
+    shift
+    if [[ "${1:-}" != "--project" || -z "${2:-}" ]]; then
+      usage >&2
+      exit 2
+    fi
+    project_context "$2"
+    shift 2
+    container_mounts
+    trap cleanup_empty_mount_targets EXIT
+    require_image
+    ensure_modules_volume
+
+    if [[ "${command}" == "install" ]]; then
+      docker run --rm \
+        "${mounts[@]}" \
+        "${runtime_env[@]}" \
+        --workdir "/workspace/${install_project}" \
+        --user "$(id -u):$(id -g)" \
+        --env HOME=/tmp \
+        --env "PROJECT_MANAGER=${manager}" \
+        --env "PROJECT_WORKSPACE_MODE=${workspace_mode}" \
+        "${image}" \
+        bash -c '
+          set -euo pipefail
+          if [[ "${PROJECT_MANAGER}" == "npm" ]]; then
+            npm ci
+          else
+            pnpm_args=()
+            if [[ "${PROJECT_WORKSPACE_MODE}" != true ]]; then
+              pnpm_args+=(--ignore-workspace)
+            fi
+            /opt/node-toolchain/node_modules/.bin/pnpm install "${pnpm_args[@]}" --frozen-lockfile --store-dir /var/cache/node/pnpm
+          fi
+        '
+    elif [[ "${command}" == "shell" ]]; then
+      docker run --rm -it \
+        "${mounts[@]}" \
+        "${runtime_env[@]}" \
+        --workdir "/workspace/${project}" \
+        --user "$(id -u):$(id -g)" \
+        --env HOME=/tmp \
+        "${image}" bash
+    else
+      if [[ "${1:-}" != "--" || "$#" -lt 2 ]]; then
+        usage >&2
+        exit 2
+      fi
+      shift
+      docker run --rm \
+        "${mounts[@]}" \
+        "${runtime_env[@]}" \
+        --workdir "/workspace/${project}" \
+        --user "$(id -u):$(id -g)" \
+        --env HOME=/tmp \
+        "${image}" "$@"
+    fi
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

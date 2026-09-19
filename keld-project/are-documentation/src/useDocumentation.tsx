@@ -1,0 +1,4 @@
+import {useEffect,useState,type ReactNode} from 'react';
+import {documentationLoaded,loadDocumentation} from './documentationContent';
+export function useDocumentation(){const [ready,setReady]=useState(documentationLoaded),[error,setError]=useState(false),[retry,setRetry]=useState(0);useEffect(()=>{let active=true;loadDocumentation().then(()=>{if(active)setReady(true);}).catch(()=>{if(active)setError(true);});return()=>{active=false;};},[retry]);return {ready,error,retry:()=>{setError(false);setRetry(n=>n+1);}};}
+export function DocumentationLoader({children}:{children:ReactNode}){const state=useDocumentation();return state.ready?children:<div role="status" className="page-loading">{state.error?<>The guide could not load. <button onClick={state.retry}>Retry</button> <button onClick={()=>location.reload()}>Reload page</button></>:'Loading guide…'}</div>;}

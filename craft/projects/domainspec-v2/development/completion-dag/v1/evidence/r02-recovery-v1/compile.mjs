@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import {pathToFileURL} from 'node:url';
+const [compiler, source, bindings] = process.argv.slice(2);
+const api = await import(pathToFileURL(compiler + '/dist/index.js'));
+const first = api.compileProject(source);
+api.validateCompiledProjectCertificate(first.graph, first.certificate);
+const second = api.compileProject(source);
+if (JSON.stringify(first) !== JSON.stringify(second)) throw Error('non-deterministic graph');
+const value = JSON.parse(fs.readFileSync(bindings, 'utf8'));
+const manifest = api.compileSystemIntegrationManifest(value, 'python');
+api.validateSystemIntegrationManifest(manifest, 'python');
+const again = api.compileSystemIntegrationManifest(value, 'python');
+if (JSON.stringify(manifest) !== JSON.stringify(again)) throw Error('non-deterministic binding');
+if (manifest.runtime_guarantees_observed !== false) throw Error('runtime claim inflation');
+process.stdout.write(JSON.stringify({...first, binding_manifest: manifest, generated_contract: api.renderSystemIntegrationContract(manifest)}));

@@ -22,7 +22,7 @@ def settings(root):
     artifact=root/'fixture.bin';artifact.write_bytes(b'KELD synthetic sandbox artifact')
     return {'origin':'https://shop.example.test','issuer':'https://auth.example.test/realms/keld',
       'stripeAccount':'acct_test','mercadopagoAccount':'123','mercadopagoApplicationId':'456','paypalAccount':'MERCHANT123',
-      'paypalWebhookId':'WH-TEST','artifact':str(artifact),
+      'paypalWebhookId':'WH-TEST','paypalCurrency':'BRL','artifact':str(artifact),
       'quoteBrl':{'numerator':5,'denominator':1,'reference':'synthetic-not-for-sale','expiresAt':2000000000}}
 
 class ProvisionTests(unittest.TestCase):
@@ -40,6 +40,10 @@ class ProvisionTests(unittest.TestCase):
             self.assertIsNone(result['artifactSha256'])
             realm=json.loads((root/'runtime/keld-realm.json').read_text())
             self.assertEqual(realm['clients'][0]['redirectUris'],['https://staging.keld.studio/auth/callback'])
+            self.assertTrue(realm['registrationAllowed'])
+            self.assertTrue(realm['registrationEmailAsUsername'])
+            self.assertFalse(realm['verifyEmail'])
+            self.assertFalse(realm['resetPasswordAllowed'])
     def test_real_copied_vault_provisions_private_files_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);store,values=synthetic_store(root);config=settings(root)
@@ -55,8 +59,11 @@ class ProvisionTests(unittest.TestCase):
             self.assertNotIn(values['session_key'],public)
             self.assertEqual(json.loads(public)['payments']['mercadopago']['api'],'orders-v1')
             self.assertEqual(json.loads(public)['payments']['mercadopago']['applicationId'],'456')
+            self.assertEqual(json.loads(public)['payments']['paypal']['currency'],'BRL')
             realm=json.loads((root/'runtime/keld-realm.json').read_text())
             self.assertEqual(realm['clients'][0]['secret'],values['oidc'])
+            self.assertTrue(realm['registrationAllowed'])
+            self.assertEqual(realm['passwordPolicy'],'length(12) and upperCase(1) and lowerCase(1) and digits(1)')
             self.assertFalse((root/'runtime/key').exists())
             with self.assertRaises(ValueError):prepare(store,config,root/'runtime')
     def test_infrastructure_seeding_is_idempotent_and_silent_about_values(self):

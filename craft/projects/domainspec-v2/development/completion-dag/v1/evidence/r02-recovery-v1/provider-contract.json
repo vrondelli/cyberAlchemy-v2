@@ -1,0 +1,97 @@
+{
+  "profile_id": "r02:python-sqlite-same-boot-v1",
+  "status": "prototype-contract",
+  "authority_effect": "none",
+  "runtime_guarantees_observed": false,
+  "bindings_source": "bindings.json",
+  "python_contract": "contracts.py",
+  "schemas": {
+    "coordination": {
+      "path": "coordination.sql",
+      "sha256": "233d1e70e1f61b9b6b8ce7d421080ba65e884d706388d38f5c27cbc4b1f3e538",
+      "resource": "coordination.sqlite"
+    },
+    "operation": {
+      "path": "operation.sql",
+      "sha256": "e646328a14cd34ce04089e65a1afa7f99969ea3b90b7c4b51cd963ada058844a",
+      "resource": "operation.sqlite"
+    }
+  },
+  "transaction_boundary": "Separate files, connections and transactions; never ATTACH or hold a coordination write transaction across Operation invocation.",
+  "version_compatibility": {
+    "id": "r02:exact-schema-v1",
+    "schema_version": 1,
+    "read_rule": "Require exact user_version, metadata schema version, frozen R01 product digest, schema digest and expected resource ID before mutable use. Reject an unexpected peer database, alias path or shared resource.",
+    "new_database": "Explicit initialization of fresh empty files only; schema SQL is an initialization prototype, never a migration runner.",
+    "existing_database": "Read-only preflight first. Do not run schema SQL or overwrite user_version/metadata on reopen. Unknown, older, newer or missing metadata is a typed mismatch.",
+    "upgrade": "No automatic migration. A successor candidate must separately define conversion and test old-state preservation.",
+    "boot_rule": "Coordination boot identity must match the live boot; compare shared monotonic milliseconds and persisted high-water mark. Reject clock regression or boot mismatch without inventing terminal state.",
+    "metadata_profile_digest_material": {
+      "schema_version": 1,
+      "r01_profile_sha256": "a542773ce0e74e427c56222ec837ca044684c83f24ff566301a33d338bcbf65c",
+      "coordination_schema_sha256": "233d1e70e1f61b9b6b8ce7d421080ba65e884d706388d38f5c27cbc4b1f3e538",
+      "operation_schema_sha256": "e646328a14cd34ce04089e65a1afa7f99969ea3b90b7c4b51cd963ada058844a"
+    },
+    "metadata_profile_digest": "3e7ff6fd9e72bc8909005bae327956ed2830f3d24400eeffc7bbf8212a7fc8e9",
+    "metadata_profile_digest_encoding": "SHA256 of UTF-8 JSON, sorted keys, separators comma/colon, no trailing newline"
+  },
+  "operation_contract": {
+    "recognize": "Read matching identity and binding/payload digest; return recorded success, absent, or typed unknown. Absence does not prove a previously executing stale worker can never commit.",
+    "apply_or_recognize": "Inside BEGIN IMMEDIATE reread the result. Return matching success or validate payload and apply example row plus success ledger plus Operation outbox atomically. Error before commit rolls back all three; unknown commit requires reread. Do not record a success on failure.",
+    "result_digest": "SHA-256 of canonical UTF-8 result JSON; exact canonicalization and identity algorithm are carried unchanged from the selected reference implementation or explicitly pinned in R03/R04.",
+    "same_identity_different_payload": "Reject before business mutation.",
+    "terminal_unknown_limit": "Exhausted/unresolved is not a proof of zero business effects: a stale in-flight local Operation can still commit. Its stable identity prevents duplicate application."
+  },
+  "command_contracts": {
+    "arbitration": [
+      "register-recovery",
+      "acquire-claim",
+      "takeover-claim"
+    ],
+    "guarded_advancement": [
+      "renew-lease",
+      "start-attempt",
+      "record-outcome",
+      "reconcile-result",
+      "schedule-retry",
+      "record-terminal"
+    ],
+    "projection": [
+      "mark-dispatch-delivered"
+    ],
+    "allowlist": "Command.kind must be one of these values; R03 rejects unknown kinds and validates the exact payload per command. Contracts.py is a typed seam, not an implemented decoder.",
+    "outbox": "Each state transition writes one unique transition ID and one dispatch event in its local transaction. Delivery marking is a projection update and cannot advance dispatch state. Duplicate delivery uses the same event ID.",
+    "unknown_commit": "Lookup transition_id and command_digest on a new connection; exact prior commit returns recorded version, differing command rejects, absence permits a new state read, inaccessible evidence remains unknown."
+  },
+  "failure_mapping": [
+    {
+      "provider": "busy/locked before transition commit",
+      "class": "retryable",
+      "effect": "No new execution start; later polling rereads state. No implicit Operation retry."
+    },
+    {
+      "provider": "commit response lost or I/O with uncertain commit",
+      "class": "unknown",
+      "effect": "Reopen and reconcile stable transition/result identities; stop on unreadable evidence."
+    },
+    {
+      "provider": "identity, binding, schema, boot or payload mismatch",
+      "class": "non-retryable",
+      "effect": "Reject mutable use; preserve diagnostic evidence without fabricating a terminal."
+    }
+  ],
+  "exact_R01_profile_sha256": "a542773ce0e74e427c56222ec837ca044684c83f24ff566301a33d338bcbf65c",
+  "reference_resolution": {
+    "r02:sqlite-coordination": "contracts.py CoordinationUnitOfWork/CoordinationRepository; implementation R03",
+    "r02:sqlite-operation": "contracts.py OperationReplayAdapter; implementation R04",
+    "r02:coordination-database": "coordination.sqlite at caller-selected fresh test path",
+    "r02:operation-database": "operation.sqlite at distinct caller-selected fresh test path",
+    "r02:coordination-schema": "coordination.sql",
+    "r02:operation-schema": "operation.sql",
+    "r02:sqlite-ambiguous-commit": "failure_mapping unknown record in this file",
+    "r02:future-raw-observation": "not_evaluable; future runtime evidence, no observation exists in R02",
+    "r02:exact-schema-v1": "version_compatibility in this file",
+    "r02:python-sqlite-same-boot-v1": "this provider profile",
+    "recovery-runtime:continuation-policy": "frozen R01 policy and occurrences.continuation/policy_ref; Operation owner selects continuation"
+  }
+}

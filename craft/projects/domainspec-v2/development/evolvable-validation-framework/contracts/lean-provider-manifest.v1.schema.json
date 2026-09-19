@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/evf/lean-provider-manifest.v1.schema.json",
+  "title": "EVF Lean Provider Runtime Binding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "runtime_binding_id", "provider_owner", "provider_id",
+    "provider_version", "provider_digest", "profile_ref", "input_artifact_ref",
+    "command", "working_directory", "environment_allowlist", "fixture_refs",
+    "limits", "network", "supported_outcomes", "currentness",
+    "authority_effect", "claim_ceiling"
+  ],
+  "properties": {
+    "schema_version": {"const": "domainspec-v2.provider-runtime-binding/v1-candidate"},
+    "runtime_binding_id": {"$ref": "#/$defs/id"},
+    "provider_owner": {"type": "string", "minLength": 1},
+    "provider_id": {"const": "lean4-core-typechecker"},
+    "provider_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "provider_digest": {"$ref": "#/$defs/sha256"},
+    "profile_ref": {"$ref": "#/$defs/currentRef"},
+    "input_artifact_ref": {"$ref": "#/$defs/currentRef"},
+    "command": {
+      "type": "array", "minItems": 2,
+      "prefixItems": [
+        {"type": "string", "pattern": "^/.*?/lean$"},
+        {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.lean$"}
+      ],
+      "items": false
+    },
+    "working_directory": {"const": "."},
+    "environment_allowlist": {"type": "array", "maxItems": 0},
+    "fixture_refs": {"type": "array", "items": {"$ref": "#/$defs/currentRef"}},
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["timeout_ms", "memory_ceiling_bytes", "max_output_bytes"],
+      "properties": {
+        "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 600000},
+        "memory_ceiling_bytes": {"type": "integer", "minimum": 67108864},
+        "max_output_bytes": {"type": "integer", "minimum": 1024}
+      }
+    },
+    "network": {"const": "forbidden"},
+    "supported_outcomes": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["checked", "rejected", "unsupported", "indeterminate", "timeout", "stale", "failed"]},
+      "allOf": [
+        {"contains": {"const": "checked"}}, {"contains": {"const": "rejected"}},
+        {"contains": {"const": "unsupported"}}, {"contains": {"const": "indeterminate"}},
+        {"contains": {"const": "timeout"}}, {"contains": {"const": "stale"}},
+        {"contains": {"const": "failed"}}
+      ]
+    },
+    "currentness": {"const": "current"},
+    "authority_effect": {"const": "none"},
+    "claim_ceiling": {"const": "runtime-binding-only-no-execution-claim"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "currentRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "current"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "current": {"const": true}
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:domainspec:v2:spec-ontology:verification-receipt:2",
+  "title": "V1 Or V2 Structural Verification Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "receipt_id", "receipt_version", "verification_level", "result", "principal_identity_ref", "principal_identity_digest", "role_assignment_ref", "role_assignment_digest", "package_manifest_ref", "artifact_digest_method", "package_content_digest_method", "manifest_digest_method", "package_manifest_digest", "package_content_digest", "request_id", "exact_scope", "explicit_non_scope", "claim_ceiling", "issued_at", "supersedes_receipt_ref", "producer", "authority_effect"],
+  "properties": {
+    "schema_version": {"const": "dsv2.spec-ontology.structural-verification-receipt/v2"},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "receipt_version": {"type": "string", "minLength": 1},
+    "verification_level": {"enum": ["V1-policy-verified", "V2-direct-verified"]},
+    "result": {"enum": ["pass", "block"]},
+    "principal_identity_ref": {"type": "string", "minLength": 1},
+    "principal_identity_digest": {"$ref": "#/$defs/digest"},
+    "role_assignment_ref": {"type": "string", "minLength": 1},
+    "role_assignment_digest": {"$ref": "#/$defs/digest"},
+    "package_manifest_ref": {"type": "string", "minLength": 1},
+    "artifact_digest_method": {"const": "sha256-raw-file-bytes-v1"},
+    "package_content_digest_method": {"const": "sha256-rfc8785-acceptance-artifact-path-digest-set-v1"},
+    "manifest_digest_method": {"const": "sha256-rfc8785-manifest-without-manifest-digest-v1"},
+    "package_manifest_digest": {"$ref": "#/$defs/digest"},
+    "package_content_digest": {"$ref": "#/$defs/digest"},
+    "request_id": {"pattern": "^OAR-(0[1-9]|1[01])$"},
+    "exact_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "explicit_non_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "claim_ceiling": {"const": "structural-admissibility-only-no-semantic-or-lifecycle-authority"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "supersedes_receipt_ref": {"type": ["string", "null"]},
+    "producer": {"type": "object"},
+    "authority_effect": {"const": "none"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"verification_level": {"const": "V1-policy-verified"}}, "required": ["verification_level"]},
+      "then": {
+        "properties": {
+          "producer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "checker_ref", "checker_digest", "policy_ref", "policy_digest", "policy_owner_ref"],
+            "properties": {
+              "kind": {"const": "deterministic-checker"},
+              "checker_ref": {"type": "string", "minLength": 1},
+              "checker_digest": {"$ref": "#/$defs/digest"},
+              "policy_ref": {"type": "string", "minLength": 1},
+              "policy_digest": {"$ref": "#/$defs/digest"},
+              "policy_owner_ref": {"const": "victor-boscaro"}
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "producer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "principal_ref", "direct_response_ref", "direct_response_digest"],
+            "properties": {
+              "kind": {"const": "direct-human-verifier"},
+              "principal_ref": {"const": "victor-boscaro"},
+              "direct_response_ref": {"type": "string", "minLength": 1},
+              "direct_response_digest": {"$ref": "#/$defs/digest"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {"digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}

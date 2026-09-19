@@ -1,0 +1,22 @@
+import {deferReadOnlyOutputs} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/output-deferral.mjs';
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {mkdtempSync,appendFileSync,readFileSync,writeFileSync,rmSync} from 'node:fs';import {join} from 'node:path';import {tmpdir} from 'node:os';import {createHash} from 'node:crypto';
+import {createToolArchiveJournal,resolveToolArchiveReference} from './tool-archive-references-v2.mjs';
+import {stable} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/delivery.mjs';
+const hash=v=>createHash('sha256').update(stable(v)).digest('hex');
+function fixture(t){const root=mkdtempSync(join(tmpdir(),'tool-ref-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const journal=join(root,'events.jsonl');const call={id:'one',function:{name:'read_file',arguments:'{}'}},output={ok:true,output:{utf8:'á source '.repeat(1000)}};const source={kind:'source-tool-result',call,output},archive={kind:'tool-output-archive',record:{schema:'are.tool-output-archive/v1',call,result:output,sha256:hash(output),delivery:'unconfirmed'}};return {journal,source,archive,write:createToolArchiveJournal({journal,append:text=>appendFileSync(journal,text)})};}
+test('durable byte reference reconstructs exact output without duplicating its payload',t=>{const f=fixture(t);f.write(f.source);const ref=f.write(f.archive);assert.equal(ref.record.result,undefined);assert.ok(Buffer.byteLength(stable(ref))<Buffer.byteLength(stable(f.archive))/5);assert.deepEqual(resolveToolArchiveReference({journal:f.journal,record:ref.record}),f.archive.record);assert.equal(ref.record.delivery,'unconfirmed');});
+test('current ARE tool-event shape is supported with the original call preserved',t=>{const f=fixture(t);f.write({kind:'tool-result',tool:'read_file',output:f.source.output});const ref=f.write(f.archive);assert.deepEqual(resolveToolArchiveReference({journal:f.journal,record:ref.record}),f.archive.record);});
+test('missing source, journal drift and write errors fail closed',t=>{const a=fixture(t);assert.throws(()=>a.write(a.archive),/missing-source-output/);assert.throws(()=>a.write(a.source),/journal-drift/);const b=fixture(t);b.write(b.source);appendFileSync(b.journal,'{}\n');assert.throws(()=>b.write(b.archive),/journal-drift/);const c=fixture(t);const failing=createToolArchiveJournal({journal:c.journal,append:()=>{throw Error('disk failure');}});assert.throws(()=>failing(c.source),/disk failure/);assert.throws(()=>failing(c.source),/journal-drift/);});
+test('modified, truncated and forward references are rejected',t=>{const f=fixture(t);f.write(f.source);const ref=f.write(f.archive);const bytes=readFileSync(f.journal);const changed=Buffer.from(bytes);changed[20]^=1;writeFileSync(f.journal,changed);assert.throws(()=>resolveToolArchiveReference({journal:f.journal,record:ref.record}),/source-line-digest/);writeFileSync(f.journal,bytes.subarray(0,10));assert.throws(()=>resolveToolArchiveReference({journal:f.journal,record:ref.record}),/backward-reference|range/);writeFileSync(f.journal,bytes);const forged=structuredClone(ref.record);forged.result_ref.before_offset=0;assert.throws(()=>resolveToolArchiveReference({journal:f.journal,record:forged}),/backward-reference/);});
+
+test('derived notices require exact derivation from a durable original output',t=>{
+ const f=fixture(t);f.write(f.source);
+ const projection=deferReadOnlyOutputs([{role:'assistant',tool_calls:[f.source.call]},{role:'tool',tool_call_id:f.source.call.id,content:stable(f.source.output)}]);
+ const notice=JSON.parse(projection.exchange[1].content);
+ const archived=f.write({kind:'tool-output-archive',record:{...f.archive.record,result:notice,sha256:hash(notice)}});
+ assert.equal(archived.kind,'tool-output-deferral-archive');
+ assert.deepEqual(resolveToolArchiveReference({journal:f.journal,record:archived.record.origin}).result,f.source.output);
+ const g=fixture(t);g.write(g.source);const changed={...notice,guidance:'changed'};
+ assert.throws(()=>g.write({kind:'tool-output-archive',record:{...g.archive.record,result:changed,sha256:hash(changed)}}),/deferral-derivation/);
+});

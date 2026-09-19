@@ -1,0 +1,211 @@
+{
+  "schema_version": "ArchitectureMappingDecision/v1",
+  "decision_id": "DS-OF-W1-ENTITY-001",
+  "campaign_id": "domainspec-all-meta-type-forms-20260808",
+  "wave_id": "W1",
+  "meta_type_id": "DS-D1.1",
+  "meta_type_label": "Entity",
+  "scope": "Entity portable architecture and TypeScript, Python, and Rust target realizations only",
+  "status": "accepted-target-awaiting-ontology-and-profile-materialization",
+  "selected_option_id": "W1-ENTITY-A-VALIDATED-EXTENSIBLE-FACTORY",
+  "selected_option_label": "Validated extensible immutable Entity factory",
+  "decision_source": {
+    "kind": "user-message",
+    "exact_text": "approved",
+    "accepted_at": "2026-08-08T16:33:58Z",
+    "context": "Approval immediately followed the complete W1-ENTITY-A-VALIDATED-EXTENSIBLE-FACTORY explanation."
+  },
+  "admissibility": {
+    "request_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W1-ENTITY-OPTION-ADMISSIBILITY-REQUEST.json",
+      "sha256": "de5797f93edcf0550d5c9195a224488b965a4beb7f43d262188f9cc7eeb6dc35"
+    },
+    "receipt_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W1-ENTITY-OPTION-ADMISSIBILITY.json",
+      "sha256": "723e528f3694b7740ddd9c07771b14632bc2d33793fb7d6c3ef2ef26a33ed720"
+    },
+    "request_digest": "c7b89965bfbf040337874000584e3dd5150a5d3a4a220d8e28346c84632394ad",
+    "route_outcome": "gate"
+  },
+  "considered_options": [
+    {
+      "option_id": "W1-ENTITY-A-VALIDATED-EXTENSIBLE-FACTORY",
+      "outcome": "selected"
+    },
+    {
+      "option_id": "W1-ENTITY-B-CONTROLLED-MUTABLE-CLASS",
+      "outcome": "not-selected",
+      "tradeoff": "Familiar object lifecycle, but hidden mutation and invariant-bypass proofs are harder."
+    },
+    {
+      "option_id": "W1-ENTITY-C-DEFER",
+      "outcome": "not-selected"
+    },
+    {
+      "option_id": "W1-ENTITY-D-STOP",
+      "outcome": "not-selected"
+    }
+  ],
+  "portable_architecture": {
+    "type_id": "architecture.EntityImplementation",
+    "factory_provider_type_id": "architecture.EntityFactoryProvider",
+    "portable_invariants": [
+      "identity has at least one typed component",
+      "identity is stable across every lifecycle snapshot",
+      "equality and hashing use canonical identity only",
+      "construction runs owner-bound validation before identity resolution and construction",
+      "factory extension is additive and cannot weaken inherited invariants",
+      "constructed Entity snapshots are immutable",
+      "factory extension graphs are acyclic"
+    ],
+    "candidate_property_additions": [
+      "creation.extension_policy",
+      "creation.validator_count",
+      "creation.base_invariants_preserved",
+      "identity.stable_across_lifecycle",
+      "lifecycle.observation_mode"
+    ],
+    "candidate_relation_additions": [
+      "architecture.constructed_by",
+      "architecture.validated_by",
+      "architecture.extends_factory"
+    ],
+    "relation_contracts": [
+      {
+        "relation_id": "architecture.constructed_by",
+        "source": "architecture.EntityImplementation",
+        "target": "architecture.EntityFactoryProvider",
+        "cycle_policy": "not-applicable"
+      },
+      {
+        "relation_id": "architecture.validated_by",
+        "source": "architecture.EntityFactoryProvider",
+        "target": "architecture.RuleImplementation",
+        "cycle_policy": "not-applicable"
+      },
+      {
+        "relation_id": "architecture.extends_factory",
+        "source": "architecture.EntityFactoryProvider",
+        "target": "architecture.EntityFactoryProvider",
+        "cycle_policy": "acyclic"
+      }
+    ],
+    "forbidden_collapses": [
+      "the factory provider is not a canonical DomainSpec meta-type",
+      "an arbitrary validation callback is not an owner-bound Rule",
+      "object reference Python object ID or pointer identity cannot establish Entity identity",
+      "a factory extension cannot create a new canonical specialization without a separate concept binding"
+    ]
+  },
+  "validator_contract": {
+    "binding_time": "factory-definition",
+    "cardinality": "one-or-more",
+    "validator_kind": "owner-bound architecture.RuleImplementation reference with exact identity",
+    "per_creation_arbitrary_validator": "forbidden",
+    "composition": "all base and extension validators must pass",
+    "failure": "construction returns structured validation failure and produces no Entity snapshot"
+  },
+  "factory_extension_contract": {
+    "mode": "additive-only",
+    "may_add": [
+      "declared-field defaults",
+      "pure normalization",
+      "owner-bound validators",
+      "derived values for fields already declared by the same canonical concept"
+    ],
+    "may_not": [
+      "remove or replace base validators",
+      "replace identity semantics",
+      "change the canonical concept binding",
+      "make the output mutable",
+      "introduce undeclared specialization fields",
+      "introduce an extension cycle"
+    ],
+    "pipeline": [
+      "normalize and apply declared defaults",
+      "run base validators",
+      "run extension validators",
+      "resolve stable identity",
+      "construct Entity snapshot",
+      "freeze or enforce language-native immutability"
+    ]
+  },
+  "language_target_realizations": [
+    {
+      "language": "typescript",
+      "form_id": "typescript.entity-factory-record",
+      "protocol_id": "typescript.validated-extensible-entity-factory/v1",
+      "requirements": [
+        "provider-owned arrow-function factory",
+        "branded stable identity",
+        "frozen output snapshot",
+        "extension composition without class inheritance"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "python",
+      "form_id": "python.entity-dataclass",
+      "protocol_id": "python.validated-extensible-entity-factory/v1",
+      "requirements": [
+        "frozen dataclass snapshot",
+        "eq disabled for complete-field comparison",
+        "custom equality and hash use typed identity only",
+        "factory composition does not use subclass construction overrides"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "rust",
+      "form_id": "rust.entity-struct",
+      "protocol_id": "rust.validated-extensible-entity-factory/v1",
+      "requirements": [
+        "private fields and typed identity",
+        "manual PartialEq Eq and Hash use identity only",
+        "lifecycle transitions return a new snapshot",
+        "factory extension uses composition rather than trait inheritance authority"
+      ],
+      "profile_status": "target-not-yet-admitted"
+    }
+  ],
+  "proof_contract": {
+    "positive_obligations": [
+      "base and extension validators run before construction",
+      "valid input creates one immutable snapshot",
+      "lifecycle transition preserves identity",
+      "two snapshots with the same identity compare equal despite different state",
+      "distinct identities remain distinct"
+    ],
+    "negative_controls": [
+      "per-call always-true validator bypasses an invariant",
+      "extension removes a base validator",
+      "extension replaces identity resolution",
+      "factory extension cycle passes",
+      "invalid input produces an Entity snapshot",
+      "constructed snapshot mutates",
+      "complete-field equality impersonates Entity identity equality"
+    ],
+    "claim_ceiling": "candidate-local Entity factory composition identity and construction behavior only"
+  },
+  "matrix_transition": {
+    "target_state": "tension-reviewed",
+    "architecture_form_status": "owner-decided",
+    "language_forms_status": "proposed until exact profile protocols and providers exist",
+    "implementation_ready": false
+  },
+  "remaining_blockers": [
+    "materialize Entity and EntityFactoryProvider candidate ontology types properties and relations",
+    "admit exact Entity protocols in TypeScript Python and Rust profiles",
+    "implement and digest-bind language providers",
+    "select language realizations against the materialized profiles",
+    "generate realization descriptor factory kit and pre-queue readiness receipt"
+  ],
+  "non_effects": [
+    "no canonical Entity definition mutation",
+    "no ontology or language-profile promotion",
+    "no provider or product implementation",
+    "no implementation-queue admission",
+    "no Value Object or Enum decision"
+  ],
+  "authority_effect": "none"
+}

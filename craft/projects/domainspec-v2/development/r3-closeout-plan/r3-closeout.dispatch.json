@@ -1,0 +1,261 @@
+{
+  "dispatch_id": "domainspec-v2-r3-closeout-plan",
+  "intent": {
+    "raw": "create a plan to finish the R3 closeout/downstream residue after R3A",
+    "objective": "Plan a bounded route from R3A-complete relationship authority to dynamic DS-D8 enforcement, evidence breadth, card triage, future-candidate routing, and final closeout without reopening R3A.",
+    "target_artifact": "projects/domainspec-v2/development/r3-closeout-plan"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "scu_swu_reduction",
+    "recomposition_proof",
+    "validation_loop",
+    "owner_boundary_check",
+    "delegation_boundary",
+    "execution_receipt_handoff",
+    "residue_ledger",
+    "artifact_contract_bridge",
+    "concrete_path_evidence",
+    "state_namespace_boundary"
+  ],
+  "subagent_strategy": {
+    "status": "recommended",
+    "trigger": "SWUs with isolated write scopes may be delegated later by task-session.",
+    "explanation": "Invoke only plans. Runtime subagents, if used, should receive exactly one SWU contract and return a native receipt.",
+    "context": [
+      "WORK-PACK.md#SWU Manifest",
+      "work-pack/tasks/",
+      "work-pack/waves/"
+    ],
+    "roles": [
+      {
+        "role_id": "edge-enforcement-worker",
+        "purpose": "Implement one DS-D8 code-tag composability SWU.",
+        "owns": "SWU-R3C-001 or SWU-R3C-002 only",
+        "applies_to_steps": ["s2"]
+      },
+      {
+        "role_id": "card-triage-worker",
+        "purpose": "Triage v1 card evidence into v2 staging without promotion.",
+        "owns": "SWU-R3C-005 or SWU-R3C-006 only",
+        "applies_to_steps": ["s3"]
+      }
+    ],
+    "parallelism": "mixed",
+    "join_policy": "parent_synthesis",
+    "authorization": "requires_user_permission",
+    "permission_prompt": "Approve a runtime subagent only for one selected SWU with the write scope and receipt contract from WORK-PACK.md.",
+    "receipt_requirements": [
+      "dispatch_id",
+      "step_id",
+      "capability_ref",
+      "status",
+      "artifacts",
+      "validation",
+      "observer_status",
+      "blockers",
+      "residue",
+      "handoff_note",
+      "agent_id",
+      "role_id",
+      "spawn_status",
+      "join_status",
+      "close_status",
+      "reroute"
+    ]
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b-invoke-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": ["s2", "s3", "s4", "s5"],
+        "contract": "Task Session executes one selected SWU and returns a receipt before any work-pack sync.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-ape-definitions",
+        "kind": "capability_handoff",
+        "from_owner": "architecture-pattern-enforcement",
+        "to_owner": "definitions-governance",
+        "applies_to_steps": ["s4"],
+        "contract": "APE may gather evidence; definitions-governance owns any candidate promotion.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-attestation",
+        "kind": "human_approval",
+        "from_owner": "invoke",
+        "to_owner": "human/capability",
+        "applies_to_steps": ["s5"],
+        "contract": "L2 attestation cannot be claimed without an attestation receipt.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "invoke",
+      "execution": "task-session",
+      "validation": "task-session plus local commands",
+      "evidence": "Craft and observability",
+      "memory": "inventory if separately invoked",
+      "promotion": "definitions-governance or constitution-governance"
+    },
+    "receipts": [
+      {
+        "receipt_id": "r-task-session-swu",
+        "producer": "task-session",
+        "required_fields": [
+          "run_id",
+          "artifacts",
+          "validation_result",
+          "blockers",
+          "residue"
+        ],
+        "stores": [
+          "task-session result artifact",
+          ".arcanum/observability/signals/sigil-invocations.jsonl"
+        ],
+        "on_missing": "flag"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "source",
+        "owner": "git/worktree",
+        "write_policy": "Task Session writes only selected SWU scope."
+      },
+      {
+        "namespace": "authority-root",
+        "owner": "definitions-governance",
+        "write_policy": "No candidate promotion without owner route."
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "s1",
+      "name": "Author Invoke plan package",
+      "capability_ref": "invoke",
+      "pattern": "sequential",
+      "techniques": ["sequence", "scu_swu_reduction", "recomposition_proof", "residue_ledger"],
+      "inputs": [
+        {"kind": "artifact", "ref": "projects/domainspec-v2/CRAFT.md"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/reformulate-batch1/task-sessions/2026-07-02-swu-r3a/TASK-SESSION-RESULT.md"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/r3-closeout-plan/WORK-PACK.md"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/r3-closeout-plan/IMPLEMENTATION-LAYERING.md"}
+      ],
+      "evidence_artifact": "projects/domainspec-v2/development/r3-closeout-plan/PLAN-TRANSPORT.md",
+      "stop_conditions": ["block if no selected first SWU exists"]
+    },
+    {
+      "step_id": "s2",
+      "name": "Execute dynamic DS-D8 enforcement SWU",
+      "capability_ref": "task-session",
+      "pattern": "handoff",
+      "techniques": ["delegation_boundary", "execution_receipt_handoff", "validation_loop"],
+      "inputs": [{"kind": "artifact", "ref": "WORK-PACK.md#SWU-R3C-001"}],
+      "outputs": [{"kind": "artifact", "ref": "task-session result"}],
+      "evidence_artifact": "task-session result for SWU-R3C-001",
+      "stop_conditions": ["block if tags:test or root validate fails"]
+    },
+    {
+      "step_id": "s3",
+      "name": "Broaden evidence and card context",
+      "capability_ref": "task-session",
+      "pattern": "sequential",
+      "techniques": ["sequence", "concrete_path_evidence", "validation_loop"],
+      "inputs": [{"kind": "artifact", "ref": "SWU-R3C-004..006"}],
+      "outputs": [{"kind": "artifact", "ref": "task-session result(s)"}],
+      "evidence_artifact": "second corpus and card triage receipts",
+      "stop_conditions": ["flag if no suitable second corpus exists; do not invent promotion"]
+    },
+    {
+      "step_id": "s4",
+      "name": "Route future candidates and category laws",
+      "capability_ref": "task-session",
+      "pattern": "handoff",
+      "techniques": ["owner_boundary_check", "residue_ledger", "artifact_contract_bridge"],
+      "inputs": [{"kind": "artifact", "ref": "SWU-R3C-007..008"}],
+      "outputs": [{"kind": "artifact", "ref": "review packet(s)"}],
+      "evidence_artifact": "review packet(s) for definitions-governance/research owner routes",
+      "stop_conditions": ["block if deferred candidates are promoted without owner approval"]
+    },
+    {
+      "step_id": "s5",
+      "name": "Close ledger and attestation route",
+      "capability_ref": "task-session",
+      "pattern": "validation",
+      "techniques": ["state_namespace_boundary", "execution_receipt_handoff", "residue_ledger"],
+      "inputs": [{"kind": "artifact", "ref": "SWU-R3C-009..011"}],
+      "outputs": [{"kind": "artifact", "ref": "final closeout receipt"}],
+      "evidence_artifact": "Craft/observability closeout receipt",
+      "stop_conditions": ["flag if attestation capability is unavailable; block if ledger lies about it"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g1-selected-swu",
+      "kind": "quality",
+      "owner": "invoke",
+      "condition": "A first executable SWU is selected before mutation-capable execution.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g2-authority-boundary",
+      "kind": "promotion_guardrail",
+      "owner": "definitions-governance",
+      "condition": "Deferred candidates and category laws are not promoted by APE or task-session.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g3-validation",
+      "kind": "validation",
+      "owner": "task-session",
+      "condition": "Each executed SWU returns validation evidence before the plan status is synchronized.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g4-attestation",
+      "kind": "human_approval",
+      "owner": "human/capability",
+      "condition": "L2 seal requires a real attestation receipt; absence remains a blocker, not a pass.",
+      "on_fail": "flag"
+    }
+  ],
+  "native_stage_receipts": [
+    {
+      "dispatch_id": "domainspec-v2-r3-closeout-plan",
+      "step_id": "s1",
+      "capability_ref": "invoke",
+      "receipt_kind": "native-stage",
+      "status": "pass",
+      "artifacts": [
+        "IMPLEMENTATION-LAYERING.md",
+        "WORK-PACK.md",
+        "EXECUTION-PACK.md",
+        "PLAN-TRANSPORT.md",
+        "r3-closeout.dispatch.json"
+      ],
+      "validation": ["plan artifact authoring complete"],
+      "observer_status": "pending",
+      "blockers": ["BLK-DSV2-L2-ATTESTATION for final seal only"],
+      "residue": "future candidates/category laws remain owner-routed",
+      "handoff_note": "Next route is task-session on SWU-R3C-001."
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": ["dispatch_validated", "invoke_plan_authored", "task_session_receipt_required"],
+    "signal_grouping": "dispatch_id"
+  },
+  "promotion_guardrails": [
+    "Execution evidence is not definitions promotion.",
+    "APE evidence is not constitution promotion.",
+    "Attestation cannot be simulated by plan text."
+  ]
+}

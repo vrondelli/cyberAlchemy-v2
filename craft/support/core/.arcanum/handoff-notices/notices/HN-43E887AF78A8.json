@@ -1,0 +1,168 @@
+{
+  "authority": {
+    "grants": [],
+    "kind": "communication-evidence",
+    "statement": "The notice and locator grant no permission or authority."
+  },
+  "notice_code": "HN-43E887AF78A8",
+  "notice_digest": "43e887af78a8fc4d9a843473d8613519f8ce63f0e558d4f44cd293d619dfa8dc",
+  "notice_id": "hn:43e887af78a8fc4d9a843473d8613519f8ce63f0e558d4f44cd293d619dfa8dc",
+  "payload": {
+    "boundaries": [
+      "Release admission continua `not-granted`; as superfícies examinadas continuam experimentais, planejadas ou owner-gated conforme suas fontes.",
+      "Nenhuma implementação, promoção, merge, aposentadoria, renomeação, supersessão, arquivamento ou transferência de ownership é autorizada por este notice.",
+      "O primeiro problema é quebra atual de desenvolvimento; os problemas 2 a 4 são lacunas contra futura admissão; o quinto é obsolescência de evidência e divergência documental.",
+      "O manifesto refresh-002 não é falso: permanece evidência histórica, mas seus digests não representam os bytes atuais.",
+      "Os resultados do Inventory foram usados somente para localizar fontes e não como autoridade.",
+      "Este notice e seu código são evidência de comunicação local e não concedem permissão nem provam acesso remoto."
+    ],
+    "created_at": "2026-08-31T18:44:41.109032Z",
+    "from": {
+      "kind": "person",
+      "label": "Victor, com assistência do Codex"
+    },
+    "key_points": [
+      "1. Digests dos registros quebram atualmente os testes de desenvolvimento do compilador e das views. `projects/domainspec-v2/definitions/minted-project/supported-profiles.yml:8-16` fixa os digests, e `projects/domainspec-v2/impl/tools/minted-project/compiler.ts:382-396` lança `REGISTRY_DIGEST_MISMATCH` quando os bytes atuais divergem. Kinds: fixado `4394968327b785d50cd323ad58a799feb71b9debf7e06b650b4fd1e4008f9ede`, atual `ed823846ec77371e92f578269462871a6f69c3eedbdf37e1ca464d7bde0c6845`. Relationships: fixado `ffc97f2c358e4bebeebd8ceeb25aef59628be9c970cf6a7e510f7a37c9876d9f`, atual `7757884f599bb18707f105add8b9de92fb2ea58d78e216d3aa228b0ad25ea013`. Reprodução em `projects/domainspec-v2/impl`: `node --import tsx --test tools/tests/minted-project-compiler.test.ts tools/tests/minted-project-views.test.ts`. Resultado: 13 testes, 1 passou, 12 falharam; erros pretendidos como `KIND_UNSUPPORTED`, `FORMATION_INVALID`, `NODE_ID_DUPLICATE` e `EDGE_TYPE_UNKNOWN` são interrompidos antes pelo mismatch. Consequência: os regressions não alcançam suas asserções. Limite: isso prova quebra de desenvolvimento, não falha de release; `supported-profiles.yml:3-6,22` mantém `release_admission: not-granted` e status experimental. A proveniência histórica da divergência não foi estabelecida.",
+      "2. O compilador pode descartar erros do schema JSON de formação. `supported-profiles.yml:25-29` declara schemas JSON por tipo; `compiler.ts:211-226` seleciona contratos baseados em critérios; `compiler.ts:466-488` executa a formação e filtra violações do schema-base sob `$.body`. No mesmo corpo de Entity, `{\"fields\":[{\"type\":\"string\",\"identity\":true}]}`, o schema JSON produziu uma violação porque o primeiro field não possui `name`, enquanto a validação por critérios produziu zero violações. Consequência: removido o bloqueio dos digests, o fluxo mostrado pode admitir um corpo incompatível com o schema JSON declarado. Limite: a divergência entre validadores e o controle de fluxo foram observados, mas não houve compile completo bem-sucedido porque o digest falha antes. Classificação: divergência contratual experimental relevante à futura admissão, não falha de produção demonstrada.",
+      "3. A validação de red fixtures existe, mas não está demonstrada numa entrada real. `projects/domainspec-v2/impl/test-derivation-engine/src/bte/validation/validate-semantics.ts:464-515` implementa verificações de formato, digest de publicação e autoridade. A proteção contra autoautoria depende de `implementationProducerIds`, que é opcional na linha 469; a linha 508 usa optional chaining, portanto a omissão desativa essa proteção. Reprodução: `rg -n --glob '!**/node_modules/**' \"validateRedFixtureBundle\" projects/domainspec-v2/impl`. Foram encontrados apenas a definição, um import de teste e quatro chamadas de teste; nenhum chamador não-teste e nenhuma fonte autoritativa de producer IDs foram evidenciados. Consequência: o código isolado não prova que uma entrada de admissão determine os produtores, execute o validador e rejeite fixture obsoleta ou autoassinada. Limite: a busca foi limitada a `projects/domainspec-v2/impl`; um consumidor externo ainda pode existir. Classificação: falta de evidência de integração para admissão futura, não quebra de produção.",
+      "4. Bindings ausentes ou ambíguos não falham como os requisitos exigem. `projects/domainspec-v2/impl/test-derivation-engine/src/bindings/index.ts:51-81` transforma bindings ausentes em `[]`, retorna `null` quando nenhum item coincide e retorna o primeiro item quando mais de um coincide. Probes focados observaram `bindingFor(obligation, {bindings:[]}) -> null` e `bindingFor(obligation, {bindings:[matchA,matchB]}) -> matchA`. Isso conflita com `projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/REQUIREMENTS.md:121-125`, que exige exatamente um binding compatível e falha pré-execução para casos vazios, ambíguos, first-match ou obsoletos. A estrutura em `bindings/index.ts:30-41` também não contém os digests de autoridade exigidos pelo contrato futuro. Consequência: o resolver sozinho não rejeita cobertura ausente ou ambígua nem demonstra compatibilidade com a autoridade. Limite: um agregador posterior poderia rejeitar o residue, mas essa rejeição não foi estabelecida. Classificação: lacuna de controle contra requisitos futuros, não crash ou falha de produção demonstrada.",
+      "5. A evidência de prontidão não representa mais o estado atual. `projects/domainspec-v2/impl/package.json:31-38` expõe `verify:bte:contracts`, `formation-v2`, `build`, `catalogue`, `core`, `consumers` e `terminal`, enquanto o BTE `WORK-PACK.md:200-214` ainda descreve etapas correspondentes como planejadas ou owner-gated. A existência dos scripts prova superfície executável, não conclusão ou admissão dos gates. Separadamente, `projects/domainspec-v2/development/evolvable-validation-framework/reviews/2026-07-20-implementation-completion/corpus-manifest.refresh-002.json:16-390` registra 61 arquivos e seus SHA-256. A comparação com os bytes atuais produziu `entries=61 matches=4 mismatches=57 missing=0`. Os quatro matches são `impl/test-derivation-engine/src/README.md`, `src/grammar/normalized-spec.test.ts`, `src/residue/receipt.ts` e `src/rules/index.ts`. Consequência: refresh-002 continua evidência histórica, mas não prova conclusão ou prontidão dos bytes atuais. Limite: digest diferente não significa alteração incorreta; nenhuma re-auditoria semântica foi executada. Classificação: obsolescência de evidência e divergência documental, não quebra de runtime.",
+      "Conclusão de ownership: `projects/domainspec-v2/development/evolvable-validation-framework/PLAN.md:1-10` mantém o EVF como `candidate-awaiting-task-session`; `PLAN.md:66-77` entrega ao BTE a execução ampla dos 13 tipos e 16 assinaturas; o EVF `WORK-PACK.md:54-76` mantém as tarefas bloqueadas ou não iniciadas; o BTE `REQUIREMENTS.md:112-125` inclui obrigações de especificação e bindings exatos; e o BTE `WORK-PACK.md:42-50` mantém grande parte de L1-L8 planejada ou owner-gated. A leitura sustentada é EVF como design delimitado e histórico das decisões de composabilidade, e BTE como owner da execução ampla e da futura prova de completude. Isso não autoriza fundir, aposentar, renomear ou declarar o EVF superado."
+    ],
+    "next_actions": [
+      {
+        "action": "Comparar os bytes atuais de autoridade com os bindings fixados, decidir qual lado é aceito, atualizar os bindings ou restaurar os bytes autorizados e repetir somente os testes focados do compilador e das views.",
+        "owner": "Owner de definitions/minted-project"
+      },
+      {
+        "action": "Adicionar o Entity sem `name` como regressão e exigir schema JSON mais critérios, salvo decisão formal que substitua explicitamente um contrato pelo outro.",
+        "owner": "Owner do compilador e dos contratos de formação Minted Project"
+      },
+      {
+        "action": "Definir uma entrada de admissão, exigir ou derivar os producer IDs de fonte autorizada, executar `validateRedFixtureBundle` e provar com negativos integrados que fixtures obsoletas e autoassinadas falham.",
+        "owner": "Owners do pipeline e da validação BTE"
+      },
+      {
+        "action": "Adicionar negativos para nenhum binding, múltiplos bindings, digest ausente e digest incompatível, rejeitando todos antes da emissão com diagnósticos tipados.",
+        "owner": "Owner dos bindings BTE"
+      },
+      {
+        "action": "Manter refresh-002 imutável como histórico; criar um corpus novo se for necessária uma afirmação atual; reconciliar no Work Pack quais scripts existem, quais gates executam e quais etapas permanecem planejadas.",
+        "owner": "Owners de evidência EVF e do Work Pack BTE"
+      },
+      {
+        "action": "Resolver as chamadas abertas e emitir autorização separada para qualquer implementação ou decisão de lifecycle.",
+        "owner": "Vladimir"
+      }
+    ],
+    "next_route": {
+      "authorization": "not-granted",
+      "capability": "task-session",
+      "mode": "review-and-authorize",
+      "target": "cinco problemas verificados e divisão de ownership EVF/BTE"
+    },
+    "notice_type": "discussion-draft",
+    "open_calls": [
+      {
+        "owner": "Vladimir",
+        "question": "Qual lado da divergência entre os bytes atuais de autoridade e os digests fixados deve ser aceito pelo owner autorizado?",
+        "status": "open"
+      },
+      {
+        "owner": "Vladimir e owner dos contratos de formação",
+        "question": "A formação exige schema JSON e critérios, ou haverá uma decisão formal substituindo um pelo outro?",
+        "status": "open"
+      },
+      {
+        "owner": "Owners do pipeline e da validação BTE",
+        "question": "Qual entrada concreta deve validar red fixtures e determinar de fonte autoritativa os produtores da implementação?",
+        "status": "open"
+      },
+      {
+        "owner": "Owner dos bindings BTE",
+        "question": "Em qual entrada bindings vazios, ambíguos ou incompatíveis devem falhar antes da emissão?",
+        "status": "open"
+      },
+      {
+        "owner": "Owners de evidência EVF e do Work Pack BTE",
+        "question": "Refresh-002 ficará explicitamente histórico ou será aberto um novo corpus e re-audit, e como o Work Pack será reconciliado com os scripts atuais?",
+        "status": "open"
+      },
+      {
+        "owner": "Vladimir",
+        "question": "A divisão EVF/BTE será aceita somente como orientação de ownership, sem tratá-la como aprovação de prontidão ou lifecycle?",
+        "status": "open"
+      }
+    ],
+    "project_scope": "projects/domainspec-v2",
+    "schema_version": "0.1.0",
+    "source_refs": [
+      {
+        "label": "Perfil experimental, boundary de admissão, digests fixados e schemas de formação declarados.",
+        "ref": "projects/domainspec-v2/definitions/minted-project/supported-profiles.yml:1-35"
+      },
+      {
+        "label": "Seleção e execução dos contratos de formação baseados em critérios.",
+        "ref": "projects/domainspec-v2/impl/tools/minted-project/compiler.ts:211-226"
+      },
+      {
+        "label": "Comparação fail-closed dos digests dos registros.",
+        "ref": "projects/domainspec-v2/impl/tools/minted-project/compiler.ts:382-396"
+      },
+      {
+        "label": "Fluxo de formação e filtro das violações do schema-base sob o body.",
+        "ref": "projects/domainspec-v2/impl/tools/minted-project/compiler.ts:466-488"
+      },
+      {
+        "label": "Validador semântico de red fixtures e condição opcional de producer IDs.",
+        "ref": "projects/domainspec-v2/impl/test-derivation-engine/src/bte/validation/validate-semantics.ts:464-515"
+      },
+      {
+        "label": "Modelo de binding, default vazio, retorno nulo e seleção do primeiro match.",
+        "ref": "projects/domainspec-v2/impl/test-derivation-engine/src/bindings/index.ts:30-81"
+      },
+      {
+        "label": "Superfície atual de comandos verify:bte.",
+        "ref": "projects/domainspec-v2/impl/package.json:31-38"
+      },
+      {
+        "label": "Requisitos futuros de derivação, execução e binding exato.",
+        "ref": "projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/REQUIREMENTS.md:112-125"
+      },
+      {
+        "label": "Breadth L1-L8 ainda planejada, owner-gated ou consumer-owned.",
+        "ref": "projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/WORK-PACK.md:42-50"
+      },
+      {
+        "label": "Distinção entre regressions executáveis e gates BTE ainda planejados.",
+        "ref": "projects/domainspec-v2/development/first-production-release/backend-type-test-engine-completeness/WORK-PACK.md:200-214"
+      },
+      {
+        "label": "Status candidato do EVF aguardando Task Session.",
+        "ref": "projects/domainspec-v2/development/evolvable-validation-framework/PLAN.md:1-10"
+      },
+      {
+        "label": "Divisão de ownership entre o contrato delimitado do EVF e a execução ampla do BTE.",
+        "ref": "projects/domainspec-v2/development/evolvable-validation-framework/PLAN.md:66-77"
+      },
+      {
+        "label": "Tarefas EVF bloqueadas ou não iniciadas.",
+        "ref": "projects/domainspec-v2/development/evolvable-validation-framework/WORK-PACK.md:54-76"
+      },
+      {
+        "label": "Corpus histórico de 61 entradas e sua política de digests do working tree.",
+        "ref": "projects/domainspec-v2/development/evolvable-validation-framework/reviews/2026-07-20-implementation-completion/corpus-manifest.refresh-002.json:16-390"
+      }
+    ],
+    "status": "draft",
+    "subject": "DomainSpec v2 — problemas verificados e divisão de ownership entre EVF e BTE",
+    "to": {
+      "kind": "person",
+      "label": "Vladimir"
+    },
+    "why_now": "A verificação dos arquivos atuais encontrou cinco problemas concretos. Somente o primeiro é uma quebra atual demonstrada. Os problemas 2 a 4 são lacunas contra requisitos futuros de admissão em superfícies experimentais e ainda não admitidas. O quinto é obsolescência de evidência e divergência documental, não quebra de runtime. Vladimir precisa decidir os owners e os contratos antes que qualquer implementação ou decisão de lifecycle seja autorizada."
+  },
+  "repository_fingerprint": "d08ce0aad74b3da120c7f5708abd4e3b1e26397a76221242c310730c4b31cacf",
+  "schema_version": "0.1.0",
+  "transport_claim": "local-artifact-only"
+}

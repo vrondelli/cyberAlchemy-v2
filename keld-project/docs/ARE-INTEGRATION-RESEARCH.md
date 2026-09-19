@@ -45,7 +45,7 @@ the software rights attached to a delivered artifact.
 | Agent interoperability | ../../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/backend-adapter.mjs | Model-neutral process adapter exists; transport contract is not automatic compatibility with every agent |
 | First-class conversation / context / state | Required components in runtime product.json | Select and document supported release scope with grounded limits |
 | Language learning | ../../implementation/agent-reasoning-engine/benchmarks/real-reasoning-v1/interaction-learning/README.md | Scoped prototype evidence; avoid arbitrary-language or measured-gain claims |
-| Public documentation | ../../workspace/experiments/are-documentation/ | Reuse explanations and examples through a reviewed docs build; align to shipped release; don't publish private paths/receipts |
+| Public documentation | ../are-documentation/ | Reuse explanations and examples through a reviewed docs build; align to shipped release; don't publish private paths/receipts |
 | First 100 and maker support | ../prototype/ALPHA-OFFER.md and CHECKOUT-CONTRACT.md | Need authoritative customer identity, transactional allocation, service dates, real support route and recovery |
 
 The `private:true` npm flag is consistent with current packaging policy; it does

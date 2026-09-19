@@ -42,11 +42,12 @@ export function compileConfig(input,{env=process.env,baseDir=process.cwd(),now=M
   const p=record(c.payments,'payments',['stripe','mercadopago','paypal']);
   const stripe=record(p.stripe,'payments.stripe',['account','secretEnv']);
   const mp=record(p.mercadopago,'payments.mercadopago',['account','accessTokenEnv','api','applicationId']);
-  const pp=record(p.paypal,'payments.paypal',['account','clientIdEnv','secretEnv']);
+  const pp=record(p.paypal,'payments.paypal',['account','clientIdEnv','secretEnv','currency']);
   const payments={environment:'sandbox',stripe:{account:string(stripe.account,'payments.stripe.account'),secret:secret(stripe.secretEnv,'payments.stripe.secretEnv')},
     mercadopago:{api:mp.api??'payments-v1',...(mp.api==='orders-v1'?{applicationId:string(mp.applicationId,'payments.mercadopago.applicationId')}:{}),account:string(mp.account,'payments.mercadopago.account'),accessToken:secret(mp.accessTokenEnv,'payments.mercadopago.accessTokenEnv')},
-    paypal:{account:string(pp.account,'payments.paypal.account'),clientId:secret(pp.clientIdEnv,'payments.paypal.clientIdEnv'),secret:secret(pp.secretEnv,'payments.paypal.secretEnv')}};
+    paypal:{account:string(pp.account,'payments.paypal.account'),clientId:secret(pp.clientIdEnv,'payments.paypal.clientIdEnv'),secret:secret(pp.secretEnv,'payments.paypal.secretEnv'),currency:string(pp.currency,'payments.paypal.currency')}};
   if(payments.stripe.secret&&!payments.stripe.secret.startsWith('sk_test_'))bad('payments.stripe.secretEnv','sandbox-key-required');
+  if(!['USD','BRL'].includes(payments.paypal.currency))bad('payments.paypal.currency','unsupported-currency');
   if(mp.api==='orders-v1'&&!/^\d{1,32}$/.test(mp.applicationId??''))bad('payments.mercadopago.applicationId','application-id-required');
   if(!['payments-v1','orders-v1'].includes(payments.mercadopago.api))bad('payments.mercadopago.api','unsupported-api');
   if(payments.mercadopago.accessToken&&!payments.mercadopago.accessToken.startsWith(mp.api==='orders-v1'?'APP_USR-':'TEST-'))bad('payments.mercadopago.accessTokenEnv','sandbox-key-required');

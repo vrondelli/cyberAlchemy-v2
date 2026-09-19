@@ -52,7 +52,7 @@ Import `createKeldIntegrations` from `integrations/src/index.mjs`. It accepts:
 | --- | --- |
 | `auth.profile` | HTTPS `issuer`, canonical HTTPS `origin`, callback path, dedicated KELD `client`, `audience`, and server-side client `secret` |
 | `auth` | Dedicated PostgreSQL `databaseUrl`, session encryption `key` in the shared package's format, namespace `keld` |
-| `payments` | `environment: 'sandbox'`; `stripe: {secret, account}`; `mercadopago: {accessToken, account}`; `paypal: {clientId, secret, account}` |
+| `payments` | `environment: 'sandbox'`; `stripe: {secret, account}`; `mercadopago: {accessToken, account}`; `paypal: {clientId, secret, account, currency}` where currency is explicitly `USD` or `BRL` |
 | `ledger` | Absolute SQLite `database`, release SHA-256 `releaseDigest`, optional `reservationSeconds` (default 3600), `delivery: {root, artifacts}` |
 | `ledger.delivery.artifacts` | Entries `{sha256, bytes, relative_path}` for a private sandbox artifact of at most 256 MiB |
 | `quoteBrl` | Server-owned async function of USD cents returning `{amountCents, currency: 'BRL', reference}`; quote is frozen per checkout |

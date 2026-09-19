@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "domainspec://schemas/promotion-record-v1",
+  "title": "DomainSpec owner-gated PromotionRecord v1",
+  "description": "A PromotionRecord is the only artifact permitted to transition an exact implementation or relation instance from not-admitted or proposed to admitted. Evidence and candidate receipts cannot mint this record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "promotion_id",
+    "status",
+    "subject",
+      "transition",
+      "accepted_scope_algorithm",
+      "candidate_ref",
+    "evidence_refs",
+    "owner_acceptance",
+    "rollback",
+    "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "domainspec-promotion-record/v1"
+    },
+    "promotion_id": {
+      "$ref": "#/$defs/promotionId"
+    },
+    "status": {
+      "const": "accepted"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_kind",
+        "instance_id",
+        "canonical_meta_type_ref"
+      ],
+      "properties": {
+        "subject_kind": {
+          "enum": [
+            "implementation-instance",
+            "relation-instance"
+          ]
+        },
+        "instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_meta_type_ref": {
+          "$ref": "#/$defs/metaTypeId"
+        },
+        "architecture_type_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relation_type_ref": {
+          "$ref": "#/$defs/relationTypeId"
+        },
+        "source_instance_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_instance_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "subject_kind": {
+                "const": "implementation-instance"
+              }
+            },
+            "required": [
+              "subject_kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "architecture_type_ref"
+            ],
+            "not": {
+              "required": [
+                "relation_type_ref"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "relation_type_ref",
+              "source_instance_ref",
+              "target_instance_ref"
+            ],
+            "not": {
+              "required": [
+                "architecture_type_ref"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis",
+        "from",
+        "to"
+      ],
+      "properties": {
+        "axis": {
+          "const": "admission_status"
+        },
+        "from": {
+          "enum": [
+            "not-admitted",
+            "proposed"
+          ]
+        },
+        "to": {
+          "const": "admitted"
+        }
+      }
+    },
+    "accepted_scope_algorithm": {
+      "const": "sha256-canonical-json-sorted-keys-v1"
+    },
+    "candidate_ref": {
+      "$ref": "#/$defs/candidateRef"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fileRef"
+      },
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "owner_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_route",
+        "decision_id",
+        "decision_ref",
+        "decision_status",
+        "accepted_scope_sha256"
+      ],
+      "properties": {
+        "owner_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_ref": {
+          "$ref": "#/$defs/jsonObjectRef"
+        },
+        "decision_status": {
+          "const": "accepted"
+        },
+        "accepted_scope_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preimage_ref",
+        "reversal_owner_route",
+        "automatic_reversal"
+      ],
+      "properties": {
+        "preimage_ref": {
+          "$ref": "#/$defs/fileRef"
+        },
+        "reversal_owner_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "automatic_reversal": {
+          "const": false
+        }
+      }
+    },
+    "authority_effect": {
+      "const": "canonical-admission"
+    }
+  },
+  "$defs": {
+    "metaTypeId": {
+      "type": "string",
+      "pattern": "^DS-D1\\.[0-9]+$"
+    },
+    "relationTypeId": {
+      "type": "string",
+      "pattern": "^architecture\\.[a-z][a-z0-9_]*$"
+    },
+    "promotionId": {
+      "type": "string",
+      "pattern": "^promotion\\.[a-z0-9][a-z0-9._/-]*/v[0-9]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "fileRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "candidateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "path",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "jsonObjectRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes",
+        "json_pointer"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "json_pointer": {
+          "type": "string",
+          "pattern": "^/"
+        }
+      }
+    }
+  }
+}

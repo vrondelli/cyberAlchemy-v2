@@ -1,0 +1,145 @@
+TAP version 13
+# Traceback (most recent call last):
+#   File "<string>", line 38, in <module>
+#     assert out['amounts']==(9007199254740993,2,2) and out['unique_amounts']==(2,9007199254740993)
+#            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# AssertionError
+# (node:2002521) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: R10 Python Mapping planning binds profiles and same-graph fields deterministically
+ok 1 - R10 Python Mapping planning binds profiles and same-graph fields deterministically
+  ---
+  duration_ms: 180.602481
+  type: 'test'
+  ...
+# Subtest: R10 Python Mapping planner rejects active, stale and incompatible selections
+ok 2 - R10 Python Mapping planner rejects active, stale and incompatible selections
+  ---
+  duration_ms: 93.410332
+  type: 'test'
+  ...
+# Subtest: R10 Python Mappings execute immutable projections and distinct v1/v2 default semantics
+not ok 3 - R10 Python Mappings execute immutable projections and distinct v1/v2 default semantics
+  ---
+  duration_ms: 384.546321
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-mappings.test.ts:83:2860'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -I -B -c 
+    import copy, dataclasses, importlib, json, os, pathlib, sys, typing
+    data=json.load(sys.stdin);sys.path.insert(0,data['root']);f={}
+    def thaw(v):
+        if dataclasses.is_dataclass(v) and hasattr(v,'entries'):return {k:thaw(x) for k,x in v.entries}
+        if type(v) is tuple:return [thaw(x) for x in v]
+        if hasattr(v,'items'):return {k:thaw(x) for k,x in v.items()}
+        return v
+    for m in data['modules']:
+        fn=getattr(importlib.import_module(m['import_name']),m['callable']);f[m['selector'].split('map-',1)[1]]=fn
+        assert thaw(fn.descriptor)==m['descriptor']
+        hints=typing.get_type_hints(fn.__call__);shape=hints['return']
+        methods=typing.get_overloads(shape.__getitem__) or [shape.__getitem__]
+        fields={typing.get_args(typing.get_type_hints(x)['key'])[0]:typing.get_type_hints(x)['return'] for x in methods}
+        assert list(fields)==[v['name'] for v in m['descriptor']['target']['fields']]
+        assert set(typing.get_type_hints(hints['parameters']))=={p['name'] for p in m['descriptor']['inputs']}
+        if 'amount' in fields:assert fields['amount'] is int
+        if 'enabled' in fields:assert fields['enabled'] is bool
+        if 'line_amounts' in fields:assert fields['line_amounts']==tuple[int,...]
+        for action in [lambda:setattr(fn,'descriptor',{}),lambda:fn.descriptor.__setitem__('total',False),lambda:fn.descriptor['target'].__setitem__('selector','foreign')]:
+            try:action()
+            except (TypeError,AttributeError):pass
+            else:raise AssertionError('MUTABLE_BINDING')
+    money=lambda amount=4:{'amount':amount,'currency':'GBP'}
+    def order():return {'id':'order-1','amount':9,'enabled':True,'money':money(),'customer':{'id':'customer','label':'first'},'lines':[money(2),money(2),money(1)],'tags':['z','a'],'choice':{'variant':'Money','payload':money('18446744073709551615')},'status':{'variant':'Draft'}}
+    def args():return {'order':order(),'order_total':'18446744073709551615','memo':None,'fallback':'fallback','amount_list':['9007199254740993',2,2]}
+    def error(fn,p,expected='MAPPING_INPUT'):
+        try:fn(p)
+        except TypeError as e:assert str(e)==expected,str(e)
+        else:raise AssertionError('EXPECTED_'+expected)
+    events=[];armed=False
+    def audit(event,args):
+        if armed and (event in ('open','exec','compile','import') or event.startswith(('os.','socket.','subprocess.'))):events.append(event)
+    sys.addaudithook(audit);armed=True
+    original=args();before=copy.deepcopy(original);out=f['full'](original)
+    assert original==before
+    assert out['amount']==out['repeated']==18446744073709551615
+    assert out['amounts']==(9007199254740993,2,2) and out['unique_amounts']==(2,9007199254740993)
+    assert out['line_amounts']==(2,2,1) and out['unique_line_amounts']==(1,2)
+    assert out['status']['variant']=='Ready' and out['memo']=='fallback'
+    assert out['tags']==('a','z') and out['enabled'] is True
+    assert out['choice']['payload']['amount']==18446744073709551615
+    original['order']['money']['amount']=99;original['order']['lines'][0]['amount']=99
+    assert out['money']['amount']==4 and out['lines'][0]['amount']==2
+    for x in [out,out['money'],out['customer'],out['choice'],out['choice']['payload']]:
+        try:x.entries=()
+        except (TypeError,AttributeError):pass
+        else:raise AssertionError('MUTABLE_RESULT')
+    assert f['full']({**args(),'memo':''})['memo']==''
+    assert f['full']({**args(),'order_total':0})['amount']==0
+    assert thaw(f['partial'](args()))=={'memo':None}
+    assert thaw(f['zero']({}))=={'id':'constant','amount':18446744073709551615}
+    assert f['legacy']({'source':order()})['memo']=='absent-only'
+    assert f['legacy']({'source':{**order(),'memo':None}})['memo'] is None
+    assert thaw(f['legacy-partial']({'source':order()}))=={}
+    assert thaw(f['legacy-partial']({'source':{**order(),'memo':None}}))=={'memo':None}
+    error(f['legacy-total'],{'source':order()},'MAPPING_REQUIRED_VALUE')
+    assert f['legacy-total']({'source':{**order(),'memo':None}})['memo'] is None
+    for v in [True,1.0,-1,'01','+1','1\n','18446744073709551616',{},None]:error(f['full'],{**args(),'order_total':v})
+    for p in [None,[],{},dict(args(),extra=1)]:error(f['full'],p)
+    p=args();del p['memo'];error(f['full'],p)
+    # Normalize every declared input even if a partial projection never reads it.
+    error(f['partial'],{**args(),'order_total':True})
+    error(f['partial'],{**args(),'order':{**order(),'money':{'amount':True,'currency':'GBP'}}})
+    for patch in [{'tags':['a','a']},{'enabled':1},{'status':{'variant':'Unknown'}},{'choice':{'variant':'None','payload':None}},{'memo':1},{'unknown':1}]:error(f['full'],{**args(),'order':{**order(),**patch}})
+    for choice in [{'variant':'None'},{'variant':'Amount','payload':0},{'variant':'Money','payload':money(0)}]:assert f['full']({**args(),'order':{**order(),'choice':choice}})['choice']['variant']==choice['variant']
+    assert f['full']({**args(),'memo':'\ud83d\ude00'})['memo']=='😀'
+    assert f['full']({**args(),'memo':'e\u0301'})['memo']!='é'
+    calls=[]
+    class ActiveDict(dict):
+        def __getitem__(self,k):calls.append('get');return super().__getitem__(k)
+    class ActiveInt(int):
+        def __int__(self):calls.append('int');return 0
+    class ActiveList(list):
+        def __iter__(self):calls.append('iterate');return super().__iter__()
+    error(f['full'],ActiveDict(args()));error(f['full'],{**args(),'order':ActiveDict(order())})
+    error(f['full'],{**args(),'order_total':ActiveInt(1)});error(f['full'],{**args(),'amount_list':ActiveList([1])})
+    assert calls==[],calls
+    result=thaw(out);armed=False
+    assert events==[],events
+    for file in data['files']:compile(pathlib.Path(data['root'],file).read_bytes(),file,'exec')
+    print(json.dumps({'pid':os.getpid(),'result':result,'effects':events,'mappings':len(f)}))
+    
+    Traceback (most recent call last):
+      File "<string>", line 38, in <module>
+        assert out['amounts']==(9007199254740993,2,2) and out['unique_amounts']==(2,9007199254740993)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-mappings.test.ts:179:27)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+  ...
+# Subtest: R10 independent Mapping observation rejects compiling semantic and effect mutants
+ok 4 - R10 independent Mapping observation rejects compiling semantic and effect mutants
+  ---
+  duration_ms: 1635.162903
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3089.46833

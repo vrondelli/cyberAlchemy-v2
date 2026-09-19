@@ -6,6 +6,7 @@ from urllib.parse import quote, urlsplit
 import os
 from html import escape
 import base64
+import hashlib
 import re
 
 ROOT = Path(__file__).resolve().parent
@@ -42,7 +43,7 @@ def inline_assets(html: str, assets: Path) -> str:
 
 def build() -> None:
     assets = ROOT/'assets'
-    are_page_url = os.environ.get('KELD_ARE_PAGE_URL', 'http://localhost:4193/')
+    are_page_url = os.environ.get('KELD_ARE_PAGE_URL', '/are/')
     parsed = urlsplit(are_page_url)
     if not ((parsed.scheme in ('http', 'https') and parsed.netloc) or
             (are_page_url.startswith('/') and not are_page_url.startswith('//'))):
@@ -66,7 +67,10 @@ def build() -> None:
             output = output.replace('window.KELD_INITIAL_VIEW = "studio";', 'window.KELD_INITIAL_VIEW = "studio"; window.KELD_INITIAL_SECTION = "legend";')
         if view == 'shop':
             output = output.replace('<title>Keld — Agent gear. Even minds need tools.</title>', '<title>The Keld Shop — ARE Alpha · First 100</title>')
-        (ROOT/entry).write_text(output)
+        # Bind the stylesheet URL to its bytes so refreshed HTML cannot reuse stale layout CSS.
+        style_version = hashlib.sha256((assets/'ui-review.css').read_bytes()).hexdigest()[:12]
+        hosted_output = output.replace('href="assets/ui-review.css"', f'href="assets/ui-review.css?v={style_version}"')
+        (ROOT/entry).write_text(hosted_output)
         if entry in ('index.html', 'legend.html', 'shop.html'):
             name = {'index.html': 'keld-illustrated-standalone.html', 'legend.html': 'keld-legend-standalone.html', 'shop.html': 'keld-shop-standalone.html'}[entry]
             (ROOT/name).write_text(inline_assets(output, assets))

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.dev/schemas/evf/enforcement-profile/v1",
+  "title": "EVF Enforcement Profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "profile_id", "subject", "route", "stages",
+    "semantic_refs", "obligation_ids", "obligation_denominator",
+    "binding_refs", "checks", "mutations", "composition", "producer", "verifier",
+    "repetitions", "claim_ceiling", "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {"const": "evf.enforcement-profile/v1"},
+    "profile_id": {"$ref": "#/$defs/id"},
+    "subject": {"type": "string", "minLength": 1},
+    "route": {"enum": ["executable", "theorem", "multi_provider"]},
+    "stages": {
+      "type": "array", "minItems": 13, "maxItems": 13,
+      "prefixItems": [
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S0"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S1"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S2"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S3"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S4"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S5"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S6"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S7"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S8"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S9"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S10"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S11"}}},
+        {"$ref": "#/$defs/requiredStage", "properties": {"stage_id": {"const": "S12"}}}
+      ],
+      "items": false
+    },
+    "semantic_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/currentRef"}},
+    "obligation_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+    "obligation_denominator": {"type": "integer", "minimum": 1},
+    "binding_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/currentRef"}},
+    "checks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/check"}},
+    "mutations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/mutation"}},
+    "composition": {"$ref": "#/$defs/composition"},
+    "producer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["executable_ref"],
+      "properties": {"executable_ref": {"$ref": "#/$defs/currentRef"}}
+    },
+    "verifier": {
+      "type": "object", "additionalProperties": false,
+      "required": ["executable_ref"],
+      "properties": {"executable_ref": {"$ref": "#/$defs/currentRef"}}
+    },
+    "repetitions": {"const": 2},
+    "claim_ceiling": {"type": "string", "minLength": 1},
+    "authority_effect": {"const": "none"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "exactRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "location", "current"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "location": {"enum": ["repository", "host"]},
+        "current": {"type": "boolean"}
+      }
+    },
+    "currentRef": {"allOf": [{"$ref": "#/$defs/exactRef"}, {"properties": {"current": {"const": true}}}]},
+    "requiredStage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stage_id", "required"],
+      "properties": {"stage_id": {"pattern": "^S([0-9]|1[0-2])$"}, "required": {"const": true}}
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["executable_ref", "tool_refs", "argv", "working_directory", "environment", "timeout_ms", "max_output_bytes", "network", "isolation"],
+      "properties": {
+        "executable_ref": {"$ref": "#/$defs/currentRef"},
+        "tool_refs": {"type": "array", "items": {"$ref": "#/$defs/currentRef"}},
+        "argv": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "working_directory": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+        "environment": {"type": "object", "additionalProperties": {"type": "string"}},
+        "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 600000},
+        "max_output_bytes": {"type": "integer", "minimum": 256, "maximum": 16777216},
+        "network": {"const": "forbidden"},
+        "isolation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["mechanism", "unshare_ref"],
+          "properties": {
+            "mechanism": {"const": "linux-user-and-network-namespace"},
+            "unshare_ref": {"$ref": "#/$defs/currentRef"}
+          }
+        }
+      }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["check_id", "provider_id", "runtime", "input_ref", "expected_output"],
+      "properties": {
+        "check_id": {"$ref": "#/$defs/id"},
+        "provider_id": {"$ref": "#/$defs/id"},
+        "runtime": {"$ref": "#/$defs/runtime"},
+        "input_ref": {"$ref": "#/$defs/currentRef"},
+        "expected_output": {"type": "object"}
+      }
+    },
+    "mutation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mutant_id", "check_id", "input_ref", "expected_output", "expected_rejection_code"],
+      "properties": {
+        "mutant_id": {"$ref": "#/$defs/id"},
+        "check_id": {"$ref": "#/$defs/id"},
+        "input_ref": {"$ref": "#/$defs/currentRef"},
+        "expected_output": {"type": "object"},
+        "expected_rejection_code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}
+      }
+    },
+    "composition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "provider_ids", "compare_fields", "comparability_refs"],
+      "properties": {
+        "mode": {"enum": ["single", "all_equal"]},
+        "provider_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "compare_fields": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "comparability_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/currentRef"}}
+      }
+    }
+  }
+}

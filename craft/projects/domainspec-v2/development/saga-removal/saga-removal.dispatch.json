@@ -1,0 +1,294 @@
+{
+  "dispatch_id": "domainspec-v2-saga-removal-plan",
+  "intent": {
+    "raw": "Create a plan so we can remove all Saga related active surfaces.",
+    "objective": "Retire Saga from active DomainSpec v2 DS-D1, DS-D8, implementation, validation, projections, and executable plans while preserving historical evidence.",
+    "target_artifact": "projects/domainspec-v2/development/saga-removal/WORK-PACK.md",
+    "arcanum_vocabulary": [
+      "invoke",
+      "task-session",
+      "decision-gate",
+      "definitions-governance",
+      "work-pack",
+      "SWU"
+    ]
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "scu_swu_reduction",
+    "recomposition_proof",
+    "validation_loop",
+    "owner_boundary_check",
+    "authority_split_gate",
+    "artifact_contract_bridge",
+    "execution_receipt_handoff",
+    "residue_ledger",
+    "concrete_path_evidence",
+    "state_namespace_boundary"
+  ],
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "invoke-to-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": ["s1", "s3", "s4", "s5"],
+        "contract": "Invoke authors the plan; Task Session mutates one SWU at a time and returns a receipt.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "task-session-to-authority-owners",
+        "kind": "human_approval",
+        "from_owner": "task-session",
+        "to_owner": "definitions-governance plus DS-D8 relationship authority",
+        "applies_to_steps": ["s2"],
+        "contract": "Canonical DS-D1 removal and DS-D8 signature migration require both owner approvals.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "active-vs-historical-state",
+        "kind": "state_write",
+        "from_owner": "task-session",
+        "to_owner": "historical evidence owners",
+        "applies_to_steps": ["s4", "s5"],
+        "contract": "Active surfaces may be removed or superseded; historical research, decisions, telemetry, and receipts remain immutable evidence.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "DomainSpec v2 DS-D1 improvement cycle",
+      "execution": "task-session",
+      "validation": "DomainSpec v2 implementation validators plus classified reference audit",
+      "evidence": "Task Session receipts",
+      "memory": "Inventory and observability read models",
+      "promotion": "definitions-governance plus DS-D8 relationship authority"
+    },
+    "receipts": [
+      {
+        "receipt_id": "sgrm-swu-receipt",
+        "producer": "task-session",
+        "required_fields": ["run_id", "artifacts", "validation_result", "capability_ref", "status", "blockers", "handoff_note", "residue"],
+        "stores": ["projects/domainspec-v2/development/saga-removal/runs/"],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "active-authority-and-implementation",
+        "owner": "DS-D1/DS-D8 and implementation owners",
+        "write_policy": "Only the selected SWU write scope may mutate current surfaces."
+      },
+      {
+        "namespace": "historical-evidence",
+        "owner": "source artifact owners",
+        "write_policy": "Preserve content; add only explicit supersession pointers when current routing would otherwise be unsafe."
+      }
+    ],
+    "promotion_splits": [
+      {
+        "source": "Task Session validation receipt",
+        "target": "canonical DS-D1/DS-D8 authority",
+        "rule": "Execution evidence does not promote authority without the named owner approval.",
+        "on_violation": "block"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "s1",
+      "name": "Freeze migration packet and active-reference manifest",
+      "capability_ref": "task-session",
+      "pattern": "handoff",
+      "techniques": [
+        "scu_swu_reduction",
+        "concrete_path_evidence",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "decision",
+          "ref": "projects/domainspec-v2/development/ds-d1-improvement-plan/decisions/DEC-DSD1-SAGA-FORK.md"
+        },
+        {
+          "kind": "artifact",
+          "ref": "projects/domainspec-v2/development/saga-removal/ACTIVE-SURFACE-CENSUS.md"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-001 migration packet and receipt"
+        }
+      ],
+      "evidence_artifact": "SWU-SGRM-001 Task Session receipt",
+      "stop_conditions": [
+        "block on external consumer evidence or an unclassified active surface"
+      ]
+    },
+    {
+      "step_id": "s2",
+      "name": "Migrate DS-D1 and DS-D8 authority with schema edge bridge",
+      "capability_ref": "definitions-governance",
+      "capability_status": "local-extension",
+      "pattern": "handoff",
+      "techniques": [
+        "authority_split_gate",
+        "owner_boundary_check",
+        "artifact_contract_bridge"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-001 receipt"
+        },
+        {
+          "kind": "artifact",
+          "ref": "2026-07-11 SGRM-002 validation-cycle refresh"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-002 authority migration receipt"
+        }
+      ],
+      "evidence_artifact": "root authority diff, focused schema edge-participation diff, and validation receipt",
+      "stop_conditions": [
+        "block on DS-D1 ID renumbering, orchestrates deletion, missing DS-D8 approval, or schema mutation beyond edge_participation.source_of"
+      ]
+    },
+    {
+      "step_id": "s3",
+      "name": "Migrate Workflow criteria and implementation",
+      "capability_ref": "task-session",
+      "pattern": "sequential",
+      "techniques": [
+        "sequence",
+        "artifact_contract_bridge",
+        "validation_loop",
+        "execution_receipt_handoff"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-002 receipt"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "ledger",
+          "ref": "SWU-SGRM-003..005 receipts"
+        }
+      ],
+      "evidence_artifact": "focused and aggregate validation receipts",
+      "stop_conditions": [
+        "block if unknown scope passes, cross-feature Workflow fails, or Saga source remains accepted"
+      ]
+    },
+    {
+      "step_id": "s4",
+      "name": "Reconcile current plans and projections",
+      "capability_ref": "task-session",
+      "pattern": "handoff",
+      "techniques": [
+        "state_namespace_boundary",
+        "owner_boundary_check",
+        "validation_loop"
+      ],
+      "inputs": [
+        {
+          "kind": "ledger",
+          "ref": "SWU-SGRM-003..005 receipts"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-006 sync receipt"
+        }
+      ],
+      "evidence_artifact": "current-plan classified diff",
+      "stop_conditions": [
+        "block if historical evidence is rewritten or active Saga-hardening work remains runnable"
+      ]
+    },
+    {
+      "step_id": "s5",
+      "name": "Prove zero active Saga surface and close",
+      "capability_ref": "task-session",
+      "pattern": "validation",
+      "techniques": [
+        "recomposition_proof",
+        "validation_loop",
+        "execution_receipt_handoff",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-006 receipt"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "SWU-SGRM-007..008 final receipts"
+        }
+      ],
+      "evidence_artifact": "zero-active audit and final Task Session result",
+      "stop_conditions": [
+        "block on any non-allowlisted Saga reference or stale read model"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g1-decision",
+      "kind": "decision",
+      "owner": "DS-D1 owner",
+      "condition": "DEC-DSD1-SAGA-FORK selects collapse.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g2-history",
+      "kind": "quality",
+      "owner": "task-session",
+      "condition": "Historical research, decisions, telemetry, and receipts are preserved.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g3-authority",
+      "kind": "human_approval",
+      "owner": "definitions-governance plus DS-D8 relationship authority",
+      "condition": "Root removal and signature migration receive both owner approvals.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g4-validation",
+      "kind": "validation",
+      "owner": "task-session",
+      "condition": "Focused/full validation and zero-active audit pass before closeout.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "plan-authored",
+      "migration-contract",
+      "authority-migrated",
+      "implementation-migrated",
+      "active-surface-zero",
+      "closeout"
+    ],
+    "signal_grouping": "saga-removal"
+  },
+  "promotion_guardrails": [
+    "Invoke plan does not mutate authority or implementation.",
+    "Historical evidence is never deleted to satisfy the zero-active check.",
+    "No permanent Saga compatibility alias is introduced without a new decision.",
+    "Workflow cross-feature behavior must validate before Saga files are removed."
+  ]
+}

@@ -1,0 +1,217 @@
+{
+  "dispatch_id": "sic-fac-000-r2-revalidation-b-v1",
+  "intent": {
+    "raw": "Authorize the fresh validation-harness repair candidate and complete SIC-FAC-000-R2 revalidation.",
+    "objective": "Materialize one fresh runner repair, admit it, execute the complete acceptance suite once, and return but not execute the Revision 2 route.",
+    "target_artifact": "projects/domainspec-v2/development/system-integration-contract-layer/SIC-FAC-000-REPAIR-B/TASK-SESSION-RECEIPT.json"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "artifact_contract_bridge",
+    "execution_receipt_handoff",
+    "concrete_path_evidence",
+    "state_namespace_boundary",
+    "validation_loop"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "explanation": "Execution may use one bounded background helper under the repository helper rule; this is not a governed multi-agent strategy or parallel dispatch.",
+    "authorization": "not_needed"
+  },
+  "steps": [
+    {
+      "step_id": "route-owner-gate",
+      "name": "Consume the exact renewed owner gate",
+      "capability_ref": "continuation-router",
+      "capability_status": "local-extension",
+      "capability_metadata": {
+        "installed_skill": ".agents/skills/continuation-router/SKILL.md",
+        "validation_note": "Installed repository-local capability absent from the dispatch validator's current canonical-id allowlist."
+      },
+      "mode": "terminal",
+      "pattern": "route",
+      "inputs": [
+        {"kind": "receipt", "ref": "../SIC-FAC-000-REPAIR-A/TASK-SESSION-RECEIPT.json"},
+        {"kind": "human_answer", "ref": "AUTHORIZATION.json"}
+      ],
+      "outputs": [
+        {"kind": "handoff", "ref": "CONTINUATION-ROUTE.json"}
+      ],
+      "stop_conditions": ["authorization or source receipt does not bind the exact runner-only route"]
+    },
+    {
+      "step_id": "audit-runner",
+      "name": "Independently audit the staged runner and live product inputs",
+      "capability_ref": "task-session",
+      "mode": "pre-admission-audit",
+      "pattern": "validation",
+      "depends_on_steps": ["route-owner-gate"],
+      "inputs": [
+        {"kind": "artifact", "ref": "CONTINUATION-ROUTE.json"},
+        {"kind": "artifact", "ref": "producer/material/run-post-repair-validation.mjs"},
+        {"kind": "receipt", "ref": "../SIC-FAC-000-REPAIR-A-GOVERNANCE-DEFECT/SIDECAR-RECEIPT.json"}
+      ],
+      "outputs": [
+        {"kind": "receipt", "ref": "audit/INDEPENDENT-RUNNER-AUDIT.json"}
+      ],
+      "evidence_artifact": "audit/INDEPENDENT-RUNNER-AUDIT.json",
+      "stop_conditions": ["runner derivation or any live product/guard hash differs"]
+    },
+    {
+      "step_id": "materialize-and-admit",
+      "name": "Validate the one-target material package and Task Session admission",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "handoff",
+      "depends_on_steps": ["audit-runner"],
+      "inputs": [
+        {"kind": "receipt", "ref": "audit/INDEPENDENT-RUNNER-AUDIT.json"},
+        {"kind": "artifact", "ref": "context-pack.json"}
+      ],
+      "outputs": [
+        {"kind": "receipt", "ref": "producer/refresh-handoff-receipt.json"},
+        {"kind": "receipt", "ref": "mutation-admission-receipt.json"}
+      ],
+      "stop_conditions": ["material receipt is not pass/ready or mutation admission is not admit"]
+    },
+    {
+      "step_id": "execute-revalidation",
+      "name": "Apply the admitted runner and execute the complete acceptance suite once",
+      "capability_ref": "task-session",
+      "mode": "execute",
+      "pattern": "validation",
+      "techniques": ["validation_loop"],
+      "depends_on_steps": ["materialize-and-admit"],
+      "inputs": [
+        {"kind": "receipt", "ref": "mutation-admission-receipt.json"},
+        {"kind": "artifact", "ref": "producer/material/run-post-repair-validation.mjs"}
+      ],
+      "outputs": [
+        {"kind": "receipt", "ref": "EXECUTOR-RECEIPT.json"},
+        {"kind": "receipt", "ref": "TASK-SESSION-RECEIPT.json"}
+      ],
+      "evidence_artifact": "VALIDATION-RESULT.json",
+      "stop_conditions": ["any acceptance-critical check fails or any write escapes the admitted scope"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "renewed-owner-authorization",
+      "kind": "human_approval",
+      "owner": "generic-factory-owner",
+      "condition": "The exact fresh runner material scope and full revalidation are explicitly authorized.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "independent-runner-binding",
+      "kind": "quality",
+      "owner": "revalidation-executor",
+      "condition": "Runner derivation, live 14 product targets, and 2 guards match their exact bindings.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "material-admission",
+      "kind": "validation",
+      "owner": "invoke-and-task-session",
+      "condition": "One-target material and mutation-admission receipts pass on current bytes.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "full-acceptance",
+      "kind": "validation",
+      "owner": "generic-factory-owner",
+      "condition": "The complete runner reaches PASS with zero product drift and all helper lifecycle records closed.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "no-downstream-effect",
+      "kind": "promotion_guardrail",
+      "owner": "system-integration-contract-owner",
+      "condition": "No Revision 2, target/profile, promotion, publication, release, deployment, or production state is changed.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "authorization.consumed",
+      "runner.audited",
+      "material.admitted",
+      "validation.completed",
+      "helper.closed",
+      "task.closed"
+    ],
+    "signal_grouping": "sic-fac-000-r2-revalidation-b-v1"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "owner-to-refresh",
+        "kind": "human_approval",
+        "from_owner": "generic-factory-owner",
+        "to_owner": "invoke",
+        "applies_to_steps": ["route-owner-gate", "materialize-and-admit"],
+        "contract": "Approval covers exactly one fresh runner and full revalidation.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "refresh-to-execution",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": ["materialize-and-admit", "execute-revalidation"],
+        "contract": "Execution consumes exact current package, review, and admission receipts.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "execution-evidence",
+        "kind": "state_write",
+        "from_owner": "task-session",
+        "to_owner": "generic-factory-owner",
+        "applies_to_steps": ["execute-revalidation"],
+        "contract": "Writes remain inside the fresh runner and declared Attempt B evidence paths; product bytes remain unchanged.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "generic-factory-owner",
+      "execution": "task-session",
+      "validation": "generic-factory-owner",
+      "evidence": "SIC-FAC-000-REPAIR-B",
+      "promotion": "system-integration-contract-owner; not granted"
+    },
+    "receipts": [
+      {
+        "receipt_id": "material-admission",
+        "producer": "invoke-and-task-session",
+        "required_fields": ["artifacts", "validation_result", "status"],
+        "stores": ["producer/material-package-receipt.json", "mutation-admission-receipt.json"],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "executor",
+        "producer": "revalidation-executor",
+        "required_fields": ["artifacts", "validation_result", "status", "blockers"],
+        "stores": ["EXECUTOR-RECEIPT.json"],
+        "on_missing": "block"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "product",
+        "owner": "generic-factory-owner",
+        "write_policy": "read-only for Attempt B"
+      },
+      {
+        "namespace": "attempt-b-evidence",
+        "owner": "SIC-FAC-000-R2",
+        "write_policy": "one runner plus declared evidence outputs"
+      }
+    ]
+  },
+  "promotion_guardrails": [
+    "A PASS may return but does not execute the factory-adapted Revision 2 route.",
+    "Execution evidence does not promote Inventory, definitions, integration contracts, profiles, release, deployment, or production readiness."
+  ]
+}

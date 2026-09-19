@@ -27,6 +27,8 @@ test('config validates fixture and TLS locally, preserves integer quotes and agg
  assert.equal((await config.integration.quoteBrl(5001)).amountCents,25005);
  assert.equal(config.integration.auth.namespace,'keld');
  assert.equal(config.integration.payments.mercadopago.api,'orders-v1');
+ assert.equal(config.integration.payments.paypal.currency,'USD');
+ assert.throws(()=>compileConfig({...input,payments:{...input.payments,paypal:{...input.payments.paypal,currency:'EUR'}}},{env}),e=>e.issues.some(i=>i.path==='payments.paypal.currency'));
  assert.throws(()=>compileConfig({...input,payments:{...input.payments,mercadopago:{...input.payments.mercadopago,applicationId:undefined}}},{env}),e=>e.issues.some(i=>i.path==='payments.mercadopago.applicationId'));
  assert.throws(()=>compileConfig(input,{env:{...env,KELD_MP_TOKEN:'TEST-legacy'}}),e=>e.issues.some(i=>i.path==='payments.mercadopago.accessTokenEnv'));
  assert.equal(config.integration.events,undefined);

@@ -1,0 +1,487 @@
+dsh: reasoning:
+This is simdjson. The task: add pretty print for DOM. In actual simdjson history, there's `simdjson::minify` and the DOM pretty print was added in include/simdjson/dom/element.h/cpp as `element::pretty_print(std::ostream&)`. Let me look at existing code: include/simdjson/dom/element.h and src/dom.cpp or include/simdjson/dom/element-inl.h.
+dsh: reasoning:
+Let's look at serialization.h fully and element.h. The upstream simdjson pretty_print was added to serialization-inl.h as `internal::string_builder` with a `print` overload with indentation... Actually upstream commit "Add pretty print" (PR #1772?) added `dom::element::pretty_print(std::ostream&)` and `simdjson::prettify` / `to_string`? Upstream added `simdjson::minify(element)` and later `pretty_print`. Let me read serialization.h and serialization-inl.h fully.
+dsh: reasoning:
+I have full picture. The upstream simdjson implementation (PR #1794 by jkeiser? Actually "Add prettify support" commit added `include/simdjson/dom/serialization.h` with `prettify` and `simdjson_prettify_formatter`). Upstream commit: "feat: add pretty print" — implementation added `class simdjson_prettify_formatter : public mini_formatter` in serialization-inl.h, with `prettify(T x)` and `to_string`? The actual upstream commit "Add pretty print to DOM" (PR #1818? by ipenu?) — I recall the function is `simdjson::prettify(doc)` printing with 2-space? The task says indentation fixed to four spaces. Let me implement:
+
+- `internal::simdjson_prettify_formatter` subclassing mini_formatter overriding start_array/end_array/start_object/end_object/comma/key to print newlines and four spaces of indentation.
+- Track indentation depth in the formatter? The formatter needs to know depth. Upstream did this by overriding methods and computing indentation... The formatter doesn't know depth from string_builder. Hmm. Upstream solution: the prettify formatter used a buffer approach: on `comma()`, print ",\n" plus indentation based on counting? Actually upstream `simdjson_prettify_formatter`:
+
+```cpp
+class simdjson_prettify_formatter final : public mini_formatter {
+public:
+  simdjson_inline void comma() final {
+    one_char(',');
+    indent();
+  }
+  simdjson_inline void start_array() final { one_char('['); }
+  ...
+  simdjson_inline void end_array() final {
+    one_char('\n'); print_padding(); one_char(']'); ...
+```
+
+I don't remember exactly. I can design my own: the formatter can infer depth from the buffer? Easier: give string_builder a depth-aware approach? But string_builder's append loop controls comma placement, not depth. However formatter can track depth itself: start_array/start_object increments depth, end_* decrements. But the loop calls start then possibly end for empty containers — still balanced. And comma is called between values at current depth. key(): called at current depth after comma? Sequence for object: start_object (depth 1 after increment), then for each pair: comma, key, value... comma happens at depth of the container. So formatter can track depth: increment in start_*, decrement in end_*.
+
+Print format with four spaces:
+- comma(): ',' then '\n' then (depth spaces).
+- start_array: '[' ; if next element... but empty arrays handled by immediate end_array. We can print ']' preceded by newline: end_array: '\n' + indent(depth_after_decrement) + ']'. For empty array that prints "[\n]" which is ugly but acceptable? Prettify commonly prints [] for empty. To handle empty, string_builder prints start_array then end_array with nothing between; formatter can detect: keep a flag "just opened" — in end_*, if last char written is '[' or '{', just append ']' / '}' without newline. mini_formatter has buffer private. But derived class can use buffer? buffer is private in mini_formatter. Upstream handled this... I think upstream's prettify formatter overrode methods and used `indent()` and had this issue; actually upstream code (include/simdjson/dom/serialization-inl.h, current master):
+
+```cpp
+class simdjson_prettify_formatter final : public mini_formatter {
+public:
+  simdjson_inline void comma() final {
+    one_char(',');
+    indent();
+  }
+  simdjson_inline void start_array() final { one_char('['); }
+  simdjson_inline void start_object() final { one_char('{'); }
+  simdjson_inline void end_array() final {
+    one_char('\n');
+    print_padding();
+    one_char(']');
+  }
+  ...
+```
+
+And then `prettify` post-processes? No — I recall master has:
+
+```cpp
+inline std::string prettify(...)?
+```
+
+Actually I recall upstream master's serialization has `simdjson_prettify_formatter` overriding:
+
+```cpp
+  simdjson_inline void end_array() final { one_char(']'); }? 
+```
+
+I can't recall; I'll write my own robust version. Since mini_formatter's buffer is private, I can't easily check last char. Options: make my formatter standalone (not subclassing) implementing full interface, duplicating string/number escaping? That's a lot. Simpler: change mini_formatter's buffer access? Modifying private members might break things minimally—could change `buffer` to protected? That changes class layout none. I can just edit mini_formatter to make `buffer` protected... but "subject to change" internal. But minimal diff: instead, in prettify formatter, keep own small state: track whether container was empty via a stack? string_builder::append(array) calls start_array, then appends elements or not, then end_array. Formatter sees sequence: start_array [ ... ] — if immediately end_array after start_array, it's empty. I can track with a bool "last_was_start": set true on start_array/start_object; in comma/key/string/number/atom methods set false; in end_*: if last_was_start, print just closing char (and pop depth), else newline+indent+close. But between start and end there could be a key call for object with no values? No—empty object has no keys. But note after comma comes key; key sets flag false. Also atoms: true_atom etc. override needed to reset flag — but those are not virtual (simdjson_inline, static dispatch via template, so fine: string_builder<simdjson_prettify_formatter> calls methods statically; overriding via hiding works since calls are `format.method()` on the concrete type). Yes, static polymorphism—perfect.
+
+So methods I need to override in prettify formatter: comma, start_array, end_array, start_object, end_object, key, string, true_atom, false_atom, null_atom, number x3, clear, str. Non-overridden would fall back to base — but base's number/true_atom etc. are fine except flag tracking. I must override all to reset last_was_start. Rather than duplicating bodies, since base buffer is private, derived can't append. Hmm. I could override by calling base which writes to base's buffer — shared buffer, base methods work on the same buffer, and my overrides add to it via one_char? one_char is also private.
+
+Simplest clean approach: in serialization.h change `private:` buffer section of mini_formatter to `protected:`. That's a minimal, safe edit (internal class). Then derived prettify formatter can use buffer and one_char (one_char also private → move both under protected, or add protected helper). I'll restructure: keep public methods, then `protected:` for one_char and buffer, `private:` nothing.
+
+Wait—but mini_formatter methods are defined in serialization-inl.h; fine.
+
+Design prettify_formatter:
+
+```cpp
+class simdjson_prettify_formatter final : public mini_formatter {
+public:
+  simdjson_inline void comma() { one_char(','); one_char('\n'); print_indent(); }
+  simdjson_inline void start_array() { one_char('['); depth++; }
+  simdjson_inline void start_object() { one_char('{'); depth++; }
+  simdjson_inline void end_array() { depth--; if (just_opened()) { /* buffer ends with '[' */ } ... }
+```
+
+Handle empty: track a member `size_t last_value_position`? Simpler: track `bool pending_empty` — no. Track `char last_container_open`? Alternative approach: check buffer's last char: `buffer.back()` == '[' or '{'. Since buffer accessible (protected), that's easy:
+
+end_array: depth--; if (!buffer.empty() && buffer.back()=='[') { one_char(']'); } else { one_char('\n'); print_indent(); one_char(']'); }
+Similarly end_object with '}'.
+
+But careful: for empty container inside nonempty, e.g. [1,[],2]: after start_array for inner, buffer.back()=='['? After '[', buffer.back() is '[' yes. end_array immediately: sees '[' → prints "[]". 
+
+key(): after comma, indent already printed at container depth. key prints string + ':' + ' ' ? Prettify style: `"key": value`. mini key prints ':' without space. Override key: call base string? string is base public method → call `this->string(unescaped); one_char(':'); one_char(' ');`. Wait but base string is a public method, callable. Fine.
+
+comma: prints ",\n" + indent(depth). But depth at comma time: comma is called after start_* increment? Sequence for [1,2]: start_array → depth=1, print '[', elements: comma (depth=1) → ",\n"+4 spaces, "1", comma → ",\n"+indent, "2", end_array depth→0, buffer.back()=='2' → newline+indent(0)+']'. Result:
+
+```
+[
+    1,
+    2
+]
+```
+
+Good. Nested: {"a":[1]}: start_object depth1 '{', key "a": `string a, ':', ' '` then value start_array depth2 '[', then end_array: back=='[' → "]", end_object: back==']' → '\n'+indent(0)+'}'. Output: `{"a": []}`? Actually "a": then '[' ']' → `{"a": []}`. Fine.
+
+start_object/array also should print nothing extra; the newline comes from comma. But after key we printed ": " and then '{' — good.
+
+Now `print_indent()`: for depth d, append 4*d spaces. Constant four spaces per level per requirement.
+
+clear(): reset depth=0, buffer clear via base clear.
+
+str(): base str.
+
+Then public API: `simdjson::prettify(T x)` analogous to minify:
+
+```cpp
+template <class T>
+std::string prettify(T x) {
+  simdjson::internal::string_builder<simdjson::internal::simdjson_prettify_formatter> sb;
+  sb.append(x);
+  std::string_view answer = sb.str();
+  return std::string(answer.data(), answer.size());
+}
+#if SIMDJSON_EXCEPTIONS
+template <class T>
+std::string prettify(simdjson_result<T> x) { ... }
+#endif
+```
+
+Also maybe operator<< pretty? Keep to prettify. Where to declare: serialization.h uses string_builder with default mini_formatter; prettify formatter class must be declared there too. Add declaration `class simdjson_prettify_formatter;` in internal namespace and full class in serialization-inl.h (like mini_formatter whose methods are in inl). But template function prettify in serialization.h needs complete type at instantiation—in headers, string_builder<simdjson_prettify_formatter> instantiation requires complete type; if prettify is inline in serialization.h and class defined in serialization-inl.h which is included after... Check include order: serialization-inl.h includes serialization.h. Who includes serialization-inl.h? Probably simdjson.h includes dom/serialization-inl.h after. If user only includes serialization.h, prettify instantiation fails. Upstream put prettify in serialization.h with class defined... In upstream master, `simdjson_prettify_formatter` is defined in serialization.h? Let me check upstream: include/simdjson/dom/serialization.h contains `class simdjson_prettify_formatter final : public mini_formatter` with inline method definitions (they're trivial). And serialization-inl.h contains the prettify-related? Actually upstream has in serialization.h:
+
+```cpp
+class simdjson_prettify_formatter final : public mini_formatter {
+public:
+  simdjson_inline void comma() final { one_char(','); indent(); }
+  ...
+```
+
+Hmm and `prettify` declared in serialization.h as template using string_builder<simdjson_prettify_formatter>. Since methods need buffer/one_char, define methods in serialization-inl.h to keep header light, and make `prettify` definition... For template, definition needed at point of use; serialization.h is included everywhere via simdjson.h along with serialization-inl.h? Check: does simdjson.h include serialization-inl.h? Let me search. Also tests exist for minify — add tests maybe in tests/dom/serialize_tests? Let's check tests directory. Also documentation in doc/dom.md or basics.md.
+
+Plan:
+1. serialization.h: add `class simdjson_prettify_formatter;` declaration in internal, add `template <class T> std::string prettify(T x);` declaration? Simpler: define prettify fully in serialization.h but the formatter class also fully in serialization.h with inline (header-defined) methods using protected members — needs mini_formatter complete, it is. Methods marked simdjson_inline defined in header — fine.
+
+But making one_char/buffer protected requires editing mini_formatter. OK.
+
+2. Add prettify template definitions in serialization.h after minify.
+
+3. Doc: doc/dom.md add section "Prettifying JSON"? Actually there's doc/basics_basics? The minify is documented in doc/dom.md? Search "minify" in doc.
+
+4. Tests: add to tests/dom/serialize_tests.cpp maybe. Let me check tests.
+
+Also, maybe add `parser::print_json` prettify? Not necessary.
+
+Let me check includes and tests.
+dsh: reasoning:
+Now check tests/dom/serialize_tests.cpp existence. Search for "serialize" tests. Upstream PR #1776 "pretty print" by "pauldreik"? Actually upstream added tests/dom/serialize_prettyprint_tests? Let me just check tests/dom CMakeLists and add tests in basictests? Simplest: add a new test file tests/dom/pretty_print_tests.cpp? Hmm keep effort moderate: I'll add tests to basictests.cpp near minify tests? Simpler to add a dedicated namespace in basictests and register. But minimal: I'll create a small standalone test file and add to tests/dom/CMakeLists.txt. Need to know add_cpp_test macro usage. Let me read tests/dom/CMakeLists.txt and an existing small test like minify_tests.
+dsh: reasoning:
+Plan the edits:
+
+1. `include/simdjson/dom/serialization.h`:
+   - Change mini_formatter private members to protected (so prettify formatter can reuse buffer and one_char). Actually simpler: I'll define the prettify formatter in serialization-inl.h and only forward-declare in serialization.h, and put `prettify` template definitions in serialization-inl.h? But public API `minify`/`to_string` live in serialization.h. dom.h includes serialization-inl.h, and all users include simdjson.h → fine. But prettify as template must be visible; declaring in serialization.h and defining in serialization-inl.h works since dom.h includes serialization-inl.h right after dom/serialization.h... Actually dom.h includes "simdjson/dom/serialization.h" then "serialization-inl.h"? It includes serialization-inl.h at line 31; does it include serialization.h too? serialization-inl.h includes serialization.h. So both are visible to anyone including dom.h. Upstream put `prettify` definition in serialization.h I believe. To be safe I'll define everything in serialization.h: prettify formatter class inline with method bodies there (needs one_char/buffer access → make protected in mini_formatter). This keeps header self-contained.
+
+Let me write the prettify formatter:
+
+```cpp
+class simdjson_prettify_formatter final : public mini_formatter {
+public:
+  simdjson_inline void comma() {
+    one_char(',');
+    one_char('\n');
+    print_indent();
+  }
+  simdjson_inline void start_array() { one_char('['); depth++; }
+  simdjson_inline void end_array() { close_container(']'); }
+  simdjson_inline void start_object() { one_char('{'); depth++; }
+  simdjson_inline void end_object() { close_container('}'); }
+  simdjson_inline void key(std::string_view unescaped) {
+    string(unescaped);
+    one_char(':');
+    one_char(' ');
+  }
+  simdjson_inline void clear() { mini_formatter::clear(); depth = 0; }
+private:
+  simdjson_inline void close_container(char c) {
+    depth--;
+    if (buffer.back() == c - 2) { // ']' is '[' + 2? no
+```
+
+'[' is 0x5B, ']' 0x5D; '{' 0x7B, '}' 0x7D. So closing char = opening + 2. So `if (buffer.back() == char(c - 2)) { one_char(c); }` — empty container, print `[]` / `{}` inline. Else newline + indent + c.
+
+print_indent: for(size_t i=0;i<depth;i++) for 4 spaces — write "    " repeatedly.
+
+Note buffer.back() when buffer empty can't happen because start_ always writes before end_. Fine.
+
+Also `string`, atoms, numbers fall to base — fine since flag approach replaced by buffer.back() check. Wait: issue — inner container start writes '[' but for empty container the previous char before '[' is e.g. ' ' from key. buffer.back()=='[' correct.
+
+Edge: `[1, []]`: outer start '[' d1, "1", comma → ",\n"+indent(4sp), inner start '[' d2, end_array: back=='[' → ']', end_array: back==']' → '\n'+indent(0)+'}'. Output:
+```
+[
+    1,
+    []
+]
+```
+Good.
+
+Edge: `{"a": {}}`: '{' d1, key "a": ' ', '{' d2, '}' → `{}`. Result `{"a": {}}`. Good.
+
+Edge: top-level object with multiple keys: '{' d1, key, val, comma ",\n"+indent(d1), key... good.
+
+One more subtlety: string_builder::append(element) at MAX_DEPTH recurses calling format via append(dom::array) — that uses format.start_array etc., consistent.
+
+Also depth as member; clear resets. Use `size_t depth{0};`.
+
+2. Add to serialization.h, in namespace simdjson (after minify):
+
+```cpp
+/**
+ * Prettifies a JSON element or a document, printing the JSON with
+ * indentation (four spaces per level) and newlines so that it is
+ * easy to read.
+ *
+ *   dom::parser parser;
+ *   element doc = parser.parse("   [ 1 , 2 , 3 ] "_padded);
+ *   cout << prettify(doc) << endl;
+ *   // prints:
+ *   // [
+ *   //     1,
+ *   //     2,
+ *   //     3
+ *   // ]
+ */
+template <class T>
+std::string prettify(T x) {
+  simdjson::internal::string_builder<simdjson::internal::simdjson_prettify_formatter> sb;
+  sb.append(x);
+  std::string_view answer = sb.str();
+  return std::string(answer.data(), answer.size());
+}
+#if SIMDJSON_EXCEPTIONS
+template <class T>
+std::string prettify(simdjson_result<T> x) {
+  if (x.error()) { throw simdjson_error(x.error()); }
+  return prettify(x.value());
+}
+#endif
+```
+
+Wait: simdjson_result<dom::element> has .value()? to_string(simdjson_result<T>) uses x.value() — yes.
+
+Note string_builder::append(T) requires T = element/array/object/document? For document, minify(parser.parse()) — parse returns element actually (dom::element). parse returns element. document? `minify(doc)` in doc example where doc is element. OK. But string_builder has append(element), append(array), append(object), append(key_value_pair). Good.
+
+3. Tests: add tests/dom/pretty_print_tests? Hmm — I'll add a namespace in basictests.cpp: `prettify_tests` with tests and register in run_tests. Need to read the minify tests region and the run_tests list to patch. Also CMakeLists: add `add_cpp_test(pretty_print_tests ...)`. Actually to reduce risk, add new file tests/dom/pretty_print_tests.cpp modeled on integer_tests.cpp? Let me look at minify tests section in basictests.cpp lines 1733-1900 and the run list, plus a small test file header for modeling.
+dsh: reasoning:
+I'll add tests into basictests.cpp as a new namespace `prettify_tests` right after minify_tests, plus register in run tests list. Find where minify_tests::run is called (search "minify_tests::run").
+dsh: reasoning:
+Now write edits. Files:
+
+1. include/simdjson/dom/serialization.h:
+   a. Make one_char/buffer protected: edit the tail of mini_formatter:
+```
+private:
+  // implementation details (subject to change)
+  /** Prints one character **/
+  simdjson_inline void one_char(char c);
+  /** Backing buffer **/
+  std::vector<char> buffer{}; // not ideal!
+};
+```
+→ change `private:` to `protected:` and add comment.
+
+   b. Add `class simdjson_prettify_formatter;` after `class mini_formatter;` forward declaration? The full class definition needs mini_formatter complete (defined just above). I'll place the prettify formatter class definition right after mini_formatter class closes, with inline method bodies. Also need `print_indent`.
+
+   c. Add prettify templates after minify.
+
+Note serialization.h uses simdjson_inline macro — included via common_defs.h. Yes.
+
+2. tests/dom/basictests.cpp: add prettify_tests namespace + run call.
+
+3. doc/dom.md: add documentation bullet + maybe a section. Also doc/basics.md? The issue says "Add pretty print for DOM with documentation." I'll add to doc/dom.md near "Output to streams and strings" bullet and a dedicated section "Prettifying JSON" — plus update TOC in dom.md. Let me read dom.md TOC region lines 1-30.
+
+Let me write the class:
+
+```cpp
+  /**
+   * @private This is the class used to pretty print. It produces
+   * a version of the JSON with one value per line, indented with
+   * four spaces per nesting level.
+   */
+  class simdjson_prettify_formatter final : public mini_formatter {
+  public:
+    /** Add a comma, followed by a newline and the indentation **/
+    simdjson_inline void comma() {
+      one_char(',');
+      one_char('\n');
+      print_indent();
+    }
+    /** Start an array, prints [ **/
+    simdjson_inline void start_array() { one_char('['); depth++; }
+    /** End an array, prints ] on its own line (or right after [ for empty arrays) **/
+    simdjson_inline void end_array() { close_container(']'); }
+    /** Start an object, prints { **/
+    simdjson_inline void start_object() { one_char('{'); depth++; }
+    /** End an object, prints } on its own line (or right after { for empty objects) **/
+    simdjson_inline void end_object() { close_container('}'); }
+    /** Prints a key (string + colon + space) **/
+    simdjson_inline void key(std::string_view unescaped) {
+      string(unescaped);
+      one_char(':');
+      one_char(' ');
+    }
+    /** Clears out the content. **/
+    simdjson_inline void clear() { mini_formatter::clear(); depth = 0; }
+  private:
+    /** Ends a container, handling the empty-container case **/
+    simdjson_inline void close_container(char c) {
+      depth--;
+      if(buffer.back() == char(c - 2)) { // container was empty: print [] or {}
+        one_char(c);
+      } else {
+        one_char('\n');
+        print_indent();
+        one_char(c);
+      }
+    }
+    /** Prints four spaces per nesting level **/
+    simdjson_inline void print_indent() {
+      for(size_t i = 0; i < depth; i++) {
+        one_char(' '); one_char(' '); one_char(' '); one_char(' ');
+      }
+    }
+    size_t depth{0};
+  };
+```
+
+`string` in key: base method not shadowed, fine. `one_char`, `buffer` now protected. `mini_formatter::clear()` — clear is non-virtual; calling scoped ok.
+
+Note: mini_formatter::key and string are declared simdjson_inline; fine.
+
+Where buffer.back() could be on empty buffer: close_container always preceded by start. safe.
+
+char(c-2): ']'=93, '['=91 ok; '}'=125,'{'=123 ok.
+
+Now prettify templates. Also, maybe expose `operator<<` prettified? Not required.
+
+Test code in basictests.cpp: I'll insert after minify_tests namespace end (line 1826 "}"), before "namespace format_tests". Tests:
+
+```cpp
+namespace prettify_tests {
+  using namespace simdjson;
+  using namespace simdjson::dom;
+  bool check_prettify(const char * input, const std::string & expected) {
+    dom::parser parser;
+    dom::element elem;
+    ASSERT_SUCCESS( parser.parse(input, strlen(input)).get(elem) );
+    std::string actual = simdjson::prettify(elem);
+    if (actual != expected) {
+      std::cerr << "prettify produced: " << actual << std::endl;
+      return false;
+    }
+    return true;
+  }
+  bool test_prettify_array() {
+    std::cout << "Running " << __func__ << std::endl;
+    std::string expected = R"([
+    1,
+    2,
+    3
+])";
+    return check_prettify("[ 1, 2, 3 ]", expected);
+  }
+  bool test_prettify_object() { ... }
+  bool test_prettify_empty_containers() { check "[]" → "[]", "{}" → "{}", R"({"a": {}})" → R"({"a": {}})" ... }
+```
+
+Hmm {"a": {}} prettify: '{' d1, key "a"+": ", '{' d2, end_object back=='{' → '}'. → `{"a": {}}` yes. And `[1, []]` handled.
+
+Nested test:
+input R"({"foo":[1,{"a":1}], "bar":{}})"
+expected:
+```
+{
+    "foo": [
+        1,
+        {
+            "a": 1
+        }
+    ],
+    "bar": {}
+}
+```
+Verify: start_object d1 '{'; key "foo": ` "foo": `; start_array d2 '['; value 1; comma ",\n"+8sp; start_object d3 '{'; key+space at 8sp? Wait comma printed at depth 2 → indent 2*4=8 spaces, then key. Good. end_object d2: back=='1' → '\n'+indent(2)=8sp+'}'. Then end_array d1: back=='}' → '\n'+4sp+']'. Then comma at depth1: ",\n"+4sp; key "bar": ' '; start_object d2 '{'; end_object back=='{' → '}'. end_object d0: '\n'+''+'}'. Matches expected. 
+
+parse: parser.parse(input, strlen(input)) — parse takes (const char*, size_t). Yes returns element via simdjson_result; use `.get(elem)`. Actually `parser.parse(...)` returns simdjson_result<element>. ok.
+
+Also add test for document stream? skip.
+
+Register in run(): after `minify_tests::run() &&` add `prettify_tests::run() &&`. Need to see exact context line 2259 and lines around. Also check run tests list structure — I'll read lines 2250-2271.
+dsh: reasoning:
+Now doc/dom.md: read TOC lines 1-30 and the bullet at 108.
+dsh: reasoning:
+Now apply edits. Serialization.h edits:
+
+Edit A (protected):
+old:
+```
+private:
+  // implementation details (subject to change)
+  /** Prints one character **/
+  simdjson_inline void one_char(char c);
+  /** Backing buffer **/
+  std::vector<char> buffer{}; // not ideal!
+};
+
+} // internal
+```
+new: protected + prettify class after `};`.
+
+Edit B: add prettify after minify block end:
+```
+template <class T>
+std::string minify(T x)  {
+  return to_string(x);
+}
+
+#if SIMDJSON_EXCEPTIONS
+template <class T>
+std::string minify(simdjson_result<T> x) {
+    if (x.error()) { throw simdjson_error(x.error()); }
+    return to_string(x.value());
+}
+#endif
+```
+append prettify after.
+
+Need hashes: serialization.h sha256 0b6b017b3f503415c7104d648d9e632f1c06e6d226272fd600cabcb3a2c55fdb; basictests.cpp 3697feaa...; dom.md 4524a044...
+
+Write edits now. All independent? apply_edits batches atomically; do one call with multiple edits.
+dsh: reasoning:
+Verify by getting patch and checking compilation concerns:
+
+1. In serialization.h, prettify formatter class placed inside `namespace internal` — I replaced `} // internal` region, and the class is before `} // internal`. Good.
+2. `key` override calls `string(unescaped)` — string is base public, fine.
+3. `string_builder<simdjson_prettify_formatter>::append(element)` calls `format.key(...)`, `format.start_array()` etc. — resolves to derived. Fine. But `append(dom::array)` etc. also fine.
+
+One concern: in serialization.h, the class methods are `simdjson_inline` defined in header — fine.
+
+Another: `prettify` uses string_builder with formatter — string_builder default arg exists. OK.
+
+Check test: `check_prettify` uses ASSERT_SUCCESS and ASSERT macros — basictests defines those (test_macros). basictests.cpp includes simdjson.h. `padded_string padded(input)` ok. Also `#if SIMDJSON_EXCEPTIONS` inside function with parser.parse(padded) throwing — fine.
+
+Wait: in basictests.cpp, is there an existing function-local exception mode? basictests uses ASSERT_SUCCESS etc. Fine.
+
+Also get(elem) — element; parse returns simdjson_result<element>; `.get(elem)` ok.
+
+Potential issue: `prettify_tests` namespace placed before format_tests which has `using namespace simdjson;`—fine.
+
+Also `std::string_view` used in serialization.h class — <string_view> available? serialization.h includes... mini_formatter::str returns std::string_view already declared, so fine.
+
+Now verify compile of test file? Can't easily build (cmake heavy). Let's at least do a quick syntax check by compiling a small TU including simdjson.h with g++ if available. Try: g++ -std=c++17 -I include -c a test. Let me attempt quickly.
+dsh: reasoning:
+Now smoke-test compile. Check availability of compiler and try compiling a tiny program including simdjson.h and running prettify. simdjson requires its single-header? Repository has include/simdjson.h with amalgamated? There's include/simdjson.h which includes parts; building needs src/*.cpp. Simplest: use amalgamation script? Might be heavy. Try quick: check for singleheader dir.
+dsh: reasoning:
+singleheader/simdjson.h is stale (base). I can regenerate with amalgamate.py? Requires python; try: python3 singleheader/amalgamate.py then compile a demo. Do it in shell? I don't have shell tool! Only file tools. Hmm — no bash tool available. So I cannot compile. I'll rely on careful review.
+
+Review correctness once more mentally:
+
+- `prettify(simdjson_result<T>)`: `x.value()` — simdjson_result has value() (with exceptions). Fine, mirrors to_string.
+- Overload ambiguity: prettify(element) vs prettify(simdjson_result<element>) — distinct types, fine.
+- In test, `simdjson::prettify(parser.parse(padded))` — parse returns simdjson_result<element>; template exact match. OK.
+- basictests.cpp compiled with exceptions? basictests typically has exceptions on. OK either way.
+- One subtle thing: in `check_prettify` under `#if SIMDJSON_EXCEPTIONS`, parse error throws uncaught — fine for tests.
+
+Potential compile issue: `mini_formatter::clear()` is declared `simdjson_inline void clear();` — calling `mini_formatter::clear()` from derived OK.
+
+Also `string_builder` append for `element` uses format.key etc. Since prettify_formatter hides base methods (not virtual), static dispatch works.
+
+Edge: top-level scalar: append(element) loop: depth 0, prints scalar, end. prettify("1") → "1". Good.
+
+Edge: `key` uses base `string` — but wait, in derived, `string` unshadowed, resolves to base. OK.
+
+The class is `final` with static polymorphism, fine.
+
+One more: serialization.h prettify formatter references std::string_view — declared earlier in file usage; includes <vector>; string_view comes from other headers included before? mini_formatter::str() declared returning std::string_view at line 80ish, so it's fine.
+
+Potential warning: unused parameter? none.
+
+Also `depth--` underflow impossible (balanced).
+
+`buffer.back()` when buffer empty: close_container called only after start_container which pushed a char. safe.
+
+Docs: also maybe mention in doc/basics.md? dom.md suffices.
+
+CMake: no new files added, so no CMake change needed.
+
+Done. Submit context selection with read IDs used: serialization.h reads (ce7e146f..., 0b2777eb..., 900ca04b...), serialization-inl.h reads (65b8e19e..., 25b89046..., 84f90ce6..., 8c32ee17..., 42a86df5...), basictests reads (c68aacef..., f8ce81ab...), dom.md reads (961e853e..., 046ed324...), tests/dom/CMakeLists (9a357488...).

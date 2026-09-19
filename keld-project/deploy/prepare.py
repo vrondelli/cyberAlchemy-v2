@@ -32,6 +32,7 @@ def prepare(store,settings,destination,*,infrastructure_only=False):
     if not infrastructure_only:
         for key in ('stripeAccount','mercadopagoAccount','mercadopagoApplicationId','paypalAccount','paypalWebhookId'):
             if not isinstance(settings[key],str) or not settings[key] or settings[key].startswith('REPLACE'):raise ValueError('account-setting-required')
+        if settings.get('paypalCurrency') not in ('USD','BRL'):raise ValueError('paypal-currency-required')
         if not re.fullmatch(r'\d{1,32}',settings['mercadopagoApplicationId']):raise ValueError('application-id-required')
         quote=settings['quoteBrl']
         if not all(type(quote.get(k)) is int and quote[k]>0 for k in ('numerator','denominator','expiresAt')):raise ValueError('quote-policy-required')
@@ -63,11 +64,14 @@ def prepare(store,settings,destination,*,infrastructure_only=False):
             with target.open('rb') as handle:digest=hashlib.file_digest(handle,'sha256').hexdigest()
             config={'version':1,'origin':settings['origin'],'listener':{'mode':'proxy-http','host':'0.0.0.0','port':8080},
               'auth':{'issuer':settings['issuer'],'client':'keld','audience':'keld','secretEnv':'KELD_OIDC_SECRET','databaseUrlEnv':'KELD_DATABASE_URL','keyEnv':'KELD_SESSION_KEY'},
-              'payments':{'stripe':{'account':settings['stripeAccount'],'secretEnv':'KELD_STRIPE_SECRET'},'mercadopago':{'api':'orders-v1','applicationId':settings['mercadopagoApplicationId'],'account':settings['mercadopagoAccount'],'accessTokenEnv':'KELD_MP_TOKEN'},'paypal':{'account':settings['paypalAccount'],'clientIdEnv':'KELD_PAYPAL_CLIENT_ID','secretEnv':'KELD_PAYPAL_SECRET'}},
+              'payments':{'stripe':{'account':settings['stripeAccount'],'secretEnv':'KELD_STRIPE_SECRET'},'mercadopago':{'api':'orders-v1','applicationId':settings['mercadopagoApplicationId'],'account':settings['mercadopagoAccount'],'accessTokenEnv':'KELD_MP_TOKEN'},'paypal':{'account':settings['paypalAccount'],'clientIdEnv':'KELD_PAYPAL_CLIENT_ID','secretEnv':'KELD_PAYPAL_SECRET','currency':settings['paypalCurrency']}},
               'ledger':{'database':'/data/commerce.db','fixtureFile':'/artifacts/sandbox.bin','sha256':digest,'bytes':target.stat().st_size,'reservationSeconds':3600},
               'quoteBrl':quote,'webhooks':{'stripe':{'secretEnv':'KELD_STRIPE_WEBHOOK_SECRET'},'mercadopago':{'secretEnv':'KELD_MP_WEBHOOK_SECRET'},'paypal':{'webhookId':settings['paypalWebhookId']}}}
             (staging/'keld.json').write_text(json.dumps(config,indent=2)+'\n')
-        realm={'realm':'keld','enabled':True,'sslRequired':'external','registrationAllowed':False,'resetPasswordAllowed':False,
+        realm={'realm':'keld','enabled':True,'sslRequired':'external','registrationAllowed':True,
+          'registrationEmailAsUsername':True,'loginWithEmailAllowed':True,'duplicateEmailsAllowed':False,
+          'verifyEmail':False,'resetPasswordAllowed':False,
+          'passwordPolicy':'length(12) and upperCase(1) and lowerCase(1) and digits(1)',
           'accessTokenLifespan':300,'ssoSessionIdleTimeout':900,'ssoSessionMaxLifespan':28800,
           'clients':[{'clientId':'keld','enabled':True,'protocol':'openid-connect','publicClient':False,'secret':values['oidc'],
             'standardFlowEnabled':True,'directAccessGrantsEnabled':False,'serviceAccountsEnabled':False,

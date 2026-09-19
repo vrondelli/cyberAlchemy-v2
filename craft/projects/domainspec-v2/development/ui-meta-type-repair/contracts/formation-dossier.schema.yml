@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ui-repair://contracts/formation-dossier/v1",
+  "title": "UI repair conjunctive formation dossier v1",
+  "type": "object",
+  "required": ["schema_version", "subject", "producer_handles", "conjuncts", "finite_zeroing", "outcome", "next_owner", "prohibited_inferences"],
+  "properties": {
+    "schema_version": {"const": "ui-repair.formation-dossier.v1"},
+    "subject": {"type": "string", "minLength": 1},
+    "producer_handles": {
+      "type": "object",
+      "required": ["mutation", "reroute", "corpus", "relationship_packet"],
+      "properties": {
+        "mutation": {"$ref": "#/$defs/generation"},
+        "reroute": {"$ref": "#/$defs/generation"},
+        "corpus": {"$ref": "#/$defs/generation"},
+        "relationship_packet": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "conjuncts": {"type": "array", "minItems": 8, "maxItems": 8, "prefixItems": [
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "independent-positive"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "stable-contrast"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "label-erasure"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "criterion-erasure"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "changed-consequence"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "typed-negatives"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "corpus-bound-portability"}}},
+      {"$ref": "#/$defs/conjunct", "properties": {"id": {"const": "owner-firewall"}}}
+    ], "items": false},
+    "finite_zeroing": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["closed", "all_zero", "witness_handles"], "properties": {"closed": {"const": true}, "all_zero": {"const": true}, "witness_handles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "additionalProperties": false}]},
+    "outcome": {"enum": ["DEFER", "EVIDENCE-COMPLETE", "DOSSIER-ZEROED"]},
+    "next_owner": {"type": "string", "minLength": 1},
+    "prohibited_inferences": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "generation": {"type": "string", "pattern": "^generation:sha256:[a-f0-9]{64}$"},
+    "conjunct": {
+      "type": "object",
+      "required": ["id", "state", "evidence_class", "evidence_handles", "reason"],
+      "properties": {
+        "id": {"type": "string"},
+        "state": {"enum": ["pass", "fail", "missing", "disputed", "pending-owner"]},
+        "evidence_class": {"enum": ["none", "independent-witness", "shared-hygiene", "erasure-test", "changed-consequence", "typed-negative", "corpus-portability", "owner-firewall"]},
+        "evidence_handles": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "reason": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

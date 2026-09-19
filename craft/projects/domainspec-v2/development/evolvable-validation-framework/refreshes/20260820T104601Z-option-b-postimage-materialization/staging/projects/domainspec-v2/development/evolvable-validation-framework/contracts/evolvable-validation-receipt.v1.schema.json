@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.dev/schemas/evf/evolvable-validation-receipt/v1",
+  "title": "EVF S1 Validation Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "receipt_class",
+    "swu_id",
+    "exact_refs",
+    "positive_receipt_issued",
+    "release_admission",
+    "claim_ceiling",
+    "result"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "evf.evolvable-validation-receipt/v1"
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "receipt_class": {
+      "enum": [
+        "positive-proof",
+        "negative-control"
+      ]
+    },
+    "swu_id": {
+      "const": "SWU-GCP-001"
+    },
+    "exact_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/exactRef"
+      }
+    },
+    "positive_receipt_issued": {
+      "type": "boolean"
+    },
+    "acceptance_vector": {
+      "$ref": "#/$defs/acceptanceVector"
+    },
+    "execution_cardinality": {
+      "$ref": "#/$defs/executionCardinality"
+    },
+    "runtime_observations": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/runtimeObservation",
+          "properties": {
+            "case_id": { "const": "has-key-locked" },
+            "expected_boolean": { "const": true },
+            "observed_boolean": { "const": true },
+            "output": {
+              "const": {
+                "status": "unlocked",
+                "door_locked": false
+              }
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/runtimeObservation",
+          "properties": {
+            "case_id": { "const": "no-key-locked-control" },
+            "expected_boolean": { "const": false },
+            "observed_boolean": { "const": false },
+            "output": {
+              "const": {
+                "status": "denied",
+                "door_locked": true
+              }
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "mutant_id": {
+      "type": "string",
+      "pattern": "^M(0[1-9]|1[0-6])-[a-z0-9-]+$"
+    },
+    "stable_code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]+$"
+    },
+    "release_admission": {
+      "const": "not-granted"
+    },
+    "claim_ceiling": {
+      "const": "candidate-local-SWU-GCP-001-causal-proof-only"
+    },
+    "result": {
+      "enum": [
+        "pass",
+        "killed"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "receipt_class": {
+            "const": "positive-proof"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "acceptance_vector",
+          "execution_cardinality",
+          "runtime_observations"
+        ],
+        "properties": {
+          "positive_receipt_issued": {
+            "const": true
+          },
+          "result": {
+            "const": "pass"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "mutant_id"
+              ]
+            },
+            {
+              "required": [
+                "stable_code"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "mutant_id",
+          "stable_code"
+        ],
+        "properties": {
+          "positive_receipt_issued": {
+            "const": false
+          },
+          "result": {
+            "const": "killed"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "acceptance_vector"
+              ]
+            },
+            {
+              "required": [
+                "execution_cardinality"
+              ]
+            },
+            {
+              "required": [
+                "runtime_observations"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "acceptanceVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "O_spec",
+        "O_gen",
+        "T_gen",
+        "E_run",
+        "runtime_observations",
+        "aggregate_assertions",
+        "skips",
+        "todos",
+        "needs_formal",
+        "orphans",
+        "unrunnable",
+        "mutants_required",
+        "mutants_killed",
+        "negative_receipts"
+      ],
+      "properties": {
+        "O_spec": {
+          "const": 1
+        },
+        "O_gen": {
+          "const": 1
+        },
+        "T_gen": {
+          "const": 1,
+          "description": "Exactly one generated Vitest test ID, independent of the number of runtime calls inside that test."
+        },
+        "E_run": {
+          "const": 1,
+          "description": "Exactly one joined child test-result envelope ID, not the number of runtime function calls."
+        },
+        "runtime_observations": {
+          "const": 2
+        },
+        "aggregate_assertions": {
+          "const": 1
+        },
+        "skips": {
+          "const": 0
+        },
+        "todos": {
+          "const": 0
+        },
+        "needs_formal": {
+          "const": 0
+        },
+        "orphans": {
+          "const": 0
+        },
+        "unrunnable": {
+          "const": 0
+        },
+        "mutants_required": {
+          "const": 16
+        },
+        "mutants_killed": {
+          "const": 16
+        },
+        "negative_receipts": {
+          "const": 16
+        }
+      }
+    },
+    "executionCardinality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_test_id",
+        "child_result_id",
+        "runtime_observation_case_ids",
+        "runtime_function_call_count",
+        "aggregate_assertion_id",
+        "aggregate_assertion_count",
+        "aggregate_assertion_kind",
+        "T_gen_count_basis",
+        "E_run_count_basis"
+      ],
+      "properties": {
+        "generated_test_id": {
+          "const": "evf.s1.generated-test.has-key-unlock-door.v1"
+        },
+        "child_result_id": {
+          "const": "evf.s1.child-result.has-key-unlock-door.v1"
+        },
+        "runtime_observation_case_ids": {
+          "const": [
+            "has-key-locked",
+            "no-key-locked-control"
+          ]
+        },
+        "runtime_function_call_count": {
+          "const": 2
+        },
+        "aggregate_assertion_id": {
+          "const": "evf.s1.aggregate.has-key-unlock-door.v1"
+        },
+        "aggregate_assertion_count": {
+          "const": 1
+        },
+        "aggregate_assertion_kind": {
+          "const": "vitest-deep-equality-observed-vector-to-independent-expected-vector"
+        },
+        "T_gen_count_basis": {
+          "const": "one-generated-vitest-test-id"
+        },
+        "E_run_count_basis": {
+          "const": "one-joined-child-test-result-envelope-id-not-runtime-call-count"
+        }
+      }
+    },
+    "runtimeObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "expected_boolean",
+        "observed_boolean",
+        "output"
+      ],
+      "properties": {
+        "case_id": {
+          "enum": [
+            "has-key-locked",
+            "no-key-locked-control"
+          ]
+        },
+        "expected_boolean": {
+          "type": "boolean"
+        },
+        "observed_boolean": {
+          "type": "boolean"
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "door_locked"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "unlocked",
+                "denied"
+              ]
+            },
+            "door_locked": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

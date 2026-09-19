@@ -46,9 +46,11 @@ export function bindKeldAuth(core,profile) {
       const url=new URL(req.url,origin);
       const cs=cookies(req),handle=cs[sessionCookie],login=cs[loginCookie];
       const redirect=(location,values)=>{res.writeHead(303,{'location':location,'set-cookie':values,'cache-control':'no-store'});res.end();};
-      if(req.method==='GET'&&url.pathname==='/auth/login') {
+      if(req.method==='GET'&&['/auth/login','/auth/register'].includes(url.pathname)) {
         const t=await core.start(handle,login);
-        redirect(t.url,[cookie(loginCookie,t.login,policy.transaction)]);return true;
+        const target=new URL(t.url);
+        if(url.pathname==='/auth/register')target.searchParams.set('prompt','create');
+        redirect(target.href,[cookie(loginCookie,t.login,policy.transaction)]);return true;
       }
       if(req.method==='GET'&&url.pathname===profile.callback) {
         try {const s=await core.complete(url,handle,login);redirect('/',[cookie(sessionCookie,s.id,s.absolute-s.now),cookie(loginCookie,'',0)]);}

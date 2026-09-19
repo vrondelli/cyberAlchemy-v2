@@ -1,0 +1,3 @@
+// Unchanged frozen exporter, writable bounded tmpfs, no models/network. Open questions: PLAN.md.
+import {readFileSync,readdirSync}from'node:fs';
+const c='/repo/development/agent-reasoning-engine/planning/representation-preferences/dual-benchmark-8k-v2/contextbench';const {loadSealedExchanges}=await import(c+'/deepseek-durable-transport.mjs');const {exportDeepSeekWire}=await import(c+'/deepseek-wire-export.mjs');const r='/repo/runs/1-dsh';const records=readdirSync(r+'/tools').filter(n=>/^\d{6}\.json$/.test(n)).sort().map(n=>JSON.parse(readFileSync(r+'/tools/'+n)));console.log(JSON.stringify(exportDeepSeekWire({exchanges:loadSealedExchanges(r+'/transport').exchanges,records,task:JSON.parse(readFileSync('/repo/tasks/contextbench-1.json')),repoRoot:r+'/sources/base'})));

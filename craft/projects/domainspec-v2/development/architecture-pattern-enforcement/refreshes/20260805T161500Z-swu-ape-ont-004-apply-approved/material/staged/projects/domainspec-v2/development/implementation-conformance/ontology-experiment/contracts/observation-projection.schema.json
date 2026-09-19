@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/observation-projection/v1",
+  "title": "DomainSpec Observation Projection",
+  "description": "Evidence-only projection whose facts carry exactly one provenance kind. This schema has no authority effect.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "projection_id",
+    "language",
+    "artifact_digest",
+    "tool",
+    "adapter",
+    "profile_digest",
+    "raw_evidence_refs",
+    "facts",
+    "diagnostics",
+    "redaction_posture",
+    "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "domainspec-observation-projection/v1"
+    },
+    "projection_id": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "language": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "artifact_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "tool": {
+      "$ref": "#/$defs/versionedProvider"
+    },
+    "adapter": {
+      "$ref": "#/$defs/versionedProvider"
+    },
+    "profile_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "raw_evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/rawReference"
+      }
+    },
+    "facts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "redaction_posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "owner_route"],
+      "properties": {
+        "mode": {
+          "enum": ["none", "opaque-references", "owner-redacted"]
+        },
+        "owner_route": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "authority_effect": {
+      "const": "none"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "versionedProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "version", "config_digest"],
+      "properties": {
+        "provider_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "config_digest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fact_id", "fact_scope", "subject_ref", "predicate_ref", "scope_ref", "value", "provenance"],
+      "properties": {
+        "fact_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fact_scope": {
+          "enum": ["observation", "effective-constraint"]
+        },
+        "subject_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "predicate_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "scope_ref": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "value": true,
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      }
+    },
+    "rawReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref_id", "kind", "uri", "sha256"],
+      "properties": {
+        "ref_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "kind": {
+          "enum": ["source", "tool-diagnostic", "owner-decision", "derivation-input"]
+        },
+        "uri": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "selector": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "rawReferences": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "observedProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "owner_route", "raw_refs"],
+      "properties": {
+        "kind": {
+          "const": "observed"
+        },
+        "owner_route": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "raw_refs": {
+          "$ref": "#/$defs/rawReferences"
+        }
+      }
+    },
+    "derivedProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "owner_route", "raw_refs", "derivation_ref"],
+      "properties": {
+        "kind": {
+          "const": "derived"
+        },
+        "owner_route": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "raw_refs": {
+          "$ref": "#/$defs/rawReferences"
+        },
+        "derivation_ref": {
+          "$ref": "#/$defs/derivationReference"
+        }
+      }
+    },
+    "ownerResolvedProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "owner_route", "raw_refs", "decision_ref"],
+      "properties": {
+        "kind": {
+          "const": "owner-resolved"
+        },
+        "owner_route": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "raw_refs": {
+          "$ref": "#/$defs/rawReferences"
+        },
+        "decision_ref": {
+          "$ref": "#/$defs/decisionReference"
+        }
+      }
+    },
+    "unsupportedProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "owner_route", "raw_refs", "unsupported_ref"],
+      "properties": {
+        "kind": {
+          "const": "unsupported"
+        },
+        "owner_route": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "raw_refs": {
+          "$ref": "#/$defs/rawReferences"
+        },
+        "unsupported_ref": {
+          "$ref": "#/$defs/unsupportedReference"
+        }
+      }
+    },
+    "derivationReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["derivation_id", "algorithm", "input_fact_ids", "source_digest"],
+      "properties": {
+        "derivation_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "algorithm": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "input_fact_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "source_digest": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "decisionReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_digest", "decided_by", "outcome"],
+      "properties": {
+        "decision_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "decision_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "decided_by": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "outcome": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "unsupportedReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "reason", "scope"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "scope": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "provenance": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/observedProvenance"
+        },
+        {
+          "$ref": "#/$defs/derivedProvenance"
+        },
+        {
+          "$ref": "#/$defs/ownerResolvedProvenance"
+        },
+        {
+          "$ref": "#/$defs/unsupportedProvenance"
+        }
+      ]
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "owner_route", "raw_refs"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "message": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "owner_route": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "raw_refs": {
+          "$ref": "#/$defs/rawReferences"
+        }
+      }
+    }
+  }
+}

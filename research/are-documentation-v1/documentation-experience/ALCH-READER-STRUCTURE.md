@@ -25,7 +25,7 @@ The named source was resolved through `CA2-ROUTE-LOCATE`, then the ARE adaptatio
 
 ARE keeps separate guide URLs rather than combining every guide into a single long tutorial. The documentation overview reuses the same guide groups. The canvas itself retains its established layout and card controls. No AlchLang compiler, branding, source examples, review tooling, or package dependencies were introduced.
 
-Implementation: [ManualNavigation](../../../workspace/experiments/are-documentation/src/ManualNavigation.tsx), [ManualContents](../../../workspace/experiments/are-documentation/src/ManualContents.tsx), [DocumentationPage](../../../workspace/experiments/are-documentation/src/DocumentationPage.tsx), and [shared guide groups](../../../workspace/experiments/are-documentation/src/documentationContent.ts). Section observation is local to the contents component and does not update application or canvas state.
+Implementation: [ManualNavigation](../../../keld-project/are-documentation/src/ManualNavigation.tsx), [ManualContents](../../../keld-project/are-documentation/src/ManualContents.tsx), [DocumentationPage](../../../keld-project/are-documentation/src/DocumentationPage.tsx), and [shared guide groups](../../../keld-project/are-documentation/src/documentationContent.ts). Section observation is local to the contents component and does not update application or canvas state.
 
 ```mermaid
 flowchart LR
@@ -41,13 +41,13 @@ flowchart LR
 
 - Production build, TypeScript, and guide projection freshness passed.
 - Twelve workspace, persistence, and budget unit tests passed.
-- [18 reader checks](../../../workspace/experiments/are-documentation/evidence/manual-reader/results.json) passed at desktop, 768 px, and 390 px widths. They cover three-column placement, unique guide coverage, active state, heading focus, sequence, search, collapsed navigation, and viewport containment.
-- [44 canvas behavior checks](../../../workspace/experiments/are-documentation/evidence/canvas-docs/results.json) passed, including saved layout, card scrolling, full-page return, storage failure, and touch interaction.
-- [Three cold-route asset checks](../../../workspace/experiments/are-documentation/evidence/performance/download-browser.json) passed.
-- [Download budget](../../../workspace/experiments/are-documentation/evidence/performance/download-current.json): introduction 148.8/180 KiB gzip; documentation 97.6/140 KiB; canvas 157.7/180 KiB. Decoded-byte targets also passed. These figures cover initial JavaScript and CSS, not all page assets or field load time.
-- [Scrolling regression](../../../workspace/experiments/are-documentation/evidence/performance/manual-structure-scroll.json) passed all six scenarios (one repetition each), including nine cards on desktop and mobile: zero App/card rerenders or Markdown reparses, two storage writes per scroll workload, no remount or viewport movement, and preserved full-page return/drag behavior.
+- [18 reader checks](../../../keld-project/are-documentation/evidence/manual-reader/results.json) passed at desktop, 768 px, and 390 px widths. They cover three-column placement, unique guide coverage, active state, heading focus, sequence, search, collapsed navigation, and viewport containment.
+- [44 canvas behavior checks](../../../keld-project/are-documentation/evidence/canvas-docs/results.json) passed, including saved layout, card scrolling, full-page return, storage failure, and touch interaction.
+- [Three cold-route asset checks](../../../keld-project/are-documentation/evidence/performance/download-browser.json) passed.
+- [Download budget](../../../keld-project/are-documentation/evidence/performance/download-current.json): introduction 148.8/180 KiB gzip; documentation 97.6/140 KiB; canvas 157.7/180 KiB. Decoded-byte targets also passed. These figures cover initial JavaScript and CSS, not all page assets or field load time.
+- [Scrolling regression](../../../keld-project/are-documentation/evidence/performance/manual-structure-scroll.json) passed all six scenarios (one repetition each), including nine cards on desktop and mobile: zero App/card rerenders or Markdown reparses, two storage writes per scroll workload, no remount or viewport movement, and preserved full-page return/drag behavior.
 
-Visual evidence: [desktop](../../../workspace/experiments/are-documentation/evidence/manual-reader/desktop.png) and [mobile](../../../workspace/experiments/are-documentation/evidence/manual-reader/reader-390.png).
+Visual evidence: [desktop](../../../keld-project/are-documentation/evidence/manual-reader/desktop.png) and [mobile](../../../keld-project/are-documentation/evidence/manual-reader/reader-390.png).
 
 ## Construction and operational work
 

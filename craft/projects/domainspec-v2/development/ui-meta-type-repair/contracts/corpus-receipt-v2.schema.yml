@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ui-repair://contracts/corpus-receipt/v2",
+  "title": "UI repair provenance-preserving corpus fact receipt v2",
+  "type": "object",
+  "required": ["schema_version", "corpus_id", "implementation_style", "source", "observed_source", "selector", "observation_status", "bounded_search_receipt_id", "literal_observations", "omissions", "extractor", "prohibited_inferences"],
+  "properties": {
+    "schema_version": {"const": "ui-repair.corpus-receipt.v2"},
+    "corpus_id": {"type": "string", "minLength": 1},
+    "implementation_style": {"type": "string", "minLength": 1},
+    "source": {"$ref": "#/$defs/source"},
+    "observed_source": {"$ref": "#/$defs/observedSource"},
+    "selector": {"$ref": "#/$defs/selector"},
+    "observation_status": {"enum": ["observed", "observed-absent", "not-observed"]},
+    "bounded_search_receipt_id": {"oneOf": [{"$ref": "#/$defs/recordId"}, {"type": "null"}]},
+    "literal_observations": {"type": "array", "items": {"$ref": "#/$defs/literalObservation"}},
+    "omissions": {"type": "array", "items": {"$ref": "#/$defs/omission"}},
+    "extractor": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {"id": {"const": "line-range-token-extractor"}, "version": {"const": "2.0.0"}},
+      "additionalProperties": false
+    },
+    "prohibited_inferences": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"type": "string"}}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"observation_status": {"const": "observed-absent"}}, "required": ["observation_status"]},
+      "then": {"properties": {"bounded_search_receipt_id": {"$ref": "#/$defs/recordId"}}}
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "recordId": {"type": "string", "pattern": "^record:sha256:[a-f0-9]{64}$"},
+    "source": {
+      "type": "object",
+      "required": ["repository", "revision", "path", "file_digest"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "file_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "observedSource": {
+      "type": "object",
+      "required": ["revision", "file_digest"],
+      "properties": {"revision": {"type": "string", "minLength": 1}, "file_digest": {"$ref": "#/$defs/digest"}},
+      "additionalProperties": false
+    },
+    "selector": {
+      "type": "object",
+      "required": ["kind", "start_line", "end_line", "anchor", "excerpt_digest"],
+      "properties": {
+        "kind": {"const": "line-range"},
+        "start_line": {"type": "integer", "minimum": 1},
+        "end_line": {"type": "integer", "minimum": 1},
+        "anchor": {"type": "string", "minLength": 1},
+        "excerpt_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "literalObservation": {
+      "type": "object",
+      "required": ["fact_id", "predicate", "token", "value"],
+      "properties": {
+        "fact_id": {"type": "string", "minLength": 1},
+        "predicate": {"const": "token-present"},
+        "token": {"type": "string", "minLength": 1},
+        "value": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "omission": {
+      "type": "object",
+      "required": ["code", "detail"],
+      "properties": {
+        "code": {"enum": ["revision-mismatch", "source-digest-mismatch", "selector-moved", "excerpt-missing", "excerpt-digest-mismatch", "bounded-search-incomplete"]},
+        "detail": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

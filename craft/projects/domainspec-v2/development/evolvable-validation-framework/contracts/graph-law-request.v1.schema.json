@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/evf/graph-law-request.v1.schema.json",
+  "title": "GraphLawRequest/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "request_kind", "request_state", "decision_ref", "admission", "subject", "property", "comparison_contract_ref", "providers", "execution_policy", "claim_ceiling", "residue"],
+  "properties": {
+    "schema_version": {"const": "evf.graph-law-request/v1"},
+    "request_id": {"$ref": "#/$defs/id"},
+    "request_kind": {"const": "graph-law-evaluation"},
+    "request_state": {"enum": ["draft-blocked", "execution-ready"]},
+    "decision_ref": {"$ref": "#/$defs/exactRef"},
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layer", "prerequisite_receipts", "authority_effect", "release_admission"],
+      "properties": {
+        "layer": {"const": "L2"},
+        "prerequisite_receipts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/exactRef"}},
+        "authority_effect": {"const": "none"},
+        "release_admission": {"const": "not-granted"}
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fact_manifest_ref", "facts_digest", "project_id", "source_set_digest", "registry_digests", "universe_digest"],
+      "properties": {
+        "fact_manifest_ref": {"$ref": "#/$defs/exactRef"},
+        "facts_digest": {"$ref": "#/$defs/digest"},
+        "project_id": {"$ref": "#/$defs/id"},
+        "source_set_digest": {"$ref": "#/$defs/digest"},
+        "registry_digests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile", "kinds", "relationships"],
+          "properties": {"profile":{"$ref":"#/$defs/digest"},"kinds":{"$ref":"#/$defs/digest"},"relationships":{"$ref":"#/$defs/digest"}}
+        },
+        "universe_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "property": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["property_id", "property_version", "definition_ref", "property_class", "result_semantics", "evaluation_mode", "selected_relation_digest", "scope_contract_ref"],
+      "properties": {
+        "property_id": {"$ref": "#/$defs/id"},
+        "property_version": {"type": "string", "minLength": 1},
+        "definition_ref": {"$ref": "#/$defs/exactRef"},
+        "property_class": {"enum": ["reachability", "acyclicity", "closure"]},
+        "result_semantics": {"const": "universal-via-violation-query"},
+        "evaluation_mode": {"const": "exact-instance"},
+        "selected_relation_digest": {"$ref": "#/$defs/digest"},
+        "scope_contract_ref": {"$ref": "#/$defs/exactRef"}
+      }
+    },
+    "comparison_contract_ref": {"$ref": "#/$defs/exactRef"},
+    "providers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"$ref": "#/$defs/datalogProvider"},
+        {"$ref": "#/$defs/alloyProvider"}
+      ],
+      "items": false
+    },
+    "execution_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeout_ms", "max_output_bytes", "network", "working_directory", "environment_allowlist", "deterministic_seed"],
+      "properties": {
+        "timeout_ms": {"type": "integer", "minimum": 1, "maximum": 300000},
+        "max_output_bytes": {"type": "integer", "minimum": 1},
+        "network": {"const": "forbidden"},
+        "working_directory": {"$ref": "#/$defs/path"},
+        "environment_allowlist": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "deterministic_seed": {"type": ["integer", "null"]}
+      }
+    },
+    "claim_ceiling": {"const": "request-only-no-evaluation-claim"},
+    "residue": {"type": "array", "items": {"$ref": "#/$defs/residue"}}
+  },
+  "$defs": {
+    "id": {"type":"string","minLength":1,"pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "digest": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "path": {"type":"string","minLength":1,"pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+    "exactRef": {"type":"object","additionalProperties":false,"required":["path","sha256","size_bytes"],"properties":{"path":{"$ref":"#/$defs/path"},"sha256":{"$ref":"#/$defs/digest"},"size_bytes":{"type":"integer","minimum":0}}},
+    "commonProvider": {
+      "type": "object",
+      "required": ["provider_kind", "evaluator_id", "evaluator_version", "runtime_ref", "adapter_ref", "query_or_model_ref", "invocation_contract_ref", "evaluation_domain"],
+      "properties": {
+        "provider_kind": {"enum": ["datalog", "alloy"]},
+        "evaluator_id": {"$ref":"#/$defs/id"},
+        "evaluator_version": {"type":"string","minLength":1},
+        "runtime_ref": {"$ref":"#/$defs/exactRef"},
+        "adapter_ref": {"$ref":"#/$defs/exactRef"},
+        "query_or_model_ref": {"$ref":"#/$defs/exactRef"},
+        "invocation_contract_ref": {"$ref":"#/$defs/exactRef"},
+        "evaluation_domain": {"type":"object"}
+      }
+    },
+    "datalogProvider": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {"$ref":"#/$defs/commonProvider"},
+        {"type":"object","properties":{"provider_kind":{"const":"datalog"},"evaluation_domain":{"type":"object","additionalProperties":false,"required":["kind","complete_relation_evaluation","universe_digest","selected_relation_digest","scope_contract_ref"],"properties":{"kind":{"const":"exact-closed-world-fact-set"},"complete_relation_evaluation":{"const":true},"universe_digest":{"$ref":"#/$defs/digest"},"selected_relation_digest":{"$ref":"#/$defs/digest"},"scope_contract_ref":{"$ref":"#/$defs/exactRef"}}}}}
+      ]
+    },
+    "alloyProvider": {
+      "unevaluatedProperties": false,
+      "allOf": [
+        {"$ref":"#/$defs/commonProvider"},
+        {"type":"object","properties":{"provider_kind":{"const":"alloy"},"evaluation_domain":{"type":"object","additionalProperties":false,"required":["kind","scope_contract_ref","universe_digest","selected_relation_digest","exact_universe","exact_selected_tuples"],"properties":{"kind":{"const":"exact-closed-world-fact-set"},"scope_contract_ref":{"$ref":"#/$defs/exactRef"},"universe_digest":{"$ref":"#/$defs/digest"},"selected_relation_digest":{"$ref":"#/$defs/digest"},"exact_universe":{"const":true},"exact_selected_tuples":{"const":true}}}}}
+      ]
+    },
+    "residue": {"type":"object","additionalProperties":false,"required":["residue_id","class","severity","message","source_refs","claim_effect"],"properties":{"residue_id":{"$ref":"#/$defs/id"},"class":{"type":"string","minLength":1},"severity":{"enum":["blocking","nonblocking"]},"message":{"type":"string","minLength":1},"source_refs":{"type":"array","items":{"$ref":"#/$defs/exactRef"}},"claim_effect":{"type":"string","minLength":1}}}
+  }
+}

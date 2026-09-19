@@ -1,15 +1,14 @@
 # Compatibility and lifecycle
 
-Compatibility in ARE has several independent layers. A runtime can parse a
+ARE checks compatibility at several independent layers. A runtime can parse a
 provider response while the provider and model remain unqualified for a
 benchmark. A passing candidate can also remain unapproved for publication or
 deployment.
 
 ## Current support matrix
 
-The detailed current reader/writer inventory is
-[`compatibility-matrix.json`](compatibility-matrix.json), with verification in
-[`compatibility-matrix-receipt.json`](compatibility-matrix-receipt.json). It
+[`compatibility-matrix.json`](compatibility-matrix.json) lists the current readers and writers.
+[`compatibility-matrix-receipt.json`](compatibility-matrix-receipt.json) records the verification results. It
 covers seven compatibility categories and deliberately contains no
 predecessor/successor pair.
 
@@ -75,9 +74,8 @@ approval, commit, tag, push, publication, activation, and deployment separate.
 ## Version interpretation
 
 `0.10.0-self-contained-candidate.7` identifies the current private product
-candidate. It is not a public semantic-versioning commitment. The immutable
-Candidate 018 records identify exact bytes more strongly than the human-readable
-version string.
+candidate. It is not a public semantic-versioning commitment. The fixed Candidate 018 records identify the exact bytes.
+The version string alone does not provide the same assurance.
 
 The selected [release policy](release-policy.json) begins accepted successor
 versions at `0.10.0-rc.1` under Semantic Versioning and reserves
@@ -94,7 +92,7 @@ counterevidence.
   trusted signature, or public delivery channel exists yet.
 - Windows-native process, socket, and permission behavior is unqualified.
 - A process adapter does not make an arbitrary agent protocol compatible.
-- Provider cache use cannot be inferred when telemetry is absent.
+- Do not infer provider cache use without telemetry.
 - Passing a lower or higher context-window experiment does not qualify another
   window automatically.
 - Local contract tests do not establish hostile multi-tenant security.

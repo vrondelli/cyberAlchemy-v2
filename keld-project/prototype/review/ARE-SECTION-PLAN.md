@@ -14,11 +14,11 @@ flowchart LR
  E --> F[Check links, motion preferences and laptop fit]
 ```
 
-Sources: `workspace/experiments/are-documentation/src/Hero.tsx` (two cycles), `Capabilities.tsx` (capability boundaries), `ComponentIcon.tsx` (reused glyph geometry) and `public/assets/are-mark.svg` (selected mark). Paths resolve from repository root. The illustration shows Work and Improve around the ARE mark, with blue/silver accents in the existing KELD layout. It depicts a concept, not live engine telemetry. Improvement means testing alternatives and recommending evidence-backed refinements, not automatic deployment or model-weight learning.
+Sources: `keld-project/are-documentation/src/Hero.tsx` (two cycles), `Capabilities.tsx` (capability boundaries), `ComponentIcon.tsx` (reused glyph geometry) and `public/assets/are-mark.svg` (selected mark). Paths resolve from repository root. The illustration shows Work and Improve around the ARE mark, with blue/silver accents in the existing KELD layout. It depicts a concept, not live engine telemetry. Improvement means testing alternatives and recommending evidence-backed refinements, not automatic deployment or model-weight learning.
 
 Only two visible diagram labels. Full cycle meaning is available through SVG title/description; reduced-motion preference and the existing site motion control stop the subtle tracing animation. Text separates product explanation from the existing early-supporter offer and license facts. Both ARE-page links and the independent shop action are preserved.
 
-D65: bounded owner-directed implementation, request `keld-are-cycles-110`; no ontology dependency. Product frontier: completed section and local checks. Deferred operations: deployment and hosted ARE destination, owned by the product owner.
+D65: bounded owner-directed implementation, request `keld-are-cycles-110`; no ontology dependency. Product frontier: completed section and local checks. Deferred operation: production hosting of the owner-selected `/are/` destination, owned by the product/operator owner.
 
 ## Verification
 
@@ -30,7 +30,7 @@ The follow-up adds directional traces, fine orbit detail and a larger layered ce
 
 ## Open Questions
 
-Owner visual acceptance and final hosted ARE URL remain open. Nothing is deployed. The connected ARE page owns detailed capabilities and limitations.
+Owner visual acceptance and production hosting of the selected `/are/` route remain open. Nothing is deployed. The connected ARE page owns detailed capabilities and limitations.
 
 ## Narrative animation — 2026-09-18
 
@@ -38,7 +38,7 @@ Owner request `keld-motion-114` authorizes this bounded prototype update. Produc
 frontier: implemented and locally verified; no ontology record or selector dependency.
 D65 chain: existing ARE capability descriptions → two-cycle storyboard → native SVG
 candidate → rebuilt editions → responsive and playback evidence → owner visual review.
-Deployment and final ARE destination remain product-owner operational residue and do
+Deployment of the selected `/are/` destination remains product-owner operational residue and does
 not block this local prototype. WSL compaction remains separate operational work.
 
 Construction order: visual story → composed SVG → finite timeline and responsive
@@ -66,7 +66,7 @@ existing viewports. Desktop work/improve/settled keyframes and 320/390px stills 
 captured for visual review in `/tmp/are-motion-*.png` (ephemeral, not release assets).
 All three standard and offline editions rebuilt. Hardware frame-rate profiling is
 not covered by these functional checks. Open questions remain owned by the section
-above: owner visual acceptance and final hosted ARE URL.
+above: owner visual acceptance and production hosting of `/are/`.
 
 ## Selected Light Sculptures — 2026-09-18
 
@@ -105,4 +105,4 @@ hidden-document suspension remains. No ontology dependencies or deployment effec
 The construction boundary remains the local prototype and generated editions. Updated
 `check-are-motion.mjs` checks a second cycle, captions, explicit pause/resume, offscreen
 pause, reduced motion and narrow-screen overflow. Open questions remain visual owner
-acceptance and the hosted ARE destination as recorded above.
+acceptance and production hosting of the `/are/` destination as recorded above.

@@ -1,0 +1,34 @@
+dsh: reasoning:
+Let me look at the repo files.
+dsh: reasoning:
+I need to design the patch. The PR: when viewing ".", use current branch to fetch readme, fall back to default branch, and note whether readme is from branch or default.
+
+Actual upstream PR #1971 in cli/cli: "fixed to view the readme file in the current branch" — when RepoArg is empty, get current branch via git (opts.Branch empty), fetch readme with that branch; if NotFoundError, retry without branch; print message "(pulled from branch X)" or "(readme from default branch)".
+
+I need to see how to get current branch. Check for a git helper. There's `opts.BaseRepo` only. In the real PR (cli/cli commit), they added `branch, _ := opts.Remotes` ... Actually the real change added to ViewOptions: `Branch string` already there. Real PR added in viewRun:
+
+```go
+if opts.RepoArg == "" {
+    toView, err = opts.BaseRepo()
+    ...
+    if opts.Branch == "" {
+        branch, _ := git.CurrentBranch()
+        opts.Branch = branch // hmm
+    }
+}
+```
+
+But git package import... Let me check if pkg/cmd/repo/view has access; simpler: use `gitclient`? In this old codebase (v1.x), there's `pkg/git`. Let me search for CurrentBranch usage and how tests fake it. Also check how RepositoryReadme handles branch and design a `readme == nil` fallback: if fetch with branch fails NotFoundError, fetch again without branch.
+
+Also add "readme pulled from branch" indication: in template maybe append note. Upstream PR added to repoData a note like:
+
+Actually the real merged PR (cli/cli #1971? no that's a different repo...). I'll just implement reasonably:
+
+1. In viewRun, when RepoArg == "" and opts.Branch == "", determine current git branch and use it.
+2. If readme fetch with branch returns NotFoundError, retry with default branch (empty branch), and track `readmeFromBranch bool` / used branch name.
+3. Display: after readme, gray note e.g. `README pulled from branch <name>` or when fallback `README not found in branch <name>, showing default branch README`. And non-TTY path maybe skip.
+
+Need git command. Search for git.CurrentBranch in pkg/git.
+dsh: reasoning:
+No pkg/git matches. Check what git package exists.
+dsh: SERVER: 502: {"message":"benchmark transport stopped; inspect retained evidence","type":"benchmark_transport_error"}

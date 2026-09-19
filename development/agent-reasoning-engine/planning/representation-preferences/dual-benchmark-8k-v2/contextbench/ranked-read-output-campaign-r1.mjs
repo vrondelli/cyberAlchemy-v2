@@ -1,0 +1,56 @@
+// Bounded representative final qualification; never enables model dispatch.
+// Open questions: RANKED-READ-ACQUISITION-PROTOCOL-R2.md.
+import {join} from 'node:path';
+import {loadRankedOutputDonor} from './ranked-read-output-donor-r1.mjs';
+import {buildRepresentativeRankedSource} from './ranked-read-representative-source-r1.mjs';
+import {createRankedReadEvidenceRecord} from './ranked-read-evidence-r1.mjs';
+import {qualifyRankedOutputRequest} from './ranked-read-output-qualification-r1.mjs';
+import {comparisonLiveClientFactory} from './ranked-read-live-client-r1.mjs';
+import {verifyRankedReadAcquisitionSchedule} from './ranked-read-acquisition-schedule-r1.mjs';
+const need=(v,m)=>{if(!v)throw Error('catalog-final-campaign.'+m);};
+export async function qualifyRankedOutputCampaign(request,{
+ load=loadRankedOutputDonor,qualify=qualifyRankedOutputRequest,build=buildRepresentativeRankedSource,
+ create_factory=comparisonLiveClientFactory,
+ verify_schedule=verifyRankedReadAcquisitionSchedule,
+}={}){
+ const {schedule,sources,donor_stage,donor_review_sha256,out,persistence,signal,credential_path,before_measure}=request;
+ verify_schedule({schedule,...sources});
+ need(schedule.slots.length===4&&schedule.fresh_control_runs===false&&schedule.slots.every(s=>s.arm==='ranked-read-acquisition'),'candidate-only');
+ need(signal instanceof AbortSignal&&!signal.aborted&&typeof before_measure==='function','admission');
+ const controller=new AbortController(),cancel=()=>controller.abort();
+ signal.addEventListener('abort',cancel,{once:true});
+ const rows=schedule.slots.map(s=>({slot_id:s.slot_id,status:'not-started',qualified:false,model_calls:0}));
+ const donors=[];let next=0;
+ const donorArgs=slot=>({stage:donor_stage,review_sha256:donor_review_sha256,sequence:slot.sequence,candidate_slot:slot});
+ const check=async()=>{need(!controller.signal.aborted,'cancelled');need(await before_measure()===true,'storage-or-source-admission');return true;};
+ async function worker(){
+  while(next<4&&!controller.signal.aborted){
+   const i=next++,slot=schedule.slots[i],donor=donors[i];let result;
+   try{
+    await check();
+    const built=await build({...donor,signal:controller.signal,before_index:check});
+    const evidence_path=join(out,String(i).padStart(2,'0'),'SCRIPTED-EVIDENCE.json');
+    persistence.writeJson(evidence_path,{record:createRankedReadEvidenceRecord(built.evidence),snapshots:built.snapshots,expected:{...built.evidence.expected,files:[...built.evidence.expected.files]},provenance:built.provenance});
+    const factory=create_factory({credential_path,signal:controller.signal,persistence,before_dispatch:check});
+    result=await qualify({...donor,evidence:built.evidence,cell:slot.cell,out:join(out,String(i).padStart(2,'0')),persistence,signal:controller.signal,create_client:factory.create_client,measure_index_tokens:factory.measure_index_tokens,before_measure:check});
+    need(result.qualified===true&&result.source_output_visible===true&&result.model_calls===0,'qualification-failed-or-no-source');
+    await check();
+    need(load(donorArgs(slot)).donor_sha256===donor.donor_sha256,'donor-drift');
+    rows[i]={slot_id:slot.slot_id,status:'qualified',qualified:true,model_calls:0,donor_sha256:donor.donor_sha256,source_bindings:donor.source_bindings,result};
+   }catch(error){
+    const evidence=error.result??result;
+    rows[i]={slot_id:slot.slot_id,status:'failed',qualified:false,model_calls:evidence?.model_calls??0,donor_sha256:donor.donor_sha256,source_bindings:donor.source_bindings,result:evidence??null,error:String(error.message)};
+    controller.abort();
+   }
+  }
+ }
+ try{
+  // Load every fixed donor before allowing any provider request.
+  for(const slot of schedule.slots){await check();donors.push(load(donorArgs(slot)));}
+  await Promise.all([worker(),worker()]);
+  const report={schema:'are.ranked-read-output-campaign/v1',schedule_sha256:schedule.schedule_sha256,donor_review_sha256,qualified:rows.every(r=>r.qualified),model_calls:rows.reduce((n,r)=>n+r.model_calls,0),workers:2,rows,live_generation_admitted:false};
+  try{persistence.writeJson(join(out,'RESULTS.json'),report,{final:true});}
+  catch(error){error.result={...report,qualified:false,persistence_failure:String(error.message)};throw error;}
+  return report;
+ }finally{signal.removeEventListener('abort',cancel);}
+}

@@ -1,0 +1,146 @@
+{
+  "schema_version": "domainspec.governance-defect-sidecar-receipt.v1",
+  "sidecar_id": "2026-08-23-evf-l3-p0-owner-evidence-review-prompt-bridge",
+  "dispatch_id": "2026-08-23-evf-l3-p0-owner-evidence-review",
+  "failed_run_id": "20260823T143051Z-p0-owner-evidence-review",
+  "recorded_at": "2026-08-23T14:50:24Z",
+  "classification": {
+    "status": "qualifies-governance-only",
+    "product_or_domain_behavior_disputed": false,
+    "defect_scope": "governance-and-orchestration-mechanics",
+    "authority_effect": "none"
+  },
+  "status": "pass-with-repair-required",
+  "root_cause": {
+    "primary": "The human-confirmed dispatch sheet contains one task-specific initial_prompt, agent identity, and methodological angle per lane, but the capability-bound DISPATCH.json contains no validated briefing binding. Dispatch Spec accepts and validates the roles without such a binding. Orchestrate then compiles only a fixed generic role projection, and its native driver serializes only that generic projection into each host request. The confirmed task instructions therefore had no schema-valid path to the spawned agents.",
+    "contributing": [
+      "Dispatch Spec requires purpose and owns in a capability-bound role, but the coordinator does not copy either field into a persisted action.",
+      "The Dispatch Spec role schema permits additional properties but neither defines nor requires a typed briefing, source digest, status semantics, or receipt-shape binding; the validator's capability-bound required-field set omits them.",
+      "The Codex host profile says the spawn message contains the required receipt shape, but native_dispatch_driver.py emits only a generic instruction to return one bounded receipt.",
+      "forbidden_write_scopes is carried by name, but no explicit read-policy statement survives. One worker consequently treated cyberAlchemy-v2/ as forbidden read scope even though the declared boundary prohibited writes, not reads.",
+      "Causal event validation can pass while task-briefing fidelity fails because the current evidence validator proves event order and receipt admission, not sheet-to-dispatch-to-action-to-host semantic equivalence."
+    ]
+  },
+  "affected_invariant": {
+    "name": "confirmed-material-to-native-action fidelity",
+    "statement": "Before a native spawn is exposed, every material lane instruction approved by the human must be represented in the validated capability dispatch, persisted action, and exact host request without loss or reinterpretation. Role ownership, authority ceiling, status semantics, read-versus-write boundaries, required checks, and required receipt shape must remain machine-verifiably equivalent across that projection.",
+    "observed_effect": "The BTE worker used block to describe the unresolved prerequisite instead of the requested audit-completion semantics and did not perform the promised per-output and denominator checks. The IOLM worker preserved the owner ceiling but skipped the promised repository-local locator/provenance audit after conflating a forbidden-write scope with a forbidden-read scope. The normalized IOLM receipt was admitted as pass despite that incomplete task behavior."
+  },
+  "evidence": [
+    {
+      "selector": "dispatch-sheet.json#/groups/0/agents/0..2/{agent_name,angle,initial_prompt}",
+      "finding": "The accepted sheet defines distinct identities, methodological angles, full tasks, required checks, status meanings, return fields, and authority prohibitions."
+    },
+    {
+      "selector": "CONFIRMED-MATERIAL-PROJECTION.json#/material/groups/0/agents/0..2",
+      "finding": "The confirmed material projection preserves those three lane briefings and binds them under material_sha256 0443e13787cfba1bbf94a2beb814c1cac027d8404b5aeb79131d5a17d9a36810."
+    },
+    {
+      "selector": "DISPATCH.json#/subagent_strategy/roles/0..2",
+      "finding": "The capability roles carry generic purpose, ownership, capability, target, mode, mutation, scopes, and refs, but no briefing or source binding for the confirmed agent identity, angle, prompt, status semantics, or required return object."
+    },
+    {
+      "selector": ".agents/skills/dispatch-spec/dispatch.schema.yml:164-225 and .agents/skills/dispatch-spec/scripts/validate-dispatch.py:151-162,418-490",
+      "finding": "The schema and validator do not require or verify a briefing binding or a projection digest."
+    },
+    {
+      "selector": ".claude/skills/orchestrate/scripts/native_dispatch_coordinator.py:298-318,445-464",
+      "finding": "Both initial-wave and dependent-wave action constructors copy only the generic role projection."
+    },
+    {
+      "selector": ".claude/skills/orchestrate/scripts/native_dispatch_driver.py:290-315",
+      "finding": "The spawn request message is constructed only from the generic action fields and does not carry the task briefing or explicit receipt shape."
+    },
+    {
+      "selector": ".claude/skills/orchestrate/hosts/codex-native.md:88-95",
+      "finding": "The host profile requires the message to contain a required receipt shape, which the implementation does not emit."
+    },
+    {
+      "selector": "orchestrate/20260823T143051Z-p0-owner-evidence-review/compiled/actions/spawn-0001.json..spawn-0003.json and host-requests/spawn-0001.json..spawn-0003.json",
+      "finding": "The live artifacts confirm the compile-time and host-request omissions for all three actions."
+    },
+    {
+      "selector": "raw-returns/spawn-0001.json and raw-returns/spawn-0002.json#/scope_limitations/0",
+      "finding": "The returns exhibit the predicted loss: incomplete BTE checks and a forbidden-write versus forbidden-read conflation."
+    },
+    {
+      "selector": "orchestrate/20260823T143051Z-p0-owner-evidence-review/reduced/event-validation.json and FINAL-EVIDENCE-VALIDATION.json",
+      "finding": "Both validators pass the 20-event causal stream; neither validates semantic briefing fidelity."
+    }
+  ],
+  "minimal_repair_proposal": {
+    "summary": "Add one typed, digest-bound role briefing to the capability dispatch; require and validate its confirmed-sheet projection; copy it unchanged into every persisted action; and render it with explicit read/write and receipt semantics in the native host request. Fail before action exposure on any omission or mismatch.",
+    "proposal_path": "projects/domainspec-v2/development/evolvable-validation-framework/dispatch-runs/20260823T140821Z-p0-owner-evidence-review/governance-defect-sidecar/REPAIR-PROPOSAL.md",
+    "runtime_mutation_performed": false
+  },
+  "changed_byte_inventory": [
+    {
+      "path": "projects/domainspec-v2/development/evolvable-validation-framework/dispatch-runs/20260823T140821Z-p0-owner-evidence-review/governance-defect-sidecar/RECEIPT.json",
+      "change": "create",
+      "content_kind": "run-local-diagnostic-receipt"
+    },
+    {
+      "path": "projects/domainspec-v2/development/evolvable-validation-framework/dispatch-runs/20260823T140821Z-p0-owner-evidence-review/governance-defect-sidecar/REPAIR-PROPOSAL.md",
+      "change": "create",
+      "content_kind": "run-local-repair-proposal"
+    }
+  ],
+  "required_revalidation": [
+    "Validate a new Dispatch Spec candidate in which every capability-bound role contains a typed briefing and immutable source binding to the exact confirmed sheet agent entry.",
+    "Run positive and negative Dispatch Spec fixtures: exact briefing binding passes; missing briefing, wrong sheet digest, wrong group or agent selector, changed prompt, changed status semantics, or changed receipt shape blocks.",
+    "Compile both initial-wave and dependent-wave fixtures and compare each persisted action's briefing digest and structured fields with the validated dispatch role; any loss or mutation blocks before spawn.",
+    "Run prepare-spawn in an isolated fixture stream and compare the emitted host request with the persisted action. Assert explicit task instructions, authority ceiling, status meaning, read policy, forbidden-write policy, and exact receipt shape are present.",
+    "Add a hostile boundary fixture in which cyberAlchemy-v2/ is a permitted required read and a forbidden write. Assert that the host message cannot represent it as forbidden read and that an actual write attempt remains blocked.",
+    "Run the full Dispatch Spec and Orchestrate validation suites, including causal event validation, replay blocking, initial and dependent wave compilation, and host-profile conformance.",
+    "Keep the failed run immutable. Do not reinterpret its passing event-validation receipt as task-completion evidence.",
+    "Before any authorized retry, materialize a new validated DISPATCH.json, compiled actions, and host requests under a distinct run ID; parent-check all three briefing projections before making any host call; then require three task-complete receipt shapes and run the normal admission, gate, and event validations."
+  ],
+  "acceptance_and_confirmation": {
+    "diagnosis": {
+      "renewed_owner_acceptance_required": false,
+      "renewed_human_confirmation_required": false,
+      "reason": "This sidecar is an already-authorized, run-local diagnosis with no authority effect and no mutation outside its two evidence files."
+    },
+    "runtime_repair": {
+      "renewed_owner_acceptance_required": true,
+      "renewed_human_dispatch_confirmation_required": false,
+      "reason": "Any validator, schema, coordinator, driver, host-profile, generated-package, or test change is a new lifecycle-owned runtime candidate requiring its own owner review, regeneration, digests, and acceptance. The original dispatch confirmation does not authorize those changes. Merely authoring and testing that separately authorized repair does not itself rerun the confirmed dispatch."
+    },
+    "retry": {
+      "fresh_explicit_retry_authorization_required": true,
+      "distinct_run_id_required": true,
+      "owner_prerequisite_responses_still_required": true,
+      "reason": "The failed stream is closed evidence and cannot be replayed. A retry is a new externalized execution act even if it uses unchanged strategy bytes."
+    },
+    "sheet_digest_rule": {
+      "confirmed_sheet_sha256": "d31545fb7ddd9e8a14fae168236b98eb15c11abf680105b9b7c9cc992c64552c",
+      "unchanged_bytes": "The digest may be reused as immutable evidence of the strategy confirmed for the failed run and as the source for an exact repaired projection. It is not standing retry authority. A retry still needs fresh explicit authorization bound to this sheet digest, the repaired dispatch/projection evidence, and a distinct run ID.",
+      "changed_bytes": "Any material sheet-byte change creates a new candidate. Regenerate the sheet digest and material projection, rerun readiness and both independent tension checks, and obtain fresh human confirmation before dispatch registration or spawn."
+    }
+  },
+  "permanent_regression_fix": {
+    "test_name": "confirmed_role_briefing_survives_dispatch_compile_and_host_projection",
+    "required_assertions": [
+      "Three roles with identical generic capability metadata but distinct identities, angles, instructions, status meanings, and receipt fields compile to three distinct briefing digests.",
+      "The exact structured briefing in each validated dispatch role equals its compiled action and emitted host request representation.",
+      "Dropping or changing any material briefing field blocks before action_attempted is appended or a host request is exposed.",
+      "A forbidden_write_scopes entry remains permitted for reads when explicitly selected as input; it is never serialized as forbidden read scope.",
+      "The host request contains the exact required receipt shape promised by the host profile.",
+      "Event-stream validation remains necessary but cannot by itself satisfy briefing-fidelity validation."
+    ]
+  },
+  "authority_ceiling": {
+    "retry_authorized": false,
+    "owner_contact_authorized": false,
+    "owner_decision_authorized": false,
+    "acceptance_or_apply_authorized": false,
+    "product_execution_authorized": false,
+    "publication_or_promotion_authorized": false
+  },
+  "output_validation": {
+    "json_parse": "pass",
+    "scoped_trailing_whitespace": "pass",
+    "symlink_check": "pass-no-symlinks",
+    "sha256_computed_after_write": true
+  }
+}

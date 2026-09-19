@@ -27,4 +27,5 @@ test('schema constraints, function names, tool pairing and reasoning remain unch
 test('unknown model usage debits full8000 reservation; failed calls with known usage are counted',()=>{
   const usage=accountReceipts([{kind:'tokenizer',dispatched:true,input_tokens:100},{kind:'model',dispatched:true,input_tokens:500,output_tokens:200,failure_code:'incomplete-output'},{kind:'model',dispatched:true,status:429}]);
   assert.equal(usage.total_tokens,700);assert.equal(usage.unknown_usage_calls,1);assert.equal(usage.conservative_total_tokens,8700);assert.equal(usage.rate_limited,true);
+  const overloaded=accountReceipts([{kind:'model',dispatched:true,status:503}]);assert.equal(overloaded.rate_limited,true);assert.equal(overloaded.provider_error_code,'1305');assert.equal(overloaded.unknown_usage_calls,1);
 });

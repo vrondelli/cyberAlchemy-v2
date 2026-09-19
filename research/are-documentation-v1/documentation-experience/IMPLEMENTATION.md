@@ -22,23 +22,23 @@ Five complete manual pages are available in the local preview:
 - Configuration: Configure your integration.
 - Compatibility and lifecycle: Check supported integrations.
 
-The [generated inventory](../../../workspace/experiments/are-documentation/src/generated/documentation.json) records dispositions for all 41 manifest entries. The other 36 entries are withheld from this preview, not deleted. Their complete publication review remains open. In particular, current setup/deployment instructions need standalone-package prerequisites and a validated delivery path. The UI states that setup, deployment, and the complete API field reference are still being prepared. This implementation does not claim full public-manual coverage.
+The [generated inventory](../../../keld-project/are-documentation/src/generated/documentation.json) records dispositions for all 41 manifest entries. The other 36 entries are withheld from this preview, not deleted. Their complete publication review remains open. In particular, current setup/deployment instructions need standalone-package prerequisites and a validated delivery path. The UI states that setup, deployment, and the complete API field reference are still being prepared. This implementation does not claim full public-manual coverage.
 
 The content version is `0.10.0-self-contained-candidate.7`, with visible development-candidate labels. Source hashes identify the projected documentation bytes; they do not recertify the engine's frozen release closure.
 
 ## Source map
 
-- [Canvas and navigation integration](../../../workspace/experiments/are-documentation/src/main.tsx).
-- [Workspace state and restore validation](../../../workspace/experiments/are-documentation/src/canvasWorkspace.ts).
-- [Documentation graph node](../../../workspace/experiments/are-documentation/src/DocumentationNode.tsx).
-- [Documentation home and article reader](../../../workspace/experiments/are-documentation/src/DocumentationPage.tsx).
-- [Content routing](../../../workspace/experiments/are-documentation/src/documentationContent.ts).
-- [Safe Markdown renderer](../../../workspace/experiments/are-documentation/src/Markdown.tsx).
-- [Source projection and link checks](../../../workspace/experiments/are-documentation/scripts/build-documentation.mjs).
+- [Canvas and navigation integration](../../../keld-project/are-documentation/src/main.tsx).
+- [Workspace state and restore validation](../../../keld-project/are-documentation/src/canvasWorkspace.ts).
+- [Documentation graph node](../../../keld-project/are-documentation/src/DocumentationNode.tsx).
+- [Documentation home and article reader](../../../keld-project/are-documentation/src/DocumentationPage.tsx).
+- [Content routing](../../../keld-project/are-documentation/src/documentationContent.ts).
+- [Safe Markdown renderer](../../../keld-project/are-documentation/src/Markdown.tsx).
+- [Source projection and link checks](../../../keld-project/are-documentation/scripts/build-documentation.mjs).
 
 ## Verification
 
-Run from `workspace/experiments/are-documentation`:
+Run from `keld-project/are-documentation`:
 
 ```sh
 npm run build
@@ -50,9 +50,9 @@ The browser proof requires the local site at `http://127.0.0.1:4193/`. Set `ARE_
 - TypeScript and production build passed.
 - Documentation projection freshness, source-link existence, and published anchor checks passed.
 - Five workspace tests cover reopening, multiple cards, complete snapshots, invalid/corrupt/obsolete state, and an empty start.
-- [Browser results](../../../workspace/experiments/are-documentation/evidence/canvas-docs/results.json) record the latest exact checks. These cover real graph nodes, dragging, keyboard movement, scroll isolation, collapse/expand, two-card restoration, zoom behavior, reload/history, search, mobile overflow/readability, touch movement, peer-document links, legacy links, and storage failure.
-- [Desktop screenshot](../../../workspace/experiments/are-documentation/evidence/canvas-docs/canvas.png).
-- [Mobile screenshot](../../../workspace/experiments/are-documentation/evidence/canvas-docs/mobile.png).
+- [Browser results](../../../keld-project/are-documentation/evidence/canvas-docs/results.json) record the latest exact checks. These cover real graph nodes, dragging, keyboard movement, scroll isolation, collapse/expand, two-card restoration, zoom behavior, reload/history, search, mobile overflow/readability, touch movement, peer-document links, legacy links, and storage failure.
+- [Desktop screenshot](../../../keld-project/are-documentation/evidence/canvas-docs/canvas.png).
+- [Mobile screenshot](../../../keld-project/are-documentation/evidence/canvas-docs/mobile.png).
 
 The first mobile check exposed initialization fit overwriting the readable card zoom. The initialization rule was corrected before the final proof. Touch tests use a sequence of movement events rather than a single synthetic move. Tests exercise navigation only and do not dispatch model work.
 

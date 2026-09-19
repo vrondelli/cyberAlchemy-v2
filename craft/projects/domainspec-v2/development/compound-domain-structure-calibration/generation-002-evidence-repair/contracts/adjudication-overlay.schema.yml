@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdsc://contracts/adjudication-overlay/v1",
+  "title": "Generation-2 F3 adjudication overlay v1",
+  "type": "object",
+  "required": ["schema_version", "contract_id", "contract_version", "record_id", "canonicalization", "digest_algorithm", "content_digest", "generation_id", "predecessor_generation_id", "input_handles", "status", "semantic", "prohibited_inferences"],
+  "properties": {
+    "schema_version": {"const": "cdsc.adjudication-overlay.v1"},
+    "contract_id": {"const": "cdsc.adjudication-overlay"},
+    "contract_version": {"const": "1.0.0"},
+    "record_id": {"type": "string", "pattern": "^record:sha256:[a-f0-9]{64}$"},
+    "canonicalization": {"const": "canonical-json-v1"},
+    "digest_algorithm": {"const": "sha256-v1"},
+    "content_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "generation_id": {"type": "string", "pattern": "^generation:sha256:[a-f0-9]{64}$"},
+    "predecessor_generation_id": {"const": null},
+    "input_handles": {"type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": {"$ref": "#/$defs/record_handle"}},
+    "status": {"const": "frozen"},
+    "semantic": {
+      "type": "object",
+      "required": ["fixture_id", "baseline_receipt_handle", "baseline_generation_id", "observation_bindings", "adjudication_matrix", "usefulness_adjudication", "uncertainty_resolutions", "carried_uncertainty", "reviewers"],
+      "properties": {
+        "fixture_id": {"const": "F3"},
+        "baseline_receipt_handle": {"$ref": "#/$defs/record_handle"},
+        "baseline_generation_id": {"$ref": "#/$defs/generation_handle"},
+        "observation_bindings": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/observation_binding"}},
+        "adjudication_matrix": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/adjudication_cell"}},
+        "usefulness_adjudication": {"$ref": "#/$defs/usefulness_adjudication"},
+        "uncertainty_resolutions": {"type": "array", "items": {"$ref": "#/$defs/uncertainty_resolution"}},
+        "carried_uncertainty": {"type": "array", "items": {"$ref": "#/$defs/carried_uncertainty"}},
+        "reviewers": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/reviewer"}}
+      },
+      "additionalProperties": false
+    },
+    "prohibited_inferences": {"type": "array", "minItems": 7, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "created_at": {"type": "string", "format": "date-time"},
+    "storage_path": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "record_handle": {"type": "string", "pattern": "^record:sha256:[a-f0-9]{64}$"},
+    "generation_handle": {"type": "string", "pattern": "^generation:sha256:[a-f0-9]{64}$"},
+    "stable_handle": {"type": "string", "minLength": 1},
+    "selector": {"type": "string", "pattern": "^projects/.+:[0-9]"},
+    "observation_binding": {
+      "type": "object",
+      "required": ["substitution_kind", "substitution_id", "mutation_id", "observation_receipt_handle"],
+      "properties": {
+        "substitution_kind": {"enum": ["permitted", "breaking"]},
+        "substitution_id": {"type": "string", "minLength": 1},
+        "mutation_id": {"enum": ["M1", "M2"]},
+        "observation_receipt_handle": {"$ref": "#/$defs/record_handle"}
+      },
+      "additionalProperties": false
+    },
+    "target_provenance": {
+      "type": "object",
+      "required": ["source", "baseline_receipt_handle", "source_field", "target_digest"],
+      "properties": {
+        "source": {"const": "parent-substitution"},
+        "baseline_receipt_handle": {"$ref": "#/$defs/record_handle"},
+        "source_field": {"enum": ["semantic.S.permitted", "semantic.S.breaking"]},
+        "target_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "adjudication_cell": {
+      "type": "object",
+      "required": ["explanation_id", "substitution_id", "coverage", "state", "target_provenance", "evidence_handles", "rationale", "review_state"],
+      "properties": {
+        "explanation_id": {"type": "string", "pattern": "^A-[0-9]{2}$"},
+        "substitution_id": {"type": "string", "minLength": 1},
+        "coverage": {"enum": ["full", "none", "partial", "disputed"]},
+        "state": {"enum": ["explained", "not-explained", "indeterminate"]},
+        "target_provenance": {"$ref": "#/$defs/target_provenance"},
+        "evidence_handles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/record_handle"}},
+        "rationale": {"type": "string", "minLength": 1},
+        "review_state": {"enum": ["approved", "disputed"]}
+      },
+      "additionalProperties": false
+    },
+    "usefulness_adjudication": {
+      "type": "object",
+      "required": ["state", "baseline_decision", "residual_decision", "deterministic", "nonzero", "selectors", "rationale", "evidence_handles"],
+      "properties": {
+        "state": {"enum": ["retained", "revised", "indeterminate"]},
+        "baseline_decision": {"type": "string", "minLength": 1},
+        "residual_decision": {"type": "string", "minLength": 1},
+        "deterministic": {"type": "boolean"},
+        "nonzero": {"type": "boolean"},
+        "selectors": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/selector"}},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence_handles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/stable_handle"}}
+      },
+      "additionalProperties": false
+    },
+    "uncertainty_resolution": {
+      "type": "object",
+      "required": ["parent_uncertainty_id", "state", "evidence_handles", "rationale"],
+      "properties": {
+        "parent_uncertainty_id": {"type": "string", "minLength": 1},
+        "state": {"enum": ["resolved", "retained", "disputed"]},
+        "evidence_handles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/stable_handle"}},
+        "rationale": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "carried_uncertainty": {
+      "type": "object",
+      "required": ["uncertainty_id", "state", "statement"],
+      "properties": {
+        "uncertainty_id": {"type": "string", "minLength": 1},
+        "state": {"enum": ["missing", "disputed", "untested", "non-portable"]},
+        "statement": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "required": ["reviewer_id", "state"],
+      "properties": {
+        "reviewer_id": {"type": "string", "minLength": 1},
+        "state": {"enum": ["approved", "disputed"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "x-cdsc-semantic-fields": ["semantic", "prohibited_inferences"],
+  "x-cdsc-volatile-fields": ["created_at", "storage_path"]
+}

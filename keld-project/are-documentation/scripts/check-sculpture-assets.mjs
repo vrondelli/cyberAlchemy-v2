@@ -1,0 +1,20 @@
+import {readFileSync,readdirSync,statSync,mkdirSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {resolve} from 'node:path';
+const root=resolve(import.meta.dirname,'..'),assets=resolve(root,'public/assets/light-sculptures');
+const manifest=JSON.parse(readFileSync(resolve(assets,'manifest.json'),'utf8'));
+const entries=manifest.assets.map(asset=>{
+ const bytes=readFileSync(resolve(assets,asset.file));
+ const hash=createHash('sha256').update(bytes).digest('hex');
+ if(hash!==asset.sha256)throw Error(`Icon hash drift: ${asset.file}`);
+ if(bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WEBP')throw Error(`Invalid WebP: ${asset.file}`);
+ const dist=readFileSync(resolve(root,'dist/assets/light-sculptures',asset.file));
+ if(!bytes.equals(dist))throw Error(`Built icon differs: ${asset.file}`);
+ return {file:asset.file,bytes:bytes.length,sha256:hash};
+});
+if(entries.length!==11||new Set(entries.map(e=>e.file)).size!==11)throw Error('Expected 11 unique icon assets');
+const totalBytes=entries.reduce((n,e)=>n+e.bytes,0);
+if(totalBytes>300*1024)throw Error(`Icon transfer budget exceeded: ${totalBytes}`);
+const report={status:'PASS',scope:'All 11 unique Light Sculptures WebP files; separate from JS/CSS budgets',totalBytes,budgetBytes:300*1024,estimatedDecodedRgbaBytes:11*256*256*4,assets:entries};
+mkdirSync(resolve(root,'evidence/sculptures'),{recursive:true});writeFileSync(resolve(root,'evidence/sculptures/assets.json'),JSON.stringify(report,null,2)+'\n');
+console.log(`Light Sculptures: ${(totalBytes/1024).toFixed(1)} / 300 KiB; ${entries.length} matching built assets`);

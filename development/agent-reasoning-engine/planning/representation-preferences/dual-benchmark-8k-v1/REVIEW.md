@@ -1,6 +1,6 @@
 # Independent dual-8K review
 
-Status: methodology and pre-live code review; integration fixes and freeze being completed.
+Status: pre-live code review passed; see PREFLIGHT-REVIEW.md for the final disposition.
 Authority effect: none.
 This is bounded development evidence, not full benchmark qualification.
 
@@ -139,3 +139,6 @@ Neither benchmark's selected tasks are an untouched confirmation cohort.
 Required before dispatch: final interface tests, source/manifest freeze, successful
 real tokenizer admission, exact global/branch reservations and declared score gates.
 No additional quality threshold or approval flow is introduced by this review.
+
+Final disposition: integration faults above are resolved; 16 offline tests pass.
+The final [preflight review](PREFLIGHT-REVIEW.md) supersedes the earlier pending status.

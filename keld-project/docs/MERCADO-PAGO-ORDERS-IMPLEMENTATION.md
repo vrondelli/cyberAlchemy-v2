@@ -4,6 +4,8 @@ Date: 2026-09-18. Bounded implementation authorized by “so execute the plan”
 D65 chain and live acceptance criteria: [migration DAG](MERCADO-PAGO-ORDERS-PLAN.md).
 This is a sandbox candidate, not a production release or a claim of merchant compatibility.
 
+Review repairs and the latest candidate evidence are tracked in [repair DAG](MERCADO-PAGO-ORDERS-REPAIR-DAG.md). The image and counts below are the original migration baseline.
+
 ## Implemented contract
 
 - [Orders adapter](../integrations/src/mercadopago-orders.mjs) uses the installed
@@ -24,7 +26,7 @@ This is a sandbox candidate, not a production release or a claim of merchant com
   without values. Exactly one Pix transaction and exact decimal totals are required.
   A fresh GET, final `processed/accredited` state, matching paid totals, and absence
   of refund/chargeback transactions are required before entitlement creation.
-- Accepted processing responses persist the remote order. The buyer retries its
+- Accepted responses with a valid order ID persist the lookup reference even when validation requires review; safe field paths are retained and no QR or entitlement is exposed until proof succeeds. Processing responses persist the remote order. The buyer retries its
   same checkout after 1, 2 and 4 seconds, then offers manual resume. These refreshes
   use GET, never a second create. Atomic cached-response updates cannot downgrade
   a ready response back to preparing. Ownership and local expiry are checked.
@@ -89,10 +91,11 @@ online Pix account before declaring that operational path validated.
 
 1. **Currency proof:** published Pix examples omit `currency`, while SDK response
    types expose it. The adapter deliberately requires authoritative `currency=BRL`;
-   it rejects an otherwise successful response when currency is absent. This may
-   block the first real create/GET and remains a compatibility gate. Do not remove
-   the check or substitute unsigned webhook values. A response rejected after
-   POST retains an uncertain local attempt for reconciliation, not a new payment.
+   it withholds Pix instructions and settlement when currency is absent. The accepted
+   ID is retained as verification-required and refreshed by GET, so this remains a
+   payment-proof compatibility gate without discarding the provider reference. Do not remove
+   the check or substitute unsigned webhook values. A response with an invalid/missing provider ID still remains uncertain; a valid ID
+   is retained without being treated as payment proof.
 2. Confirm that this merchant’s `/users/me` response exposes `test_user`, `MLB`
    and `BR`, and that the order returns the expected application ID. Missing proof
    rejects the request rather than treating an APP_USR prefix as sandbox evidence.
@@ -101,9 +104,11 @@ online Pix account before declaring that operational path validated.
    signature trials. Capture only redacted fixture evidence, never the signing secret.
 4. Validate online Pix search filters/pagination and external-reference constraints
    against the merchant API. Local SDK mocks establish our behavior, not provider support.
-5. Remote Pix expiration is provider-controlled in this candidate; the local one-hour
-   reservation independently expires and late payment requires review. Verify remote
-   expiration and idempotency retention before cutover; no TTL equivalence is claimed.
+5. New version-2 requests freeze an explicit `PT30M` provider TTL and a conservative
+   30-minute display deadline. Dispatch requires at least 31 minutes of remaining
+   reservation, checked again after account preflight. Older uncertain request bodies
+   are not rewritten. Asynchronous provider issuance and actual expiry still require
+   merchant evidence; local late-payment review remains in place.
 6. Back up and inventory any ledger present at cutover. Once Orders rows exist,
    rollback must retain the Orders reader; never restore an older ledger over payments.
 

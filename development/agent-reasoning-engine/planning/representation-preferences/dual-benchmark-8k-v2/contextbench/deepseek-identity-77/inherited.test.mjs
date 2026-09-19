@@ -1,0 +1,31 @@
+// Isolated successor tests. Open questions: PLAN.md.
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync,mkdirSync,rmSync,readFileSync}from'node:fs';import{tmpdir}from'node:os';import{join}from'node:path';import{createServer}from'node:http';import{once}from'node:events';
+const root=new URL('./snapshot/',import.meta.url),c=new URL('development/agent-reasoning-engine/planning/representation-preferences/dual-benchmark-8k-v2/contextbench/',root);
+const {FULL_WINDOW,buildFullWindowCell}=await import(new URL('deepseek-full-window-profile.mjs',c));
+const {createGlmClient}=await import(new URL('packet-diversity-v1/transport-bounded-v3.mjs',c));
+const {createStagePersistence}=await import(new URL('packet-diversity-v1/stage-persistence.mjs',c));const {createStageOutputGuard}=await import(new URL('packet-diversity-v1/stage-output-guard.mjs',c));
+const {openContextRecycling}=await import(new URL('packet-diversity-v1/context-recycling-bounded-v3.mjs',c));
+const {createDurableTransport}=await import(new URL('deepseek-durable-transport.mjs',c));
+const fixture=t=>{const p=mkdtempSync(join(tmpdir(),'output74-'));t.after(()=>rmSync(p,{recursive:true,force:true}));return p;};
+test('effective four cells use8192 output, unchanged1M context and4M cumulative allowance',()=>{
+ const config=JSON.parse(readFileSync(new URL('PILOT-CONFIG.json',root)));for(const task of config.tasks){task.task_path=new URL('tasks/'+task.id+'.json',root).pathname;const cell=buildFullWindowCell({config,task_id:task.id});assert.equal(cell.limits.output_cap,8192);assert.equal(cell.context_limit,1000000);assert.equal(cell.limits.total_tokens,4000000);assert.equal(cell.limits.maximum_calls,96);}
+});
+test('DSH forwards a response over2MiB with8192 output tokens and charges it once',async t=>{
+ const p=fixture(t),bytes='data: '+JSON.stringify({model:'glm-5.3-flash',choices:[{index:0,delta:{content:'x'.repeat(2200000)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:8192,total_tokens:8292}})+'\n\ndata: [DONE]\n\n';
+ const transport=createDurableTransport({root:p,window:1000000,token_budget:4000000,output_cap:8192,maximum_stage_bytes:536870912,post:async path=>({status:200,bytes:path==='tokenizer'?'{"usage":{"prompt_tokens":100}}':bytes})});
+ const response=await transport.process(JSON.stringify({model:'glm-5.3-flash',stream:true,messages:[],max_tokens:8192}));assert.equal(response.bytes,bytes);const seal=await transport.close();assert.equal(seal.known_total_tokens,8292);assert.equal(seal.model_calls,1);assert.equal(seal.cost_complete,true);
+});
+for(const [name,calls,shape]of [['missing',undefined,{present:false,is_array:false,count:null}],['non-array','bad',{present:true,is_array:false,count:null}],['empty',[],{present:true,is_array:true,count:0}],['oversized',Array.from({length:9},(_,i)=>({id:'x'+i,type:'function',function:{name:'read_file',arguments:'{}'}})),{present:true,is_array:true,count:9}],['valid',[{id:'x',type:'function',function:{name:'read_file',arguments:'{}'}}],null]])test('native ARE '+name+' tool array: same acceptance policy, complete paid shape evidence',async t=>{
+ const p=fixture(t);mkdirSync(join(p,'evidence'));mkdirSync(join(p,'source'));const sent=[];
+ const server=createServer(async(req,res)=>{let raw='';for await(const b of req)raw+=b;sent.push(JSON.parse(raw));res.setHeader('content-type','application/json');res.end(JSON.stringify(req.url==='/tokenizer'?{usage:{prompt_tokens:100}}:{model:'glm-5.3-flash',choices:[{message:{role:'assistant',...(calls===undefined?{}:{tool_calls:calls})},finish_reason:'tool_calls'}],usage:{prompt_tokens:100,completion_tokens:50,total_tokens:150}}));});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>server.close());const base='http://127.0.0.1:'+server.address().port;
+ const persistence=createStagePersistence({stage_root:join(p,'evidence'),stage_guard:createStageOutputGuard({root:join(p,'evidence')})});const client=createGlmClient({chat_endpoint:base+'/chat/completions',tokenizer_endpoint:base+'/tokenizer',maximum_output_tokens:8192,maximum_requests:96,maximum_response_bytes:1048576,request_budget:'contextbench-full-window-v1',persistence,before_dispatch:async()=>true});
+ const directory=join(p,'evidence/state'),recycler=openContextRecycling({persistence,transport:client.transport,scope:{request:'fixture'},fixture_root:join(p,'source'),options:{directory,context_limit:1000000,recycle_at:990000,safety_margin:10000,state:{objective:'fixture',constraints:[],completed:[],pending:[],facts:[],lessons:[],evidence_refs:['fixture']}}});client.bindRunLedger({directory,binding:'b'.repeat(64)});
+ const request=recycler.generate({history:[],run_id:'fixture',render:async()=>JSON.stringify({messages:[{role:'user',content:'fixture'}],tools:[]}),admit_dispatch:async()=>true});
+ try{if(shape)await assert.rejects(request,/tool-calls-invalid/);else await request;}finally{recycler.close();}
+ const receipts=client.receipts.filter(x=>x.kind==='model');assert.equal(receipts.length,1);assert.equal(receipts[0].input_tokens+receipts[0].output_tokens,150);assert.deepEqual(receipts[0].tool_call_shape,shape??undefined);assert.equal(sent[1].max_tokens,8192);assert.equal(sent.length,2);
+ const ledger=JSON.parse(readFileSync(join(directory,'glm-transport-ledger.json')));assert.deepEqual(ledger.receipts.find(x=>x.kind==='model').tool_call_shape,shape??undefined);
+});
+test('larger allowance is opt-in and cannot exceed8192',t=>{
+ const p=fixture(t),persistence=createStagePersistence({stage_root:p,stage_guard:createStageOutputGuard({root:p})}),options={persistence,before_dispatch:async()=>true,chat_endpoint:'http://127.0.0.1/chat/completions',tokenizer_endpoint:'http://127.0.0.1/tokenizer',maximum_output_tokens:8192,request_budget:'contextbench-full-window-v1'};
+ assert.equal(createGlmClient(options).model,'glm-5.3-flash');assert.throws(()=>createGlmClient({...options,maximum_output_tokens:8193}),/limits-exceed/);assert.throws(()=>createGlmClient({...options,request_budget:'contextbench-deferral-v1'}),/limits-exceed/);
+});

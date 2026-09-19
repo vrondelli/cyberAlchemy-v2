@@ -1,0 +1,22 @@
+dsh: reasoning:
+This is zstd repo. Issue about first input position valid for match — likely ZSTD_compressBlock_fast / "start reference at 1" — the fix in zstd: in ZSTD_reduceIndex? Actually issue #1241 in zstd: "invalid dictionary" ... Hmm, "Ensure that first input position is valid for a match even during first usage of context by starting reference at 1" — sounds like repcode / offset validation? Likely in ZSTD_fast or ZSTD_compress_begin — "dictID"? The phrase "starting reference at 1" suggests lowLimit=1 instead of 0 in ZSTD_reset parameters, e.g., in ZSTD_resetCCtx_internal: params->... Or ZSTD_compressBegin using "window.lowLimit". Search for "lowLimit = 0".
+dsh: reasoning:
+The known zstd fix (PR for issue #1241) is in zstd_compress.c, ZSTD_reduceIndex? Actually I recall the actual upstream commit: "fixed: first input position for a match during first usage of context" — that's zstd commit fixing ZSTD_window_init: `window->base = ... - 1` ... Hmm. Actually the real upstream fix (commit "fix #1241") changed in ZSTD_compressBegin_internal / ZSTD_resetCCtx: `cctx->window` ... I recall the fix in zstd_compress.c: in ZSTD_reduceIndex or ZSTD_indexTooCloseToMax. Let me look at ZSTD_window_init in the internal header.
+dsh: reasoning:
+Need to find where window is initialized at start (ZSTD_window_init) — likely in zstd_compress_internal.h before line 495. Search.
+dsh: reasoning:
+The actual upstream fix for issue #1241 (zstd PR #1242? "fix: first position for a match"): commit "fix first input position for a match during first usage of context" — it's in ZSTD_reset_matchState? Actually I recall the real commit: in zstd_compress.c, ZSTD_resetCCtx_internal sets:
+
+`cctx->window` ... hmm. The known upstream commit is facebook/zstd commit `882b4c7b1...` "fix #1241: invalid first position". The fix was in ZSTD_initCDict / ZSTD_compressBegin_internal? Actually I recall the fix being:
+
+```
+-    ZSTD_window_init(&ms->window);
++    ZSTD_window_init... 
+```
+
+Hmm, no ZSTD_window_init exists here. Let me search for "window.base =" or reset code in zstd_compress.c. Search "loadedDictEnd =" or "window.dictLimit".
+dsh: reasoning:
+Find where ZSTD_window_update or ZSTD_compressBegin_internal sets window base/dictLimit initially. Search "ZSTD_window_update" and "window.base =".
+dsh: reasoning:
+The upstream fix (PR #1242) added ZSTD_window_init which sets lowLimit = 1, dictLimit = 1. Here, initialization is via ZSTD_window_clear. Let me read internal.h 493–530.
+dsh: CONTEXT_WINDOW_EXCEEDED: 400: {"code":"context_length_exceeded","type":"invalid_request_error","message":"Maximum context length is 8000 tokens including the output reservation. Compact the context before trying again."}

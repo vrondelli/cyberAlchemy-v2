@@ -1,0 +1,32 @@
+# Invoke Full Transport
+
+- Spell: invoke
+- Mode: full (deferred Define -> Design -> Plan composition)
+- Scope: private DomainSpec development package
+- Phase status: pass
+- Mode contracts: `invoke/define.md`, `invoke/design.md`, `invoke/plan.md`
+- Define outputs: `SPEC.md`, `GLOSSARY.md`, `DEFINE-CONTEXT.md`, `DEFINE-RESULT.md`
+- Design outputs: `ARCHITECTURE.md`, `GLOSSARY-CONSISTENCY.md`, Design scope/denominator/selection receipts, `DESIGN-RESULT.md`
+- Design views: six of six
+- Design evidence state: `design-validator-pass`
+- Design evidence ceiling: reusable architecture and planned witness contracts only
+- Plan evidence: `plan-evidence-pending`
+- Dispatch techniques: twelve selected; full dispatch validator pass
+- Distill validation: pass after one repair round, then fixed-point review
+- Distill telemetry: recorded child run `distill-validate-20260803T170713Z-mtci`
+- Invoke telemetry: recorded run `invoke-full-20260803T170713Z-mtci`
+- Implementation layering: `IMPLEMENTATION-LAYERING.md`, L0-L5 complete
+- Work Pack: split, 12 task specifications
+- Complexity: medium-high
+- Per-layer planning: layer-mapped waves
+- Implementation detail: task specs complete
+- Smallest working units: complete
+- SWU atomicity: pass; task-shaped count 0
+- First-unit narrowness: pass
+- Closeout synchronization: shared contract required for every SWU
+- Target artifact: Meta-Type Complete Implementation development cycle
+- Target owner: DomainSpec meta-type/implementation owners
+- Invoke gaps: none after validation
+- Target-artifact blockers: actual instance intent and later human decisions
+- Next route: user/meta-type proposer supplies `INSTANCE-INTENT.md`, then Task Session selects MTCI-001
+- Claim ceiling: package authored and validated; no lifecycle instance executed

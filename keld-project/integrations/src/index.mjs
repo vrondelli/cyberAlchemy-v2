@@ -8,6 +8,21 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 const publicFiles=new Map([['/buyer.css',['buyer.css','text/css']],['/buyer.mjs',['buyer.mjs','text/javascript']],['/buyer-client.mjs',['buyer-client.mjs','text/javascript']]]);
 const buyerPages=new Set(['/','/purchase/return','/purchase/cancel','/signed-out']);
+const reactPreviewPages=new Set(['/','/react-preview','/react-preview/','/purchase/return','/purchase/cancel','/signed-out']);
+
+export async function loadAppBundle(base=new URL('../public-app/',import.meta.url)) {
+  let manifest;
+  try {manifest=JSON.parse(await readFile(new URL('asset-manifest.json',base),'utf8'));}
+  catch(error){if(error?.code==='ENOENT')return null;throw error;}
+  if(manifest?.schema!=='keld-web-assets/v1'||manifest.index!=='index.html'||!manifest.assets||typeof manifest.assets!=='object')throw new Error('Invalid KELD web asset manifest');
+  const index=await readFile(new URL(manifest.index,base));
+  const assets=new Map();
+  for(const [route,entry] of Object.entries(manifest.assets)){
+    if(!/^\/assets\/[A-Za-z0-9._/-]+$/.test(route)||route.includes('..')||!entry||typeof entry!=='object'||entry.file!==route.slice(1)||typeof entry.type!=='string')throw new Error('Invalid KELD web asset entry');
+    assets.set(route,{content:await readFile(new URL(entry.file,base)),type:entry.type,immutable:entry.immutable===true});
+  }
+  return {index,assets};
+}
 
 export async function createKeldIntegrations({auth: authConfig,payments,ledger,quoteBrl,diagnostic,events}) {
   const adapters=createPaymentAdapters(payments);
@@ -16,15 +31,18 @@ export async function createKeldIntegrations({auth: authConfig,payments,ledger,q
   const inbox=verifiers?createEventInbox({verifiers,repository}):undefined;
   const auth=await createKeldAuth(authConfig);
   const checkout=createCheckoutService({auth,adapters,repository,origin:authConfig.profile.origin,quoteBrl});
-  return {auth,checkout,handler:createHandler({auth,checkout,origin:authConfig.profile.origin,diagnostic,inbox}),
+  const app=await loadAppBundle();
+  return {auth,checkout,handler:createHandler({auth,checkout,origin:authConfig.profile.origin,diagnostic,inbox,app}),
     initialize:()=>auth.store.migrate(),close:()=>auth.store.close()};
 }
 
 /** Mount behind KELD's trusted HTTPS listener. No provider-supplied redirect proves payment. */
-export function createHandler({auth,checkout,origin,inbox,diagnostic=event=>console.error(JSON.stringify(event))}) {
+export function createHandler({auth,checkout,origin,inbox,app=null,diagnostic=event=>console.error(JSON.stringify(event))}) {
   const host=new URL(origin).host;let activeDownloads=0;
   return async(req,res)=>{
     const json=(status,value)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(JSON.stringify(value));};
+    const page=(content,type='text/html',cache='no-store')=>{res.writeHead(200,{'content-type':type+'; charset=utf-8','cache-control':cache,'x-content-type-options':'nosniff',
+      'referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});res.end(content);};
     try {
       if(req.headers.host!==host)throw new Rejected('host-rejected');
       const url=new URL(req.url,origin);
@@ -38,12 +56,15 @@ export function createHandler({auth,checkout,origin,inbox,diagnostic=event=>cons
         return json(202,await inbox.receive(provider,Buffer.concat(chunks),req.headers,req.url));
       }
       if(await auth.handle(req,res))return;
+      if(req.method==='GET'&&app&&reactPreviewPages.has(url.pathname))return page(app.index);
+      if(req.method==='GET'&&app?.assets.has(url.pathname)){
+        const asset=app.assets.get(url.pathname);
+        return page(asset.content,asset.type,asset.immutable?'public, max-age=31536000, immutable':'no-cache');
+      }
       if(req.method==='GET'&&(buyerPages.has(url.pathname)||publicFiles.has(url.pathname))){
         const [file,type]=publicFiles.get(url.pathname)??['buyer.html','text/html'];
         const content=await readFile(new URL('../public/'+file,import.meta.url));
-        res.writeHead(200,{'content-type':type+'; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff',
-          'referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});
-        return res.end(content);
+        return page(content,type);
       }
       if(req.method==='GET'&&url.pathname==='/api/orders'){
         if([...url.searchParams.keys()].some(k=>k!=='before')||url.searchParams.getAll('before').length>1)throw new Rejected('query-rejected');

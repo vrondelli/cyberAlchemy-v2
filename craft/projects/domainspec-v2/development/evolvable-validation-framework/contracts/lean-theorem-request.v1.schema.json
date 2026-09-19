@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/evf/lean-theorem-request.v1.schema.json",
+  "title": "EVF Lean Theorem Obligation Request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "request_id", "owner", "request_state",
+    "formal_claim_lean_binding_ref", "theorem_statement_ref", "provider_profile_ref",
+    "runtime_binding_ref", "execution_policy_ref", "authority_effect",
+    "claim_ceiling", "residue"
+  ],
+  "properties": {
+    "schema_version": {"const": "domainspec-v2.theorem-obligation-request/v1-candidate"},
+    "request_id": {"$ref": "#/$defs/id"},
+    "owner": {"const": "EVF"},
+    "request_state": {"enum": ["ready", "blocked", "stale"]},
+    "formal_claim_lean_binding_ref": {"$ref": "#/$defs/exactRef"},
+    "theorem_statement_ref": {"$ref": "#/$defs/exactRef"},
+    "provider_profile_ref": {"$ref": "#/$defs/exactRef"},
+    "runtime_binding_ref": {"$ref": "#/$defs/exactRef"},
+    "execution_policy_ref": {"$ref": "#/$defs/exactRef"},
+    "expected_declarations": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/declarationName"}
+    },
+    "authority_effect": {"const": "none"},
+    "claim_ceiling": {"const": "theorem-request-only-no-proof-claim"},
+    "residue": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"request_state": {"const": "ready"}}},
+      "then": {
+        "properties": {
+          "formal_claim_lean_binding_ref": {"$ref": "#/$defs/currentRef"},
+          "theorem_statement_ref": {"$ref": "#/$defs/currentRef"},
+          "provider_profile_ref": {"$ref": "#/$defs/currentRef"},
+          "runtime_binding_ref": {"$ref": "#/$defs/currentRef"},
+          "execution_policy_ref": {"$ref": "#/$defs/currentRef"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 240, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "declarationName": {
+      "type": "string", "minLength": 1,
+      "pattern": "^[A-Za-z_][A-Za-z0-9_']*(\\.[A-Za-z_][A-Za-z0-9_']*)*$"
+    },
+    "exactRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "current"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "current": {"type": "boolean"}
+      }
+    },
+    "currentRef": {"allOf": [{"$ref": "#/$defs/exactRef"}, {"properties": {"current": {"const": true}}}]}
+  }
+}

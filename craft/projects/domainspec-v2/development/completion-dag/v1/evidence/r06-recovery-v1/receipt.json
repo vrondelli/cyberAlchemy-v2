@@ -1,0 +1,113 @@
+{
+  "node_id": "R06",
+  "candidate_id": "DSV2-R06-RETRY-RESTART-001",
+  "lane": "product_construction",
+  "stage": "implementation-prototype",
+  "result": "PASS",
+  "source_manifest_sha256": "d6fa17a4ae253f6c85f52a7e471c7e49ef31f26f4ad2464a43717cb0696941b4",
+  "input_receipt_refs": [
+    {
+      "path": "projects/domainspec-v2/development/completion-dag/v1/evidence/r05-recovery-v1/receipt.json",
+      "sha256": "1e2f40afc8ae2df99210bc43e30af754ce5e4fc94b0324e608a032f2f0691fa2",
+      "role": "DAG prerequisite and frozen runtime dependency"
+    },
+    {
+      "path": "projects/domainspec-v2/development/completion-dag/v1/evidence/r03-recovery-v1/receipt.json",
+      "sha256": "cfef541978a20c51f98dd2def2c90cb9995a927d31a3fe237cdec42548abb086",
+      "role": "inherited coordination store; R06 adds bounded subclass"
+    },
+    {
+      "path": "projects/domainspec-v2/development/completion-dag/v1/evidence/r04-recovery-v1/receipt.json",
+      "sha256": "d75a99a8974edc4a3a391b5f909bc25e56ce2a7cdfb8bf1f13de0e48feee503b",
+      "role": "inherited exact Operation replay ledger"
+    }
+  ],
+  "output_manifest_sha256": "5cdfe5c777099191226cd1e593fac68d835e81cfb1e421bd89c538ced9d2d135",
+  "checks_with_observed_results": [
+    {
+      "id": "restart-preserves-committed-state",
+      "result": "PASS",
+      "evidence": [
+        "test_success_and_terminal_replay_are_durable",
+        "test_retry_delay_survives_reopen_without_reset",
+        "test_sigkill_schedule_before_and_after_commit",
+        "test_sigkill_terminal_before_and_after_commit"
+      ],
+      "observed": "Committed progress, retry delay and terminal state survive reopen and actual process-kill boundaries; uncommitted writes roll back."
+    },
+    {
+      "id": "policy-budget-and-terminal-boundaries",
+      "result": "PASS",
+      "evidence": [
+        "test_three_attempt_ceiling_and_terminal_cannot_be_bypassed",
+        "test_selected_escalation_records_no_successor",
+        "test_selected_terminal_failure_needs_no_retry_budget_exhaustion",
+        "test_completion_rechecks_operation_evidence"
+      ],
+      "observed": "Three starts maximum under retry; explicit alternate dispositions remain unresolved. Complete terminal requires current ledger evidence; terminal replay leaves both databases unchanged."
+    },
+    {
+      "id": "stable-replay-and-reconciliation",
+      "result": "PASS",
+      "evidence": [
+        "test_unknown_absence_requires_schedule_before_retry",
+        "test_committed_unknown_reconciles_without_retry",
+        "test_late_older_success_after_newer_failure_is_recognized",
+        "test_unknown_unreadable_ledger_stops_before_schedule"
+      ],
+      "observed": "Retry keeps D40 identity and requires persisted policy/delay. Recognized success advances progress without rewriting attempts or repeating a business effect; unreadable evidence stops."
+    },
+    {
+      "id": "dispatch-hints-and-projection",
+      "result": "PASS",
+      "evidence": [
+        "test_hints_are_optional_and_duplicate_ack_is_projection_only",
+        "test_bad_hint_and_ack_digest_preserve_state",
+        "test_missing_dispatch_event_blocks_advancement",
+        "test_sigkill_ack_before_and_after_commit"
+      ],
+      "observed": "Optional/duplicate hints reread dispatch truth; local acknowledgement preserves recovery version/state and is idempotent across crash. Durable event mismatch fails closed."
+    },
+    {
+      "id": "polling-and-claim-safety",
+      "result": "PASS",
+      "evidence": [
+        "test_active_attempt_is_not_renewed_forever",
+        "test_competing_process_polls_do_not_duplicate_execution",
+        "test_busy_coordination_does_not_consume_attempt",
+        "test_boot_and_backward_clock_stop_without_terminal"
+      ],
+      "observed": "Interrupted attempt ages out for takeover; competing processes produce one start. Busy writes consume none; invalid time/boot yields no terminal."
+    },
+    {
+      "id": "focused-suite",
+      "result": "PASS",
+      "evidence": "TEST-RESULTS.json",
+      "observed": {
+        "tests_per_repetition": 20,
+        "repetitions": 2,
+        "exit_codes": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "full-recovery-product-campaign",
+      "result": "not_evaluable",
+      "blocks_R06": false,
+      "causal_blocker": "R07 full declared failure matrix, product-test manifest and independent replay report remain. Product approval is a later decision."
+    }
+  ],
+  "unresolved_findings": [
+    {
+      "id": "full-failure-campaign-and-independent-replay",
+      "owner_role": "R07 DomainSpec Workflow/runtime owner",
+      "blocks_R06": false,
+      "detail": "Focused tests do not replace the complete R01 failure matrix or independent replay."
+    }
+  ],
+  "claim_ceiling": "Same-host, same-boot local persisted retry/terminal/restart candidate; caller-driven polling and local outbox observation only. No full recovery-product approval, operational authority, remote effects or universal exactly-once guarantee.",
+  "authority_effect": "none",
+  "recorded_at_utc": "2026-09-06T03:18:12.437729+00:00"
+}

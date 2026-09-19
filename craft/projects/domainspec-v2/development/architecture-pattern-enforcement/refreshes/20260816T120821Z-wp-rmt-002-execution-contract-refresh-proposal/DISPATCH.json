@@ -1,0 +1,146 @@
+{
+  "dispatch_id": "wp-rmt-002-execution-contract-refresh-proposal-20260816T120821Z",
+  "intent": {
+    "raw": "Create and validate the isolated six-target WP-RMT-002 execution-contract Refresh proposal.",
+    "objective": "Derive staged plan postimages, replay validators, and freeze a proposal-only receipt.",
+    "target_artifact": "projects/domainspec-v2/development/architecture-pattern-enforcement/refreshes/20260816T120821Z-wp-rmt-002-execution-contract-refresh-proposal",
+    "arcanum_vocabulary": [
+      "invoke",
+      "refresh",
+      "validation",
+      "receipt"
+    ]
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "validation_loop",
+    "residue_ledger"
+  ],
+  "steps": [
+    {
+      "step_id": "derive",
+      "name": "Derive exact staged postimages",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "sequence"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "preimages/"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "staged/"
+        }
+      ],
+      "stop_conditions": [
+        "stop on a field requiring an unbound product or semantic choice"
+      ]
+    },
+    {
+      "step_id": "validate",
+      "name": "Replay staged and official validators",
+      "capability_ref": "work-pack-readiness-audit",
+      "capability_status": "local-extension",
+      "capability_metadata": {
+        "owner": "work-pack-readiness-audit",
+        "validation": "official audit_work_pack.py producer"
+      },
+      "mode": "audit",
+      "pattern": "validation",
+      "parallel": false,
+      "depends_on_steps": [
+        "derive"
+      ],
+      "techniques": [
+        "validation_loop"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "staged/"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "official-audit/"
+        }
+      ],
+      "evidence_artifact": "official-audit/work-pack-readiness-report-v2.json",
+      "stop_conditions": [
+        "stop unless the staged plan validator, audit, and hostile replay pass"
+      ]
+    },
+    {
+      "step_id": "freeze",
+      "name": "Freeze proposal receipt last",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "handoff",
+      "parallel": false,
+      "depends_on_steps": [
+        "validate"
+      ],
+      "techniques": [
+        "residue_ledger",
+        "sequence"
+      ],
+      "inputs": [
+        {
+          "kind": "artifact",
+          "ref": "VALIDATION-RESULT.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "PROPOSAL-RECEIPT.json"
+        }
+      ],
+      "stop_conditions": [
+        "stop if live preimages drift before receipt freeze"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "validation-before-receipt",
+      "kind": "validation",
+      "owner": "invoke:refresh",
+      "condition": "All proposal validators pass before the terminal receipt is written.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "owner-acceptance-after-proposal",
+      "kind": "human_approval",
+      "owner": "exact-byte owner",
+      "condition": "Fresh acceptance of the final proposal bytes is required before any live apply.",
+      "on_fail": "defer"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "derive",
+      "validation_loop",
+      "residue_ledger",
+      "receipt-last"
+    ],
+    "signal_grouping": "dispatch_id"
+  },
+  "promotion_guardrails": [
+    "proposal-only",
+    "authority none",
+    "no live apply",
+    "no selection receipt",
+    "no Task Session admission"
+  ]
+}

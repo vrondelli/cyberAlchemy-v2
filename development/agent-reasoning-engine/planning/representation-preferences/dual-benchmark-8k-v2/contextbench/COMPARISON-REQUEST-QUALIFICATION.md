@@ -1,0 +1,11 @@
+# Tokenizer-only initial-request qualification
+
+`comparison-request-qualification.mjs` invokes the actual comparison dispatcher and prepared runners for all twelve fixed slots, with two workers and the model-dispatch flag disabled. The default client is the production client; a future live qualification therefore uses actual tokenizer endpoints but must make zero model calls. Source preparation and all writes use the reviewed comparison storage adapter. Qualification failure aborts further starts while retaining every assigned slot.
+
+Each qualifying row requires exactly one initial runtime capture, an exact capture hash, one matching successful tokenizer receipt, a projected request within 8K, and zero model receipts. It also requires the expected intentional stop: current ARE's preflight-disabled admission or the candidate driver's disabled-dispatch error. A successful measurement cannot hide an unrelated episode or persistence failure. The normalized tokenizer body is saved with its hash, task/cell identities, original runtime capture hash and event-journal path/hash. The report is written with the final artifact reserve. No evaluation references are accessed.
+
+Four offline tests exercise actual prepared runners against temporary Git repositories with scripted tokenizer responses and guarded persistence. The success case renders all twelve initial requests through all three architectures with zero model invocations. Failure cases reject an oversized measurement, any model receipt and an unrelated episode failure. These tests prove runtime-render capture and disabled model dispatch under the scripted transport; they are not actual provider qualification.
+
+## Open questions
+
+Coordinator owns independent review, the bounded process command, exact qualifier source freeze and actual tokenizer-only run. The live qualification must retain and independently verify its twelve prompt/journal/receipt bindings before the production freeze is approved. Fresh D:/WSL admission is required; temporary source trees must be cleaned only after evidence retention is confirmed. Later model requests still require native measured admission. A qualified initial request does not establish task quality, token savings, full campaign readiness or benchmark completion.

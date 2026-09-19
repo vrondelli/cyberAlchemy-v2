@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 AUTH = ROOT.parents[2] / "domainspec-core/projects/auth-foundation/implementation/session-core"
+WEB = ROOT.parent / "web" / "dist"
 
 
 def stage(destination):
@@ -30,6 +31,30 @@ def stage(destination):
     for folder, extensions in [("src", {".mjs"}), ("bin", {".mjs"}),
                                ("public", {".mjs", ".html", ".css"})]:
         tree(ROOT / folder, "integrations/" + folder, extensions)
+    web_types = {".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
+                 ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg",
+                 ".jpeg": "image/jpeg", ".avif": "image/avif", ".woff2": "font/woff2"}
+    if not (WEB / "index.html").is_file() or not (WEB / ".vite/manifest.json").is_file():
+        raise ValueError("KELD React build is missing; run npm run build in keld-project/web")
+    vite_manifest = json.loads((WEB / ".vite/manifest.json").read_text())
+    if not any(entry.get("isEntry") and entry.get("file", "").startswith("assets/") for entry in vite_manifest.values()):
+        raise ValueError("KELD React build has no entry asset")
+    add(WEB / "index.html", "integrations/public-app/index.html")
+    web_assets = {}
+    for child in sorted((WEB / "assets").rglob("*")):
+        if child.is_symlink():
+            raise ValueError("KELD React build contains a symlink")
+        if child.is_dir():
+            continue
+        if not child.is_file() or child.suffix.lower() not in web_types:
+            raise ValueError("KELD React build contains an unapproved asset")
+        relative = child.relative_to(WEB).as_posix()
+        add(child, "integrations/public-app/" + relative)
+        web_assets["/" + relative] = {"file": relative, "type": web_types[child.suffix.lower()],
+                                      "immutable": True}
+    files["integrations/public-app/asset-manifest.json"] = (json.dumps({
+        "schema": "keld-web-assets/v1", "index": "index.html", "assets": web_assets
+    }, indent=2) + "\n").encode()
     add(ROOT / "config.example.json", "integrations/config.example.json")
     for name in ("sdk_bridge.py", "ledger.py", "delivery.py"):
         add(ROOT.parent / "commerce" / name, "commerce/" + name)

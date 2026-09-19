@@ -1,0 +1,238 @@
+{
+  "dispatch_id": "domainspec-v2-r3c-attestation-route-refresh",
+  "parent_dispatch_id": "domainspec-v2-r3-closeout-plan",
+  "intent": {
+    "raw": "invoke refresh after the R3C attestation Decision Gate",
+    "objective": "Refresh the R3 closeout and private attestation-capability projections so SWU-R3C-010 can produce an L1 integrity receipt without claiming the deferred L2 actor signature.",
+    "target_artifact": "projects/domainspec-v2/development/r3-closeout-plan"
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "handle_handoff",
+    "artifact_contract_bridge",
+    "validation_loop",
+    "concrete_path_evidence",
+    "owner_boundary_check",
+    "state_namespace_boundary",
+    "execution_receipt_handoff",
+    "residue_ledger",
+    "authority_split_gate",
+    "recomposition_proof"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "explanation": "The route is deterministic, serial, and already decision-gated; each owner has a small explicit patch set and validation surface.",
+    "authorization": "not_needed"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b-invoke-proposal",
+        "kind": "capability_handoff",
+        "from_owner": "invoke refresh",
+        "to_owner": "task-session",
+        "applies_to_steps": ["s2", "s3", "s5"],
+        "contract": "Invoke authors proposal-only deltas; Task Session applies approved R3/Craft changes and returns receipts.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-sigil-lifecycle",
+        "kind": "capability_handoff",
+        "from_owner": "invoke refresh",
+        "to_owner": "sigil-development",
+        "applies_to_steps": ["s4"],
+        "contract": "Only sigil-development updates the private attestation capability lifecycle projections; the refresh does not claim promotion readiness.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-l1-l2-claim",
+        "kind": "human_approval",
+        "from_owner": "DomainSpec v2 authority owner",
+        "to_owner": "SWU-R3C-010",
+        "applies_to_steps": ["s2", "s3", "s5"],
+        "contract": "L1 may claim tamper-evident integrity only; L2 external actor authentication remains blocked.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b-private-public",
+        "kind": "artifact_import",
+        "from_owner": "private cyberAlchemy-v2 and DomainSpec authority",
+        "to_owner": "private R3 Task Session evidence",
+        "applies_to_steps": ["s3", "s4", "s5"],
+        "contract": "Private mechanism and authority prose never move into public arcanum; only private handles and demonstrable verdicts are recorded.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "authoring": "invoke refresh",
+      "execution": "task-session SWU-R3C-010",
+      "sigil_lifecycle": "sigil-development",
+      "state": "Craft",
+      "attestation_decision": "DomainSpec v2 authority owner",
+      "promotion": "not granted"
+    },
+    "receipts": [
+      {
+        "receipt_id": "r-swu-r3c-010",
+        "producer": "task-session",
+        "required_fields": ["run_id", "dispatch_id", "step_id", "capability_ref", "status", "artifacts", "validation", "blockers", "residue", "handoff_note"],
+        "stores": ["SWU-R3C-010 Task Session result", ".arcanum/observability/signals/sigil-invocations.jsonl"],
+        "on_missing": "block"
+      },
+      {
+        "receipt_id": "r-attestation-sigil-update",
+        "producer": "sigil-development",
+        "required_fields": ["run_id", "dispatch_id", "step_id", "capability_ref", "status", "artifacts", "validation", "blockers", "residue", "handoff_note"],
+        "stores": ["attestation capability development receipt"],
+        "on_missing": "flag"
+      }
+    ],
+    "state_namespaces": [
+      {
+        "namespace": "r3-planning-and-craft",
+        "owner": "task-session and Craft",
+        "write_policy": "Only approved status/route/blocker-refinement deltas; historical rows remain historical."
+      },
+      {
+        "namespace": "domainspec-authority-evidence",
+        "owner": "DomainSpec v2 authority owner",
+        "write_policy": "Add manifest, seal, and dated receipt; do not rewrite original governance acts."
+      },
+      {
+        "namespace": "attestation-capability-private-lifecycle",
+        "owner": "sigil-development",
+        "write_policy": "Refresh README/HARNESS status without promotion or public export."
+      }
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "s1",
+      "name": "Author and validate proposal-only refresh",
+      "capability_ref": "invoke",
+      "pattern": "sequential",
+      "techniques": ["sequence", "concrete_path_evidence", "owner_boundary_check", "residue_ledger", "recomposition_proof"],
+      "inputs": [
+        {"kind": "decision", "ref": "projects/domainspec-v2/authority/decisions/2026-07-12-r3c-attestation-assurance-and-payload.md"},
+        {"kind": "artifact", "ref": "CONTEXT-PACK.md"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "REFRESH-REPORT.md"},
+        {"kind": "artifact", "ref": "refresh-report.json"},
+        {"kind": "artifact", "ref": "REFRESH-PATCH-PROPOSAL.md"}
+      ],
+      "evidence_artifact": "REFRESH-REPORT.md",
+      "stop_conditions": ["block if target artifacts are changed without apply approval"]
+    },
+    {
+      "step_id": "s2",
+      "name": "Apply approved R3 planning and Craft blocker refinement",
+      "capability_ref": "task-session",
+      "pattern": "handoff",
+      "techniques": ["handle_handoff", "state_namespace_boundary", "owner_boundary_check"],
+      "inputs": [
+        {"kind": "frame", "ref": "s1"},
+        {"kind": "decision", "ref": "DEC-R3C-ATTESTATION-ASSURANCE-PAYLOAD"}
+      ],
+      "outputs": [{"kind": "artifact", "ref": "approved R3/Craft refresh delta"}],
+      "evidence_artifact": "SWU-R3C-010 Context Pack or preflight receipt",
+      "stop_conditions": ["block if BLK-DSV2-L2-ATTESTATION is closed or L1 is called actor-authenticated"]
+    },
+    {
+      "step_id": "s3",
+      "name": "Execute SWU-R3C-010 L1 manifest and seal",
+      "capability_ref": "task-session",
+      "pattern": "validation",
+      "techniques": ["artifact_contract_bridge", "validation_loop", "concrete_path_evidence", "execution_receipt_handoff"],
+      "inputs": [
+        {"kind": "handle", "ref": "s2"},
+        {"kind": "artifact", "ref": "mint proposal and owner-ratification source records"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "deterministic two-record manifest"},
+        {"kind": "artifact", "ref": "L1 attestation artifact"},
+        {"kind": "artifact", "ref": "positive and tamper-control receipt"}
+      ],
+      "evidence_artifact": "SWU-R3C-010 Task Session result",
+      "stop_conditions": ["block source-digest mismatch, nondeterministic manifest, false-valid tamper control, or private mechanism leak"]
+    },
+    {
+      "step_id": "s4",
+      "name": "Refresh private attestation sigil projections",
+      "capability_ref": "sigil-development",
+      "pattern": "handoff",
+      "techniques": ["owner_boundary_check", "artifact_contract_bridge", "validation_loop", "residue_ledger"],
+      "inputs": [
+        {"kind": "frame", "ref": "s1"},
+        {"kind": "artifact", "ref": "cyberAlchemy-v2/development/attestation-capability/development/TASK-SESSION-L1.md"}
+      ],
+      "outputs": [{"kind": "artifact", "ref": "README/HARNESS lifecycle-status update receipt"}],
+      "evidence_artifact": "sigil-development update receipt",
+      "stop_conditions": ["block promotion claim, L2-built claim, or public arcanum copy"]
+    },
+    {
+      "step_id": "s5",
+      "name": "Synchronize post-receipt authority and route final verification",
+      "capability_ref": "task-session",
+      "pattern": "validation",
+      "techniques": ["sequence", "recomposition_proof", "state_namespace_boundary", "execution_receipt_handoff", "authority_split_gate"],
+      "inputs": [
+        {"kind": "handle", "ref": "s3"},
+        {"kind": "ledger", "ref": "Craft blocker state"}
+      ],
+      "outputs": [{"kind": "artifact", "ref": "post-SWU-R3C-010 work-pack/Craft/authority synchronization"}],
+      "evidence_artifact": "SWU-R3C-010 receipt plus refreshed authority pointers",
+      "stop_conditions": ["block if authority model claims L1 before receipt or final L2 seal after only L1"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g1-apply-approval",
+      "kind": "human_approval",
+      "owner": "user",
+      "condition": "Proposal-only refresh is explicitly approved before target mutations.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g2-l1-evidence",
+      "kind": "validation",
+      "owner": "task-session",
+      "condition": "Manifest source digests recompute and both valid/tampered controls pass.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g3-l2-claim-boundary",
+      "kind": "promotion_guardrail",
+      "owner": "DomainSpec v2 authority owner",
+      "condition": "L1 is described only as integrity sealing; L2 external signature remains open.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g4-sigil-owner",
+      "kind": "quality",
+      "owner": "sigil-development",
+      "condition": "Attestation capability docs reflect L1 evidence without claiming lifecycle promotion.",
+      "on_fail": "flag"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "invoke_refresh_authored",
+      "refresh_apply_approved",
+      "r3c_010_manifest_verified",
+      "r3c_010_l1_attested",
+      "attestation_sigil_projection_refreshed",
+      "l2_residue_preserved"
+    ],
+    "signal_grouping": "dispatch_id"
+  },
+  "promotion_guardrails": [
+    "L1 integrity is not L2 actor authentication.",
+    "A refresh proposal is not execution approval.",
+    "Attestation capability documentation refresh is not sigil promotion.",
+    "Private mechanism and DomainSpec authority prose never move into public arcanum.",
+    "Original mint and ratification decisions remain historical governance acts."
+  ]
+}

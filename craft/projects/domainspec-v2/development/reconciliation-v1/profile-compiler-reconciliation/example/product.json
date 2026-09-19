@@ -1,0 +1,617 @@
+{
+  "schema_version": "domainspec.pcr-l0-product-example/v1-candidate",
+  "source_files": [
+    {
+      "path": "project.json",
+      "content": "{\n  \"schema_version\": \"domainspec.project/v1\",\n  \"project_id\": \"reconciliation-order-query\",\n  \"features\": [\n    \"commerce\"\n  ],\n  \"cross_feature_edges\": []\n}\n\n"
+    },
+    {
+      "path": "specs/commerce/edges/find-order-reads-order.json",
+      "content": "{\n  \"schema_version\": \"domainspec.edge/v1\",\n  \"edge_id\": \"find-order-reads-order\",\n  \"feature_id\": \"commerce\",\n  \"relationship\": \"reads\",\n  \"source_node_id\": \"find-order\",\n  \"target_node_id\": \"order\",\n  \"scope\": \"feature\"\n}\n"
+    },
+    {
+      "path": "specs/commerce/feature.json",
+      "content": "{\n  \"schema_version\": \"domainspec.feature/v1\",\n  \"feature_id\": \"commerce\",\n  \"nodes\": [\n    \"order\",\n    \"find-order\",\n    \"order-is-valid\"\n  ],\n  \"edges\": [\n    \"find-order-reads-order\"\n  ]\n}\n"
+    },
+    {
+      "path": "specs/commerce/nodes/find-order.json",
+      "content": "{\n  \"schema_version\": \"domainspec.node/v1\",\n  \"node_id\": \"find-order\",\n  \"feature_id\": \"commerce\",\n  \"kind\": \"Query\",\n  \"body\": {\n    \"description\": \"Find at most one order by identity in an explicitly supplied snapshot, without mutation or database access.\",\n    \"reads\": [\n      \"commerce:order\"\n    ],\n    \"typed_contract\": {\n      \"schema_version\": \"domainspec.typed-query/v1\",\n      \"ontology_query\": \"COMMERCE-FIND-ORDER\",\n      \"source\": \"commerce:order\",\n      \"inputs\": [\n        {\n          \"name\": \"order_id\",\n          \"type\": {\n            \"kind\": \"scalar\",\n            \"name\": \"String\"\n          }\n        }\n      ],\n      \"filter\": {\n        \"op\": \"eq\",\n        \"left\": {\n          \"kind\": \"field\",\n          \"name\": \"order_id\"\n        },\n        \"right\": {\n          \"kind\": \"parameter\",\n          \"name\": \"order_id\"\n        }\n      },\n      \"projection\": [\n        \"order_id\",\n        \"status\"\n      ],\n      \"order_by\": {\n        \"field\": \"order_id\",\n        \"direction\": \"asc\"\n      },\n      \"limit\": 1\n    }\n  }\n}\n\n"
+    },
+    {
+      "path": "specs/commerce/nodes/order-is-valid.json",
+      "content": "{\n  \"schema_version\": \"domainspec.node/v1\",\n  \"node_id\": \"order-is-valid\",\n  \"feature_id\": \"commerce\",\n  \"kind\": \"Rule\",\n  \"body\": {\n    \"description\": \"Orders require nonempty identity and a supported lifecycle status.\",\n    \"predicate\": \"structured:domainspec.typed-rule/v1\",\n    \"typed_contract\": {\n      \"schema_version\": \"domainspec.typed-rule/v1\",\n      \"ontology_rule\": \"COMMERCE-ORDER-IS-VALID\",\n      \"parameters\": [\n        {\n          \"name\": \"order\",\n          \"type\": {\n            \"kind\": \"named\",\n            \"selector\": \"commerce:order\"\n          }\n        }\n      ],\n      \"expression\": {\n        \"op\": \"all\",\n        \"terms\": [\n          {\n            \"op\": \"not\",\n            \"term\": {\n              \"op\": \"eq\",\n              \"left\": {\n                \"op\": \"path\",\n                \"root\": \"order\",\n                \"properties\": [\n                  \"COMMERCE-ORDER#order_id\"\n                ]\n              },\n              \"right\": {\n                \"op\": \"literal\",\n                \"type\": \"String\",\n                \"value\": \"\"\n              }\n            }\n          },\n          {\n            \"op\": \"any\",\n            \"terms\": [\n              {\n                \"op\": \"eq\",\n                \"left\": {\n                  \"op\": \"path\",\n                  \"root\": \"order\",\n                  \"properties\": [\n                    \"COMMERCE-ORDER#status\"\n                  ]\n                },\n                \"right\": {\n                  \"op\": \"literal\",\n                  \"type\": \"String\",\n                  \"value\": \"draft\"\n                }\n              },\n              {\n                \"op\": \"eq\",\n                \"left\": {\n                  \"op\": \"path\",\n                  \"root\": \"order\",\n                  \"properties\": [\n                    \"COMMERCE-ORDER#status\"\n                  ]\n                },\n                \"right\": {\n                  \"op\": \"literal\",\n                  \"type\": \"String\",\n                  \"value\": \"submitted\"\n                }\n              }\n            ]\n          }\n        ]\n      }\n    }\n  }\n}\n"
+    },
+    {
+      "path": "specs/commerce/nodes/order.json",
+      "content": "{\n  \"schema_version\": \"domainspec.node/v1\",\n  \"node_id\": \"order\",\n  \"feature_id\": \"commerce\",\n  \"kind\": \"Entity\",\n  \"body\": {\n    \"description\": \"An order tracked by stable order_id independently of its current status.\",\n    \"fields\": [\n      \"order_id\",\n      \"status\",\n      \"internal_note\"\n    ],\n    \"typed_contract\": {\n      \"schema_version\": \"domainspec.typed-record/v1\",\n      \"ontology_node\": \"COMMERCE-ORDER\",\n      \"properties\": [\n        {\n          \"ontology_property\": \"COMMERCE-ORDER#order_id\",\n          \"name\": \"order_id\",\n          \"type\": {\n            \"kind\": \"scalar\",\n            \"name\": \"String\"\n          },\n          \"cardinality\": \"one\",\n          \"identity\": true,\n          \"meaning\": \"Stable identity of this order.\"\n        },\n        {\n          \"ontology_property\": \"COMMERCE-ORDER#status\",\n          \"name\": \"status\",\n          \"type\": {\n            \"kind\": \"scalar\",\n            \"name\": \"String\"\n          },\n          \"cardinality\": \"one\",\n          \"identity\": false,\n          \"meaning\": \"Current order status; changing it does not change identity.\"\n        },\n        {\n          \"ontology_property\": \"COMMERCE-ORDER#internal_note\",\n          \"name\": \"internal_note\",\n          \"type\": {\n            \"kind\": \"scalar\",\n            \"name\": \"String\"\n          },\n          \"cardinality\": \"one\",\n          \"identity\": false,\n          \"meaning\": \"Internal data excluded from the public query projection.\"\n        }\n      ]\n    }\n  }\n}\n\n"
+    }
+  ],
+  "plan": {
+    "schema_version": "domainspec.profiled-project-plan/v1-candidate",
+    "selection": {
+      "entity_rules": [
+        {
+          "entity": "commerce:order",
+          "parameter": "order",
+          "rule": "commerce:order-is-valid"
+        }
+      ],
+      "language": "typescript",
+      "profile_digests": {
+        "base": "48d0ba174105b020bb6b94c79c27b208a67f7d5f92d4c0c9c3a28c7d91a04d9f",
+        "typescript": "32cf17b4a0c4d5c36f344d6cec22450a041b52e7a5bdef129a74ac319694b6b0"
+      },
+      "schema_version": "domainspec.profiled-project-selection/v1-candidate",
+      "source_root": "commerce-module"
+    },
+    "certificate": {
+      "schema_version": "domainspec.compiled-project-certificate/v1",
+      "project_id": "reconciliation-order-query",
+      "source_manifest_sha256": "bf98c91ca812d0f5b6bb6b1ed546ea08c84e007d14e3a17bdce630996674f34a",
+      "graph_sha256": "592a586fd6d0955a0fd987b03aa279a6a552dc00f86023e3434edaacacf84fbb",
+      "node_count": 3,
+      "edge_count": 1,
+      "backend_type_ids": [
+        "DS-D1.1",
+        "DS-D1.5",
+        "DS-D1.7"
+      ],
+      "backend_relationship_ids": [
+        "reads"
+      ],
+      "obligation_applicability": [
+        {
+          "obligation_id": "admit_same_and_cross_feature_scope",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "enforces"
+          ],
+          "source_selector": "commerce:order-is-valid",
+          "reason": "no authored instance of backend relationships:enforces"
+        },
+        {
+          "obligation_id": "derive_creation_targets_from_edge",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "creates"
+          ],
+          "source_selector": "relationship-authority:creates#derive_creation_targets_from_edge",
+          "reason": "no authored instance of backend relationships:creates"
+        },
+        {
+          "obligation_id": "reject_authored_generated_projection",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "creates"
+          ],
+          "source_selector": "relationship-authority:creates#reject_authored_generated_projection",
+          "reason": "no authored instance of backend relationships:creates"
+        },
+        {
+          "obligation_id": "reject_cross_feature_scope",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "creates"
+          ],
+          "source_selector": "relationship-authority:creates#reject_cross_feature_scope",
+          "reason": "no authored instance of backend relationships:creates"
+        },
+        {
+          "obligation_id": "reject_deprecated_queries_alias",
+          "classification": "applicable",
+          "relationship_ids": [
+            "reads"
+          ],
+          "source_selector": "commerce:find-order",
+          "reason": "witnessed by authored relationship:find-order-reads-order"
+        },
+        {
+          "obligation_id": "reject_enforces_cross_label",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "enforces"
+          ],
+          "source_selector": "commerce:order-is-valid",
+          "reason": "no authored instance of backend relationships:enforces"
+        },
+        {
+          "obligation_id": "reject_inverse_collapse_with_owns",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "belongs-to"
+          ],
+          "source_selector": "commerce:order",
+          "reason": "no authored instance of backend relationships:belongs-to"
+        },
+        {
+          "obligation_id": "reject_multiple_sources_per_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "creates"
+          ],
+          "source_selector": "relationship-authority:creates#reject_multiple_sources_per_target",
+          "reason": "no authored instance of backend relationships:creates"
+        },
+        {
+          "obligation_id": "reject_multiple_targets_per_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "creates"
+          ],
+          "source_selector": "relationship-authority:creates#reject_multiple_targets_per_source",
+          "reason": "no authored instance of backend relationships:creates"
+        },
+        {
+          "obligation_id": "reject_non_calculation_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "calculates"
+          ],
+          "source_selector": "relationship-authority:calculates#reject_non_calculation_source",
+          "reason": "no authored instance of backend relationships:calculates"
+        },
+        {
+          "obligation_id": "reject_non_entity_or_interface_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "maps"
+          ],
+          "source_selector": "relationship-authority:maps#reject_non_entity_or_interface_target",
+          "reason": "no authored instance of backend relationships:maps"
+        },
+        {
+          "obligation_id": "reject_non_entity_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "belongs-to",
+            "contains",
+            "emits",
+            "owns",
+            "performs"
+          ],
+          "source_selector": "commerce:order",
+          "reason": "no authored instance of backend relationships:belongs-to,contains,emits,owns,performs"
+        },
+        {
+          "obligation_id": "reject_non_entity_target",
+          "classification": "applicable",
+          "relationship_ids": [
+            "belongs-to",
+            "creates",
+            "owns",
+            "produces-for",
+            "reads"
+          ],
+          "source_selector": "commerce:find-order",
+          "reason": "witnessed by authored relationship:find-order-reads-order"
+        },
+        {
+          "obligation_id": "reject_non_event_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "transitions",
+            "triggers-cross"
+          ],
+          "source_selector": "relationship-authority:transitions#reject_non_event_source",
+          "reason": "no authored instance of backend relationships:transitions,triggers-cross"
+        },
+        {
+          "obligation_id": "reject_non_event_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "emits",
+            "produces"
+          ],
+          "source_selector": "commerce:order",
+          "reason": "no authored instance of backend relationships:emits,produces"
+        },
+        {
+          "obligation_id": "reject_non_interface_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "exposes"
+          ],
+          "source_selector": "relationship-authority:exposes#reject_non_interface_source",
+          "reason": "no authored instance of backend relationships:exposes"
+        },
+        {
+          "obligation_id": "reject_non_mapping_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "maps"
+          ],
+          "source_selector": "relationship-authority:maps#reject_non_mapping_source",
+          "reason": "no authored instance of backend relationships:maps"
+        },
+        {
+          "obligation_id": "reject_non_operation_or_calculation_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "applies"
+          ],
+          "source_selector": "relationship-authority:applies#reject_non_operation_or_calculation_target",
+          "reason": "no authored instance of backend relationships:applies"
+        },
+        {
+          "obligation_id": "reject_non_operation_or_query_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "exposes"
+          ],
+          "source_selector": "relationship-authority:exposes#reject_non_operation_or_query_target",
+          "reason": "no authored instance of backend relationships:exposes"
+        },
+        {
+          "obligation_id": "reject_non_operation_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "creates",
+            "produces",
+            "produces-for"
+          ],
+          "source_selector": "relationship-authority:creates#reject_non_operation_source",
+          "reason": "no authored instance of backend relationships:creates,produces,produces-for"
+        },
+        {
+          "obligation_id": "reject_non_operation_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "calculates",
+            "enforces",
+            "orchestrates",
+            "performs",
+            "triggers-cross"
+          ],
+          "source_selector": "commerce:order",
+          "reason": "no authored instance of backend relationships:calculates,enforces,orchestrates,performs,triggers-cross"
+        },
+        {
+          "obligation_id": "reject_non_policy_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "applies"
+          ],
+          "source_selector": "relationship-authority:applies#reject_non_policy_source",
+          "reason": "no authored instance of backend relationships:applies"
+        },
+        {
+          "obligation_id": "reject_non_query_or_operation_source",
+          "classification": "applicable",
+          "relationship_ids": [
+            "reads"
+          ],
+          "source_selector": "commerce:find-order",
+          "reason": "witnessed by authored relationship:find-order-reads-order"
+        },
+        {
+          "obligation_id": "reject_non_rule_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "enforces"
+          ],
+          "source_selector": "commerce:order-is-valid",
+          "reason": "no authored instance of backend relationships:enforces"
+        },
+        {
+          "obligation_id": "reject_non_state_machine_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "transitions"
+          ],
+          "source_selector": "relationship-authority:transitions#reject_non_state_machine_target",
+          "reason": "no authored instance of backend relationships:transitions"
+        },
+        {
+          "obligation_id": "reject_non_value_object_target",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "contains"
+          ],
+          "source_selector": "commerce:order",
+          "reason": "no authored instance of backend relationships:contains"
+        },
+        {
+          "obligation_id": "reject_non_workflow_source",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "orchestrates"
+          ],
+          "source_selector": "relationship-authority:orchestrates#reject_non_workflow_source",
+          "reason": "no authored instance of backend relationships:orchestrates"
+        },
+        {
+          "obligation_id": "require_admitted_workflow_scope",
+          "classification": "inapplicable",
+          "relationship_ids": [
+            "orchestrates"
+          ],
+          "source_selector": "relationship-authority:orchestrates#require_admitted_workflow_scope",
+          "reason": "no authored instance of backend relationships:orchestrates"
+        }
+      ],
+      "obligation_witnesses": [
+        {
+          "witness_id": "find-order-reads-order:reject_deprecated_queries_alias",
+          "edge_id": "find-order-reads-order",
+          "obligation_id": "reject_deprecated_queries_alias",
+          "family": "deprecation",
+          "predicate": {
+            "relationship_id": "reads",
+            "allowed_source_types": [
+              "Query",
+              "Operation"
+            ],
+            "allowed_target_types": [
+              "Entity"
+            ],
+            "allowed_scopes": [
+              "same-feature"
+            ],
+            "multiplicity": "many_to_many",
+            "inverse_kind": "none",
+            "generated_projection_attribute": null
+          },
+          "witness": {
+            "scope": "feature",
+            "source_selector": "commerce:find-order",
+            "source_type": "Query",
+            "target_selector": "commerce:order",
+            "target_type": "Entity"
+          }
+        },
+        {
+          "witness_id": "find-order-reads-order:reject_non_entity_target",
+          "edge_id": "find-order-reads-order",
+          "obligation_id": "reject_non_entity_target",
+          "family": "endpoint",
+          "predicate": {
+            "relationship_id": "reads",
+            "allowed_source_types": [
+              "Query",
+              "Operation"
+            ],
+            "allowed_target_types": [
+              "Entity"
+            ],
+            "allowed_scopes": [
+              "same-feature"
+            ],
+            "multiplicity": "many_to_many",
+            "inverse_kind": "none",
+            "generated_projection_attribute": null
+          },
+          "witness": {
+            "scope": "feature",
+            "source_selector": "commerce:find-order",
+            "source_type": "Query",
+            "target_selector": "commerce:order",
+            "target_type": "Entity"
+          }
+        },
+        {
+          "witness_id": "find-order-reads-order:reject_non_query_or_operation_source",
+          "edge_id": "find-order-reads-order",
+          "obligation_id": "reject_non_query_or_operation_source",
+          "family": "endpoint",
+          "predicate": {
+            "relationship_id": "reads",
+            "allowed_source_types": [
+              "Query",
+              "Operation"
+            ],
+            "allowed_target_types": [
+              "Entity"
+            ],
+            "allowed_scopes": [
+              "same-feature"
+            ],
+            "multiplicity": "many_to_many",
+            "inverse_kind": "none",
+            "generated_projection_attribute": null
+          },
+          "witness": {
+            "scope": "feature",
+            "source_selector": "commerce:find-order",
+            "source_type": "Query",
+            "target_selector": "commerce:order",
+            "target_type": "Entity"
+          }
+        }
+      ],
+      "obligation_outcomes": [
+        {
+          "witness_id": "find-order-reads-order:reject_deprecated_queries_alias",
+          "obligation_id": "reject_deprecated_queries_alias",
+          "family": "deprecation",
+          "outcome": "pass"
+        },
+        {
+          "witness_id": "find-order-reads-order:reject_non_entity_target",
+          "obligation_id": "reject_non_entity_target",
+          "family": "endpoint",
+          "outcome": "pass"
+        },
+        {
+          "witness_id": "find-order-reads-order:reject_non_query_or_operation_source",
+          "obligation_id": "reject_non_query_or_operation_source",
+          "family": "endpoint",
+          "outcome": "pass"
+        }
+      ],
+      "compiler": {
+        "package": "@domainspec-v2/cli",
+        "version": "1.0.0",
+        "node": "v26.8.1"
+      },
+      "authority_effect": "none",
+      "certificate_sha256": "81e4cbc2f6cf7b517497aaef969b388a238ada6afb7b2140cb1d0fb9a957e7ce"
+    },
+    "modules": [
+      {
+        "selector": "commerce:order",
+        "kind": "Entity",
+        "relative_path": "commerce-module/src/domain/entities/order.ts",
+        "callable": "createOrderFactory",
+        "imports": [
+          {
+            "path": "../rules/order-is-valid.js",
+            "symbol": "ruleOrderIsValid",
+            "type_only": false
+          }
+        ]
+      },
+      {
+        "selector": "commerce:order-is-valid",
+        "kind": "Rule",
+        "relative_path": "commerce-module/src/domain/rules/order-is-valid.ts",
+        "callable": "ruleOrderIsValid",
+        "imports": [
+          {
+            "path": "../entities/order.js",
+            "symbol": "OrderFields",
+            "type_only": true
+          }
+        ]
+      },
+      {
+        "selector": "commerce:find-order",
+        "kind": "Query",
+        "relative_path": "commerce-module/src/application/queries/find-order.ts",
+        "callable": "queryFindOrder",
+        "imports": [
+          {
+            "path": "../../domain/entities/order.js",
+            "symbol": "OrderSnapshot",
+            "type_only": true
+          }
+        ]
+      }
+    ],
+    "realizations": [
+      {
+        "meta_type_id": "DS-D1.5",
+        "meta_type_label": "Query",
+        "language": "typescript",
+        "source": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/targets/typescript/query-v1.ts",
+          "sha256": "d3b365f74d234b33b0681dab4d042f916f6aeaca0daf3a50cb4fc43990943f6d"
+        },
+        "provider": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/factory/registry/providers/typescript-query-v1.ts",
+          "sha256": "46dbe007e793728e381a560278c6cdf1b8d4ffa3f158501ecf7df16347831bcb"
+        },
+        "binding": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/realizations/query/typescript/read-model-v1/typescript-binding.json",
+          "sha256": "5a0bff57705aa4df5957971fb0e6358f633adf16aabb6ef8e962f3367201f18e"
+        }
+      },
+      {
+        "meta_type_id": "DS-D1.1",
+        "meta_type_label": "Entity",
+        "language": "typescript",
+        "source": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/targets/typescript/entity-v1.ts",
+          "sha256": "c174f82e19e72b30f9305f005809bf8a63b52d102e708a9739a3d898b704b197"
+        },
+        "provider": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/factory/registry/providers/typescript-entity-v1.ts",
+          "sha256": "b53128e807f734043019e75e6b892900b83c320b909d859644f6a820a9c960f1"
+        },
+        "binding": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/realizations/entity/typescript/identity-lifecycle-v1/typescript-binding.json",
+          "sha256": "4c5b4d8f9e6febb255117a7a3e207b30dc369bfe61d8dc1933d792a7bbadb6e8"
+        }
+      },
+      {
+        "meta_type_id": "DS-D1.7",
+        "meta_type_label": "Rule",
+        "language": "typescript",
+        "source": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/targets/typescript/rule-v1.ts",
+          "sha256": "774c3641bc95f8ee9be65c948a5c2823d55f7ad6d1713234cd14434c75dea7bc"
+        },
+        "provider": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/factory/registry/providers/rule-typescript-v1.ts",
+          "sha256": "462b98e0eba7f3592a9e4c0c565cd43ebe0f332c1c8f2303e3404f871dd1d443"
+        },
+        "binding": {
+          "path": "projects/domainspec-v2/impl/architecture-conformance/realizations/rule/typescript/pure-boolean-v1/typescript-binding.json",
+          "sha256": "be17b5db82127ceb2cc80266460690355355d67ea33fa68cf890df92e5b72c03"
+        }
+      }
+    ],
+    "artifacts": [
+      {
+        "relative_path": "commerce-module/src/application/queries/find-order.ts",
+        "content": "import type { OrderSnapshot } from \"../../domain/entities/order.js\";\nexport const queryFindOrder = (snapshots:readonly OrderSnapshot[], parameters:Readonly<{\"order_id\":string}>) => {\n  if(!Object.hasOwn(parameters,\"order_id\")) throw new TypeError(\"missing parameter:order_id\");\n  let selected = snapshots.map(snapshot=>snapshot.fields).filter(row=>(row[\"order_id\"] === parameters[\"order_id\"]));\n  selected = [...selected].sort((a,b)=>a[\"order_id\"] === b[\"order_id\"] ? 0 : a[\"order_id\"] < b[\"order_id\"] ? -1 : 1);\n  selected = selected.slice(0,1);\n  return Object.freeze(selected.map(row=>Object.freeze({\"order_id\":row[\"order_id\"],\"status\":row[\"status\"]})));\n};\n",
+        "sha256": "edbb4eace46ed71d25d9f01895a833ae2a4a4b285efc7cede5531ebfbd9f7e1f",
+        "size_bytes": 661
+      },
+      {
+        "relative_path": "commerce-module/src/domain/entities/order.ts",
+        "content": "import { ruleOrderIsValid } from \"../rules/order-is-valid.js\";\nexport interface OrderFields {\n  readonly \"order_id\": string;\n  readonly \"status\": string;\n  readonly \"internal_note\": string;\n}\nconst brand: unique symbol = Symbol(\"Order\");\nconst snapshots = new WeakSet<object>();\nexport interface OrderSnapshot {\n  readonly [brand]: true;\n  readonly fields: OrderFields;\n  readonly hash: () => string;\n  readonly sameIdentity: (other: OrderSnapshot) => boolean;\n}\ntype Result = Readonly<{ok:true; value:OrderSnapshot; failure_codes:readonly string[]}> | Readonly<{ok:false; value:null; failure_codes:readonly string[]}>;\ntype Validator = (fields:OrderFields) => boolean;\ninterface Factory {\n  readonly create:(input:unknown)=>Result;\n  readonly reconstruct:(input:unknown)=>Result;\n  readonly transition:(previous:OrderSnapshot,input:unknown)=>Result;\n  readonly extend:(validate:Validator)=>Factory;\n}\nconst failure = (code:string):Result => Object.freeze({ok:false, value:null, failure_codes:Object.freeze([code])});\nconst identityKey = (fields:OrderFields):string => JSON.stringify([fields[\"order_id\"]]);\nconst makeFactory = (extra:readonly Validator[]):Factory => {\n  const construct = (input:unknown, previous?:OrderSnapshot):Result => {\n    if (input === null || typeof input !== 'object' || Array.isArray(input)) return failure('INVALID_FIELDS');\n    const descriptors = Object.getOwnPropertyDescriptors(input);\n    if (Reflect.ownKeys(input).length !== 3 || !(typeof descriptors[\"order_id\"]?.value === \"string\" && typeof descriptors[\"status\"]?.value === \"string\" && typeof descriptors[\"internal_note\"]?.value === \"string\") || Object.values(descriptors).some(d => !Object.hasOwn(d,'value'))) return failure('INVALID_FIELDS');\n    const fields:OrderFields = Object.freeze({\"order_id\": descriptors[\"order_id\"]!.value, \"status\": descriptors[\"status\"]!.value, \"internal_note\": descriptors[\"internal_note\"]!.value});\n    // Every exposed construction route reaches the bound Rule before a snapshot exists.\n    if (!ruleOrderIsValid(fields)) return failure(\"RULE_FAILED:commerce:order-is-valid\");\n    try { if (!extra.every(validate => validate(fields) === true)) return failure('EXTENSION_FAILED'); }\n    catch { return failure('EXTENSION_FAILED'); }\n    const key = identityKey(fields);\n    if (previous !== undefined && (!snapshots.has(previous) || previous.hash() !== key)) return failure('IDENTITY_CHANGED');\n    const value:OrderSnapshot = Object.freeze({[brand]:true as const, fields, hash:()=>key, sameIdentity:(other:OrderSnapshot)=>snapshots.has(other) && other.hash() === key});\n    snapshots.add(value);\n    return Object.freeze({ok:true, value, failure_codes:Object.freeze([])});\n  };\n  return Object.freeze({\n    create:(input:unknown):Result=>construct(input),\n    reconstruct:(input:unknown):Result=>construct(input),\n    transition:(previous:OrderSnapshot,input:unknown):Result=>snapshots.has(previous) ? construct(input,previous) : failure('INVALID_PREVIOUS'),\n    extend:(validate:Validator):Factory=>{if(typeof validate!=='function') throw new TypeError('validator must be callable'); return makeFactory(Object.freeze([...extra,validate]));},\n  });\n};\nexport const createOrderFactory = () => makeFactory(Object.freeze([]));\n",
+        "sha256": "0e19d8720caa15830070c9a8a51bfbb2957e20d24f2bdc40515a1dc5409d9f10",
+        "size_bytes": 3244
+      },
+      {
+        "relative_path": "commerce-module/src/domain/rules/order-is-valid.ts",
+        "content": "import type { OrderFields } from \"../entities/order.js\";\nexport const ruleOrderIsValid = (fields:OrderFields):boolean => (!((fields[\"order_id\"] === \"\")) && ((fields[\"status\"] === \"draft\") || (fields[\"status\"] === \"submitted\")));\n",
+        "sha256": "8158f9995782decbbbe6faa7e3f3aaa3b32056632a3af8c755e20d9ed95d0780",
+        "size_bytes": 229
+      }
+    ],
+    "authority_effect": "none",
+    "plan_sha256": "255d8d4b001a2b2c0b5c996b5cb54fbb249f0f0861f790dfd75591c29bd3c203"
+  },
+  "native_outcomes": [
+    {
+      "toolchain": {
+        "image": "sha256:ad84ad003986966fc38cf50953363ce81eb44d108734b882bee8b912c9b652ef",
+        "typescript": "Version 7.0.2"
+      },
+      "native_ast": {
+        "result": "pass",
+        "typescript": "7.0.2",
+        "module_count": 3
+      },
+      "output": [
+        {
+          "order_id": "order-1",
+          "status": "submitted"
+        }
+      ],
+      "identity": "[\"order-1\"]",
+      "source_hashes": [
+        "edbb4eace46ed71d25d9f01895a833ae2a4a4b285efc7cede5531ebfbd9f7e1f",
+        "0e19d8720caa15830070c9a8a51bfbb2957e20d24f2bdc40515a1dc5409d9f10",
+        "8158f9995782decbbbe6faa7e3f3aaa3b32056632a3af8c755e20d9ed95d0780"
+      ]
+    },
+    {
+      "toolchain": {
+        "image": "sha256:ad84ad003986966fc38cf50953363ce81eb44d108734b882bee8b912c9b652ef",
+        "typescript": "Version 7.0.2"
+      },
+      "native_ast": {
+        "result": "pass",
+        "typescript": "7.0.2",
+        "module_count": 3
+      },
+      "output": [
+        {
+          "order_id": "order-1",
+          "status": "submitted"
+        }
+      ],
+      "identity": "[\"order-1\"]",
+      "source_hashes": [
+        "edbb4eace46ed71d25d9f01895a833ae2a4a4b285efc7cede5531ebfbd9f7e1f",
+        "0e19d8720caa15830070c9a8a51bfbb2957e20d24f2bdc40515a1dc5409d9f10",
+        "8158f9995782decbbbe6faa7e3f3aaa3b32056632a3af8c755e20d9ed95d0780"
+      ]
+    }
+  ],
+  "authority_effect": "none",
+  "claim_ceiling": "L0 generated-code example; not a package qualification or 39-cell compiler result",
+  "open_questions_ref": "../PLAN.md#9-open-questions-and-proposed-decisions"
+}

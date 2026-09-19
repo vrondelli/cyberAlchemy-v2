@@ -1,0 +1,27 @@
+{
+  "schema_version": "alchlang.application-syntax-cases/v1",
+  "authority_effect": "none",
+  "status": "implementation-obligations",
+  "positive": [
+    {"id":"declared-claim-rule","source":"formal-claim EligibleClaim:\n  profile fol-core/1-candidate\n  sort Order\n  predicate Eligible(Order)\n  proposition forall order: Order: Eligible(order)\n  ceiling \"Eligibility only.\"\nrule EligibleOrder:\n  claim EligibleClaim\n"},
+    {"id":"policy-rule-reference","source":"policy Fulfillment:\n  inputs order\n  case EligibleOrder -> SubmitOrder\n  default RejectOrder\n  applies SubmitOrder, RejectOrder\n"},
+    {"id":"state-trigger-guard","source":"state-machine OrderLifecycle:\n  subject Order\n  initial Draft\n  state Draft\n  state Submitted\n  transition Submit:\n    from Draft\n    to Submitted\n    on OrderPlaced\n    guard EligibleOrder\n"},
+    {"id":"invariant-claim","source":"invariant SubmissionEligibility:\n  claim EligibleClaim\n"},
+    {"id":"operation-rule","source":"EligibleOrder --enforces--> SubmitOrder\n"},
+    {"id":"typed-functions-equality","source":"formal-claim ZeroTotal:\n  profile fol-core/1-candidate\n  sort Order\n  sort Amount\n  function Total(Order) -> Amount\n  constant Zero: Amount\n  proposition exists order: Order: Total(order) = Zero\n  ceiling \"One zero-total order.\"\n"}
+  ],
+  "negative": [
+    {"id":"legacy-profile-mix","source":"profile application-v1\nlogic sfol-v1\n","expected":"ALCH_PROFILE_CONFLICT"},
+    {"id":"duplicate-proposition","source":"formal-claim C:\n  profile fol-core/1-candidate\n  sort Order\n  predicate P(Order)\n  proposition forall o: Order: P(o)\n  proposition exists o: Order: P(o)\n  ceiling \"test\"\n","expected":"CLAIM_PROPOSITION_COUNT"},
+    {"id":"missing-claim","source":"rule R:\n  claim Missing\n","expected":"CLAIM_UNRESOLVED"},
+    {"id":"rule-second-condition","source":"rule R:\n  claim EligibleClaim\n  predicate total > 0\n","expected":"RULE_SECOND_CONDITION"},
+    {"id":"inline-policy","source":"policy P:\n  case order.total > 0 -> SubmitOrder\n  default RejectOrder\n","expected":"POLICY_RULE_REFERENCE"},
+    {"id":"inline-guard","source":"guard order.total > 0","expected":"GUARD_RULE_REFERENCE"},
+    {"id":"competing-invariant","source":"invariant I:\n  claim EligibleClaim\n  rule EligibleOrder\n","expected":"INVARIANT_CONDITION_COUNT"},
+    {"id":"free-variable","proposition":"P(o)","signature":{"sorts":["Order"],"predicates":[{"name":"P","parameters":["Order"]}]},"expected":"FOL_UNBOUND_VARIABLE"},
+    {"id":"unknown-symbol","proposition":"forall o: Order: Missing(o)","signature":{"sorts":["Order"],"predicates":[]},"expected":"FOL_UNKNOWN_SYMBOL"},
+    {"id":"wrong-arity","proposition":"forall o: Order: P(o, o)","signature":{"sorts":["Order"],"predicates":[{"name":"P","parameters":["Order"]}]},"expected":"FOL_ARITY"},
+    {"id":"wrong-sort","proposition":"forall c: Customer: P(c)","signature":{"sorts":["Order","Customer"],"predicates":[{"name":"P","parameters":["Order"]}]},"expected":"FOL_SORT_MISMATCH"},
+    {"id":"unknown-sort","proposition":"forall o: Missing: P(o)","signature":{"sorts":["Order"],"predicates":[{"name":"P","parameters":["Order"]}]},"expected":"FOL_UNKNOWN_SORT"}
+  ]
+}

@@ -2,8 +2,10 @@ import {createHash} from 'node:crypto';
 import {Rejected, CreationFailed, createAtProvider} from './errors.mjs';
 
 export const ORDERS_API='orders-v1';
-const orderId=value=>typeof value==='string'&&/^ORD[A-Z0-9]{26}$/.test(value);
-const paymentId=value=>typeof value==='string'&&/^PAY[A-Z0-9]{26}$/.test(value);
+// Orders identifiers observed across SDK fixtures and the live sandbox are
+// 29–32 characters including the ORD/PAY prefix. Keep the alphabet exact.
+const orderId=value=>typeof value==='string'&&/^ORD[A-Z0-9]{26,29}$/.test(value);
+const paymentId=value=>typeof value==='string'&&/^PAY[A-Z0-9]{26,29}$/.test(value);
 const decimal=n=>`${Math.floor(n/100)}.${String(n%100).padStart(2,'0')}`;
 const amount=(value,expected)=>typeof value==='string'&&/^\d+(\.\d{1,2})?$/.test(value)&&Number.isSafeInteger(expected)&&BigInt(value.split('.')[0])*100n+BigInt((value.split('.')[1]??'').padEnd(2,'0'))===BigInt(expected);
 // Binds the local order and immutable offer to the provider's supported reference field.

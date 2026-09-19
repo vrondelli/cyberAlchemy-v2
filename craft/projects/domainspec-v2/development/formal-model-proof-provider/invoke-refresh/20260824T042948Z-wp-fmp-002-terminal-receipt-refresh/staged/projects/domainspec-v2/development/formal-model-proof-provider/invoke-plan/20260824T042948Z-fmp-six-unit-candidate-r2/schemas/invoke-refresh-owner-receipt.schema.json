@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.dev/schemas/fmp/invoke-refresh-owner-receipt/1-0-0",
+  "title": "WP-FMP-002 Invoke Refresh Owner Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "work_pack_id",
+    "swu_id",
+    "execution_receipt_sha256",
+    "postimage_inventory_sha256",
+    "successor",
+    "result",
+    "lifecycle_owner_validation",
+    "blockers",
+    "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "fmp.invoke-refresh-owner-receipt.v1"
+    },
+    "work_pack_id": {
+      "const": "WP-FMP-002"
+    },
+    "swu_id": {
+      "enum": [
+        "SWU-FMP2-001",
+        "SWU-FMP2-002",
+        "SWU-FMP2-003",
+        "SWU-FMP2-004",
+        "SWU-FMP2-005",
+        "SWU-FMP2-006"
+      ]
+    },
+    "execution_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "postimage_inventory_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "successor": {
+      "oneOf": [
+        {
+          "enum": [
+            "SWU-FMP2-002",
+            "SWU-FMP2-003",
+            "SWU-FMP2-004",
+            "SWU-FMP2-005",
+            "SWU-FMP2-006"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "result": {
+      "enum": [
+        "pass",
+        "no-op",
+        "block"
+      ]
+    },
+    "lifecycle_owner_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "validated_delta_classes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "no-op",
+            "block"
+          ]
+        },
+        "validated_delta_classes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "evidence_added",
+              "blocker_opened",
+              "blocker_resolved",
+              "status_changed",
+              "route_changed"
+            ]
+          }
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "authority_effect": {
+      "const": "none"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "pass"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "then": {
+        "properties": {
+          "lifecycle_owner_validation": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            }
+          },
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "const": "block"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "then": {
+        "properties": {
+          "successor": {
+            "type": "null"
+          },
+          "lifecycle_owner_validation": {
+            "properties": {
+              "status": {
+                "const": "block"
+              }
+            }
+          },
+          "blockers": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

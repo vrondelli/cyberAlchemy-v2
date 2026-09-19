@@ -15,7 +15,8 @@ export function paymentPresentation(result,now=Math.floor(Date.now()/1000)){
 }
 export function createBuyerClient({fetch:request=globalThis.fetch,storage=globalThis.sessionStorage,uuid=()=>crypto.randomUUID()}={}){
   function validResult(result,provider){
-    if(result?.mode!=='sandbox'||!/^[a-f0-9]{32}$/.test(result.orderId)||!Number.isSafeInteger(result.amountCents)||result.amountCents<=0||result.currency!==(provider==='mercadopago'?'BRL':'USD'))throw new BuyerError('invalid-checkout-response');
+    const currencyAccepted=provider==='stripe'?result?.currency==='USD':provider==='mercadopago'?result?.currency==='BRL':['USD','BRL'].includes(result?.currency);
+    if(result?.mode!=='sandbox'||!/^[a-f0-9]{32}$/.test(result.orderId)||!Number.isSafeInteger(result.amountCents)||result.amountCents<=0||!currencyAccepted||(result.currency==='BRL'&&(!Number.isSafeInteger(result.usdAmountCents)||result.usdAmountCents<=0||typeof result.quoteReference!=='string'||!result.quoteReference)))throw new BuyerError('invalid-checkout-response');
     if(result.recovered===true){if(result.checkoutUrl!==undefined||result.pixCode!==undefined)throw new BuyerError('invalid-checkout-response');return;}
     if(provider==='mercadopago'){if(['preparing','verification-required','expired'].includes(result.checkoutState)&&result.pixCode===undefined&&result.checkoutUrl===undefined)return;if(typeof result.pixCode!=='string'||!result.pixCode||result.pixCode.length>4096)throw new BuyerError('invalid-checkout-response');}
     else {const u=new URL(result.checkoutUrl);const host=provider==='stripe'?'checkout.stripe.com':'www.sandbox.paypal.com';if(u.protocol!=='https:'||u.hostname!==host||u.port||u.username||u.password)throw new BuyerError('invalid-checkout-response');}

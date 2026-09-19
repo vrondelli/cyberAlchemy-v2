@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+"""Portable front end to the separately built EVF Rust runner and verifier."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import uuid
+
+sys.dont_write_bytecode = True
+KIT = Path(__file__).resolve().parent
+ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\Z")
+
+
+class Error(Exception):
+    pass
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise Error("Duplicate JSON field: " + key)
+        result[key] = value
+    return result
+
+
+def read_json(path):
+    path = Path(path)
+    if path.stat().st_size > 8 * 1024 * 1024:
+        raise Error("JSON input exceeds 8 MiB: " + str(path))
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object,
+                      parse_constant=lambda value: (_ for _ in ()).throw(Error("Non-finite JSON number")))
+
+
+def sha(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for part in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(part)
+    return digest.hexdigest()
+
+
+def encoded(value):
+    return (json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n").encode()
+
+
+def new_json(path, value):
+    data = encoded(value)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileExistsError:
+        if path.is_symlink() or path.read_bytes() != data:
+            raise Error("Refusing to overwrite existing artifact: " + str(path))
+
+
+def fields(value, required, optional=()):
+    if not isinstance(value, dict):
+        raise Error("Expected a JSON object")
+    if set(value) - set(required) - set(optional) or set(required) - set(value):
+        raise Error("Invalid fields: required=" + repr(sorted(required)) + ", supplied=" + repr(sorted(value)))
+
+
+def identifier(value):
+    if not isinstance(value, str) or not ID.fullmatch(value):
+        raise Error("Invalid identifier: " + repr(value))
+    return value
+
+
+def local_file(root, value):
+    if not isinstance(value, str) or not value or Path(value).is_absolute() or ".." in Path(value).parts:
+        raise Error("Expected a workspace-relative file path: " + repr(value))
+    path = (root / value).resolve(strict=True)
+    if not path.is_relative_to(root) or not path.is_file():
+        raise Error("File escapes workspace or is not a regular file: " + value)
+    return path
+
+
+def reference(root, path):
+    path = Path(path).resolve(strict=True)
+    if not path.is_file():
+        raise Error("Expected a regular file: " + str(path))
+    inside = path.is_relative_to(root)
+    return {"path": path.relative_to(root).as_posix() if inside else str(path),
+            "location": "repository" if inside else "host", "sha256": sha(path),
+            "size_bytes": path.stat().st_size, "current": True}
+
+
+def refs(root, paths):
+    if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)):
+        raise Error("File lists must be nonempty and contain no duplicates")
+    return [reference(root, local_file(root, item)) for item in paths]
+
+
+def check_kit():
+    manifest = read_json(KIT / "KIT-MANIFEST.json")
+    for item in manifest["files"]:
+        path = local_file(KIT, item["path"])
+        if sha(path) != item["sha256"] or path.stat().st_size != item["size_bytes"]:
+            raise Error("Kit integrity mismatch: " + item["path"])
+    for name in ("evf-run", "evf-independent-verifier"):
+        if not os.access(KIT / "bin" / name, os.X_OK):
+            raise Error("Missing executable " + name + "; run python3 build.py")
+    return manifest
+
+
+def isolation():
+    if platform.system() != "Linux":
+        raise Error("Linux is required; use a Linux VM on other operating systems")
+    tool = shutil.which("unshare")
+    true = shutil.which("true")
+    if not tool or not true:
+        raise Error("Required util-linux unshare / coreutils true not found")
+    result = subprocess.run([tool, "--user", "--map-root-user", "--net", "--", true],
+                            stdin=subprocess.DEVNULL, capture_output=True, timeout=10,
+                            env={"LANG": "C", "LC_ALL": "C"})
+    if result.returncode:
+        raise Error("User/network namespace isolation unavailable; no unsafe fallback. " +
+                    result.stderr.decode(errors="replace").strip())
+    return Path(tool).resolve()
+
+
+def workspace(value):
+    root = Path(value).resolve(strict=True)
+    if not root.is_dir() or root == Path(root.anchor):
+        raise Error("Select an existing bounded audit workspace, not a filesystem root")
+    return root
+
+
+def expected_output(value, outcome, reason=None):
+    if not isinstance(value, dict) or value.get("outcome") != outcome:
+        raise Error("Expected output must explicitly declare outcome=" + outcome)
+    if not isinstance(value.get("reason_code"), str) or not value["reason_code"]:
+        raise Error("Expected output requires a nonempty reason_code")
+    if reason is not None and value["reason_code"] != reason:
+        raise Error("Negative-control reason_code does not match its expected output")
+    return value
+
+
+def freeze(root, spec_name):
+    spec_path = local_file(root, spec_name)
+    spec = read_json(spec_path)
+    fields(spec, ("schema_version", "audit_id", "subject", "claim_ceiling", "sources", "bindings", "obligations", "checks"))
+    if spec["schema_version"] != "evf.audit-spec/v1":
+        raise Error("Unsupported audit specification version")
+    audit_id = identifier(spec["audit_id"])
+    for key in ("subject", "claim_ceiling"):
+        if not isinstance(spec[key], str) or not spec[key].strip():
+            raise Error(key + " must be explicit")
+    obligations = spec["obligations"]
+    if not isinstance(obligations, list) or not obligations or len(set(obligations)) != len(obligations):
+        raise Error("Obligations must be a nonempty unique list")
+    for value in obligations:
+        identifier(value)
+    semantic = refs(root, spec["sources"])
+    binding = refs(root, spec["bindings"]) + [reference(root, spec_path), reference(root, KIT / "evf")]
+    unshare = isolation()
+    if not isinstance(spec["checks"], list) or not spec["checks"]:
+        raise Error("At least one check is required")
+    checks, mutations, check_ids, providers, mutant_ids, covered = [], [], set(), set(), set(), set()
+    for check in spec["checks"]:
+        fields(check, ("id", "provider", "obligations", "executable", "args", "tool_files", "input", "expected", "negative_controls"),
+               ("timeout_ms", "max_output_bytes"))
+        check_id, provider_id = identifier(check["id"]), identifier(check["provider"])
+        if check_id in check_ids:
+            raise Error("Duplicate check identifier")
+        check_ids.add(check_id)
+        providers.add(provider_id)
+        if not isinstance(check["obligations"], list) or not check["obligations"] or not set(check["obligations"]) <= set(obligations):
+            raise Error("Each check must name covered obligations from the declared list")
+        covered.update(check["obligations"])
+        executable = Path(check["executable"])
+        executable = executable.resolve(strict=True) if executable.is_absolute() else local_file(root, check["executable"])
+        if not os.access(executable, os.X_OK):
+            raise Error("Provider is not executable: " + str(executable))
+        argv = check["args"]
+        if not isinstance(argv, list) or not argv or any(not isinstance(x, str) for x in argv) or "{input}" not in argv:
+            raise Error("Provider args must include a separate {input} argument")
+        tool_files = check["tool_files"]
+        if not isinstance(tool_files, list):
+            raise Error("tool_files must list additional interpreter/script/tool dependencies")
+        tools = []
+        for value in tool_files:
+            path = Path(value)
+            path = path.resolve(strict=True) if path.is_absolute() else local_file(root, value)
+            tools.append(reference(root, path))
+        # Bind non-option file arguments automatically, including interpreter scripts.
+        for value in argv:
+            if value == "{input}" or value.startswith("-"):
+                continue
+            path = Path(value)
+            if not path.is_absolute() and (root / value).is_file():
+                tools.append(reference(root, local_file(root, value)))
+        timeout = check.get("timeout_ms", 5000)
+        limit = check.get("max_output_bytes", 4096)
+        if type(timeout) is not int or not 1 <= timeout <= 300000 or type(limit) is not int or not 256 <= limit <= 4096:
+            raise Error("Use timeout_ms 1..300000 and max_output_bytes 256..4096; providers must emit compact JSON")
+        checks.append({"check_id": check_id, "provider_id": provider_id,
+                       "runtime": {"executable_ref": reference(root, executable), "tool_refs": tools, "argv": argv,
+                                   "working_directory": ".", "environment": {"LANG": "C", "LC_ALL": "C"},
+                                   "timeout_ms": timeout, "max_output_bytes": limit, "network": "forbidden",
+                                   "isolation": {"mechanism": "linux-user-and-network-namespace", "unshare_ref": reference(root, unshare)}},
+                       "input_ref": reference(root, local_file(root, check["input"])),
+                       "expected_output": expected_output(check["expected"], "pass")})
+        if not isinstance(check["negative_controls"], list) or not check["negative_controls"]:
+            raise Error("Every check needs a cause-specific negative control")
+        for negative in check["negative_controls"]:
+            fields(negative, ("id", "input", "expected", "reason_code"))
+            mid = identifier(negative["id"])
+            if mid in mutant_ids:
+                raise Error("Duplicate negative-control identifier")
+            mutant_ids.add(mid)
+            mutations.append({"mutant_id": mid, "check_id": check_id,
+                              "input_ref": reference(root, local_file(root, negative["input"])),
+                              "expected_output": expected_output(negative["expected"], "fail", negative["reason_code"]),
+                              "expected_rejection_code": negative["reason_code"]})
+    if covered != set(obligations):
+        raise Error("Every obligation must be covered by a check")
+    if len(providers) != 1:
+        raise Error("This portable CLI supports one declared provider per profile; multi-provider adapters are not packaged")
+    profile = {"schema_version": "evf.enforcement-profile/v1", "profile_id": audit_id,
+               "subject": spec["subject"], "route": "executable",
+               "stages": [{"stage_id": "S" + str(i), "required": True} for i in range(13)],
+               "semantic_refs": semantic, "binding_refs": binding,
+               "obligation_ids": obligations, "obligation_denominator": len(obligations),
+               "checks": checks, "mutations": mutations,
+               "composition": {"mode": "single", "provider_ids": sorted(providers), "compare_fields": [], "comparability_refs": semantic},
+               "producer": {"executable_ref": reference(root, KIT / "bin/evf-run")},
+               "verifier": {"executable_ref": reference(root, KIT / "bin/evf-independent-verifier")},
+               "repetitions": 2, "claim_ceiling": spec["claim_ceiling"], "authority_effect": "none"}
+    digest = hashlib.sha256(encoded(profile)).hexdigest()
+    directory = root / ".evf-profiles"
+    if directory.is_symlink():
+        raise Error("Profile directory must not be a symlink")
+    output = directory / (audit_id + "-" + digest + ".json")
+    new_json(output, profile)
+    return output
+
+
+def init(destination):
+    target = Path(destination).absolute()
+    if target.exists() or target.is_symlink():
+        raise Error("init requires a new directory; existing work will not be overwritten")
+    shutil.copytree(KIT / "example", target)
+    return {"status": "created", "workspace": str(target.resolve()),
+            "next": "build-example, then freeze, then run --trust-local-providers"}
+
+
+def build_example(root):
+    for name in ("provider.c", "positive.txt", "negative.txt", "audit.json", "obligation.md"):
+        if sha(root / name) != sha(KIT / "example" / name):
+            raise Error("build-example only builds the unchanged packaged example; build your own provider explicitly")
+    output = root / "order-provider"
+    if output.exists() or output.is_symlink():
+        raise Error("Example executable already exists; use a new workspace")
+    compiler = shutil.which("cc")
+    if not compiler:
+        raise Error("A C compiler (cc) is required for the example, not for running EVF itself")
+    result = subprocess.run([compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", str(root / "provider.c"), "-o", str(output)],
+                            cwd=root, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        raise Error("Example build failed: " + result.stderr)
+    new_json(root / "build.json", {"compiler": reference(root, compiler), "source": reference(root, root / "provider.c"),
+                                   "executable": reference(root, output), "flags": ["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"],
+                                   "claim_ceiling": "Build provenance, not a C compiler correctness proof"})
+    return {"status": "built", "executable": str(output)}
+
+
+def run(root, profile_name, trusted):
+    if not trusted:
+        raise Error("Use --trust-local-providers only for code you trust: network isolation is not filesystem containment")
+    isolation()
+    profile_path = local_file(root, profile_name)
+    profile = read_json(profile_path)
+    for key, name in (("producer", "evf-run"), ("verifier", "evf-independent-verifier")):
+        if profile[key]["executable_ref"] != reference(root, KIT / "bin" / name):
+            raise Error("Profile is not bound to this kit's " + name + "; explicitly freeze a new profile")
+    store = root / ".evf-runs"
+    marker = {"schema_version": "evf.portable-run-store/v1"}
+    if store.is_symlink() or (store.exists() and not (store / "STORE.json").is_file() and any(store.iterdir())):
+        raise Error("Refusing an unrelated or symlinked run store")
+    new_json(store / "STORE.json", marker)
+    attempt = "audit-" + uuid.uuid4().hex
+    proc = subprocess.run([str(KIT / "bin/evf-run"), "--repo-root", str(root), "--profile", str(profile_path),
+                           "--store", str(store), "--attempt-id", attempt], stdin=subprocess.DEVNULL,
+                          capture_output=True, text=True)
+    value = json.loads(proc.stdout if proc.returncode == 0 else proc.stderr)
+    if proc.returncode:
+        return value, 2
+    value["evidence"] = str(Path(value["run_path"]) / "EVIDENCE.json")
+    value["meaning"] = "Only the declared checks and bounds; not general program correctness"
+    return value, 0 if value["status"] == "passed" else 1
+
+
+def verify(root, evidence):
+    file = Path(evidence)
+    file = (file if file.is_absolute() else root / file).resolve(strict=True)
+    if not file.is_relative_to(root) or not file.is_file():
+        raise Error("Evidence must be a regular file inside the selected workspace")
+    proc = subprocess.run([str(KIT / "bin/evf-independent-verifier"), "--repo-root", str(root), "--evidence", str(file)],
+                          stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+    value = json.loads(proc.stdout if proc.returncode == 0 else proc.stderr)
+    value["meaning"] = "Verifier verdict describes evidence validity; aggregate_state describes the audit result"
+    return value, 0 if proc.returncode == 0 else 2
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run explicitly specified, bounded audits with EVF; no automatic whole-repository proof")
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("doctor", help="check package integrity and required Linux isolation")
+    sub.add_parser("init", help="create a new standalone example workspace").add_argument("destination")
+    build = sub.add_parser("build-example", help="compile only the unchanged packaged C example")
+    build.add_argument("--workspace", required=True)
+    fr = sub.add_parser("freeze", help="bind owner-authored expectations and exact local inputs without running them")
+    fr.add_argument("--workspace", required=True)
+    fr.add_argument("--spec", default="audit.json")
+    runner = sub.add_parser("run", help="execute a frozen profile into a new append-only attempt")
+    runner.add_argument("--workspace", required=True)
+    runner.add_argument("--profile", required=True, help="workspace-relative frozen profile path")
+    runner.add_argument("--trust-local-providers", action="store_true")
+    ver = sub.add_parser("verify", help="independently check saved evidence without executing audit providers")
+    ver.add_argument("--workspace", required=True)
+    ver.add_argument("--evidence", required=True)
+    args = parser.parse_args()
+    code = 0
+    try:
+        manifest = check_kit()
+        if args.command == "doctor":
+            tool = isolation()
+            value = {"status": "ready", "kit_version": manifest["version"], "platform": platform.platform(),
+                     "unshare": str(tool), "scope": "Trusted, compact-JSON providers on Linux; not a malicious-code sandbox"}
+        elif args.command == "init":
+            value = init(args.destination)
+        else:
+            root = workspace(args.workspace)
+            if args.command == "build-example":
+                value = build_example(root)
+            elif args.command == "freeze":
+                value = {"status": "frozen-not-executed", "profile": str(freeze(root, args.spec).relative_to(root)), "authority_effect": "none"}
+            elif args.command == "run":
+                value, code = run(root, args.profile, args.trust_local_providers)
+            else:
+                value, code = verify(root, args.evidence)
+    except (Error, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
+        value, code = {"status": "blocked", "reason": str(error), "authority_effect": "none"}, 2
+    print(json.dumps(value, indent=2, ensure_ascii=False))
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

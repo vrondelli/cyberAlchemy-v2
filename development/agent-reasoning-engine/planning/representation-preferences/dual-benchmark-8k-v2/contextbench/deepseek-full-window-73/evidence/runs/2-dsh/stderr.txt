@@ -1,0 +1,149 @@
+dsh: reasoning:
+simdjson repo. Look for simdjson_dom.h / to_string in include.
+dsh: reasoning:
+Plan: add a `prettify` free function and a `mini_formatter`-style output. The actual upstream simdjson PR (#1585 or similar, issue #1329) added `prettify(x)` in serialization.h using string_builder with a `simdjson::internal::string_builder` … Actually upstream added `simdjson::prettify(T x)` which uses `string_builder<mini_formatter>`? Upstream simdjson has `simdjson::prettify` implemented as:
+
+```cpp
+template <class T>
+std::string prettify(T x) {
+    simdjson::internal::string_builder<> sb;
+    sb.append(x);
+    std::string_view answer = sb.str();
+    return simdjson::minify(answer); // no
+}
+```
+
+Actually upstream: prettify does a post-processing approach: `prettify` takes the minified string and adds newlines/indentation (4 spaces fixed). That's how simdjson implements it: in serialization.h:
+
+```cpp
+/**
+ * Prettifies a JSON element or a document, printing with useful newlines and spaces.
+ */
+template <class T>
+std::string prettify(T x) {
+  simdjson::internal::string_builder<> sb;
+  sb.append(x);
+  std::string_view answer = sb.str();
+  return simdjson::prettify(answer);
+}
+
+std::string prettify(std::string_view json) noexcept;
+```
+
+And prettify(std::string_view) is implemented in a source file... In upstream, `include/simdjson/dom/serialization-inl.h` contains `prettify(std::string_view)`. Let me implement it as an inline function. I'll write my own implementation: iterate the minified JSON, add newlines + 4-space indentation.
+
+I need the source hash of the files for apply_edits. I have: serialization.h sha 0b6b017b..., serialization-inl.h 76fef884...
+
+Write the implementation inline in serialization-inl.h (header-only), so no extra source file needed. Add declaration + docs in serialization.h.
+
+Implementation:
+
+```cpp
+inline std::string prettify(const char *buf, size_t length) noexcept {
+  // Heuristic to avoid excessive allocations.
+  size_t margin = 32;
+  std::string out;
+  out.reserve(length * 1.5 + margin); // integer math better
+  size_t newlines = 0;
+  for (size_t i = 0; i < length; i++) { if (buf[i] == '{' || buf[i] == '[') newlines++; }
+  out.reserve(length + margin + newlines * 4); // 4-space indent, fixed
+  size_t indent = 0;
+  bool in_string = false;
+  for (size_t i = 0; i < length; i++) {
+    char c = buf[i];
+    if (c == '"') in_string = !in_string;
+    ...
+  }
+}
+```
+
+Upstream implementation (I roughly remember it):
+
+```cpp
+inline std::string prettify(const char *buf, size_t length) noexcept {
+  // Heuristic to avoid excessive allocations.
+  size_t margin = 32;
+  size_t newlines = 0;
+  for(size_t i = 0; i < length; i++) {
+    newlines += (buf[i] == '{' || buf[i] == '[');
+  }
+  std::string out;
+  out.reserve(length + margin + newlines * 4); // 4 spaces max per indent
+  size_t indent = 0;
+  bool quote = false;
+  for(size_t i = 0; i < length; i++) {
+    char c = buf[i];
+    if(c == '"') quote = !quote;
+    if (quote) { out.push_back(c); continue; }
+    switch(c) {
+    case '{':
+    case '[':
+      out.push_back(c);
+      if(i + 1 < length && (buf[i+1] == '}' || buf[i+1] == ']')) {
+        out.push_back(buf[i+1]); i++;
+      } else {
+        indent++;
+        out.push_back('\n');
+        out.append(indent * 4, ' ');
+      }
+      break;
+    case '}':
+    case ']':
+      indent--;
+      out.push_back('\n');
+      out.append(indent * 4, ' ');
+      out.push_back(c);
+      break;
+    case ',':
+      out.push_back(c);
+      out.push_back('\n');
+      out.append(indent * 4, ' ');
+      break;
+    case ':':
+      out.push_back(c);
+      out.push_back(' ');
+      break;
+    default:
+      out.push_back(c);
+      break;
+    }
+  }
+  return out;
+}
+```
+
+That's fine. Add to serialization-inl.h in namespace simdjson (near bottom, after minify? It's inl, better placed after the string_builder code, before closing namespace). Add declaration/docs in serialization.h:
+
+```cpp
+/**
+ * Prettifies a JSON element or a document, printing with useful
+ * newlines and spaces. When you need to present JSON to a human, you might
+ * want to use this function.
+ */
+template <class T>
+std::string prettify(T x) noexcept {
+  simdjson::internal::string_builder<> sb;
+  sb.append(x);
+  std::string_view answer = sb.str();
+  return simdjson::prettify(answer);
+}
+
+std::string prettify(const std::string_view json) noexcept;
+```
+
+Note prettify(string_view) definition must be inline since in header. Upstream places `inline std::string prettify(const char *buf, size_t length)` in serialization-inl.h; fine.
+
+Where to place the inline function in serialization-inl.h: after string_builder str() before closing namespace internal? prettify(string_view) is in namespace simdjson, so place just before final `} // namespace internal`... prettify declarations in serialization.h are in namespace simdjson. Place the definition in serialization-inl.h right after the internal namespace closes:
+
+Insert before "} // namespace internal\n} // namespace simdjson\n\n#endif" — after namespace closes. I'll add:
+
+```
+inline std::string prettify(const char *buf, size_t length) noexcept { ... }
+inline std::string prettify(std::string_view json) noexcept {
+  return prettify(json.data(), json.size());
+}
+```
+
+placed after `} // namespace internal`, before final `#endif`.
+
+Now apply edits.

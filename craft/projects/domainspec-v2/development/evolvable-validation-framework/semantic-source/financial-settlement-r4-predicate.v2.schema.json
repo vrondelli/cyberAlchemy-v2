@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/evf/financial-settlement-r4-predicate.v2.schema.json",
+  "title": "Financial settlement R4 general predicate owner input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "semantic_id",
+    "rule_id",
+    "edge_id",
+    "target_id",
+    "theory_profile_id",
+    "variables",
+    "abstractions",
+    "assumptions",
+    "predicate",
+    "scope",
+    "source_authority",
+    "owner_acceptance",
+    "authority_effect",
+    "release_admission",
+    "claim_ceiling"
+  ],
+  "properties": {
+    "schema_version": {"const": "evf.financial-settlement-r4-predicate/v2"},
+    "semantic_id": {"const": "evf.semantic.financial-settlement.r4.v2"},
+    "rule_id": {"const": "financial-settlement.NoDuplicateMakeupRule"},
+    "edge_id": {"const": "financial-settlement.edge.no-duplicate-makeup-rule-enforces-generation"},
+    "target_id": {"const": "financial-settlement.GenerateSettlement"},
+    "theory_profile_id": {"const": "evf.smt.qf-lia.r4-candidate-local.v1"},
+    "variables": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"$ref": "#/$defs/totalAppliedMakeup"},
+        {"$ref": "#/$defs/sameDateCount"},
+        {"$ref": "#/$defs/decision"}
+      ],
+      "items": false
+    },
+    "abstractions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [{"$ref": "#/$defs/countAbstraction"}],
+      "items": false
+    },
+    "assumptions": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": {"assumption_id": "r4-eligible-positive-makeup", "expression": "totalAppliedMakeup > 0"}},
+        {"const": {"assumption_id": "r4-count-domain", "expression": "sameDateMakeupAppliedCount >= 0"}}
+      ],
+      "items": false
+    },
+    "predicate": {"$ref": "#/$defs/predicate"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "source_authority": {"$ref": "#/$defs/sourceAuthority"},
+    "owner_acceptance": {"$ref": "#/$defs/ownerAcceptance"},
+    "authority_effect": {"const": "none"},
+    "release_admission": {"const": "not-granted"},
+    "claim_ceiling": {"const": "owner-authored-r4-pure-decision-predicate-only"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "authority_role"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "authority_role": {"enum": ["semantic-source", "regression-only"]}
+      }
+    },
+    "totalAppliedMakeup": {
+      "const": {"name": "totalAppliedMakeup", "sort": "Int", "role": "owner-premise-input"}
+    },
+    "sameDateCount": {
+      "const": {"name": "sameDateMakeupAppliedCount", "sort": "Int", "role": "exact-derived-abstraction-input"}
+    },
+    "decision": {
+      "const": {"name": "shouldCreateMakeupAppliedEvent", "sort": "Bool", "role": "pure-decision-output"}
+    },
+    "countAbstraction": {
+      "const": {
+        "abstraction_id": "r4-same-date-makeup-applied-count",
+        "output_variable": "sameDateMakeupAppliedCount",
+        "definition": "cardinality(existingTransactions where transaction.type = MAKEUP_APPLIED and transaction.date = periodEnd)",
+        "binding_requirement": "both-type-and-date-match-exactly",
+        "translation_treatment": "owner-supplied-nonnegative-Int-symbol"
+      }
+    },
+    "predicate": {
+      "const": {
+        "predicate_id": "financial-settlement.r4.no-duplicate-makeup.general.v2",
+        "expression": "shouldCreateMakeupAppliedEvent iff sameDateMakeupAppliedCount = 0",
+        "normalized_ast": {
+          "operator": "iff",
+          "left": {"symbol": "shouldCreateMakeupAppliedEvent"},
+          "right": {
+            "operator": "eq",
+            "left": {"symbol": "sameDateMakeupAppliedCount"},
+            "right": {"integer": 0}
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included", "excluded"],
+      "properties": {
+        "included": {
+          "const": [
+            "R4 pure decision under totalAppliedMakeup > 0",
+            "all nonnegative same-date MAKEUP_APPLIED counts",
+            "exact type-and-date filtering abstraction"
+          ]
+        },
+        "excluded": {
+          "const": [
+            "database-write",
+            "event-emission",
+            "P3",
+            "P4",
+            "full-settlement-preconditions",
+            "behavior when totalAppliedMakeup <= 0",
+            "implementation-conformance",
+            "full-FOL-validity",
+            "release-readiness",
+            "production-correctness"
+          ]
+        }
+      }
+    },
+    "sourceAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_source", "regression_sources"],
+      "properties": {
+        "semantic_source": {"$ref": "#/$defs/exactRef"},
+        "regression_sources": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/exactRef"}
+        }
+      }
+    },
+    "ownerAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "status", "receipt_locator", "scope"],
+      "properties": {
+        "owner": {"const": "domainspec-semantic-owner:user"},
+        "status": {"const": "approved-by-external-exact-byte-receipt"},
+        "receipt_locator": {"const": ".arcanum/invoke/refresh/evf-smt-r4-semantic-postimage-20260824T031754Z/SEMANTIC-OWNER-ACCEPTANCE-RECEIPT.json"},
+        "scope": {"const": "candidate-local-r4-pure-decision-predicate-v2"}
+      }
+    }
+  }
+}

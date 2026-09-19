@@ -19,9 +19,9 @@ Help a person understand ARE, complete a useful task, and move between a guide a
 
 Source evidence:
 
-- [Application routing and engine reader](../../../workspace/experiments/are-documentation/src/main.tsx).
-- [Current documentation content and links](../../../workspace/experiments/are-documentation/src/Capabilities.tsx).
-- [Introduction](../../../workspace/experiments/are-documentation/src/Hero.tsx).
+- [Application routing and engine reader](../../../keld-project/are-documentation/src/main.tsx).
+- [Current documentation content and links](../../../keld-project/are-documentation/src/Capabilities.tsx).
+- [Introduction](../../../keld-project/are-documentation/src/Hero.tsx).
 - [Manual index and reader journeys](../../../implementation/agent-reasoning-engine/docs/README.md).
 - [Earlier editorial register](../page-register.json): candidate planning evidence, not a current publication inventory.
 
@@ -135,11 +135,11 @@ This DAG is a research proposal. Implementation must be separately routed throug
 
 ### Current constraints in the source
 
-- [main.tsx](../../../workspace/experiments/are-documentation/src/main.tsx) rebuilds component nodes from static entries on every render, disables dragging globally, and has no `onNodesChange` state handling. One `route.node` selects one reader. Multiple independent cards need a separate collection from component selection.
+- [main.tsx](../../../keld-project/are-documentation/src/main.tsx) rebuilds component nodes from static entries on every render, disables dragging globally, and has no `onNodesChange` state handling. One `route.node` selects one reader. Multiple independent cards need a separate collection from component selection.
 - The former `src/CanvasExpansion.tsx` (removed by the implementation) rendered an absolutely positioned `aside`. It converts world coordinates to screen coordinates, clamps the panel to viewport bounds, and keeps panel dimensions in screen pixels. It is visually attached to a component but is not a movable graph node.
 - `FrameView` automatically reframes whenever selection or canvas dimensions change. This would overwrite a restored viewport unless initialization, deliberate reveal, and restoration are separated.
 - Full-reader mode replaces the graph subtree. State held only inside React Flow therefore cannot preserve the complete reading workspace across that transition.
-- [style.css](../../../workspace/experiments/are-documentation/src/style.css) contains old reader/sidebar rules and later overlay overrides. New card classes should have independent styles; remove obsolete rules only when their remaining uses have been checked.
+- [style.css](../../../keld-project/are-documentation/src/style.css) contains old reader/sidebar rules and later overlay overrides. New card classes should have independent styles; remove obsolete rules only when their remaining uses have been checked.
 
 ### Proposed implementation boundaries
 

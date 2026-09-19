@@ -1,0 +1,20 @@
+dsh: reasoning:
+Zstd repo. Issue #1241 likely about ZSTD_compressSequences or something... "first input position is valid for a match even during first usage of context by starting reference at 1" — probably in zstd_compress.c, ZSTD_updateRep or entropy window log... Likely relates to ZSTD_convertBlockSequences? Hmm. Actually this sounds like fix to `ZSTD compress, superblock`? More likely `windowLog` check: "first input position" — in ZSTD_checkDictValidity or in ZSTD_compress Continue with literal... Search "firstBlock" or ip == prefixStart.
+dsh: reasoning:
+The issue: on first usage of context, window.dictLimit is 0, so repIndex can be computed as 0 and repBase etc. The known zstd fix (PR #1241?) — actually zstd issue #1241 was "compressBound"? Hmm. Actually the described fix: "starting reference at 1 (avoiding the problematic 0)" — this matches zstd commit that changed `ZSTD_row_...`? Actually I recall zstd commit "fix: start window at 1" — in ZSTD_window_init: `ZSTD_window_init(ZSTD_window_t* window) { ZSTD_memset(window, 0, sizeof(*window)); window->base = (BYTE const*)"funny"; ... }` Hmm. Actually there's a known commit "ZSTD_window_init starts at 1" in zstd_compress.c:
+
+```
+MEM_STATIC void ZSTD_window_init(ZSTD_window_t* window) {
+    ZSTD_memset(window, 0, sizeof(*window));
+    window->base = (BYTE const*)"";
+    window->dictBase = (BYTE const*)"";
+    window->dictLimit = 1;    /* start from 1, so that 1st position is valid */
+    window->lowLimit = 1;     /* it ensures first and later CCtx usages compare loaded from dict properly */
+    window->nextSrc = window->base + 1;   /* see issue #1241 */
+}
+```
+
+Yes! That's the actual fix referencing issue #1241. Let's look at zstd_compress.c ZSTD_window_init in base.
+dsh: reasoning:
+Not found — older version. Search for "dictLimit = 0" or ZSTD_window_t.
+dsh: RATE_LIMIT: 429 "transport-unavailable"

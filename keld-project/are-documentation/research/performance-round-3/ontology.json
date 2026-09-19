@@ -1,0 +1,48 @@
+{
+  "schema_version": "are.performance-research-ontology/v1",
+  "ontology_id": "are-doc-performance-round-3",
+  "objective": "Identify which mechanisms cause the remaining synthetic mobile loading and hero motion failures before another product change.",
+  "question": "Which isolated mechanism has repeatable causal evidence strong enough to justify the next optimization?",
+  "entities": [
+    {"id":"control-pass-2","kind":"baseline","ref":"evidence/performance/page-before-round-3.json","status":"recorded"},
+    {"id":"load-readiness","kind":"claim","metric":"readyMs","limit":3000,"scope":"synthetic mobile cold load"},
+    {"id":"motion-scheduling","kind":"claim","metrics":["frameP95Ms","framesOver33Ratio"],"limits":{"frameP95Ms":25,"framesOver33Ratio":0.05},"scope":"rAF scheduling proxy"},
+    {"id":"visual-fidelity","kind":"constraint","evidence_ref":"evidence/performance/hero-visual/results.json"},
+    {"id":"h-preload","kind":"hypothesis","statement":"Route-scoped responsive preloads reduce mobile cold readiness relative to the same build with preload insertion blocked.","decision":"falsified","evidence":"Preload was slower in all five paired rounds."},
+    {"id":"h-filter","kind":"hypothesis","statement":"CSS filter and shadow raster work is the primary cause of early hero frame misses.","decision":"rejected-as-primary-cause","evidence":"Direction changed across paired rounds and final-loop p75 was unchanged."},
+    {"id":"h-background-paint","kind":"hypothesis","statement":"Painting the decorative background is the primary cause of early hero frame misses after its simulation moved to a worker.","decision":"supported-candidate","evidence":"No-background paint improved assembly in three of four paired rounds and tied once; final-loop p95 improved or tied in all four."},
+    {"id":"h-host-variance","kind":"null-hypothesis","statement":"Observed differences are dominated by run order or host variance and do not identify a promotable mechanism.","decision":"partially-supported","evidence":"Control p95 varied substantially and host load reached 11.24, but paired no-background direction remained consistent."},
+    {"id":"h-selective-background","kind":"next-hypothesis","statement":"A visually equivalent background with fewer painted pixels or cheaper compositing can retain the design while improving early and final-loop scheduling."},
+    {"id":"h-selective-preload","kind":"next-hypothesis","statement":"No explicit preload or preloading only the assembled high-priority image will avoid the contention caused by preloading all five images."}
+  ],
+  "relations": [
+    {"from":"h-preload","to":"load-readiness","type":"predicts-improvement"},
+    {"from":"h-filter","to":"motion-scheduling","type":"predicts-improvement"},
+    {"from":"h-background-paint","to":"motion-scheduling","type":"predicts-improvement"},
+    {"from":"h-host-variance","to":"load-readiness","type":"challenges"},
+    {"from":"h-host-variance","to":"motion-scheduling","type":"challenges"},
+    {"from":"visual-fidelity","to":"h-filter","type":"constrains-promotion"},
+    {"from":"visual-fidelity","to":"h-background-paint","type":"constrains-promotion"}
+  ],
+  "lifecycle_posture": {
+    "kind":"research candidate",
+    "status":"experiment-complete-candidate-decisions-recorded",
+    "evidence_confidence":"moderate for paired fixture direction; low for absolute timing and physical-device generalization",
+    "commitment_confidence":"high commitment to unchanged acceptance limits; no commitment to a mechanism",
+    "provenance":["PERFORMANCE-PASS-2.md","evidence/performance/page-before-round-3.json","evidence/performance/round-3/results.json","research/performance-round-3/REPORT.md"],
+    "owner":"CyberAlchemy v2 product owner",
+    "residue":["Headless Chromium does not certify physical GPU presentation","CPU throttling may affect workers differently"]
+  },
+  "challenge_contract": {
+    "challenge_response":"retain counterevidence and demote unsupported mechanism claims",
+    "valid_challenge_modes":["reproduction failure","order effect","measurement invalidity","visual regression","budget regression"],
+    "contradiction_edges":["h-host-variance challenges all timing attribution"],
+    "validation_edges":["alternating-order repeated comparison","unchanged acceptance benchmark","functional and visual checks"],
+    "owner_route":"CA2-ROUTE-RESEARCH",
+    "resolution_gate":"Promote only a repeated directional effect that survives the full unchanged benchmark and fidelity checks.",
+    "blocking_questions":["Does the physical Windows laptop reproduce the selected mechanism?"],
+    "challenge_residue_route":"research/performance-round-3/open-questions.md"
+  },
+  "claim_bound":"Diagnostic interventions may identify a candidate cause; they do not establish field performance, GPU presentation, or release readiness.",
+  "authority_effect":"none"
+}

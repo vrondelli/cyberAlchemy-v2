@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.dev/schemas/evf/key-door-runtime-contract/v1",
+  "title": "EVF Key And Door Runtime Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "runtime_id",
+    "scope",
+    "target",
+    "input_contract",
+    "output_contract",
+    "transition_contract",
+    "evaluation_contract",
+    "effects",
+    "claim_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "evf.key-door-runtime-contract/v1"
+    },
+    "runtime_id": {
+      "const": "evf.key-door.runtime-adapter.v1"
+    },
+    "scope": {
+      "const": "SWU-GCP-001"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "export",
+        "version",
+        "pre_state"
+      ],
+      "properties": {
+        "path": {
+          "const": "projects/domainspec-v2/impl/test-derivation-engine/src/minted-project/fixtures/key-door-runtime.ts"
+        },
+        "export": {
+          "const": "attemptUnlock"
+        },
+        "version": {
+          "const": 1
+        },
+        "pre_state": {
+          "const": "planned-create"
+        }
+      }
+    },
+    "input_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "typescript",
+        "door_locked_scope"
+      ],
+      "properties": {
+        "typescript": {
+          "const": "{ has_key: boolean; door_locked: true }"
+        },
+        "door_locked_scope": {
+          "const": "locked-door-inputs-only"
+        }
+      }
+    },
+    "output_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "typescript",
+        "allowed_exact_values"
+      ],
+      "properties": {
+        "typescript": {
+          "const": "{ status: 'unlocked' | 'denied'; door_locked: boolean }"
+        },
+        "allowed_exact_values": {
+          "const": [
+            {
+              "status": "unlocked",
+              "door_locked": false
+            },
+            {
+              "status": "denied",
+              "door_locked": true
+            }
+          ]
+        }
+      }
+    },
+    "transition_contract": {
+      "const": [
+        {
+          "when": {
+            "has_key": true,
+            "door_locked": true
+          },
+          "then": {
+            "status": "unlocked",
+            "door_locked": false
+          }
+        },
+        {
+          "when": {
+            "has_key": false,
+            "door_locked": true
+          },
+          "then": {
+            "status": "denied",
+            "door_locked": true
+          }
+        }
+      ]
+    },
+    "evaluation_contract": {
+      "const": {
+        "expected": "evaluate typed predicate AST against fixture vars without reading runtime output",
+        "observed": "validate exact runtime output shape and transition, then project status == unlocked AND door_locked == false",
+        "join": "expected_boolean == observed_boolean",
+        "invalid_output_code": "RUNTIME_OUTPUT_INVALID",
+        "mismatch_code": "RUNTIME_RESULT_MISMATCH"
+      }
+    },
+    "effects": {
+      "const": {
+        "purity": "pure",
+        "io": false,
+        "network": false,
+        "filesystem": false,
+        "clock": false,
+        "random": false
+      }
+    },
+    "claim_ceiling": {
+      "const": "harness-only-causal-proof-not-application-runtime"
+    }
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "dispatch_id": "2026-07-17-dsv2-fpr02-lane-separation-refresh",
+  "parent_dispatch_id": "2026-07-14-dsv2-foundation-execution-plan",
+  "intent": {
+    "raw": "Treat UI and backend as two different lanes so either can progress without blocking the other; refresh all artifacts and create new Invoke artifacts when necessary.",
+    "objective": "Create one coordination parent with independently resumable backend and UI child lanes, then synchronize plans, Craft, and roadmap projections without execution or authority promotion.",
+    "target_artifact": "projects/domainspec-v2/development/first-production-release/profile-lanes/fpr02-lanes.yml",
+    "arcanum_vocabulary": ["invoke", "context-builder", "craft", "distill", "dispatch-spec"],
+    "operator_sentence": "Branch once, preserve two lane-local gates, and never rejoin them implicitly."
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "state_namespace_boundary",
+    "owner_boundary_check",
+    "handle_handoff",
+    "residue_ledger",
+    "concrete_path_evidence",
+    "validation_loop",
+    "authority_split_gate",
+    "observability_grouping"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "This is a deterministic planning-state refresh with one local writer and no authorized runtime work.",
+    "explanation": "No subagent is required or authorized; independent future lane execution receives separate Task Session receipts.",
+    "roles": [],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed"
+  },
+  "subagent_lifecycle": {"status": "none", "agents": []},
+  "steps": [
+    {
+      "step_id": "s1-context",
+      "name": "Build strict lane-separation context",
+      "capability_ref": "context-builder",
+      "mode": "strict",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["concrete_path_evidence", "owner_boundary_check"],
+      "inputs": [
+        {"kind": "intent", "ref": "intent.raw"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/decisions/2026-07-17-fpr02-supported-profile-decision.md"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/ui-profile-implementation/WORK-PACK.md"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/foundation-execution/refreshes/2026-07-17-fpr02-lane-separation/context/CONTEXT-PACK.md"}
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "projects/domainspec-v2/development/first-production-release/foundation-execution/refreshes/2026-07-17-fpr02-lane-separation/context/CONTEXT-PACK.md",
+      "stop_conditions": ["block if UI and backend cannot be assigned separate owners and next moves"]
+    },
+    {
+      "step_id": "s2-lane-contract",
+      "name": "Author the independent lane contract and refresh plans",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["state_namespace_boundary", "authority_split_gate", "residue_ledger"],
+      "inputs": [
+        {"kind": "handle", "ref": "s1-context strict context pack"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/foundation-execution/WORK-PACK.md"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/profile-lanes/fpr02-lanes.yml"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/foundation-execution/WORK-PACK.md"},
+        {"kind": "handoff", "ref": "FPR-02B and FPR-02U independent next moves"}
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "projects/domainspec-v2/development/first-production-release/profile-lanes/fpr02-lanes.yml",
+      "stop_conditions": [
+        "block on any cross-lane completion dependency",
+        "block if UI development is treated as backend release evidence",
+        "block if the refresh changes runtime or authority source files"
+      ]
+    },
+    {
+      "step_id": "s3-continuation",
+      "name": "Synchronize Craft continuation state",
+      "capability_ref": "craft",
+      "capability_status": "local-extension",
+      "capability_metadata": {
+        "source": ".agents/skills/craft/SKILL.md",
+        "owner": "repository-local Craft lifecycle",
+        "validation": "installed repository-local capability"
+      },
+      "mode": "refresh",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["state_namespace_boundary", "handle_handoff", "residue_ledger"],
+      "inputs": [
+        {"kind": "handle", "ref": "s2-lane-contract two lane handles"},
+        {"kind": "ledger", "ref": "projects/domainspec-v2/.craft/ledger.yml"}
+      ],
+      "outputs": [
+        {"kind": "ledger", "ref": "projects/domainspec-v2/.craft/ledger.yml"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/CRAFT.md"}
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "projects/domainspec-v2/.craft/ledger.yml",
+      "stop_conditions": ["block if either child context lacks a lane-local next move"]
+    },
+    {
+      "step_id": "s4-visibility",
+      "name": "Regenerate and validate roadmap projections",
+      "capability_ref": "invoke",
+      "mode": "validation",
+      "pattern": "validation",
+      "parallel": false,
+      "techniques": ["validation_loop", "concrete_path_evidence", "observability_grouping"],
+      "inputs": [
+        {"kind": "ledger", "ref": "projects/domainspec-v2/.craft/ledger.yml"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/craft/expected-node-edge-manifest.yml"}
+      ],
+      "outputs": [
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/visibility/roadmap-data.json"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/first-production-release/visibility/roadmap.html"},
+        {"kind": "trace_event", "ref": "fpr02-lane-refresh-validation"}
+      ],
+      "join_policy": "none",
+      "evidence_artifact": "projects/domainspec-v2/development/first-production-release/foundation-execution/refreshes/2026-07-17-fpr02-lane-separation/REFRESH-REPORT.md",
+      "stop_conditions": ["block if generated state differs from manifest or Craft", "block if production_authorized is true"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g1-explicit-approval",
+      "kind": "human_approval",
+      "owner": "operator",
+      "condition": "The user explicitly requested the two-lane refresh.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g2-lane-independence",
+      "kind": "promotion_guardrail",
+      "owner": "FPR coordination owner",
+      "condition": "No backend completion criterion depends on UI completion and no UI completion criterion depends on backend completion.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g3-authority-boundary",
+      "kind": "policy",
+      "owner": "DomainSpec-v2 authority owners",
+      "condition": "The refresh changes planning and read models only; historical receipts, authority, runtime, schemas, and release flags remain unchanged.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g4-validation",
+      "kind": "validation",
+      "owner": "Invoke refresh",
+      "condition": "YAML, JSON, Craft pointers, dispatches, docs, and generated roadmap checks pass.",
+      "on_fail": "block"
+    }
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": "2026-07-14-dsv2-foundation-execution-plan",
+    "trace_events": [
+      "fpr02-lane-contract-created",
+      "fpr02-craft-contexts-synchronized",
+      "fpr02-roadmap-regenerated",
+      "fpr02-lane-refresh-validation"
+    ],
+    "signal_grouping": "group by dispatch_id, step_id, and lane_id; never aggregate sibling gate state"
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b1-lane-state-write",
+        "kind": "state_write",
+        "from_owner": "FPR-02 lane contract",
+        "to_owner": "lane-owned plans, Craft, and roadmap projections",
+        "applies_to_steps": ["s2-lane-contract", "s3-continuation", "s4-visibility"],
+        "contract": "Each lane writes only its own status and next move; shared projections preserve both without deriving a join.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b2-planning-and-authority",
+        "kind": "artifact_import",
+        "from_owner": "canonical authority, runtime, and historical receipts",
+        "to_owner": "Invoke refresh read models",
+        "applies_to_steps": ["s1-context", "s2-lane-contract", "s4-visibility"],
+        "contract": "Planning may cite these artifacts but may not mutate or promote them.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "Invoke owns this planning refresh.",
+      "execution": "Future Task Sessions own one selected lane-local SWU.",
+      "validation": "Dispatch, Craft, document, and visibility validators own structural checks.",
+      "evidence": "Lane-local receipts own completion claims.",
+      "promotion": "DomainSpec-v2 and release owners retain canonical and release admission."
+    },
+    "state_namespaces": [
+      {"namespace": "FPR-02B", "owner": "backend profile lane", "write_policy": "backend artifacts and receipts only"},
+      {"namespace": "FPR-02U", "owner": "UI development lane", "write_policy": "UI artifacts and receipts only"}
+    ],
+    "promotion_splits": [
+      {
+        "source": "FPR-02U development evidence",
+        "target": "canonical UI or release admission",
+        "rule": "Requires a new explicit owner decision; never follows from lane completion.",
+        "on_violation": "block"
+      }
+    ]
+  },
+  "promotion_guardrails": [
+    "No implicit FPR-02B/FPR-02U join.",
+    "UI remains development-only and outside the backend release denominator.",
+    "Backend release progress cannot canonically activate UI concepts.",
+    "Production authorization remains false."
+  ]
+}

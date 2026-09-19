@@ -8,7 +8,8 @@
 
 ## Outcome
 
-This child capability learns a scoped lesson from an attributable correction.
+This capability learns a lesson from a correction with an identified source.
+The lesson has a defined scope that limits where ARE may use it.
 It measures whether that lesson helps in a later compatible interaction. It
 preserves the correction source, prior episode, changed target, and permitted
 scope. It also preserves revision, revocation, and later outcome information.
@@ -43,8 +44,8 @@ scope, or missing outcome evidence cannot create a usable lesson.
 | Progress signal | Evidence that the correction target improved, repeated, or remained unknown |
 | Research candidate | Recommend-only hypothesis or comparison when repeated evidence warrants study |
 
-The output remains revisable and revocable. Repeated delivery is not repeated
-learning, and a lesson that was projected is not necessarily correct or useful.
+The output can still be revised or revoked. Repeated delivery does not mean repeated learning.
+Delivering a lesson does not prove that the lesson is correct or useful.
 
 ## Lifecycle
 
@@ -67,7 +68,7 @@ flowchart TD
 ## Scope and projection
 
 The interaction scope includes one participant, one product, and explicitly
-controlled retention. Projection requires a compatible target and scope. A
+controlled retention. Projection supplies a lesson to a later interaction. It requires a compatible target and scope. A
 generic summary, explicit preference, and inferred scoped lesson remain distinct
 variants because they carry different evidence and generalization risks.
 
@@ -86,7 +87,7 @@ interaction signals through the existing research chain. It may create a
 hypothesis, experiment, observation, and recommend-only decision. Missing
 providers, no gain, or a negative comparison remain visible outcomes.
 
-The capability reuses the parent reasoning-state ledger and gateway continuity.
+The capability reuses the parent ledger for Reasoning State and the gateway's session continuity.
 It does not create a separate durable-session authority or overwrite prior
 interaction records.
 

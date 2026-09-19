@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unified Architecture Ontology Canvas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f4f1e8;
+      --muted: #a2a9b7;
+      --surface: #111722;
+      --surface-raised: #182130;
+      --line: #344156;
+      --meaning: #61d4df;
+      --realization: #9caeff;
+      --expectation: #c5a7ff;
+      --observation: #aadf72;
+      --explanation: #ff9d78;
+      --focus: #ffd166;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body { overflow: hidden; color: var(--ink); background: #080c12; }
+    button { font: inherit; color: inherit; }
+    .app { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 72px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(10, 14, 21, 0.96);
+    }
+    .brand { min-width: 250px; }
+    .eyebrow { color: var(--meaning); font-size: 10px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 3px 0 0; font-size: 17px; }
+    .pipeline { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+    .pipeline span { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; }
+    .metrics { display: flex; gap: 7px; margin-left: auto; }
+    .metric, .status { padding: 6px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); font-size: 11px; }
+    .metric strong { color: var(--ink); }
+    .status.ready { color: var(--observation); }
+    .status.error { color: #ff8585; }
+    .workspace { position: relative; min-height: 0; overflow: hidden; }
+    .toolbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; z-index: 4; }
+    .toolbar button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(17, 23, 34, .94); cursor: pointer; }
+    .toolbar button:hover, .toolbar button:focus-visible { border-color: var(--meaning); outline: none; }
+    .filters {
+      position: absolute;
+      top: 56px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 8px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(17, 23, 34, .96);
+      z-index: 4;
+    }
+    .filters label { display: grid; gap: 3px; color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+    .filters select, .filters button { min-height: 30px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: #0c121c; font: inherit; font-size: 11px; }
+    .filters select { min-width: 112px; padding: 4px 26px 4px 7px; }
+    .filters button { padding: 4px 10px; cursor: pointer; }
+    .filter-summary { margin-left: auto; align-self: center; max-width: 300px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+    .canvas-wrap { width: 100%; height: 100%; overflow: auto; background: radial-gradient(circle at 20% 0%, rgba(97,212,223,.08), transparent 30%), #090e16; }
+    #ontology-canvas { display: block; width: max(100%, 1800px); height: max(100%, 1120px); min-width: 1800px; min-height: 1120px; }
+    .band-backdrop { fill: rgba(17, 23, 34, .7); stroke: var(--line); stroke-width: 2; rx: 18; }
+    .band-title { fill: var(--ink); font-size: 20px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .band-subtitle { fill: var(--muted); font-size: 13px; }
+    .graph-edge { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; opacity: .74; }
+    .graph-edge.structural { stroke: #8190a8; }
+    .graph-edge.semantic { stroke: var(--meaning); stroke-dasharray: 10 7; }
+    .graph-edge.evidence { stroke: var(--observation); stroke-dasharray: 2 7; }
+    .graph-edge.is-dimmed { opacity: .08; }
+    .graph-edge.is-emphasized { opacity: 1; stroke-width: 3.4; }
+    .graph-edge.is-filter-dimmed { opacity: .06; }
+    .graph-edge.is-filter-hidden { display: none; }
+    .graph-node { transition: opacity 120ms ease; }
+    .graph-node .node-card { fill: var(--surface-raised); stroke: var(--line); stroke-width: 2; rx: 13; }
+    .graph-node[data-band="meaning"] .node-card { stroke: var(--meaning); }
+    .graph-node[data-band="realization"] .node-card { stroke: var(--realization); }
+    .graph-node[data-band="expectation"] .node-card { stroke: var(--expectation); }
+    .graph-node[data-band="observation"] .node-card { stroke: var(--observation); }
+    .graph-node[data-band="explanation"] .node-card { stroke: var(--explanation); }
+    .graph-node.is-dimmed { opacity: .23; }
+    .graph-node.is-emphasized .node-card { stroke: var(--focus); stroke-width: 4; filter: drop-shadow(0 0 9px rgba(255,209,102,.38)); }
+    .graph-node.is-filter-dimmed { opacity: .09; }
+    .graph-node.is-filter-hidden { display: none; }
+    .graph-node.is-filter-emphasized .node-card { stroke-width: 4; filter: drop-shadow(0 0 7px rgba(97,212,223,.38)); }
+    .node-label { fill: var(--ink); font-size: 13px; font-weight: 760; }
+    .node-plain { fill: var(--muted); font-size: 10px; }
+    .node-meta { fill: #7f8999; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+    .drawer {
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      left: 12px;
+      width: min(360px, calc(100vw - 24px));
+      padding: 20px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(14, 20, 30, .98);
+      box-shadow: 0 24px 70px rgba(0,0,0,.48);
+      transform: translateX(calc(-100% - 30px));
+      opacity: 0;
+      pointer-events: none;
+      transition: 160ms ease;
+      z-index: 6;
+    }
+    .drawer.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
+    .drawer-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+    .drawer h2 { margin: 3px 0 0; font-size: 19px; }
+    .drawer p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .drawer button { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); cursor: pointer; }
+    .band-guide { display: grid; gap: 9px; margin-top: 18px; }
+    .band-guide div { padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .band-guide strong { display: block; margin-bottom: 3px; font-size: 12px; }
+    .band-guide span { color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .boundary { margin-top: 18px; padding: 12px; border: 1px solid #715f33; border-radius: 10px; color: #f2d999; background: #241f13; font-size: 11px; line-height: 1.5; }
+    .loading { display: grid; place-items: center; width: 100%; height: 100%; color: var(--muted); }
+    @media (max-width: 900px) {
+      .pipeline { display: none; }
+      .metric { display: none; }
+      .brand { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="eyebrow">One graph · five evidence bands</div>
+        <h1>Architecture Ontology Canvas</h1>
+      </div>
+      <div class="pipeline" aria-label="Meaning to explanation pipeline">
+        <span>Meaning</span><b>→</b><span>Realization</span><b>→</b><span>Expectation</span><b>→</b><span>Observation</span><b>→</b><span>Explanation</span>
+      </div>
+      <div class="metrics" aria-label="Graph metrics">
+        <span class="metric"><strong id="node-count">0</strong> objects</span>
+        <span class="metric"><strong id="edge-count">0</strong> relations</span>
+        <span id="app-status" class="status">Loading exact bundle…</span>
+      </div>
+    </header>
+    <main class="workspace">
+      <div class="toolbar">
+        <button id="open-explore" type="button" aria-expanded="false" aria-controls="explore-drawer">☰ Understand this graph</button>
+      </div>
+      <section id="visibility-controls" class="filters" aria-label="Graph visibility filters">
+        <label>Family<select id="filter-family"><option value="all">All families</option><option value="meta-type">Meta-types</option><option value="architecture-type">Architecture types</option><option value="profile">Profiles</option><option value="constraint">Constraints</option><option value="property">Properties</option><option value="fact-element">Fact elements</option><option value="fact-relation">Fact relations</option><option value="finding">Findings</option></select></label>
+        <label>Maturity<select id="filter-maturity"><option value="all">All maturities</option><option value="active">Active</option><option value="candidate">Candidate</option><option value="deferred">Deferred</option><option value="superseded">Superseded</option></select></label>
+        <label>Coverage<select id="filter-coverage"><option value="all">All coverage</option><option value="unsupported">Unsupported</option><option value="candidate-mapped">Candidate mapped</option><option value="profiled-unmapped">Profiled unmapped</option><option value="not-admitted">Not admitted</option><option value="superseded">Superseded</option></select></label>
+        <label>Profile<select id="filter-profile"><option value="all">All profiles</option><option value="architecture.base-domain">Base portable</option><option value="architecture.typescript-strict">TypeScript</option><option value="architecture.python-strict">Python</option><option value="architecture.rust-strict">Rust</option></select></label>
+        <label>Relation<select id="filter-relation"><option value="all">All relations</option></select></label>
+        <label>Non-match<select id="filter-mode"><option value="dim">Dim</option><option value="hide">Hide</option></select></label>
+        <button id="clear-filters" type="button">Clear filters</button>
+        <output id="filter-summary" class="filter-summary" aria-live="polite">All graph identities are visible.</output>
+      </section>
+      <div id="canvas-wrap" class="canvas-wrap">
+        <div id="loading" class="loading">Building one immutable graph…</div>
+        <svg id="ontology-canvas" data-testid="ontology-canvas" role="graphics-document" aria-label="Unified ontology graph: Meaning, Realization, Expectation, Observation, and Explanation" hidden>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa7ba"/></marker>
+          </defs>
+          <g id="band-layer" data-layer="bands"></g>
+          <g id="edge-layer" data-layer="edges"></g>
+          <g id="node-layer" data-layer="nodes"></g>
+        </svg>
+      </div>
+      <aside id="explore-drawer" class="drawer" aria-hidden="true" aria-labelledby="explore-title">
+        <div class="drawer-head">
+          <div><div class="eyebrow">Plain-language guide</div><h2 id="explore-title">What am I looking at?</h2></div>
+          <button id="close-explore" type="button" aria-label="Close guide">×</button>
+        </div>
+        <p>This is one graph, not five replacement views. Every object remains present while the highlighted Rule story shows one exact path through the supplied evidence.</p>
+        <div class="band-guide">
+          <div><strong>Meaning</strong><span>The DomainSpec meta-types: what each domain concept means and its maturity.</span></div>
+          <div><strong>Realization</strong><span>Candidate architecture types that describe how code can realize those meanings.</span></div>
+          <div><strong>Expectation</strong><span>Portable and language-specific profiles, constraints, and inspectable properties.</span></div>
+          <div><strong>Observation</strong><span>Supplied TypeScript example facts. No source adapter ran to create them here.</span></div>
+          <div><strong>Explanation</strong><span>Expected findings that explain mismatches in that supplied TypeScript example.</span></div>
+        </div>
+        <div class="boundary">Candidate presentation only. Proximity and rendering never create ontology meaning, admission, source truth, release authority, or production evidence.</div>
+      </aside>
+    </main>
+  </div>
+  <script type="module">
+    import {BuildUnifiedCanvasProjection} from "./unified-canvas-model.mjs";
+    import {ComputeDeterministicCanvasLayout} from "./unified-canvas-layout.mjs";
+
+    const NS = "http://www.w3.org/2000/svg";
+    const sources = Object.freeze({
+      meta_types: "domain-meta-types.projection.json",
+      ontology: "ontology.json",
+      profiles: [
+        "profiles/base-domain.profile.json",
+        "profiles/typescript-strict.profile.json",
+        "profiles/python-strict.profile.json",
+        "profiles/rust-strict.profile.json",
+      ],
+      facts: "examples/typescript-observed-facts.json",
+      evaluation: "examples/typescript-evaluation.expected.json",
+    });
+    const dom = {
+      status: document.querySelector("#app-status"),
+      loading: document.querySelector("#loading"),
+      canvas: document.querySelector("#ontology-canvas"),
+      bands: document.querySelector("#band-layer"),
+      edges: document.querySelector("#edge-layer"),
+      nodes: document.querySelector("#node-layer"),
+      nodeCount: document.querySelector("#node-count"),
+      edgeCount: document.querySelector("#edge-count"),
+      drawer: document.querySelector("#explore-drawer"),
+      openDrawer: document.querySelector("#open-explore"),
+      closeDrawer: document.querySelector("#close-explore"),
+      filterFamily: document.querySelector("#filter-family"),
+      filterMaturity: document.querySelector("#filter-maturity"),
+      filterCoverage: document.querySelector("#filter-coverage"),
+      filterProfile: document.querySelector("#filter-profile"),
+      filterRelation: document.querySelector("#filter-relation"),
+      filterMode: document.querySelector("#filter-mode"),
+      clearFilters: document.querySelector("#clear-filters"),
+      filterSummary: document.querySelector("#filter-summary"),
+    };
+    const defaultFilterInput = Object.freeze({family: "all", maturity: "all", coverage: "all", profile_id: "all", relation: "all", non_match: "dim"});
+    let activeGraph = null;
+    const fetchSource = async (sourceRef) => {
+      const response = await fetch(sourceRef, {cache: "no-store"});
+      if (!response.ok) throw new Error(`${sourceRef}: HTTP ${response.status}`);
+      return {source_ref: sourceRef, value: await response.json()};
+    };
+    const svg = (name, attributes = {}) => {
+      const element = document.createElementNS(NS, name);
+      for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+      return element;
+    };
+    const short = (value, limit) => {
+      const text = String(value ?? "");
+      return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+    };
+    const lineChunks = (value) => {
+      const words = String(value ?? "").split(/\s+/);
+      const lines = [""];
+      for (const word of words) {
+        const current = lines.at(-1);
+        if (`${current} ${word}`.trim().length > 34 && lines.length < 2) lines.push(word);
+        else lines[lines.length - 1] = `${current} ${word}`.trim();
+      }
+      return lines.map((line) => short(line, 37));
+    };
+    const traceIds = (graph, startId, maxDepth = 3) => {
+      const nodes = new Set([startId]);
+      const edges = new Set();
+      let frontier = [startId];
+      for (let depth = 0; depth < maxDepth; depth += 1) {
+        const next = [];
+        for (const id of frontier) {
+          for (const edgeId of graph.indexes.incident_edges[id] ?? []) {
+            const edge = graph.edges.find((item) => item.id === edgeId);
+            if (!edge) continue;
+            edges.add(edge.id);
+            for (const endpoint of [edge.from, edge.to]) if (!nodes.has(endpoint)) { nodes.add(endpoint); next.push(endpoint); }
+          }
+        }
+        frontier = next;
+      }
+      return {nodes, edges};
+    };
+    const nodeProfileMatch = (node, profileId) => {
+      if (profileId === "all") return "neutral";
+      if (node.fixture_profile_id) return node.fixture_profile_id === profileId ? "match" : "mismatch";
+      if (node.evaluation_profile_id) return node.evaluation_profile_id === profileId ? "match" : "mismatch";
+      if (node.family === "profile") return node.source_id === profileId ? "match" : "mismatch";
+      if (node.statuses?.owner_profile_id) return node.statuses.owner_profile_id === profileId ? "match" : "mismatch";
+      if (node.constraint_origin_profile_id) return node.constraint_origin_profile_id === profileId ? "match" : "mismatch";
+      return "neutral";
+    };
+    const deriveVisibility = (graph, filterInput) => {
+      const nodeVisibility = {};
+      const nodeProfileMatches = {};
+      for (const node of graph.nodes) {
+        const coverage = node.statuses?.mapping_status ?? node.statuses?.candidate_status ?? "none";
+        const profileMatch = nodeProfileMatch(node, filterInput.profile_id);
+        nodeProfileMatches[node.id] = profileMatch;
+        const matches = (filterInput.family === "all" || node.family === filterInput.family)
+          && (filterInput.maturity === "all" || node.statuses?.maturity === filterInput.maturity)
+          && (filterInput.coverage === "all" || coverage === filterInput.coverage)
+          && profileMatch !== "mismatch";
+        nodeVisibility[node.id] = matches ? "visible" : filterInput.non_match === "hide" ? "hidden" : "dimmed";
+      }
+      const edgeVisibility = {};
+      for (const edge of graph.edges) {
+        const endpoints = [nodeVisibility[edge.from], nodeVisibility[edge.to]];
+        const relationMatches = filterInput.relation === "all" || edge.kind === filterInput.relation;
+        edgeVisibility[edge.id] = relationMatches && endpoints.every((value) => value === "visible")
+          ? "visible"
+          : filterInput.non_match === "hide" || endpoints.includes("hidden") ? "hidden" : "dimmed";
+      }
+      const noEvaluation = ["architecture.python-strict", "architecture.rust-strict"].includes(filterInput.profile_id)
+        ? `No supplied observation/evaluation for ${filterInput.profile_id.replace("architecture.", "").replace("-strict", "")}.`
+        : null;
+      return Object.freeze({graph_id: graph.graph_id, node_visibility: Object.freeze(nodeVisibility), edge_visibility: Object.freeze(edgeVisibility), node_profile_matches: Object.freeze(nodeProfileMatches), profile_notice: noEvaluation});
+    };
+    const currentFilterInput = () => Object.freeze({
+      family: dom.filterFamily.value,
+      maturity: dom.filterMaturity.value,
+      coverage: dom.filterCoverage.value,
+      profile_id: dom.filterProfile.value,
+      relation: dom.filterRelation.value,
+      non_match: dom.filterMode.value,
+    });
+    const applyVisibility = (filterInput = currentFilterInput()) => {
+      if (!activeGraph) return null;
+      const result = deriveVisibility(activeGraph, filterInput);
+      for (const element of dom.nodes.querySelectorAll("[data-node-id]")) {
+        const visibility = result.node_visibility[element.dataset.nodeId];
+        const profileMatch = result.node_profile_matches[element.dataset.nodeId];
+        element.dataset.visibility = visibility;
+        element.dataset.profileMatch = profileMatch;
+        element.classList.toggle("is-filter-hidden", visibility === "hidden");
+        element.classList.toggle("is-filter-dimmed", visibility === "dimmed");
+        element.classList.toggle("is-filter-emphasized", profileMatch === "match");
+      }
+      for (const element of dom.edges.querySelectorAll("[data-edge-id]")) {
+        const visibility = result.edge_visibility[element.dataset.edgeId];
+        element.dataset.visibility = visibility;
+        element.classList.toggle("is-filter-hidden", visibility === "hidden");
+        element.classList.toggle("is-filter-dimmed", visibility === "dimmed");
+      }
+      const nodeCounts = Object.values(result.node_visibility).reduce((counts, value) => ({...counts, [value]: (counts[value] ?? 0) + 1}), {});
+      const edgeCounts = Object.values(result.edge_visibility).reduce((counts, value) => ({...counts, [value]: (counts[value] ?? 0) + 1}), {});
+      dom.filterSummary.textContent = result.profile_notice ?? `${nodeCounts.visible ?? 0} visible, ${nodeCounts.dimmed ?? 0} dimmed, ${nodeCounts.hidden ?? 0} hidden.`;
+      window.__UOC_VISIBILITY_RECEIPT__ = Object.freeze({
+        ready: true,
+        graph_id: result.graph_id,
+        filter_input: filterInput,
+        node_counts: Object.freeze(nodeCounts),
+        edge_counts: Object.freeze(edgeCounts),
+        node_ids: Object.freeze(activeGraph.nodes.map((node) => node.id)),
+        edge_ids: Object.freeze(activeGraph.edges.map((edge) => edge.id)),
+        profile_notice: result.profile_notice,
+      });
+      return result;
+    };
+    const clearVisibility = () => {
+      dom.filterFamily.value = defaultFilterInput.family;
+      dom.filterMaturity.value = defaultFilterInput.maturity;
+      dom.filterCoverage.value = defaultFilterInput.coverage;
+      dom.filterProfile.value = defaultFilterInput.profile_id;
+      dom.filterRelation.value = defaultFilterInput.relation;
+      dom.filterMode.value = defaultFilterInput.non_match;
+      return applyVisibility(defaultFilterInput);
+    };
+    const render = (graph, layout) => {
+      const focus = traceIds(graph, "meta:DS-D1.7");
+      for (const band of layout.bands) {
+        const group = svg("g", {"data-band": band.id, "data-testid": `band-${band.id}`});
+        group.append(svg("rect", {class: "band-backdrop", x: band.x, y: band.y, width: band.width, height: band.height}));
+        const title = svg("text", {class: "band-title", x: band.x + 16, y: band.y - 34});
+        title.textContent = band.label;
+        const subtitle = svg("text", {class: "band-subtitle", x: band.x + 16, y: band.y - 14});
+        subtitle.textContent = `${band.node_ids.length} graph objects`;
+        group.append(title, subtitle);
+        dom.bands.append(group);
+      }
+      const routeById = new Map(layout.routes.map((route) => [route.edge_id, route]));
+      for (const edge of graph.edges) {
+        const route = routeById.get(edge.id);
+        const path = svg("path", {
+          class: `graph-edge ${route.relation_class} ${focus.edges.has(edge.id) ? "is-emphasized" : "is-dimmed"}`,
+          d: route.path,
+          "data-edge-id": edge.id,
+          "data-edge-kind": edge.kind,
+          "data-pattern": route.pattern,
+          markerend: "url(#arrow)",
+        });
+        const title = svg("title");
+        title.textContent = route.accessible_name;
+        path.append(title);
+        dom.edges.append(path);
+      }
+      for (const node of graph.nodes) {
+        const position = layout.positions[node.id];
+        const group = svg("g", {
+          class: `graph-node ${focus.nodes.has(node.id) ? "is-emphasized" : "is-dimmed"}`,
+          transform: `translate(${position.x} ${position.y})`,
+          "data-node-id": node.id,
+          "data-family": node.family,
+          "data-band": node.band,
+          "data-source-ref": node.source_ref,
+          "data-maturity": node.statuses?.maturity ?? "",
+          "data-coverage": node.statuses?.mapping_status ?? node.statuses?.candidate_status ?? "",
+          "data-fixture-profile-id": node.fixture_profile_id ?? "",
+          "data-evaluation-profile-id": node.evaluation_profile_id ?? "",
+          "data-constraint-origin-profile-id": node.constraint_origin_profile_id ?? "",
+          role: "graphics-symbol",
+          "aria-label": `${node.label}. ${node.plain_language}`,
+        });
+        group.append(svg("rect", {class: "node-card", width: position.width, height: position.height}));
+        const label = svg("text", {class: "node-label", x: 12, y: 20});
+        label.textContent = short(node.label, 28);
+        const plainLines = lineChunks(node.plain_language);
+        plainLines.forEach((line, index) => {
+          const text = svg("text", {class: "node-plain", x: 12, y: 39 + index * 12});
+          text.textContent = line;
+          group.append(text);
+        });
+        const meta = svg("text", {class: "node-meta", x: 12, y: position.height - 7});
+        meta.textContent = `${node.family} · ${short(node.source_id, 22)}`;
+        const title = svg("title");
+        title.textContent = `${node.label}: ${node.plain_language}`;
+        group.append(label, meta, title);
+        dom.nodes.append(group);
+      }
+      dom.canvas.setAttribute("viewBox", `0 0 ${layout.bounds.width} ${layout.bounds.height}`);
+      dom.canvas.dataset.graphId = graph.graph_id;
+      dom.canvas.dataset.layoutId = layout.layout_id;
+      dom.canvas.dataset.verificationStatus = graph.verification_status;
+      dom.nodeCount.textContent = graph.nodes.length;
+      dom.edgeCount.textContent = graph.edges.length;
+      dom.loading.hidden = true;
+      dom.canvas.hidden = false;
+    };
+    const load = async () => {
+      try {
+        const [metaTypes, ontology, profiles, facts, evaluation] = await Promise.all([
+          fetchSource(sources.meta_types),
+          fetchSource(sources.ontology),
+          Promise.all(sources.profiles.map(fetchSource)),
+          fetchSource(sources.facts),
+          fetchSource(sources.evaluation),
+        ]);
+        const bundle = {meta_types: metaTypes, ontology, profiles, facts, evaluation};
+        const sourceBefore = JSON.stringify(bundle);
+        const graph = BuildUnifiedCanvasProjection(bundle);
+        const layout = ComputeDeterministicCanvasLayout(graph);
+        const sourceMutated = sourceBefore !== JSON.stringify(bundle);
+        if (sourceMutated) throw new Error("Unified render mutated the source bundle.");
+        activeGraph = graph;
+        for (const relation of [...new Set(graph.edges.map((edge) => edge.kind))].sort()) {
+          const option = document.createElement("option");
+          option.value = relation;
+          option.textContent = relation;
+          dom.filterRelation.append(option);
+        }
+        render(graph, layout);
+        clearVisibility();
+        dom.status.textContent = "Ready · local prototype";
+        dom.status.classList.add("ready");
+        window.__UOC_STATIC_RECEIPT__ = Object.freeze({
+          ready: true,
+          graph_id: graph.graph_id,
+          layout_id: layout.layout_id,
+          verification_status: graph.verification_status,
+          node_count: graph.nodes.length,
+          edge_count: graph.edges.length,
+          band_count: layout.bands.length,
+          source_mutated: sourceMutated,
+          authority_effect: graph.authority_effect,
+        });
+      } catch (error) {
+        dom.status.textContent = "Blocked";
+        dom.status.classList.add("error");
+        dom.loading.textContent = `Unable to render the complete graph: ${error.message}`;
+        console.error(error);
+      }
+    };
+    const setDrawerOpen = (open) => {
+      dom.drawer.classList.toggle("open", open);
+      dom.drawer.setAttribute("aria-hidden", String(!open));
+      dom.openDrawer.setAttribute("aria-expanded", String(open));
+    };
+    dom.openDrawer.addEventListener("click", () => setDrawerOpen(!dom.drawer.classList.contains("open")));
+    dom.closeDrawer.addEventListener("click", () => setDrawerOpen(false));
+    for (const control of [dom.filterFamily, dom.filterMaturity, dom.filterCoverage, dom.filterProfile, dom.filterRelation, dom.filterMode]) control.addEventListener("change", () => applyVisibility());
+    dom.clearFilters.addEventListener("click", clearVisibility);
+    window.__UOC_VISIBILITY_API__ = Object.freeze({deriveVisibility, apply: applyVisibility, clear: clearVisibility});
+    await load();
+  </script>
+</body>
+</html>

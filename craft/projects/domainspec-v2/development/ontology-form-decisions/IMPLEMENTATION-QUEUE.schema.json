@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/contracts/ontology-form-implementation-queue.schema.json",
+  "title": "DomainSpec ontology form implementation queue",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "campaign_id", "queue_policy", "ready", "blocked", "excluded", "authority_effect"],
+  "properties": {
+    "schema_version": {"const": "domainspec-ontology-form-implementation-queue/v1"},
+    "campaign_id": {"$ref": "#/$defs/stableId"},
+    "queue_policy": {"type": "string", "minLength": 1},
+    "ready": {"type": "array", "items": {"$ref": "#/$defs/readyEntry"}},
+    "blocked": {"type": "array", "items": {"$ref": "#/$defs/blockedEntry"}},
+    "excluded": {"type": "array", "items": {"$ref": "#/$defs/excludedEntry"}},
+    "authority_effect": {"const": "none"}
+  },
+  "$defs": {
+    "stableId": {"type":"string","pattern":"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$"},
+    "sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "metaTypeId": {"type":"string","pattern":"^DS-D1\\.[0-9]+$"},
+    "exactRef": {
+      "type":"object","additionalProperties":false,"required":["path","sha256"],
+      "properties":{"path":{"type":"string","minLength":1},"sha256":{"$ref":"#/$defs/sha256"}}
+    },
+    "readyEntry": {
+      "type":"object","additionalProperties":false,
+      "required":["meta_type_id","decision_id","architecture_mapping_decision_ref","realization_descriptor_ref","factory_kit_ref","proof_contract_schema_ref","validation_receipt_ref"],
+      "properties":{
+        "meta_type_id":{"$ref":"#/$defs/metaTypeId"},
+        "decision_id":{"$ref":"#/$defs/stableId"},
+        "architecture_mapping_decision_ref":{"$ref":"#/$defs/exactRef"},
+        "realization_descriptor_ref":{"$ref":"#/$defs/exactRef"},
+        "factory_kit_ref":{"$ref":"#/$defs/exactRef"},
+        "proof_contract_schema_ref":{"$ref":"#/$defs/exactRef"},
+        "validation_receipt_ref":{"$ref":"#/$defs/exactRef"}
+      }
+    },
+    "blockedEntry": {
+      "type":"object","additionalProperties":false,"required":["meta_type_id","decision_state","next_gate"],
+      "properties":{"meta_type_id":{"$ref":"#/$defs/metaTypeId"},"decision_state":{"type":"string","minLength":1},"next_gate":{"type":"string","minLength":1}}
+    },
+    "excludedEntry": {
+      "type":"object","additionalProperties":false,"required":["meta_type_id","outcome"],
+      "properties":{"meta_type_id":{"$ref":"#/$defs/metaTypeId"},"outcome":{"enum":["wait-for-definition","deferred","superseded"]}}
+    }
+  }
+}
+

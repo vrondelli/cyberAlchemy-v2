@@ -1,0 +1,330 @@
+TAP version 13
+# (node:445673) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: Python shared list/set and Event decimal reject active metaclasses without equality or conversion
+not ok 1 - Python shared list/set and Event decimal reject active metaclasses without equality or conversion
+  ---
+  duration_ms: 299.233145
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-algebraic-enums.test.ts:1:1017'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B -c 
+    import json,sys,types
+    sources=json.load(sys.stdin)
+    modules=[]
+    for name,source in sources.items():
+        module=types.ModuleType(name)
+        sys.modules[name]=module
+        exec(compile(source,name,"exec"),module.__dict__)
+        modules.append(module)
+    values,events=modules
+    for spoof in (False,True):
+        effects=[]
+        class ActiveMeta(type):
+            def __eq__(cls,other):
+                effects.append("equality")
+                return spoof
+        class Hostile(metaclass=ActiveMeta):
+            def __iter__(self):
+                effects.append("iteration")
+                return iter(())
+            def __float__(self):
+                effects.append("conversion")
+                return 1.0
+        for normalize in (values.list_value(values.STRING).normalize,values.set_value(values.STRING).normalize,events.decimal):
+            try:
+                normalize(Hostile())
+            except TypeError:
+                pass
+            else:
+                raise AssertionError("ACTIVE_INPUT_ACCEPTED")
+        assert not effects, "ACTIVE_METACLASS_EXECUTED:"+repr(effects)
+    assert values.list_value(values.UINT64).normalize(["2",1]) == (2,1)
+    assert values.set_value(values.UINT64).normalize(["2",1]) == (1,2)
+    assert events.decimal(2) == 2.0 and events.decimal(-0.0) == 0.0
+    try:
+        events.decimal(True)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("BOOL_DECIMAL_COLLAPSE")
+    print("INERT_TYPES_OK")
+    
+    Traceback (most recent call last):
+      File "<string>", line 31, in <module>
+        assert not effects, "ACTIVE_METACLASS_EXECUTED:"+repr(effects)
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED:['equality', 'equality', 'equality', 'equality', 'equality', 'equality']
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-algebraic-enums.test.ts:16:15)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+  ...
+# Subtest: Python algebraic plan binds the complete Enum dependency closure and survives source removal
+ok 2 - Python algebraic plan binds the complete Enum dependency closure and survives source removal
+  ---
+  duration_ms: 58.442219
+  type: 'test'
+  ...
+# Subtest: Python sum planning rejects forged bindings, source drift, native artifact collisions and active inputs
+ok 3 - Python sum planning rejects forged bindings, source drift, native artifact collisions and active inputs
+  ---
+  duration_ms: 60.046911
+  type: 'test'
+  ...
+# Subtest: native Python sums preserve exact values, immutable composition and ownership in two module roots
+ok 4 - native Python sums preserve exact values, immutable composition and ownership in two module roots
+  ---
+  duration_ms: 252.306802
+  type: 'test'
+  ...
+# Subtest: native behavioral controls detect compiling UInt64 and list-order mutations
+ok 5 - native behavioral controls detect compiling UInt64 and list-order mutations
+  ---
+  duration_ms: 429.528538
+  type: 'test'
+  ...
+# (node:445826) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: Python Operation executes ordered atomic state/outbox batches and preserves all failure boundaries in two roots
+not ok 6 - Python Operation executes ordered atomic state/outbox batches and preserves all failure boundaries in two roots
+  ---
+  duration_ms: 481.230389
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:1:11558'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B /home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py /home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/test-tmp/ds-operations-HoKYxV/application application.features.commerce.src.application.operations.post operation_post full
+    Traceback (most recent call last):
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py", line 403, in <module>
+        asyncio.run(main())
+        ~~~~~~~~~~~^^^^^^^^
+      File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+        return runner.run(main)
+               ~~~~~~~~~~^^^^^^
+      File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+        return self._loop.run_until_complete(task)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+      File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+        return future.result()
+               ~~~~~~~~~~~~~^^
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py", line 175, in main
+        assert not effects, "ACTIVE_METACLASS_EXECUTED"
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    native (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:64:10)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:86:18)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+  ...
+# Subtest: Python Operation rejects forged/stale inputs, active selections, missing factories and drift without changing legacy selection
+ok 7 - Python Operation rejects forged/stale inputs, active selections, missing factories and drift without changing legacy selection
+  ---
+  duration_ms: 173.9689
+  type: 'test'
+  ...
+# Subtest: Compiling Operation behavior mutations are killed by independent native store and outcome assertions
+ok 8 - Compiling Operation behavior mutations are killed by independent native store and outcome assertions
+  ---
+  duration_ms: 4557.975024
+  type: 'test'
+  ...
+# Subtest: Python Operation supports minimal scalar contexts, validated record results and dependency-order-independent modules
+not ok 9 - Python Operation supports minimal scalar contexts, validated record results and dependency-order-independent modules
+  ---
+  duration_ms: 303.654826
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:1:16551'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B /home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py /home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/test-tmp/ds-operations-TInxKH/scalar application.features.commerce.src.application.operations.accept operation_accept scalar
+    Traceback (most recent call last):
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py", line 403, in <module>
+        asyncio.run(main())
+        ~~~~~~~~~~~^^^^^^^^
+      File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+        return runner.run(main)
+               ~~~~~~~~~~^^^^^^
+      File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+        return self._loop.run_until_complete(task)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+      File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+        return future.result()
+               ~~~~~~~~~~~~~^^
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py", line 175, in main
+        assert not effects, "ACTIVE_METACLASS_EXECUTED"
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    native (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:64:10)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:152:16)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+  ...
+# Subtest: Whole-source Operation observer rejects invisible effects, type lies, mutable bindings and dependency tampering
+not ok 10 - Whole-source Operation observer rejects invisible effects, type lies, mutable bindings and dependency tampering
+  ---
+  duration_ms: 391.898367
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:1:20251'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B /home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py /home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/test-tmp/ds-operations-6A886t/invisible-global-write application.features.commerce.src.application.operations.post operation_post full
+    Traceback (most recent call last):
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py", line 403, in <module>
+        asyncio.run(main())
+        ~~~~~~~~~~~^^^^^^^^
+      File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+        return runner.run(main)
+               ~~~~~~~~~~^^^^^^
+      File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+        return self._loop.run_until_complete(task)
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+      File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+        return future.result()
+               ~~~~~~~~~~~~~^^
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-operation-runtime.py", line 175, in main
+        assert not effects, "ACTIVE_METACLASS_EXECUTED"
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    native (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:64:10)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-operations.test.ts:193:18)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+  ...
+# (node:446392) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+# (Use `node --trace-deprecation ...` to show where the warning was created)
+# Subtest: Python State Machine preserves complete state/trigger matrices, nominal enums, intent order and immutable replay
+not ok 11 - Python State Machine preserves complete state/trigger matrices, nominal enums, intent order and immutable replay
+  ---
+  duration_ms: 301.253351
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:1:7734'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B /home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-state-machine-runtime.py
+    Traceback (most recent call last):
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-state-machine-runtime.py", line 117, in <module>
+        assert not effects, "ACTIVE_METACLASS_EXECUTED"
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    run (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:57:60)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:65:16)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+  ...
+# Subtest: Python State Machine supports guardless and structured facts without inventing effects or factory validation
+not ok 12 - Python State Machine supports guardless and structured facts without inventing effects or factory validation
+  ---
+  duration_ms: 241.496448
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:1:8534'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B /home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-state-machine-runtime.py
+    Traceback (most recent call last):
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-state-machine-runtime.py", line 117, in <module>
+        assert not effects, "ACTIVE_METACLASS_EXECUTED"
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    run (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:57:60)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:77:15)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+  ...
+# Subtest: Python State Machine rejects stale/hostile selection and keeps legacy TypeScript output unchanged
+ok 13 - Python State Machine rejects stale/hostile selection and keeps legacy TypeScript output unchanged
+  ---
+  duration_ms: 51.510652
+  type: 'test'
+  ...
+# Subtest: Native and whole-source State Machine controls kill compiling transition, intent, guard and hidden-effect mutations
+not ok 14 - Native and whole-source State Machine controls kill compiling transition, intent, guard and hidden-effect mutations
+  ---
+  duration_ms: 2838.148585
+  type: 'test'
+  location: '/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:1:14483'
+  failureType: 'testCodeFailure'
+  error: |-
+    Command failed: /usr/bin/python3 -B /home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-state-machine-runtime.py
+    Traceback (most recent call last):
+      File "/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/python-state-machine-runtime.py", line 117, in <module>
+        assert not effects, "ACTIVE_METACLASS_EXECUTED"
+               ^^^^^^^^^^^
+    AssertionError: ACTIVE_METACLASS_EXECUTED
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    genericNodeError (node:internal/errors:999:15)
+    wrappedFn (node:internal/errors:544:14)
+    checkExecSyncError (node:child_process:942:11)
+    execFileSync (node:child_process:978:15)
+    run (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:57:60)
+    TestContext.<anonymous> (/home/vrondelli/projects/domainspec-core/projects/domainspec-v2/impl/cli/test/generation/configured-python-state-machines.test.ts:147:29)
+    Test.runInAsyncScope (node:async_hooks:226:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 7
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12368.053641

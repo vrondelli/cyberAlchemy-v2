@@ -1,0 +1,66 @@
+{
+  "schema_version": "evf.key-door-runtime-contract/v1",
+  "runtime_id": "evf.key-door.runtime-adapter.v1",
+  "scope": "SWU-GCP-001",
+  "target": {
+    "path": "projects/domainspec-v2/impl/test-derivation-engine/src/minted-project/fixtures/key-door-runtime.ts",
+    "export": "attemptUnlock",
+    "version": 1,
+    "pre_state": "planned-create"
+  },
+  "input_contract": {
+    "typescript": "{ has_key: boolean; door_locked: true }",
+    "door_locked_scope": "locked-door-inputs-only"
+  },
+  "output_contract": {
+    "typescript": "{ status: 'unlocked' | 'denied'; door_locked: boolean }",
+    "allowed_exact_values": [
+      {
+        "status": "unlocked",
+        "door_locked": false
+      },
+      {
+        "status": "denied",
+        "door_locked": true
+      }
+    ]
+  },
+  "transition_contract": [
+    {
+      "when": {
+        "has_key": true,
+        "door_locked": true
+      },
+      "then": {
+        "status": "unlocked",
+        "door_locked": false
+      }
+    },
+    {
+      "when": {
+        "has_key": false,
+        "door_locked": true
+      },
+      "then": {
+        "status": "denied",
+        "door_locked": true
+      }
+    }
+  ],
+  "evaluation_contract": {
+    "expected": "evaluate typed predicate AST against fixture vars without reading runtime output",
+    "observed": "validate exact runtime output shape and transition, then project status == unlocked AND door_locked == false",
+    "join": "expected_boolean == observed_boolean",
+    "invalid_output_code": "RUNTIME_OUTPUT_INVALID",
+    "mismatch_code": "RUNTIME_RESULT_MISMATCH"
+  },
+  "effects": {
+    "purity": "pure",
+    "io": false,
+    "network": false,
+    "filesystem": false,
+    "clock": false,
+    "random": false
+  },
+  "claim_ceiling": "harness-only-causal-proof-not-application-runtime"
+}

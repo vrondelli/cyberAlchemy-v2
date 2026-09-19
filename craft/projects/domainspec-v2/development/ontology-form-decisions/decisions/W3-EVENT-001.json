@@ -1,0 +1,179 @@
+{
+  "schema_version": "ArchitectureMappingDecision/v1",
+  "decision_id": "DS-OF-W3-EVENT-001",
+  "campaign_id": "domainspec-all-meta-type-forms-20260808",
+  "wave_id": "W3",
+  "meta_type_id": "DS-D1.12",
+  "meta_type_label": "Event",
+  "scope": "Event portable architecture and TypeScript, Python, and Rust target realizations only",
+  "status": "accepted-target-awaiting-ontology-and-profile-materialization",
+  "selected_option_id": "W3-EVENT-A-BOUND-DURABLE-PAST-FACT",
+  "selected_option_label": "Descriptor-bound durable past fact",
+  "decision_source": {
+    "kind": "user-message",
+    "exact_text": "select and implemented",
+    "accepted_at": "2026-08-09T05:36:00Z",
+    "context": "In immediate response to the displayed W3 bundle, the message selects shared W3-A and requests downstream implementation.",
+    "normalized_selection": "Accept W3-A",
+    "scope_evidence": "immediate-conversation-context-only",
+    "independent_scope_proof": false
+  },
+  "shared_architecture_selection": {
+    "selected_option_id": "W3-A-DESCRIPTOR-BOUND-TYPED-EFFECTS-CONNECTIONS",
+    "descriptor_protocol_id": "domainspec.w3-descriptor-binding/v1",
+    "request_ref": {
+      "path": "projects/domainspec-v2/development/refinement-runs/20260809T040359Z-w3-effects-connections/stages/11-decision-gate/W3-SHARED-OPTION-ADMISSIBILITY-REQUEST.json",
+      "sha256": "9d966d37043d8e3a3ef3a7893f7a4c945944bc2f87cfb6420fdc2484a4bd0d6d"
+    },
+    "receipt_ref": {
+      "path": "projects/domainspec-v2/development/refinement-runs/20260809T040359Z-w3-effects-connections/stages/11-decision-gate/W3-SHARED-OPTION-ADMISSIBILITY.json",
+      "sha256": "125cddc3e76262bd18095142218d58f4d8ce06b0ed1a897277aecc8bdbd47af5"
+    },
+    "request_digest": "245059ee8df9fb3be2f3d0ffb09111590ed0315aaa28caf9f01b77a1cf8bc163"
+  },
+  "admissibility": {
+    "request_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W3-EVENT-OPTION-ADMISSIBILITY-REQUEST.json",
+      "sha256": "45af4b18a23ef7291afbd30f010e256dde8715d0215383bf6443e14adaf65f15"
+    },
+    "receipt_ref": {
+      "path": "projects/domainspec-v2/development/ontology-form-decisions/receipts/W3-EVENT-OPTION-ADMISSIBILITY.json",
+      "sha256": "213ca52efe98fb98a26de5549913b5276aec474bd83ccfd2e41aa0e1fa970a0b"
+    },
+    "request_digest": "9b058d2a6affa48dc2f8fb5a8c5bf338366cc5e71dc559a285fca2fffdd9a9a1",
+    "route_outcome": "gate"
+  },
+  "considered_options": [
+    {"option_id": "W3-EVENT-A-BOUND-DURABLE-PAST-FACT", "outcome": "selected"},
+    {
+      "option_id": "W3-EVENT-B-DETACHED-DURABLE-FACT-REGISTRY",
+      "outcome": "not-selected",
+      "tradeoff": "Keeps native records plain but requires a detached checkpoint occurrence payload consumer and publication-attempt registry with drift proof."
+    },
+    {"option_id": "W3-EVENT-C-DEFER", "outcome": "not-selected"},
+    {"option_id": "W3-EVENT-D-STOP", "outcome": "not-selected"}
+  ],
+  "portable_architecture": {
+    "type_id": "architecture.EventImplementation",
+    "base_type_id": "architecture.DomainConceptImplementation",
+    "portable_invariants": [
+      "represents one past fact with exact payload identity version and compatibility policy",
+      "binds one occurrence identity and exactly one declared durable-fact checkpoint",
+      "separates fact durability publication attempts acknowledgements and failures",
+      "binds descriptor relation source fixture profile and provider identities by current digest"
+    ],
+    "descriptor_contract": {
+      "tense": "past",
+      "payload_contract_ref": "required-exact-ref",
+      "payload_version": "required",
+      "occurrence_identity_contract_ref": "required-exact-ref",
+      "fact_checkpoint": ["domain-state-commit", "durable-event-store-append", "durable-outbox-append"],
+      "fact_checkpoint_cardinality": "exactly-one",
+      "publication_policy_ref": "required-content-addressed-ref",
+      "consumer_contracts_ref": "required-content-addressed-ref",
+      "primary_callable_count": "not-applicable"
+    },
+    "state_model": ["constructed", "durable-fact", "outbox-appended", "publish-attempted", "acknowledged", "failed"],
+    "identity_contract": {
+      "occurrence_id": "stable per fact occurrence",
+      "publication_attempt_id": "distinct per attempt",
+      "duplicate_occurrence": "block",
+      "publication_attempts": "counted without exactly-once inference"
+    },
+    "relation_contracts": [
+      {
+        "relation_id": "architecture.emits",
+        "source_types": ["architecture.OperationImplementation"],
+        "target_types": ["architecture.EventImplementation"],
+        "direction": "operation-to-event",
+        "source_cardinality": "zero-or-more-declared",
+        "target_cardinality": "one",
+        "duplicate_policy": "block-by-occurrence-identity",
+        "cycle_policy": "not-applicable",
+        "owner": "DomainSpec ontology author",
+        "observation_stages": ["authored-meaning", "generated-projection", "static-native-observation", "runtime-observation"],
+        "stable_failure_codes": ["ARCH_EVENT_EMISSION_UNDECLARED", "ARCH_EVENT_CHECKPOINT_ORDER", "ARCH_EVENT_OCCURRENCE_DUPLICATE"]
+      },
+      {
+        "relation_id": "architecture.consumes",
+        "source_types": ["architecture.InterfaceImplementation", "architecture.OperationImplementation"],
+        "target_types": ["architecture.EventImplementation"],
+        "direction": "consumer-to-event",
+        "source_cardinality": "zero-or-more-declared",
+        "target_cardinality": "one-or-more-compatible-consumers",
+        "duplicate_policy": "block",
+        "cycle_policy": "declared-by-profile",
+        "owner": "DomainSpec ontology author",
+        "observation_stages": ["authored-meaning", "generated-projection", "static-native-observation", "runtime-observation"],
+        "stable_failure_codes": ["ARCH_EVENT_CONSUMER_UNDECLARED", "ARCH_EVENT_CONSUMER_VERSION", "ARCH_EVENT_PAYLOAD_DRIFT"]
+      }
+    ],
+    "forbidden_collapses": [
+      "constructed or published does not imply durable fact",
+      "call graphs and message names cannot author Event meaning",
+      "publication attempt counts cannot prove distributed exactly-once delivery",
+      "Operation behavior cannot collapse into Event identity"
+    ]
+  },
+  "language_target_realizations": [
+    {
+      "language": "typescript",
+      "form_id": "typescript.bound-event-readonly-record",
+      "protocol_id": "typescript.bound-event/v1",
+      "requirements": ["readonly discriminated record or class", "as const permitted and TypeScript enum not required", "explicit occurrence and payload version fields"],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "python",
+      "form_id": "python.bound-event-frozen-record",
+      "protocol_id": "python.bound-event/v1",
+      "requirements": ["frozen dataclass or typed immutable record", "explicit occurrence and payload version fields", "provider checkpoint adapter"],
+      "profile_status": "target-not-yet-admitted"
+    },
+    {
+      "language": "rust",
+      "form_id": "rust.bound-event-struct",
+      "protocol_id": "rust.bound-event/v1",
+      "requirements": ["struct plus idiomatic discriminant or version type", "explicit occurrence and payload version fields", "provider checkpoint adapter"],
+      "profile_status": "target-not-yet-admitted"
+    }
+  ],
+  "proof_contract": {
+    "positive_obligations": [
+      "past-tense meaning payload identity version occurrence identity and consumer contracts match the authored descriptor",
+      "exactly one selected durable-fact checkpoint is observed before any fact claim",
+      "publication attempts acknowledgements and failures remain distinct from occurrence identity and durability",
+      "declared compatible consumers accept the exact payload version"
+    ],
+    "negative_controls": [
+      "present-tense command or pre-checkpoint fact passes",
+      "duplicate occurrence or payload and consumer drift passes",
+      "call graph authors Event meaning",
+      "ambiguous or multiple durable checkpoints pass",
+      "bounded publication attempts prove distributed exactly-once delivery"
+    ],
+    "claim_ceiling": "candidate-local descriptor-bound Event fact identity durability checkpoint and publication-attempt ordering only"
+  },
+  "matrix_transition": {
+    "target_state": "tension-reviewed",
+    "architecture_form_status": "owner-decided",
+    "language_forms_status": "proposed until exact profile protocols and providers exist",
+    "implementation_ready": false
+  },
+  "remaining_blockers": [
+    "materialize EventImplementation emits consumes checkpoint occurrence payload and publication properties in the candidate ontology",
+    "admit exact Event protocols in TypeScript Python and Rust profiles",
+    "implement and digest-bind language providers and checkpoint observers",
+    "create positive and hostile fixtures and execute native proof",
+    "generate a realization descriptor factory kit and pre-queue readiness receipt"
+  ],
+  "non_effects": [
+    "no canonical Event definition mutation",
+    "no ontology or language-profile promotion",
+    "no provider or product implementation by this decision record",
+    "no distributed exactly-once claim",
+    "no implementation-queue admission",
+    "no W4 form decision"
+  ],
+  "authority_effect": "none"
+}

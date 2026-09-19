@@ -1,0 +1,17 @@
+# Receipt-bound recovery session
+
+`recovery-session.mjs` exports compact `recoveryTools` and `createRecoverySession({measure_tokens})`. It is an offline pure state controller; no provider, disk, gold or episode code is called. Tests use fixture receipts and a fixture byte counter, not measured provider tokens.
+
+- `await prepare({captures,receipts})` returns a detached page packet; only `model.text` is public. Call once before rendering candidates, then place this exact text in its own user message and include both exported tools. Repeated prepares retain the current page but revoke acknowledgement until a new successful receipt. Initial preparation or an explicitly staged refresh takes the latest supplied archive; ordinary paging preserves its immutable snapshot.
+- `acknowledge({prompt,receipt})` checks native reconstructed wire hash, dispatched model kind, HTTP200, no failure code, known integer usage, exactly one own user message equal to the page, and each recovery tool name exactly once with exact parameters. Descriptions may be compacted. Failed, tokenizer-only, changed-body or schema-mismatched receipts never authorize execution. The last acknowledged immutable snapshot stays retained through new preparation and failed attempts; a successful acknowledgement replaces it and reports `previous_snapshot`.
+- `await execute('recover_archived_read',{handle})` requires acknowledgement and preserves the original native historical recovery output. Only current-page handles resolve. It does not fetch a path or verify current-source freshness.
+- `await execute('list_recovery_page',{cursor})` requires acknowledgement and the exact current next cursor. It returns only a small staged-transition status. The page changes at the **next prepare**, so subsequent recovery calls in the same tool batch still resolve against the old acknowledged page. A second transition in the batch rejects deterministically.
+- A null cursor is an explicit refresh and is allowed only at an acknowledged final/empty page. Refresh uses the newest archive supplied to the **next prepare**, including observations confirmed by the preceding request. The old snapshot remains active through that tool batch; a stale cursor cannot act on the refreshed snapshot.
+
+The episode must use sequential tool execution, parse raw JSON with its strict duplicate/extra-key policy, pass decoded complete argument objects, and append the returned public page before full-request admission. This controller validates complete decoded object fields; it cannot recover duplicate-key information after an unsafe parse. Complete-request 8K admission and durable attempt auditing remain caller-owned. An unfit page has no public presentation and cannot be acknowledged; integration must report that condition explicitly.
+
+Six session tests cover acknowledgement failure modes, wire/schema identity, all37 entries including17th, immutable paging despite newer archives, refresh/stale cursors, deterministic multi-tool calls and detached returned pages. Seven index tests additionally cover distinct-source deduplication and original historical recovery. No cost or quality result follows.
+
+## Open Questions
+
+How will the episode persist prepared and acknowledged private state for failed-dispatch audit? What source freshness feedback should accompany recovered observations at terminal selection? These remain integration responsibilities under [PLAN.md](PLAN.md); this controller does not alter terminal acceptance or scoring.

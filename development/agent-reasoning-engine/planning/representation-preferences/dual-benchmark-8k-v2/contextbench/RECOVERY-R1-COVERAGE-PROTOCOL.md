@@ -1,0 +1,11 @@
+# R1 coverage diagnostic
+
+Separate post-hoc diagnostic of the interrupted R1, not a new generation experiment. Open questions are owned by [RADICAL-BRANCH-PLAN.md](RADICAL-BRANCH-PLAN.md). No provider calls, source clones, edits to original results or accepted savings claims.
+
+Reverify the 275-file generation freeze, independently reviewed partial scores and all their source bindings before and after evaluation. Rehydrate the exact four sealed pairs; retain all eight assigned rows, including unscored failures. Only completed and independently scored arms enter evaluator analysis. Reconstruct each terminal prediction from its exact response-bound packet, selection, snapshots and retained base. Check against the stored native export.
+
+For each completed arm, project all receipt-bound delivered observations into base-source spans. Evaluate archive, offered and selected span unions using the existing representation-ceiling evaluator in the existing network-isolated filesystem-immutable Python sandbox. The result exposes aggregate metrics, not gold source paths, text or witness IDs. Check selected recall and F1 against the previously reviewed native score before accepting a row. Bounds describe retained evidence, not all information an agent could discover. Perfect whole-read feasibility does not imply the model can choose that set.
+
+Use a fresh 32MiB stage with 8MiB final reserve and existing D:/WSL admission. Four sequential evaluator subprocesses each have a 180-second timeout and 1MiB pipe limits. All filesystem writes go through stage persistence. Source-only payloads are retained as evidence within the stage; no generated gold files are persisted. A failed diagnostic preserves its failure and partial rows, with validity false. No retry of the same directory. The original R1 remains inconclusive. Successful diagnostic rows do not establish causal treatment effects.
+
+Execution requires an independent review binding this script, protocol, evaluator/projection/sandbox dependencies and prior partial-result review. The diagnostic checks review bindings at start and completion. Native observation/decision registration follows independently reviewed results; it cannot be inferred from this protocol alone.

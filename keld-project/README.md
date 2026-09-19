@@ -23,7 +23,7 @@ The 16 MB starter is preserved under `prototype/`. It contains the website,
 not the engine. ARE continues to live at
 [its product package](../agent-reasoning-engine/README.md) and
 [its implementation](../implementation/agent-reasoning-engine/README.md).
-The existing [ARE documentation prototype](../workspace/experiments/are-documentation/README.md)
+The existing [ARE documentation prototype](are-documentation/README.md)
 is available for later product-copy and documentation integration.
 
 ## Local use
@@ -32,11 +32,14 @@ From the CyberAlchemy v2 root:
 
 ```sh
 python3 keld-project/scripts/verify-import.py
-python3 -m http.server 4194 --bind 127.0.0.1 --directory keld-project/prototype
+python3 keld-project/scripts/preview.py
 node keld-project/scripts/smoke.mjs
 ```
 
 Preview: `http://127.0.0.1:4194/`, `/shop.html`, `/legend.html`.
+The preview maps `/are/` to the local ARE app on port 4193. Start that app with
+`npm run dev` from `keld-project/are-documentation` to follow the product link.
+This local redirect does not change the production `/are/` route.
 The import verifier rebuilds in a temporary directory and removes it afterward;
 it does not overwrite imported templates, generated pages or historical QA reports.
 The served smoke test writes fresh local results under ignored `evidence/`.

@@ -1,0 +1,134 @@
+{
+  "dispatch_id": "dsv2-sfol-financial-settlement-blocker-clearance",
+  "intent": {
+    "raw": "clear DS-SFOL blockers and regenerate Financial Settlement with the new canonical-node architecture",
+    "objective": "Produce a deterministic canonical Financial Settlement build and exact pure/effect proof evidence."
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "scu_swu_reduction",
+    "recomposition_proof",
+    "validation_loop",
+    "owner_boundary_check",
+    "handle_handoff",
+    "residue_ledger",
+    "execution_receipt_handoff",
+    "authority_split_gate"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "The route is strictly sequential and every unit mutates overlapping local framework or consumer paths.",
+    "explanation": "Local one-SWU Task Sessions preserve the narrow write scopes and deterministic dependency chain.",
+    "context": [
+      "No independent parallel lane can satisfy a successor gate before its predecessor receipt."
+    ],
+    "roles": [],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed",
+    "permission_prompt": "",
+    "receipt_requirements": []
+  },
+  "steps": [
+    {
+      "step_id": "plan",
+      "name": "Author blocker-clearance work pack",
+      "capability_ref": "invoke",
+      "mode": "plan",
+      "pattern": "route",
+      "parallel": false,
+      "techniques": ["scu_swu_reduction", "recomposition_proof", "residue_ledger", "authority_split_gate"],
+      "inputs": [{"kind": "intent", "ref": "intent.raw"}],
+      "outputs": [{"kind": "artifact", "ref": "blocker-clearance/WORK-PACK.md"}],
+      "stop_conditions": ["block if Distill or the plan validator fails"]
+    },
+    {
+      "step_id": "execute",
+      "name": "Execute one ordered SWU per Task Session",
+      "capability_ref": "task-session",
+      "mode": "execute",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["sequence", "validation_loop", "handle_handoff", "execution_receipt_handoff"],
+      "inputs": [{"kind": "artifact", "ref": "blocker-clearance/WORK-PACK.md"}],
+      "outputs": [{"kind": "receipt", "ref": "blocker-clearance/work-pack/session-evidence/<SWU>/<run>/execution-receipt.json"}],
+      "stop_conditions": ["block on the first failed gate or acceptance-critical validation"]
+    },
+    {
+      "step_id": "closeout",
+      "name": "Synchronize each terminal receipt",
+      "capability_ref": "invoke",
+      "mode": "refresh",
+      "pattern": "handoff",
+      "parallel": false,
+      "techniques": ["owner_boundary_check", "execution_receipt_handoff", "authority_split_gate"],
+      "inputs": [{"kind": "receipt", "ref": "blocker-clearance/work-pack/session-evidence/<SWU>/<run>/execution-receipt.json"}],
+      "outputs": [{"kind": "receipt", "ref": "blocker-clearance/closeouts/<SWU>/INVOKE-REFRESH-RECEIPT.json"}],
+      "stop_conditions": ["block if targets drift or the unique successor is not dependency-ready"]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "g-plan",
+      "kind": "validation",
+      "owner": "invoke",
+      "condition": "Context, dispatch, Distill, layering, work-pack, and validator pass before mutation.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g-task",
+      "kind": "validation",
+      "owner": "task-session",
+      "condition": "Exactly one selected SWU passes every acceptance-critical validation.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "g-authority",
+      "kind": "policy",
+      "owner": "domainspec-v2",
+      "condition": "No release, production, or public-publication authority is claimed.",
+      "on_fail": "block"
+    }
+  ],
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "task-refresh-owner-boundary",
+        "kind": "capability_handoff",
+        "from_owner": "task-session",
+        "to_owner": "invoke-refresh",
+        "applies_to_steps": ["execute", "closeout"],
+        "contract": "Task Session emits a terminal source receipt; Invoke Refresh alone synchronizes the declared plan targets and returns a separate joined owner receipt.",
+        "on_violation": "block"
+      }
+    ],
+    "receipts": [
+      {
+        "receipt_id": "task-session-terminal",
+        "producer": "task-session",
+        "required_fields": [
+          "run_id",
+          "artifacts",
+          "validation_result",
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "validation",
+          "blockers",
+          "handoff_note"
+        ],
+        "stores": [
+          "blocker-clearance/work-pack/session-evidence/<SWU>/<run>/execution-receipt.json"
+        ],
+        "on_missing": "block"
+      }
+    ]
+  },
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": ["plan_validated", "swu_started", "swu_completed", "closeout_joined", "route_terminated"],
+    "signal_grouping": "dispatch_id"
+  }
+}

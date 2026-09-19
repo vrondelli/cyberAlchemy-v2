@@ -1,0 +1,214 @@
+{
+  "dispatch_id": "invoke-refresh-fstg-001-material-unblock-20260723",
+  "intent": {
+    "raw": "refresh apply-approved",
+    "objective": "Materialize and validate the exact SWU-FSTG-001 post-images required by Task Session mutation admission without applying target implementation files.",
+    "target_artifact": "projects/domainspec-v2/development/financial-settlement-executable-test-generation",
+    "arcanum_vocabulary": [
+      "invoke",
+      "task-session",
+      "material package",
+      "mutation admission"
+    ],
+    "operator_sentence": "Refresh the package in apply-approved mode so the selected SWU can return to Task Session."
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "artifact_contract_bridge",
+    "execution_receipt_handoff",
+    "owner_boundary_check",
+    "concrete_path_evidence",
+    "validation_loop",
+    "residue_ledger"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "trigger": "The route is one deterministic local package build and validation.",
+    "explanation": "Parallel or delegated work would not improve the exact digest-bound handoff.",
+    "context": [
+      "SWU-FSTG-001 has one strict context pack and three exact target paths."
+    ],
+    "binding_mode": "descriptive",
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed",
+    "receipt_requirements": []
+  },
+  "subagent_lifecycle": {
+    "status": "none",
+    "agents": []
+  },
+  "steps": [
+    {
+      "step_id": "refresh-materialize",
+      "name": "Materialize and validate the selected SWU package",
+      "capability_ref": "invoke",
+      "mode": "refresh:apply-approved",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": [
+        "sequence",
+        "artifact_contract_bridge",
+        "concrete_path_evidence",
+        "validation_loop",
+        "owner_boundary_check"
+      ],
+      "inputs": [
+        {
+          "kind": "intent",
+          "ref": "intent.raw"
+        },
+        {
+          "kind": "receipt",
+          "ref": "session-evidence/SWU-FSTG-001/20260723T174139Z-declared-subset-mode/mutation-admission-receipt.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "session-evidence/SWU-FSTG-001/20260723T174139Z-declared-subset-mode/context-pack.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "artifact",
+          "ref": "refreshes/2026-07-23-task-session-material-unblock/material/MATERIAL-PACKAGE.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "refreshes/2026-07-23-task-session-material-unblock/material/MATERIAL-RECEIPT.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "refreshes/2026-07-23-task-session-material-unblock/material/REFRESH-HANDOFF-RESULT.json"
+        }
+      ],
+      "stop_conditions": [
+        "stop if any staged post-image escapes the three declared targets",
+        "stop if producer, owner, publication, dependency, identity, or validation binding fails"
+      ]
+    },
+    {
+      "step_id": "return-task-session",
+      "name": "Return the material receipt to Task Session",
+      "capability_ref": "task-session",
+      "mode": "execute",
+      "pattern": "handoff",
+      "parallel": false,
+      "depends_on_steps": [
+        "refresh-materialize"
+      ],
+      "techniques": [
+        "sequence",
+        "execution_receipt_handoff",
+        "owner_boundary_check",
+        "residue_ledger"
+      ],
+      "inputs": [
+        {
+          "kind": "receipt",
+          "ref": "refreshes/2026-07-23-task-session-material-unblock/material/MATERIAL-RECEIPT.json"
+        },
+        {
+          "kind": "receipt",
+          "ref": "refreshes/2026-07-23-task-session-material-unblock/material/REFRESH-HANDOFF-RESULT.json"
+        },
+        {
+          "kind": "artifact",
+          "ref": "session-evidence/SWU-FSTG-001/20260723T174139Z-declared-subset-mode/context-pack.json"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "receipt",
+          "ref": "fresh Task Session mutation-admission and execution receipts"
+        }
+      ],
+      "stop_conditions": [
+        "do not apply staged implementation outputs inside Invoke",
+        "Task Session must rebuild admission against live controlling digests before mutation"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "gate_id": "material-package-valid",
+      "kind": "validation",
+      "owner": "invoke",
+      "condition": "The producer validator returns patchVerdict=pass, mutationHandoff=ready, exact three validated paths, empty reasons, and passing dependency, owner, and publication boundaries.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "refresh-handoff-ready",
+      "kind": "quality",
+      "owner": "invoke",
+      "condition": "Refresh handoff identity and digest match the producer receipt and mutationReady=true.",
+      "on_fail": "block"
+    },
+    {
+      "gate_id": "task-session-revalidation",
+      "kind": "promotion_guardrail",
+      "owner": "task-session",
+      "condition": "Invoke evidence grants no implementation completion; Task Session must independently admit, apply, and validate the selected SWU.",
+      "on_fail": "block"
+    }
+  ],
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "invoke-to-task-session",
+        "kind": "capability_handoff",
+        "from_owner": "invoke",
+        "to_owner": "task-session",
+        "applies_to_steps": [
+          "refresh-materialize",
+          "return-task-session"
+        ],
+        "contract": "Invoke owns the staged material package and receipt; Task Session alone owns applying the post-images and validating SWU completion.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "projects/domainspec-v2",
+      "execution": "task-session",
+      "validation": "invoke and task-session",
+      "evidence": "invoke material receipt plus Task Session admission receipt",
+      "promotion": "not authorized"
+    },
+    "receipts": [
+      {
+        "receipt_id": "fstg-001-material",
+        "producer": "invoke",
+        "required_fields": [
+          "dispatch_id",
+          "step_id",
+          "capability_ref",
+          "status",
+          "artifacts",
+          "validation",
+          "residue"
+        ],
+        "stores": [
+          "refreshes/2026-07-23-task-session-material-unblock/material/MATERIAL-RECEIPT.json"
+        ],
+        "on_missing": "block"
+      }
+    ]
+  },
+  "observability": {
+    "dispatch_id_required": true,
+    "parent_dispatch_id": null,
+    "trace_events": [
+      "refresh_started",
+      "material_package_built",
+      "material_receipt_validated",
+      "refresh_handoff_ready",
+      "task_session_route_returned"
+    ],
+    "signal_grouping": "dispatch_id and package_id"
+  },
+  "promotion_guardrails": [
+    "Staged post-images are mutation material, not applied implementation evidence.",
+    "Invoke does not mark SWU-FSTG-001 complete or advance the work-pack frontier.",
+    "No public, source, release, deployment, or production surface is authorized."
+  ]
+}

@@ -1,9 +1,10 @@
 // Complete native trajectories. No shared prefix or model retries. Open questions: README.md.
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statfsSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, statfsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { runPreparedTask } from './orchestrate.mjs';
+import { observeModelReceiptTimings } from './timing.mjs';
 import { liveClientFactory } from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/live-client.mjs';
 import { exportModelSelectedContext } from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/final-selection.mjs';
 import { stable } from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/delivery.mjs';
@@ -30,8 +31,8 @@ async function nativeScore(config,directory,result,task){
 export function accountReceipts(receipts=[]){
   const models=receipts.filter(r=>r.kind==='model'&&r.dispatched),known=models.filter(r=>Number.isSafeInteger(r.input_tokens)&&Number.isSafeInteger(r.output_tokens));
   const input=known.reduce((s,r)=>s+r.input_tokens,0),output=known.reduce((s,r)=>s+r.output_tokens,0),unknown=models.length-known.length;
-  const limited=receipts.find(r=>r.status===429||r.failure_code==='rate-limited'||['1302','1305'].includes(String(r.provider_code)));
-  return {prompt_tokens:input,completion_tokens:output,total_tokens:input+output,unknown_usage_calls:unknown,conservative_total_tokens:input+output+unknown*8000,model_calls:models.length,rate_limited:Boolean(limited),provider_error_code:limited?.provider_code??null};
+  const limited=receipts.find(r=>[429,503].includes(r.status)||r.failure_code==='rate-limited'||['1302','1305'].includes(String(r.provider_code)));
+  return {prompt_tokens:input,completion_tokens:output,total_tokens:input+output,unknown_usage_calls:unknown,conservative_total_tokens:input+output+unknown*8000,model_calls:models.length,rate_limited:Boolean(limited),provider_error_code:limited?.provider_code??(limited?.status===503?'1305':limited?.status===429?'1302':null)};
 }
 export async function runPair({config=read(new URL('./config.json',import.meta.url)),task_id,directory,repetition=1,signal,run_task=runPreparedTask,client_factory=liveClientFactory}={}){
   const task=config.tasks.find(t=>t.id===task_id);if(!task)throw Error('unknown frozen task');
@@ -44,8 +45,17 @@ export async function runPair({config=read(new URL('./config.json',import.meta.u
     if(signal?.aborted){arms[arm]={status:'not-started-aborted',complete:false,metrics:zero(),usage:accountReceipts()};continue;}
     const cell=structuredClone(task.cell_template);cell.cell_id=task_id+'-r'+repetition+'-'+arm;cell.limits.compact_representation=arm==='treatment';cell.context_limit=8000;cell.limits.total_tokens=96000;
     const out=join(directory,arm),controller=new AbortController();const abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(abort,1800000);
-    let result;
-    try{result=await run_task({task_path:task.task_path,task_sha256:task.task_sha256,repository_cache:task.repository_cache,out,cell,...client_factory({credential_path:config.credential_path,signal:controller.signal})});}
+    let result,restoreTiming;
+    try{
+      const factory=client_factory({credential_path:config.credential_path,signal:controller.signal});
+      const create_client=factory.create_client;
+      const observedFactory=typeof create_client==='function'?{...factory,create_client:async(args)=>{
+        const client=await create_client(args);
+        restoreTiming=observeModelReceiptTimings(client.receipts,{record:interval=>appendFileSync(join(out,'model-timing.jsonl'),JSON.stringify({...interval,task_id,arm,repetition})+'\n',{mode:0o600})});
+        return client;
+      }}:factory;
+      result=await run_task({task_path:task.task_path,task_sha256:task.task_sha256,repository_cache:task.repository_cache,out,cell,...observedFactory});
+    }
     catch(e){
       const ledger=join(out,'state','glm-transport-ledger.json'),retained=join(out,'result.json');
       const state=existsSync(ledger)?read(ledger):null;
@@ -55,9 +65,12 @@ export async function runPair({config=read(new URL('./config.json',import.meta.u
       result=existsSync(retained)?read(retained):{status:'local_execution_error',error:String(e.message),receipts};
       if(existsSync(out)&&!existsSync(retained))save(retained,result);
     }
-    finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+    finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);restoreTiming?.();}
     const usage=accountReceipts(result.receipts);
-    arms[arm]={status:result.status,error:result.error,usage,complete:result.status==='final_context_selected'&&Boolean(result.native_export?.prediction),scoring_pending:true,run_directory:out};save(join(directory,arm+'-summary.json'),arms[arm]);
+    const dispatches=result.recycling?.dispatches??[];
+    arms[arm]={status:result.status,error:result.error,usage,complete:result.status==='final_context_selected'&&Boolean(result.native_export?.prediction),scoring_pending:true,run_directory:out,
+      context_recycles:result.recycling?.recycles??0,window_admission_valid:dispatches.length>0&&dispatches.length===usage.model_calls&&dispatches.every(d=>Number.isSafeInteger(d.projected_upper_bound)&&d.projected_upper_bound<=8000),maximum_admitted_request_tokens:dispatches.length?Math.max(...dispatches.map(d=>d.projected_upper_bound)):null,
+      long_trajectory_observed:usage.model_calls>1&&usage.total_tokens>8000,model_latency_ms:(result.receipts??[]).filter(r=>r.kind==='model').map(r=>r.latency_ms).filter(Number.isFinite)};save(join(directory,arm+'-summary.json'),arms[arm]);
     if(usage.rate_limited||usage.unknown_usage_calls){const remaining=order.filter(a=>!arms[a]);for(const a of remaining)arms[a]={status:'not-started-after-provider-failure',complete:false,metrics:zero(),usage:accountReceipts()};break;}
   }
   const values=Object.values(arms),usage={prompt_tokens:values.reduce((s,x)=>s+x.usage.prompt_tokens,0),completion_tokens:values.reduce((s,x)=>s+x.usage.completion_tokens,0),total_tokens:values.reduce((s,x)=>s+x.usage.total_tokens,0)};

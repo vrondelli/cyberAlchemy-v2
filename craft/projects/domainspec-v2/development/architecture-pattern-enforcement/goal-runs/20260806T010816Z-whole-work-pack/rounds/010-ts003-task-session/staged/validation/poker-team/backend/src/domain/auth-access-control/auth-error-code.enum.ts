@@ -1,0 +1,18 @@
+export type AuthErrorCode =
+  | "AUTH_REQUIRED"
+  | "INVALID_TOKEN"
+  | "INVALID_CREDENTIALS"
+  | "TOKEN_EXPIRED"
+  | "TOKEN_REVOKED"
+  | "FORBIDDEN"
+  | "PRINCIPAL_DISABLED";
+
+export const AUTH_ERROR_CODES: readonly AuthErrorCode[] = [
+  "AUTH_REQUIRED",
+  "INVALID_TOKEN",
+  "INVALID_CREDENTIALS",
+  "TOKEN_EXPIRED",
+  "TOKEN_REVOKED",
+  "FORBIDDEN",
+  "PRINCIPAL_DISABLED",
+] as const;

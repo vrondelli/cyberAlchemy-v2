@@ -10,7 +10,7 @@ Construction basis: current owner request, `CA2-ROUTE-IMPLEMENT`, native bounded
 
 ## Content review
 
-The [manual manifest](../../../implementation/agent-reasoning-engine/docs/manifest.json) contains 41 entries. The [projection allowlist](../../../workspace/experiments/are-documentation/scripts/build-documentation.mjs) now exposes nine guides, up from five. Four additions fill distinct reader needs:
+The [manual manifest](../../../implementation/agent-reasoning-engine/docs/manifest.json) contains 41 entries. The [projection allowlist](../../../keld-project/are-documentation/scripts/build-documentation.mjs) now exposes nine guides, up from five. Four additions fill distinct reader needs:
 
 | Reader need | Source | Canvas connection |
 | --- | --- | --- |
@@ -44,9 +44,9 @@ flowchart LR
 
 - Production build, TypeScript, and projection freshness checks passed.
 - Nine workspace/persistence unit tests passed.
-- [Browser proof](../../../workspace/experiments/are-documentation/evidence/canvas-docs/results.json): 44 checks passed, including mobile picker use, guide links, duplicate prevention, status labels, retained positions, storage failure, and full-page return.
-- [Expanded performance run](../../../workspace/experiments/are-documentation/evidence/performance/expanded.json): six scenarios passed, one repetition each: desktop 1/3/5/9 cards and mobile 5/9 cards. Every measured scroll produced zero App/card renders, zero Markdown reparses, two storage writes, no canvas remount, and no viewport movement. Article return and drag checks also passed.
-- [Performance contract](../../../workspace/experiments/are-documentation/PERFORMANCE.md) now includes the full corpus by default; `--legacy-five` preserves historical comparison scenarios.
+- [Browser proof](../../../keld-project/are-documentation/evidence/canvas-docs/results.json): 44 checks passed, including mobile picker use, guide links, duplicate prevention, status labels, retained positions, storage failure, and full-page return.
+- [Expanded performance run](../../../keld-project/are-documentation/evidence/performance/expanded.json): six scenarios passed, one repetition each: desktop 1/3/5/9 cards and mobile 5/9 cards. Every measured scroll produced zero App/card renders, zero Markdown reparses, two storage writes, no canvas remount, and no viewport movement. Article return and drag checks also passed.
+- [Performance contract](../../../keld-project/are-documentation/PERFORMANCE.md) now includes the full corpus by default; `--legacy-five` preserves historical comparison scenarios.
 
 The new bundle is approximately 582 kB minified / 190 kB gzip. Vite's existing 500 kB advisory remains visible. Timing observations on this shared headless host are not device performance guarantees. This expansion run is a bounded regression check, not a repeated statistical study.
 

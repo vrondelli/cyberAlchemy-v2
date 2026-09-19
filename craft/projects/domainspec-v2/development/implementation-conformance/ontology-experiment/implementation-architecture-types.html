@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>DomainSpec Implementation Architecture Types</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090d13;
+      --panel: #121923;
+      --raised: #182230;
+      --line: #344257;
+      --ink: #f5f2e9;
+      --muted: #9da7b6;
+      --meaning: #66d7df;
+      --type: #a8b8ff;
+      --candidate: #f1c86a;
+      --blocked: #ff8f8f;
+      --deferred: #c6a8ff;
+      --projected: #8ddba8;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body { min-width: 320px; margin: 0; color: var(--ink); background: radial-gradient(circle at 50% -10%, rgba(102, 215, 223, .12), transparent 32rem), var(--bg); }
+    button, a { font: inherit; }
+    a { color: var(--meaning); }
+    .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 30px 0 56px; }
+    .topline { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+    .eyebrow { color: var(--meaning); font-size: 11px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { max-width: 760px; margin: 6px 0 8px; font-size: clamp(28px, 5vw, 50px); line-height: .98; }
+    .lede { max-width: 760px; margin: 0; color: var(--muted); font-size: 15px; line-height: 1.6; }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(90px, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(18, 25, 35, .92); color: var(--muted); font-size: 11px; }
+    .metric strong { display: block; color: var(--ink); font-size: 19px; }
+    .boundary { margin: 18px 0 0; padding: 12px 14px; border: 1px solid #6c5b32; border-radius: 10px; color: #f0d994; background: #231e12; font-size: 12px; line-height: 1.55; }
+    .scene-shell { margin-top: 22px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(145deg, rgba(102, 215, 223, .08), transparent 32%), var(--panel); }
+    .scene-intro { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px; }
+    .scene-intro h2 { margin: 5px 0 7px; }
+    .scene-intro p { max-width: 760px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .scene-button { padding: 10px 14px; border: 1px solid var(--meaning); border-radius: 9px; color: #071015; background: var(--meaning); font-weight: 850; cursor: pointer; white-space: nowrap; }
+    .scene-button.secondary { border-color: var(--line); color: var(--ink); background: var(--raised); }
+    .scene-button:disabled { opacity: .35; cursor: not-allowed; }
+    .scene-player { border-top: 1px solid var(--line); }
+    .scene-player[hidden] { display: none; }
+    .scene-progress { display: flex; gap: 5px; padding: 14px 20px 0; }
+    .scene-dot { width: 100%; height: 5px; padding: 0; border: 0; border-radius: 99px; background: #2b3748; cursor: pointer; }
+    .scene-dot[aria-current="step"] { background: var(--meaning); }
+    .scene-stage { display: grid; grid-template-columns: minmax(220px, .65fr) minmax(0, 1.6fr); min-height: 390px; }
+    .scene-copy { padding: 24px 20px; border-right: 1px solid var(--line); }
+    .scene-counter { color: var(--candidate); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .scene-copy h3 { margin: 9px 0 10px; font-size: 25px; line-height: 1.08; }
+    .scene-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .scene-evidence summary { color: var(--type); cursor: pointer; font-weight: 750; }
+    .scene-evidence { padding: 9px 11px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 9px; line-height: 1.55; }
+    .scene-evidence code { display: block; margin-top: 7px; color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
+    .scene-visual { display: grid; align-content: center; gap: 12px; min-width: 0; padding: 24px; background: radial-gradient(circle at 50% 0, rgba(168, 184, 255, .08), transparent 68%); }
+    .scene-quote { margin: 0; padding: 24px; border-left: 4px solid var(--meaning); border-radius: 0 12px 12px 0; color: var(--ink); background: rgba(102, 215, 223, .08); font-size: clamp(18px, 2.3vw, 29px); font-weight: 720; line-height: 1.35; }
+    .scene-caption { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .business-model-graph { position: relative; min-height: 390px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: radial-gradient(circle at 50% 48%, rgba(102, 215, 223, .08), transparent 30%), #0d141d; }
+    .business-model-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .business-model-lines > path { fill: none; stroke: #607089; stroke-width: 2; marker-end: url(#business-arrow); }
+    .business-model-lines > path.is-transition { stroke: var(--candidate); stroke-dasharray: 7 6; }
+    .business-model-lines > text { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+    .business-model-lines > text.is-transition { fill: var(--candidate); font-weight: 800; }
+    .business-model-node { position: absolute; width: 25%; min-height: 76px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--raised); box-shadow: 0 10px 25px rgba(0, 0, 0, .18); }
+    .business-model-node strong { display: block; margin-top: 4px; font-size: 13px; line-height: 1.25; }
+    .business-model-node span { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+    .business-model-node.promise { left: 2%; top: 37%; width: 24%; border-color: var(--meaning); background: #13242c; }
+    .business-model-node.rule { left: 37%; top: 4%; }
+    .business-model-node.action { left: 37%; top: 36%; min-height: 104px; border: 2px solid var(--candidate); background: #241f12; box-shadow: 0 0 0 5px rgba(241, 200, 106, .10), 0 12px 34px rgba(0, 0, 0, .28); }
+    .business-model-node.action > span:last-child { display: block; margin-top: 7px; color: #ead99e; font-size: 10px; line-height: 1.35; text-transform: none; }
+    .business-model-node.calculation { left: 37%; bottom: 4%; }
+    .business-model-node.event { right: 2%; top: 37%; width: 24%; }
+    .modeling-focus-badge { display: inline-flex; padding: 3px 6px; border-radius: 999px; color: #1b1507 !important; background: var(--candidate); font-size: 8px !important; font-weight: 900; letter-spacing: .07em; }
+    .business-model-next { padding: 9px 11px; border: 1px solid rgba(241, 200, 106, .55); border-radius: 9px; color: #ead99e; background: rgba(241, 200, 106, .07); font-size: 11px; line-height: 1.5; text-align: center; }
+    .scene-node-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .scene-node { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); }
+    .scene-node.is-focus { border-color: var(--meaning); box-shadow: 0 0 0 2px rgba(102, 215, 223, .12); }
+    .scene-node strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+    .scene-node span { color: var(--muted); font-size: 10px; }
+    .scene-edge-list { display: grid; gap: 5px; }
+    .scene-edge { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
+    .scene-edge b { color: var(--meaning); font-family: inherit; }
+    .scene-formula { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 9px; }
+    .scene-formula-card { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); }
+    .scene-formula-card strong { display: block; margin-bottom: 8px; color: var(--meaning); font-size: 11px; text-transform: uppercase; }
+    .scene-formula-card span { color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .scene-trace { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
+    .scene-trace-arrow { color: var(--candidate); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+    .scene-trace-arrow::after { content: ""; display: block; width: 100%; margin-top: 7px; border-top: 2px dotted var(--candidate); }
+    .scene-obligation { padding: 16px; border: 1px solid var(--candidate); border-radius: 12px; background: #201b10; }
+    .scene-obligation strong { display: block; margin: 6px 0; font-size: 17px; }
+    .scene-obligation p { margin: 8px 0 0; color: #ead99e; font-size: 11px; line-height: 1.5; }
+    .scene-tiers { display: grid; gap: 10px; }
+    .scene-tier { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(0, 2fr) 36px; align-items: center; gap: 10px; font-size: 11px; }
+    .scene-tier-track { height: 12px; overflow: hidden; border-radius: 99px; background: #253142; }
+    .scene-tier-fill { height: 100%; border-radius: inherit; background: var(--meaning); }
+    .scene-tier:nth-child(2) .scene-tier-fill { background: var(--type); }
+    .scene-tier:nth-child(3) .scene-tier-fill { background: var(--deferred); }
+    .scene-plane-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .scene-plane { padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+    .scene-plane strong { display: block; min-height: 34px; font-size: 13px; }
+    .scene-plane-count { display: flex; gap: 12px; margin: 13px 0; }
+    .scene-plane-count span { color: var(--meaning); font-size: 22px; font-weight: 850; }
+    .scene-plane-count small { display: block; color: var(--muted); font-size: 8px; font-weight: 500; text-transform: uppercase; }
+    .scene-plane p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .scene-plane-warning { padding: 9px 11px; border: 1px dashed var(--candidate); border-radius: 9px; color: #ead99e; font-size: 10px; text-align: center; }
+    .scene-coverage { display: grid; gap: 6px; }
+    .scene-coverage-row { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(170px, .9fr) minmax(0, 1.2fr); align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); font-size: 10px; }
+    .scene-coverage-row code { color: var(--muted); overflow-wrap: anywhere; }
+    .scene-coverage-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 8px; }
+    .scene-proof-spine { display: grid; grid-template-columns: minmax(150px, .65fr) auto minmax(0, 1.35fr); align-items: center; gap: 12px; }
+    .scene-proof-card { padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+    .scene-proof-card.is-obligation { border-color: var(--candidate); background: #201b10; }
+    .scene-proof-card > strong { display: block; margin: 5px 0; font-size: 15px; }
+    .scene-proof-card > p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .scene-proof-arrow { color: var(--candidate); font-size: 18px; font-weight: 900; }
+    .scene-observation-list { display: grid; gap: 6px; }
+    .scene-observation { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: #0d141d; font-size: 10px; }
+    .scene-observation span:last-child { color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; }
+    .scene-observation.is-missing { border-color: #6c5b32; background: #231e12; }
+    .scene-contract-path { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+    .scene-contract-card { min-height: 118px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+    .scene-contract-card.is-candidate { border-color: var(--candidate); background: #201b10; }
+    .scene-contract-card strong { display: block; margin: 6px 0; font-size: 15px; }
+    .scene-contract-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .scene-contract-parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .scene-contract-part { padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: #0d141d; }
+    .scene-contract-part strong { display: block; margin-bottom: 5px; color: var(--meaning); font-size: 9px; text-transform: uppercase; }
+    .scene-contract-part span { color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .scene-code-shell { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #080c12; }
+    .scene-code-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--raised); }
+    .scene-code-head strong { font-size: 11px; }
+    .scene-code-shell pre { margin: 0; padding: 17px; overflow: auto; color: #d8e0f3; font: 10px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+    .scene-code-warning { padding: 9px 11px; border: 1px solid #6c5b32; border-radius: 9px; color: #f0d994; background: #231e12; font-size: 10px; line-height: 1.5; }
+    .scene-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .scene-check { padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); }
+    .scene-check.is-gap { grid-column: 1 / -1; border-color: #6c5b32; background: #231e12; }
+    .scene-check strong { display: block; margin-bottom: 4px; font-size: 11px; }
+    .scene-check span { color: var(--muted); font-size: 9px; }
+    .scene-negative-control { padding: 11px; border: 1px dashed var(--blocked); border-radius: 9px; color: #ffc3c3; background: rgba(255, 143, 143, .07); font-size: 10px; line-height: 1.5; }
+    .scene-verdict { display: grid; grid-template-columns: minmax(150px, .55fr) minmax(0, 1.45fr); gap: 12px; }
+    .scene-verdict-status { display: grid; place-items: center; min-height: 150px; padding: 18px; border: 1px solid #6c5b32; border-radius: 12px; color: #f0d994; background: #231e12; text-align: center; }
+    .scene-verdict-status strong { display: block; margin-top: 7px; font-size: 23px; }
+    .scene-verdict-list { display: grid; gap: 7px; }
+    .scene-verdict-item { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); font-size: 10px; line-height: 1.45; }
+    .ontology-graph-summary { display: flex; flex-wrap: wrap; gap: 7px; }
+    .ontology-graph-summary span { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: #0d141d; font-size: 9px; }
+    .ontology-lifecycle { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .ontology-lifecycle-stage { position: relative; display: grid; align-content: start; gap: 6px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #0d141d; }
+    .ontology-lifecycle-stage::before { content: attr(data-lifecycle-ordinal); position: absolute; top: 8px; right: 8px; color: var(--candidate); font-size: 8px; font-weight: 850; }
+    .ontology-lifecycle-stage > strong { padding-right: 18px; color: var(--meaning); font-size: 10px; }
+    .ontology-lifecycle-stage > p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .ontology-lifecycle-items { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ontology-lifecycle-items span { padding: 3px 5px; border: 1px solid rgba(241, 200, 106, .35); border-radius: 999px; color: #ead99e; background: #19170f; font-size: 7px; }
+    .ontology-graph-lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; align-items: start; }
+    .ontology-graph-lane { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: #0d141d; }
+    .ontology-graph-lane > strong { color: var(--meaning); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+    .ontology-graph-node { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: var(--raised); text-align: left; cursor: pointer; }
+    .ontology-graph-node[data-ontology-branch="business"] { border-color: rgba(102, 215, 223, .55); }
+    .ontology-graph-node[data-ontology-branch="bridge"] { border-color: rgba(241, 200, 106, .55); }
+    .ontology-graph-node[data-ontology-branch="system"] { border-color: rgba(168, 184, 255, .55); }
+    .ontology-graph-node strong { display: block; margin-bottom: 4px; font-size: 10px; line-height: 1.3; }
+    .ontology-node-meta { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ontology-node-meta span { padding: 3px 5px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: #101721; font-size: 7px; line-height: 1.2; }
+    .ontology-graph-node:hover, .ontology-graph-node:focus-visible { outline: 3px solid rgba(102, 215, 223, .22); outline-offset: 2px; }
+    .ontology-graph-node.is-tour-focus, .ontology-graph-lane.is-tour-focus, .ontology-edge.is-tour-focus, .ontology-edge-list.is-tour-focus { position: relative; z-index: 1; outline: 3px solid var(--candidate); outline-offset: 4px; box-shadow: 0 0 0 8px rgba(241, 200, 106, .12); }
+    .ontology-tour-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border: 1px solid rgba(102, 215, 223, .45); border-radius: 10px; background: rgba(102, 215, 223, .06); }
+    .ontology-tour-launch span { color: var(--muted); font-size: 9px; }
+    .ontology-tour-button { padding: 7px 10px; border: 1px solid var(--meaning); border-radius: 8px; color: #071015; background: var(--meaning); font-size: 9px; font-weight: 850; cursor: pointer; }
+    .ontology-tour-button.secondary { border-color: var(--line); color: var(--ink); background: var(--raised); }
+    .ontology-tour-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; padding: 13px 14px; border: 1px solid var(--candidate); border-radius: 11px; background: #241f12; box-shadow: 0 16px 38px rgba(0, 0, 0, .32); }
+    .ontology-tour-panel[hidden] { display: none; }
+    .ontology-tour-panel:focus { outline: 3px solid rgba(241, 200, 106, .25); outline-offset: 2px; }
+    .ontology-tour-copy { min-width: 0; }
+    .ontology-tour-counter { color: var(--candidate); font-size: 8px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .ontology-tour-title { display: block; margin: 4px 0; font-size: 13px; }
+    .ontology-tour-description { margin: 0; color: #ead99e; font-size: 10px; line-height: 1.5; }
+    .ontology-tour-integration { display: grid; gap: 5px; margin: 9px 0 0; padding: 0; list-style: none; }
+    .ontology-tour-integration li { padding-left: 9px; border-left: 2px solid rgba(241, 200, 106, .6); color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .ontology-tour-integration strong { color: var(--ink); }
+    .ontology-tour-controls { display: flex; align-items: center; gap: 5px; }
+    .ontology-tour-controls .ontology-tour-button { padding: 6px 8px; }
+    .ontology-edge-list { display: grid; gap: 5px; }
+    .ontology-edge { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #0d141d; color: var(--muted); font-size: 8px; }
+    .ontology-edge b { color: var(--candidate); font-size: 8px; text-align: center; }
+    .ontology-origin-warning { padding: 9px 11px; border: 1px solid #6c5b32; border-radius: 9px; color: #f0d994; background: #231e12; font-size: 10px; line-height: 1.5; }
+    .scene-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--line); }
+    .scene-control-group { display: flex; gap: 8px; }
+    .section { margin-top: 42px; }
+    .section-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    h2 { margin: 4px 0 0; font-size: 24px; }
+    .section-note { max-width: 540px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .root-chain { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 18px; }
+    .root-card { min-height: 98px; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--panel); }
+    .root-card strong { display: block; margin-top: 5px; font-size: 17px; }
+    .root-card span { color: var(--muted); font-size: 11px; }
+    .connector { color: var(--type); font-size: 22px; }
+    .mapping-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .mapping-card { width: 100%; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; color: inherit; background: var(--panel); text-align: left; cursor: pointer; }
+    .mapping-card:hover, .mapping-card:focus-visible { border-color: var(--meaning); outline: 3px solid rgba(102, 215, 223, .16); outline-offset: 2px; }
+    .mapping-meaning, .mapping-type { padding: 15px 16px; }
+    .mapping-meaning { border-bottom: 1px dashed var(--line); background: linear-gradient(135deg, rgba(102, 215, 223, .10), transparent 55%); }
+    .mapping-type { background: linear-gradient(135deg, rgba(168, 184, 255, .10), transparent 55%); }
+    .mapping-arrow { display: block; padding: 6px 16px; color: var(--muted); background: #0d131c; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+    .card-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .card-title strong { font-size: 16px; }
+    .card-id { display: block; margin-top: 4px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; overflow-wrap: anywhere; }
+    .card-copy { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .chip { display: inline-flex; padding: 4px 7px; border: 1px solid currentColor; border-radius: 999px; color: var(--candidate); font-size: 9px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+    .chip.blocked { color: var(--blocked); }
+    .chip.deferred { color: var(--deferred); }
+    .chip.projected { color: var(--projected); }
+    .support-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .support-card { padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: var(--panel); }
+    .support-card h3 { margin: 5px 0 4px; font-size: 16px; }
+    .support-card p { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .relation-list { display: grid; gap: 8px; }
+    .relation-card { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+    .relation-name { color: var(--meaning); font-weight: 800; }
+    .relation-end { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+    .relation-arrow { color: var(--type); }
+    .omitted { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+    .omitted li { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: #0d131c; font-size: 10px; }
+    .details { width: min(700px, calc(100vw - 28px)); max-height: calc(100vh - 28px); padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: #101721; box-shadow: 0 24px 80px rgba(0,0,0,.65); }
+    .details::backdrop { background: rgba(4, 7, 11, .78); }
+    .details-inner { max-height: calc(100vh - 30px); padding: 20px; overflow: auto; }
+    .details-head { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+    .details-head h2 { margin-top: 4px; }
+    .details-head button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--panel); cursor: pointer; }
+    .details-grid { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 14px; margin: 20px 0 0; font-size: 12px; }
+    .details-grid dt { color: var(--muted); font-weight: 750; }
+    .details-grid dd { margin: 0; overflow-wrap: anywhere; }
+    .details-warning { margin-top: 18px; padding: 12px; border: 1px solid #6c5b32; border-radius: 9px; color: #f0d994; background: #231e12; font-size: 12px; line-height: 1.55; }
+    .loading { display: grid; place-items: center; min-height: 300px; color: var(--muted); }
+    .loading[hidden] { display: none; }
+    footer { margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.55; }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 1180px); padding-top: 20px; }
+      .topline { display: grid; }
+      .metrics { width: 100%; }
+      .mapping-grid, .support-grid { grid-template-columns: minmax(0, 1fr); }
+      .scene-intro { display: grid; }
+      .scene-stage { grid-template-columns: minmax(0, 1fr); }
+      .scene-copy { border-right: 0; border-bottom: 1px solid var(--line); }
+      .scene-node-grid, .scene-plane-grid, .scene-formula, .scene-proof-spine, .scene-contract-path, .scene-contract-parts, .scene-check-grid, .scene-verdict, .ontology-graph-lanes, .ontology-lifecycle { grid-template-columns: minmax(0, 1fr); }
+      .business-model-graph { display: grid; min-height: 0; gap: 8px; padding: 12px; }
+      .business-model-lines { display: none; }
+      .business-model-node, .business-model-node.promise, .business-model-node.rule, .business-model-node.action, .business-model-node.calculation, .business-model-node.event { position: static; width: auto; min-height: 0; }
+      .business-model-node.promise { order: 1; }
+      .business-model-node.rule { order: 2; }
+      .business-model-node.action { order: 3; }
+      .business-model-node.calculation { order: 4; }
+      .business-model-node.event { order: 5; }
+      .scene-trace { grid-template-columns: minmax(0, 1fr); }
+      .scene-trace-arrow { padding: 8px 0; }
+      .scene-proof-arrow { transform: rotate(90deg); justify-self: center; }
+      .scene-check.is-gap { grid-column: auto; }
+      .scene-tier { grid-template-columns: minmax(100px, 1fr) minmax(70px, 1fr) 28px; }
+      .scene-coverage-row { grid-template-columns: minmax(90px, 1fr) minmax(0, 1fr); }
+      .scene-coverage-row code { grid-column: 1 / -1; }
+      .scene-controls { align-items: stretch; }
+      .scene-control-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+      #scene-close { width: 100%; }
+      .root-chain { grid-template-columns: minmax(0, 1fr); }
+      .connector { transform: rotate(90deg); text-align: center; }
+      .relation-card { grid-template-columns: minmax(0, 1fr); }
+      .relation-arrow { transform: rotate(90deg); justify-self: start; }
+      .details-grid { grid-template-columns: minmax(0, 1fr); }
+      .details-grid dd { margin-bottom: 7px; }
+      .ontology-tour-panel { grid-template-columns: minmax(0, 1fr); }
+      .ontology-tour-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topline">
+      <div>
+        <div class="eyebrow">Simple candidate read model</div>
+        <h1>DomainSpec implementation architecture types</h1>
+        <p class="lede">Only the types that describe how DomainSpec concepts may appear in code, plus the two supporting implementation roles and the relations between them.</p>
+      </div>
+      <div class="metrics" aria-label="Projection counts">
+        <div class="metric"><strong id="mapping-count">0</strong>mapped types</div>
+        <div class="metric"><strong id="support-count">0</strong>support roles</div>
+        <div class="metric"><strong id="relation-count">0</strong>relations</div>
+        <div class="metric"><strong id="view-status">Loading</strong>status</div>
+      </div>
+    </header>
+
+    <p id="proof-boundary" class="boundary">Loading exact authority boundary…</p>
+    <div id="loading" class="loading">Deriving the minimal type view from the ontology…</div>
+
+    <div id="content" hidden>
+      <section id="business-scene" class="scene-shell" aria-labelledby="scene-title">
+        <div class="scene-intro">
+          <div>
+            <div class="eyebrow">A real example · paying a player</div>
+            <h2 id="scene-title">How a business promise becomes code we can prove</h2>
+            <p>Start with what a person needs. Decide what would count as proof. Shape the code. Then run the proof against it — including a deliberate failure.</p>
+          </div>
+          <button id="scene-start" class="scene-button" type="button">Show me how it works</button>
+        </div>
+        <div id="scene-player" class="scene-player" hidden tabindex="-1">
+          <div id="scene-progress" class="scene-progress" aria-label="Guide steps"></div>
+          <div class="scene-stage">
+            <div class="scene-copy">
+              <div id="scene-counter" class="scene-counter"></div>
+              <h3 id="scene-step-title"></h3>
+              <p id="scene-step-copy"></p>
+            </div>
+            <div id="scene-visual" class="scene-visual" aria-live="polite"></div>
+          </div>
+          <div class="scene-controls">
+            <button id="scene-close" class="scene-button secondary" type="button">Close guide</button>
+            <div class="scene-control-group">
+              <button id="scene-previous" class="scene-button secondary" type="button">Back</button>
+              <button id="scene-next" class="scene-button" type="button">Continue</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="mapped-title">
+        <div class="section-head">
+          <div><div class="eyebrow">Meaning → code shape</div><h2 id="mapped-title">Six reciprocal candidate mappings</h2></div>
+          <p class="section-note">“Candidate mapped” means both source records point to each other. It does not mean admitted, implemented, or runtime-proven.</p>
+        </div>
+        <div id="root-chain" class="root-chain" aria-label="Abstract implementation hierarchy"></div>
+        <div id="mapping-grid" class="mapping-grid"></div>
+      </section>
+
+      <section class="section" aria-labelledby="support-title">
+        <div class="section-head">
+          <div><div class="eyebrow">Implementation helpers</div><h2 id="support-title">Two supporting architecture roles</h2></div>
+          <p class="section-note">These help express Enum composition and interface adapters. They are not DomainSpec meta-types.</p>
+        </div>
+        <div id="support-grid" class="support-grid"></div>
+      </section>
+
+      <section class="section" aria-labelledby="relations-title">
+        <div class="section-head">
+          <div><div class="eyebrow">Typed connections</div><h2 id="relations-title">Relations between implementation types</h2></div>
+          <p class="section-note">A source-code relation is architecture evidence only. It does not manufacture the corresponding semantic DomainSpec relationship.</p>
+        </div>
+        <div id="relation-list" class="relation-list"></div>
+      </section>
+
+      <section class="section" aria-labelledby="omitted-title">
+        <div class="section-head">
+          <div><div class="eyebrow">Deliberately absent</div><h2 id="omitted-title">What this simple page leaves out</h2></div>
+        </div>
+        <ul id="omitted-list" class="omitted"></ul>
+      </section>
+    </div>
+
+    <footer>
+      Candidate read model · authority effect: none. For profiles, properties, facts, findings, and lifecycle scenes, use the <a href="architecture-ontology-view.html">full architecture ontology canvas</a>.
+    </footer>
+  </main>
+
+  <dialog id="details" class="details" aria-labelledby="details-title">
+    <div class="details-inner">
+      <div class="details-head">
+        <div><div id="details-kind" class="eyebrow"></div><h2 id="details-title"></h2></div>
+        <button id="details-close" type="button">Close</button>
+      </div>
+      <dl class="details-grid">
+        <dt>DomainSpec meaning</dt><dd id="details-meaning"></dd>
+        <dt>Architecture type</dt><dd id="details-type"></dd>
+        <dt>Status axes</dt><dd id="details-status"></dd>
+        <dt>Parent</dt><dd id="details-parent"></dd>
+        <dt>Owner route</dt><dd id="details-owner"></dd>
+        <dt>Source</dt><dd id="details-source"></dd>
+      </dl>
+      <p id="details-warning" class="details-warning"></p>
+    </div>
+  </dialog>
+
+  <dialog id="ontology-node-details" class="details" aria-labelledby="ontology-node-title">
+    <div class="details-inner">
+      <div class="details-head">
+        <div><div id="ontology-node-kind" class="eyebrow">Ontology box</div><h2 id="ontology-node-title"></h2></div>
+        <button id="ontology-node-close" type="button">Close</button>
+      </div>
+      <dl class="details-grid">
+        <dt>What it means</dt><dd id="ontology-node-meaning"></dd>
+        <dt>Why it is here</dt><dd id="ontology-node-role"></dd>
+        <dt>How to reason from it</dt><dd id="ontology-node-reasoning"></dd>
+        <dt>Box type</dt><dd id="ontology-node-type"></dd>
+        <dt>Current status</dt><dd id="ontology-node-status"></dd>
+        <dt>Evidence confidence</dt><dd id="ontology-node-confidence"></dd>
+        <dt>Evidence sources</dt><dd id="ontology-node-sources"></dd>
+      </dl>
+      <p id="ontology-node-boundary" class="details-warning"></p>
+    </div>
+  </dialog>
+
+  <script type="module">
+    import {BuildImplementationArchitectureTypesProjection} from "./implementation-architecture-types-model.mjs";
+    import {BuildBusinessOntologyObligationScene} from "./business-ontology-obligation-scene-model.mjs";
+    import {BuildFinancialSettlementProofLifecycleOntology} from "./financial-settlement-proof-lifecycle-model.mjs";
+
+    const sources = Object.freeze({
+      ontology: "ontology.json",
+      meta_types: "domain-meta-types.projection.json",
+      scene: "examples/financial-settlement-business-to-obligation.scene.json",
+      bridge_ontology: "examples/financial-settlement-proof-lifecycle.ontology.json",
+    });
+    const dom = {
+      mappingCount: document.querySelector("#mapping-count"),
+      supportCount: document.querySelector("#support-count"),
+      relationCount: document.querySelector("#relation-count"),
+      viewStatus: document.querySelector("#view-status"),
+      proofBoundary: document.querySelector("#proof-boundary"),
+      loading: document.querySelector("#loading"),
+      content: document.querySelector("#content"),
+      rootChain: document.querySelector("#root-chain"),
+      mappingGrid: document.querySelector("#mapping-grid"),
+      supportGrid: document.querySelector("#support-grid"),
+      relationList: document.querySelector("#relation-list"),
+      omittedList: document.querySelector("#omitted-list"),
+      scene: document.querySelector("#business-scene"),
+      sceneStart: document.querySelector("#scene-start"),
+      scenePlayer: document.querySelector("#scene-player"),
+      sceneProgress: document.querySelector("#scene-progress"),
+      sceneCounter: document.querySelector("#scene-counter"),
+      sceneStepTitle: document.querySelector("#scene-step-title"),
+      sceneStepCopy: document.querySelector("#scene-step-copy"),
+      sceneVisual: document.querySelector("#scene-visual"),
+      sceneClose: document.querySelector("#scene-close"),
+      scenePrevious: document.querySelector("#scene-previous"),
+      sceneNext: document.querySelector("#scene-next"),
+      details: document.querySelector("#details"),
+      detailsClose: document.querySelector("#details-close"),
+      detailsKind: document.querySelector("#details-kind"),
+      detailsTitle: document.querySelector("#details-title"),
+      detailsMeaning: document.querySelector("#details-meaning"),
+      detailsType: document.querySelector("#details-type"),
+      detailsStatus: document.querySelector("#details-status"),
+      detailsParent: document.querySelector("#details-parent"),
+      detailsOwner: document.querySelector("#details-owner"),
+      detailsSource: document.querySelector("#details-source"),
+      detailsWarning: document.querySelector("#details-warning"),
+      ontologyNodeDetails: document.querySelector("#ontology-node-details"),
+      ontologyNodeClose: document.querySelector("#ontology-node-close"),
+      ontologyNodeKind: document.querySelector("#ontology-node-kind"),
+      ontologyNodeTitle: document.querySelector("#ontology-node-title"),
+      ontologyNodeMeaning: document.querySelector("#ontology-node-meaning"),
+      ontologyNodeRole: document.querySelector("#ontology-node-role"),
+      ontologyNodeReasoning: document.querySelector("#ontology-node-reasoning"),
+      ontologyNodeType: document.querySelector("#ontology-node-type"),
+      ontologyNodeStatus: document.querySelector("#ontology-node-status"),
+      ontologyNodeConfidence: document.querySelector("#ontology-node-confidence"),
+      ontologyNodeSources: document.querySelector("#ontology-node-sources"),
+      ontologyNodeBoundary: document.querySelector("#ontology-node-boundary"),
+    };
+    let activeProjection = null;
+    let activeScene = null;
+    let activeSceneIndex = 0;
+    let detailsOpener = null;
+    let ontologyNodeOpener = null;
+    let ontologyTourOpener = null;
+    let ontologyTourIndex = -1;
+
+    const activeOntologyTourSteps = () => activeScene?.ontology_tour?.steps ?? [];
+
+    const fetchSource = async (sourceRef) => {
+      const response = await fetch(sourceRef, {cache: "no-store"});
+      if (!response.ok) throw new Error(`${sourceRef}: HTTP ${response.status}`);
+      return {source_ref: sourceRef, value: await response.json()};
+    };
+    const chipClass = (status) => ["blocked", "deferred", "projected"].includes(status) ? `chip ${status}` : "chip";
+    const rootCard = (root) => {
+      const card = document.createElement("div");
+      card.className = "root-card";
+      card.innerHTML = `<span>${root.abstract ? "Abstract parent" : root.role}</span><strong>${root.label}</strong><span>${root.id}</span>`;
+      return card;
+    };
+    const openMappingDetails = (mapping, opener) => {
+      detailsOpener = opener;
+      dom.detailsKind.textContent = "Reciprocal candidate mapping";
+      dom.detailsTitle.textContent = `${mapping.meta_type.label} → ${mapping.architecture_type.label}`;
+      dom.detailsMeaning.textContent = `${mapping.meta_type.id}: ${mapping.meta_type.plain_language}`;
+      dom.detailsType.textContent = mapping.architecture_type.id;
+      dom.detailsStatus.textContent = `DomainSpec maturity: ${mapping.meta_type.maturity}; mapping: ${mapping.mapping_status}; architecture realization: ${mapping.architecture_type.status}`;
+      dom.detailsParent.textContent = mapping.architecture_type.extends;
+      dom.detailsOwner.textContent = mapping.architecture_type.owner_route;
+      dom.detailsSource.textContent = `${mapping.meta_type.source_ref} + ${mapping.architecture_type.source_ref}`;
+      dom.detailsWarning.textContent = mapping.architecture_type.forbidden_collapse;
+      dom.details.showModal();
+      dom.detailsClose.focus();
+      window.__IAT_DETAILS_RECEIPT__ = Object.freeze({ready: true, mapping_id: mapping.mapping_id, open: true, authority_effect: "none"});
+    };
+    const mappingCard = (mapping) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mapping-card";
+      button.dataset.mappingId = mapping.mapping_id;
+      button.innerHTML = `
+        <div class="mapping-meaning">
+          <div class="card-title"><strong>${mapping.meta_type.label}</strong><span class="chip">${mapping.meta_type.maturity}</span></div>
+          <span class="card-id">${mapping.meta_type.id}</span>
+          <p class="card-copy">${mapping.meta_type.plain_language}</p>
+        </div>
+        <span class="mapping-arrow">reciprocal candidate alignment</span>
+        <div class="mapping-type">
+          <div class="card-title"><strong>${mapping.architecture_type.label}</strong><span class="${chipClass(mapping.architecture_type.status)}">${mapping.architecture_type.status}</span></div>
+          <span class="card-id">${mapping.architecture_type.id}</span>
+        </div>`;
+      button.addEventListener("click", () => openMappingDetails(mapping, button));
+      return button;
+    };
+    const supportCard = (type) => {
+      const card = document.createElement("article");
+      card.className = "support-card";
+      card.dataset.typeId = type.id;
+      card.innerHTML = `<span class="${chipClass(type.status)}">${type.status}</span><h3>${type.label}</h3><span class="card-id">${type.id}</span><p>${type.forbidden_collapse}</p>`;
+      return card;
+    };
+    const relationCard = (relation) => {
+      const card = document.createElement("article");
+      card.className = "relation-card";
+      card.dataset.relationId = relation.id;
+      card.innerHTML = `<strong class="relation-name">${relation.label}</strong><span class="relation-end">${relation.visible_source_types.join("\n")}</span><span class="relation-arrow">→</span><span class="relation-end">${relation.visible_target_types.join("\n")}</span>`;
+      card.title = relation.forbidden_collapse;
+      return card;
+    };
+    const technicalEvidence = (label, lines) => `<details class="scene-evidence"><summary>${label}</summary><code>${lines.join("<br>")}</code></details>`;
+    const ontologyBoxStatusLabel = (status) => ({
+      "current-semantic-read-model": "current meaning",
+      "candidate-formal-clause": "candidate meaning",
+      "current-generated-read-model": "generated model",
+      "active-meta-type-projection": "active type",
+      "current-derived-read-model": "derived model",
+      "current-derived-obligation": "derived check",
+      "candidate-alignment": "candidate mapping",
+      candidate: "candidate contract",
+      "current-gap": "missing evidence",
+      "current-source-drift": "observed mismatch",
+      planned: "planned control",
+      "not-issued": "not issued",
+      "current-handwritten": "handwritten",
+      "current-skipped": "skipped test",
+      "current-executable": "executable test",
+      "current-unbound": "unbound test",
+      "current-source-observation": "source observation",
+      "candidate-business-promise": "candidate promise",
+      "partially-evidenced": "partial evidence",
+      "prototype-candidate": "prototype route",
+    })[status] ?? status.replaceAll("-", " ");
+    const ontologyNodeRole = (node) => {
+      if (node.type_id.startsWith("business.")) return "Carries the business meaning that every later model, check, and implementation must preserve.";
+      if (node.type_id.startsWith("domainspec.")) return "Shows how DomainSpec gives business meaning a stable identity, type, or derived read model.";
+      if (node.type_id === "bridge.ProofObligation") return "States a derived behavior that evidence must eventually prove.";
+      if (node.type_id === "bridge.ProofConcern") return "Separates one question about the promise so only an appropriate evidence method can answer it.";
+      if (node.type_id === "bridge.EvidenceStrategy") return "Names how one proof concern may be checked, with current and planned evidence kept distinct.";
+      if (node.type_id === "bridge.EvidenceGap") return "Keeps missing lineage or evidence visible instead of allowing an unsupported relationship.";
+      if (node.type_id === "bridge.ArchitectureRealizationType" || node.type_id === "bridge.CodeContract") return "Describes a candidate path from a DomainSpec type toward a software shape without claiming implementation identity.";
+      if (node.type_id.startsWith("system.")) return "Records implementation or test evidence observed in the existing system.";
+      return "Supports the evidence bridge between business meaning and the observed system.";
+    };
+    const openOntologyNodeDetails = (node, opener) => {
+      ontologyNodeOpener = opener;
+      dom.ontologyNodeKind.textContent = `${node.branch} · ${node.kind}`;
+      dom.ontologyNodeTitle.textContent = node.label;
+      dom.ontologyNodeMeaning.textContent = node.plain_language;
+      dom.ontologyNodeRole.textContent = ontologyNodeRole(node);
+      dom.ontologyNodeReasoning.textContent = node.reasoning_sentence;
+      dom.ontologyNodeType.textContent = node.type_id;
+      dom.ontologyNodeStatus.textContent = ontologyBoxStatusLabel(node.artifact_status);
+      dom.ontologyNodeConfidence.textContent = `Evidence: ${node.confidence.evidence}; commitment: ${node.confidence.commitment}`;
+      dom.ontologyNodeSources.textContent = node.source_refs.join(", ");
+      dom.ontologyNodeBoundary.textContent = `What this box does not prove: ${node.claim_ceiling}`;
+      dom.ontologyNodeDetails.showModal();
+      dom.ontologyNodeClose.focus();
+      window.__IAT_ONTOLOGY_NODE_RECEIPT__ = Object.freeze({ready: true, open: true, node_id: node.node_id, type_id: node.type_id, authority_effect: "none"});
+    };
+    const clearOntologyTourHighlight = () => dom.sceneVisual.querySelectorAll(".is-tour-focus").forEach((element) => element.classList.remove("is-tour-focus"));
+    const closeOntologyTour = (activation = "close", restoreFocus = true) => {
+      const wasActive = ontologyTourIndex >= 0;
+      const steps = activeOntologyTourSteps();
+      clearOntologyTourHighlight();
+      const panel = dom.sceneVisual.querySelector("[data-ontology-tour-panel]");
+      if (panel) panel.hidden = true;
+      ontologyTourIndex = -1;
+      window.__IAT_ONTOLOGY_TOUR_RECEIPT__ = Object.freeze({ready: true, active: false, semantic_tour_node_id: activeScene?.ontology_tour?.tour_node_id, total_steps: steps.length, activation, authority_effect: "none"});
+      if (wasActive && restoreFocus && ontologyTourOpener?.isConnected) ontologyTourOpener.focus();
+      ontologyTourOpener = null;
+    };
+    const renderOntologyTourStep = (index, activation = "programmatic") => {
+      const panel = dom.sceneVisual.querySelector("[data-ontology-tour-panel]");
+      const steps = activeOntologyTourSteps();
+      if (!panel || steps.length === 0) return;
+      ontologyTourIndex = Math.max(0, Math.min(index, steps.length - 1));
+      const step = steps[ontologyTourIndex];
+      clearOntologyTourHighlight();
+      const targets = [
+        ...[...dom.sceneVisual.querySelectorAll("[data-ontology-lane]")].filter((element) => step.lane_ids.includes(element.dataset.ontologyLane)),
+        ...[...dom.sceneVisual.querySelectorAll("[data-ontology-node]")].filter((element) => step.node_ids.includes(element.dataset.ontologyNode)),
+        ...[...dom.sceneVisual.querySelectorAll("[data-ontology-edge]")].filter((element) => step.edge_ids.includes(element.dataset.ontologyEdge)),
+      ];
+      targets.forEach((target) => target.classList.add("is-tour-focus"));
+      panel.hidden = false;
+      panel.querySelector("[data-ontology-tour-counter]").textContent = `Box tour ${ontologyTourIndex + 1} of ${steps.length}`;
+      panel.querySelector("[data-ontology-tour-title]").textContent = step.title;
+      panel.querySelector("[data-ontology-tour-description]").textContent = step.plain_language;
+      const integrationList = panel.querySelector("[data-ontology-tour-integration]");
+      integrationList.replaceChildren(...step.integration_sentences.map((item) => {
+        const listItem = document.createElement("li");
+        const label = document.createElement("strong");
+        label.textContent = `${item.from_label} ${item.posture === "missing-by-design" ? "↛" : "→"} ${item.to_label}: `;
+        listItem.append(label, document.createTextNode(item.sentence));
+        return listItem;
+      }));
+      panel.querySelector("[data-ontology-tour-previous]").disabled = ontologyTourIndex === 0;
+      panel.querySelector("[data-ontology-tour-next]").textContent = ontologyTourIndex === steps.length - 1 ? "Finish" : "Next";
+      targets[0]?.scrollIntoView({block: "nearest", inline: "nearest"});
+      if (["start", "keyboard"].includes(activation)) panel.focus({preventScroll: true});
+      window.__IAT_ONTOLOGY_TOUR_RECEIPT__ = Object.freeze({ready: true, active: true, semantic_tour_node_id: activeScene.ontology_tour.tour_node_id, step_node_id: step.tour_step_node_id, step_id: step.tour_step_id, step_index: ontologyTourIndex, total_steps: steps.length, highlight_mode: step.highlight_mode, integration_statement_ids: Object.freeze(step.integration_sentences.map((item) => item.statement_id)), integration_edge_ids: Object.freeze(step.integration_sentences.map((item) => item.edge_id)), target_ids: Object.freeze({lanes: Object.freeze([...step.lane_ids]), nodes: Object.freeze([...step.node_ids]), edges: Object.freeze([...step.edge_ids])}), activation, authority_effect: "none"});
+    };
+    const startOntologyTour = (opener) => {
+      ontologyTourOpener = opener;
+      renderOntologyTourStep(0, "start");
+    };
+    const moveOntologyTour = (delta, activation) => {
+      if (ontologyTourIndex < 0) return;
+      const steps = activeOntologyTourSteps();
+      if (delta > 0 && ontologyTourIndex === steps.length - 1) closeOntologyTour("finish");
+      else renderOntologyTourStep(ontologyTourIndex + delta, activation);
+    };
+    const coverageLabel = (coverage) => ({"candidate-mapped": "A code shape is proposed", "profiled-unmapped": "Partly described", unsupported: "Not designed yet"})[coverage] ?? coverage;
+    const observationLabel = (coverage) => ({"generated-check-exists": "generated check exists", "handwritten-check-exists": "handwritten check exists", "missing-obligation-binding": "missing from bound proof"})[coverage] ?? coverage;
+    const renderSceneVisual = (step) => {
+      const planes = activeScene.graph_planes;
+      const obligation = planes.obligation_read_model.highlighted_obligation;
+      if (step.visual_kind === "business-meaning") {
+        dom.sceneVisual.innerHTML = `<blockquote class="scene-quote">${activeScene.subject.business_meaning}</blockquote><span class="scene-caption">This is the heart of the work. Everything that follows must preserve this promise.</span>${technicalEvidence("Show where this promise is recorded", [`Concept: ${activeScene.subject.concept_id}`, `Clause: ${activeScene.subject.clause_id}`])}`;
+      } else if (step.visual_kind === "typed-neighborhood") {
+        const graph = planes.minted_semantic_read_model;
+        const nodeById = new Map(activeScene.business_ontology_view.nodes.map((node) => [node.node_id, node]));
+        const calculation = nodeById.get("financial-settlement.DealSplitCalculation");
+        const action = nodeById.get("financial-settlement.GenerateSettlement");
+        const event = nodeById.get("financial-settlement.PayoutCreatedEvent");
+        const rule = nodeById.get("financial-settlement.PayoutEligibilityRule");
+        dom.sceneVisual.innerHTML = `<div class="business-model-graph" aria-label="Business idea graph highlighting the next modeling move">
+          <svg class="business-model-lines" viewBox="0 0 1000 390" preserveAspectRatio="none" aria-hidden="true">
+            <defs><marker id="business-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#607089" stroke="none"></path></marker></defs>
+            <path class="is-transition" data-business-graph-edge="promise-to-action" d="M260 195 C315 195 325 195 370 195"></path>
+            <text class="is-transition" x="315" y="181">name the action</text>
+            <path data-business-graph-edge="financial-settlement.edge.payout-rule-enforces-generation" d="M495 82 C495 105 495 120 495 145"></path>
+            <text x="560" y="119">decides whether</text>
+            <path data-business-graph-edge="financial-settlement.edge.deal-split-calculates-generation" d="M495 310 C495 285 495 270 495 248"></path>
+            <text x="562" y="283">provides amount</text>
+            <path data-business-graph-edge="financial-settlement.edge.generation-produces-payout-event" d="M620 195 C680 195 705 195 750 195"></path>
+            <text x="687" y="181">leaves a record</text>
+          </svg>
+          <article class="business-model-node promise" data-business-graph-node="business-promise"><span>Starting promise</span><strong>Pay the player once, never twice</strong></article>
+          <article class="business-model-node rule" data-business-graph-node="${rule.node_id}"><span>Decision</span><strong>${rule.label}</strong></article>
+          <article class="business-model-node action" data-business-graph-node="${action.node_id}" data-modeling-focus="next"><span class="modeling-focus-badge">${graph.modeling_focus.label}</span><strong>${action.label}</strong><span>${graph.modeling_focus.instruction}</span></article>
+          <article class="business-model-node calculation" data-business-graph-node="${calculation.node_id}"><span>Amount</span><strong>${calculation.label}</strong></article>
+          <article class="business-model-node event" data-business-graph-node="${event.node_id}"><span>Record</span><strong>${event.label}</strong></article>
+        </div><div class="business-model-next">DomainSpec records the highlighted action as <strong>DS-D1.4 Operation</strong>. It is the next thing to model: describe what the business does when the promise applies.</div>${technicalEvidence("Show the ontology node identities", [...activeScene.business_ontology_view.nodes.map((node) => `${node.label}: ${node.node_id} (${node.type_id})`), `DomainSpec classification: ${activeScene.subject.ontology_node_id} → ${activeScene.subject.meta_type_ontology_node_id}`])}`;
+      } else if (step.visual_kind === "formal-clause") {
+        const clause = activeScene.formal_clause;
+        dom.sceneVisual.innerHTML = `<div class="scene-formula"><div class="scene-formula-card"><strong>When</strong><span>${clause.plain_precondition}</span></div><div class="scene-formula-card"><strong>We promise</strong><span>${clause.plain_postcondition}</span></div><div class="scene-formula-card"><strong>In this order</strong><span>${clause.plain_ordered_effects.join("<br>")}</span></div></div><span class="scene-caption">DomainSpec preserves this precise meaning as the P4 clause inside its semantic graph. It is now clear enough that two people can agree on what “correct” means.</span>${technicalEvidence("Show the DomainSpec formal clause", [`Semantic graph: ${activeScene.proof_to_code.ontology_nodes.semantic_graph}`, clause.id, `Kind: ${clause.kind}`, `Status: ${clause.status}`, `If: ${clause.precondition}`, `Then: ${clause.postcondition}`, `Effects: ${clause.ordered_effects.join(" → ")}`])}`;
+      } else if (step.visual_kind === "derived-obligation") {
+        dom.sceneVisual.innerHTML = `<div class="scene-trace"><div class="scene-node is-focus"><strong>DomainSpec P4 clause</strong><span>Pay once, never twice</span></div><div class="scene-trace-arrow">test derivation creates a check</div><div class="scene-obligation"><span class="chip">Derived Obligation</span><strong>${obligation.plain_title}</strong><p>${obligation.plain_description}</p></div></div><span class="scene-caption">DomainSpec's test-derivation model contains this Obligation. Its exact native link back to P4 is still missing, so the ontology shows that gap instead of drawing a false edge.</span>${technicalEvidence("Show the DomainSpec derivation identities", [`Semantic clause: ${activeScene.proof_to_code.ontology_nodes.formal_clause}`, `Derivation model: ${activeScene.proof_to_code.ontology_nodes.obligation_read_model}`, `Obligation node: ${obligation.ontology_node_id}`, `Type: bridge.ProofObligation`, `Current test state: coverage gap`, obligation.description])}`;
+      } else if (step.visual_kind === "obligation-constellation") {
+        const total = planes.obligation_read_model.obligation_count;
+        dom.sceneVisual.innerHTML = `<div class="scene-obligation"><span class="chip">This promise</span><strong>${obligation.plain_title}</strong><p>${obligation.plain_description}</p></div><div class="scene-tiers">${planes.obligation_read_model.tiers.map((tier) => `<div class="scene-tier"><span>${tier.label}</span><div class="scene-tier-track"><div class="scene-tier-fill" style="width:${Math.max(3, (tier.count / total) * 100)}%"></div></div><strong>${tier.count}</strong></div>`).join("")}</div><span class="scene-caption">There are 79 promises to check. Knowing how a promise can be checked is different from knowing that it passed.</span>${technicalEvidence("Show the three checking routes", planes.obligation_read_model.tiers.map((tier) => `${tier.id}: ${tier.count}`))}`;
+      } else if (step.visual_kind === "graph-planes") {
+        const authored = planes.authored_feature_ontology;
+        const minted = planes.minted_semantic_read_model;
+        const obligations = planes.obligation_read_model;
+        dom.sceneVisual.innerHTML = `<div class="scene-plane-grid"><div class="scene-plane" data-plane-id="authored"><strong>${authored.label}</strong><div class="scene-plane-count"><span>${authored.node_count}<small>ideas</small></span><span>${authored.edge_count}<small>connections</small></span></div><p>${authored.plain_role}</p></div><div class="scene-plane" data-plane-id="minted"><strong>${minted.label}</strong><div class="scene-plane-count"><span>${minted.node_count}<small>ideas</small></span><span>${minted.edge_count}<small>connections</small></span></div><p>${minted.plain_role}</p></div><div class="scene-plane" data-plane-id="obligations"><strong>${obligations.label}</strong><div class="scene-plane-count"><span>${obligations.obligation_count}<small>promises to check</small></span></div><p>${obligations.plain_role}</p></div></div><div class="scene-plane-warning">These maps work together, but none can replace the others.</div>${technicalEvidence("Show graph ownership and source warning", [`${authored.technical_label}: ${authored.authority}`, `${minted.technical_label}: ${minted.authority}`, `${obligations.technical_label}: ${obligations.authority}`, "The authored source mentions an older 23-node toy; the current minted file contains 4 nodes and 3 edges."])}`;
+      } else if (step.visual_kind === "proof-plan") {
+        const proof = activeScene.proof_to_code.proof_plan;
+        const view = activeScene.ontology_view;
+        const nodeById = new Map(view.nodes.map((node) => [node.node_id, node]));
+        const nodeCard = (node) => `<button type="button" class="ontology-graph-node" data-ontology-node="${node.node_id}" data-ontology-branch="${node.branch}" aria-label="Explain box: ${node.label}"><strong>${node.label}</strong><span class="ontology-node-meta"><span>${node.kind}</span><span>${ontologyBoxStatusLabel(node.artifact_status)}</span></span></button>`;
+        const graphTour = activeScene.ontology_tour;
+        const lifecycle = activeScene.ontology_lifecycle_view;
+        const lifecycleNodeById = new Map(lifecycle.nodes.map((node) => [node.node_id, node]));
+        const lifecycleFocusTypes = {
+          promise: new Set(["business.BusinessPromise", "business.FormalClause"]),
+          "proof-concerns": new Set(["bridge.ProofConcern", "bridge.ProofObligation"]),
+          architecture: new Set(["domainspec.MetaType", "bridge.ArchitectureRealizationType", "bridge.CodeContract"]),
+          code: new Set(["system.Function"]),
+          evidence: new Set(["bridge.EvidenceStrategy"]),
+          receipt: new Set(["bridge.ProofReceipt", "bridge.EvidenceGap", "bridge.DriftFinding"]),
+        };
+        const lifecycleMarkup = `<section class="ontology-lifecycle" aria-label="Ontology-owned promise-to-proof lifecycle">${lifecycle.stages.map((stage) => {
+          const focusNodes = stage.node_ids.map((id) => lifecycleNodeById.get(id)).filter((node) => lifecycleFocusTypes[stage.stage_id].has(node.type_id));
+          return `<article class="ontology-lifecycle-stage" data-lifecycle-stage="${stage.stage_id}" data-lifecycle-ordinal="${stage.ordinal}"><strong>${stage.label}</strong><p>${stage.plain_language}</p><div class="ontology-lifecycle-items">${focusNodes.map((node) => `<span title="${ontologyBoxStatusLabel(node.artifact_status)}">${node.label}</span>`).join("")}</div></article>`;
+        }).join("")}</section>`;
+        const shownNodeCount = graphTour.lanes.flatMap((lane) => lane.node_ids).length;
+        const edgeIds = ["domainspec.edge.graph-contains-generate-settlement", "domainspec.edge.generation-classified-operation", "domainspec.edge.graph-contains-p4", "domainspec.edge.obligation-model-contains-fs-post-001", "bridge.edge.operation-meta-type-maps-to-architecture", "bridge.edge.operation-architecture-shapes-contract", "bridge.edge.fs-post-001-represented-by-skipped-test", "poker-team.edge.use-case-depends-on-decision", "domainspec.edge.semantic-graph-has-origin-gap", "domainspec.edge.obligation-model-has-origin-gap", "bridge.edge.p4-has-origin-gap", "bridge.edge.fs-post-001-has-origin-gap", "bridge.edge.contract-has-implementation-binding-gap", "bridge.edge.use-case-has-implementation-binding-gap"];
+        const edgeById = new Map(view.edges.map((edge) => [edge.edge_id, edge]));
+        const relationLabel = {"domainspec.contains_meaning": "records", "domainspec.classified_as": "classifies as", "domainspec.contains_obligation": "contains derived check", "bridge.candidate_maps_to": "candidate maps to", "bridge.shapes_contract": "shapes", "bridge.has_gap": "points to missing link"};
+        dom.sceneVisual.innerHTML = `<div class="ontology-graph-summary"><span>Ontology: ${activeScene.ontology.ontology_type}</span><span>${shownNodeCount} shown of ${view.nodes.length} ontology nodes</span><span>${edgeIds.length} shown of ${view.edges.length} typed edges</span><span>Lifecycle: ${lifecycle.nodes.length} nodes · ${lifecycle.edges.length} edges</span><span>authority: none</span></div>${lifecycleMarkup}<div class="ontology-tour-launch"><button type="button" class="ontology-tour-button" data-ontology-tour-start>${graphTour.trigger_label}</button><span>${graphTour.steps.length} ontology-owned stops · use arrow keys or the buttons</span></div><section class="ontology-tour-panel" data-ontology-tour-panel role="region" aria-label="Ontology box tour" aria-live="polite" tabindex="-1" hidden><div class="ontology-tour-copy"><span class="ontology-tour-counter" data-ontology-tour-counter></span><strong class="ontology-tour-title" data-ontology-tour-title></strong><p class="ontology-tour-description" data-ontology-tour-description></p><ul class="ontology-tour-integration" data-ontology-tour-integration aria-label="How the highlighted subjects integrate"></ul></div><div class="ontology-tour-controls"><button type="button" class="ontology-tour-button secondary" data-ontology-tour-previous>Back</button><button type="button" class="ontology-tour-button" data-ontology-tour-next>Next</button><button type="button" class="ontology-tour-button secondary" data-ontology-tour-close>Close</button></div></section><div class="ontology-graph-lanes">${graphTour.lanes.map((lane) => `<section class="ontology-graph-lane" data-ontology-lane="${lane.lane_id}" data-ontology-lane-node="${lane.lane_node_id}"><strong>${lane.label}</strong>${lane.node_ids.map((id) => nodeCard(nodeById.get(id))).join("")}</section>`).join("")}</div><div class="ontology-edge-list">${edgeIds.map((id) => edgeById.get(id)).map((edge) => `<div class="ontology-edge" data-ontology-edge="${edge.edge_id}"><span>${nodeById.get(edge.from).label}</span><b>${relationLabel[edge.relation_id] ?? edge.relation_id}</b><span>${nodeById.get(edge.to).label}</span></div>`).join("")}</div><div class="ontology-origin-warning">The new lifecycle separates the promise, proof concerns, architecture properties, handwritten code, evidence methods, and receipt. Sequential duplicate checks are current evidence; concurrency, recovery, and load checks remain planned. The missing P4 subject link and code bindings remain explicit.</div><span class="scene-caption">Both the six-stage lifecycle and the box tour are projected from typed ontology nodes and relations. DomainSpec structures the meaning and derivation; it did not generate or bind the handwritten TypeScript.</span>${technicalEvidence("Show ontology graph IDs", [`Ontology: ${activeScene.ontology.ontology_id}`, `Lifecycle view: ${lifecycle.view_id}`, ...lifecycle.stages.map((stage) => `${stage.ordinal}. ${stage.stage_id}: ${stage.node_ids.length} nodes`), `Graph view: ${activeScene.proof_to_code.ontology_view_id}`, `Semantic tour: ${graphTour.tour_node_id}`, `Semantic tour view: ${graphTour.ontology_tour_view_id}`, ...view.nodes.map((node) => `${node.node_id}: ${node.type_id}`), ...view.edges.map((edge) => `${edge.edge_id}: ${edge.relation_id}`), proof.claim_ceiling])}`;
+      } else if (step.visual_kind === "implementation-coverage") {
+        const contract = activeScene.proof_to_code.code_contract;
+        dom.sceneVisual.innerHTML = `<div class="scene-contract-path"><div class="scene-contract-card"><span class="eyebrow">DomainSpec classification</span><strong>DS-D1.4 Operation</strong><p>GenerateSettlement is a business action that changes state.</p></div><span class="scene-proof-arrow" aria-hidden="true">→</span><div class="scene-contract-card is-candidate"><span class="chip">Candidate architecture type</span><strong>Operation implementation shape</strong><p>This shapes the settlement code contract; it does not identify or generate a function.</p></div></div><div class="scene-contract-parts"><div class="scene-contract-part"><strong>It receives</strong><span>${contract.inputs.join(", ")}</span></div><div class="scene-contract-part"><strong>It decides</strong><span>${contract.decision}</span></div><div class="scene-contract-part"><strong>It must cause</strong><span>${contract.effects.join("; ")}</span></div></div><span class="scene-caption">The DomainSpec meta-type, architecture type, code contract, Obligation, and handwritten code remain separate nodes. The Obligation is not a code type. Candidate mapping is not implementation proof.</span>${technicalEvidence("Show the candidate architecture mapping", [`DomainSpec node: ${activeScene.proof_to_code.ontology_nodes.operation_meta_type}`, `Architecture node: ${activeScene.proof_to_code.ontology_nodes.operation_architecture_type}`, `${contract.meta_type_id} → ${contract.implementation_type_id}`, `Language: ${contract.language}`, `Status: ${contract.status}`, contract.claim_ceiling, ...activeScene.implementation_coverage.map((coverage) => `${coverage.meta_type_id} ${coverage.concept_type}: ${coverage.coverage} → ${coverage.architecture_type_id ?? "none"}`)])}`;
+      } else if (step.visual_kind === "code-realization") {
+        const code = activeScene.proof_to_code.code_realization;
+        dom.sceneVisual.innerHTML = `<div class="scene-code-shell"><div class="scene-code-head"><strong>Existing TypeScript, shortened to the essential path</strong><span class="chip">Handwritten</span></div><pre>${code.excerpt.join("\n")}</pre></div><div class="scene-code-warning">Important ontology drift: <code>onEvent</code> is optional. The code can write the payout without emitting <code>PayoutCreated</code>, so it does not yet guarantee the complete promise in every configuration.</div><span class="scene-caption">These are system nodes observed beside the business nodes. The ontology did not generate these lines and does not own them.</span>${technicalEvidence("Show ontology code nodes", [`Decision node: ${activeScene.proof_to_code.ontology_nodes.decision_code}`, `Use-case node: ${activeScene.proof_to_code.ontology_nodes.use_case_code}`, `Drift node: ${activeScene.proof_to_code.ontology_nodes.event_drift}`, `Status: ${code.status}`, `Generation: ${code.generation_status}`, code.claim_ceiling])}`;
+      } else if (step.visual_kind === "proof-execution") {
+        const proof = activeScene.proof_to_code.proof_plan;
+        const verification = activeScene.proof_to_code.verification;
+        dom.sceneVisual.innerHTML = `<div class="scene-check-grid">${proof.observations.map((item) => `<div class="scene-check ${item.coverage === "missing-obligation-binding" ? "is-gap" : ""}" data-proof-check="${item.id}"><strong>${item.label}</strong><span>${observationLabel(item.coverage)}</span></div>`).join("")}</div><div class="scene-negative-control"><strong>Deliberate failure:</strong> ${verification.negative_control.setup} Expected result: ${verification.negative_control.expected_observation} The full P4 proof must fail.</div><span class="scene-caption">A passing happy-path check is not enough. The deliberate failure proves that the checker notices when half of the promise is missing.</span>${technicalEvidence("Show execution status", [`Generated P4 test: ${verification.derived_test_status}`, `Integration checks: ${verification.integration_test_status}`, `Negative control: ${verification.negative_control.status}`, `Expected verdict: ${verification.negative_control.expected_verdict}`])}`;
+      } else if (step.visual_kind === "evidence-verdict") {
+        const verification = activeScene.proof_to_code.verification;
+        dom.sceneVisual.innerHTML = `<div class="scene-verdict"><div class="scene-verdict-status"><div><span class="eyebrow">Honest verdict today</span><strong>Partial, not proven</strong><span>No proof receipt exists</span></div></div><div class="scene-verdict-list"><div class="scene-verdict-item">✓ The business meaning and formal obligation exist.</div><div class="scene-verdict-item">✓ Handwritten code and several separate checks exist.</div><div class="scene-verdict-item">○ Bind one integration harness directly to FS-POST-001.</div><div class="scene-verdict-item">○ Observe the write, event, ordering, duplicate block, and deliberate failure together.</div><div class="scene-verdict-item">○ Record source and code identities with the result in a proof receipt.</div></div></div><span class="scene-caption">Only the completed receipt may say this obligation passed. Until then, “code exists” and “tests exist” remain separate facts.</span>${technicalEvidence("Show the completion rule", [`Verification: ${verification.status}`, `Receipt: ${verification.receipt_status}`, verification.completion_rule])}`;
+      }
+    };
+    const renderSceneStep = (index, activation = "programmatic") => {
+      if (ontologyTourIndex >= 0) closeOntologyTour("scene-step-change", false);
+      activeSceneIndex = Math.max(0, Math.min(index, activeScene.steps.length - 1));
+      const step = activeScene.steps[activeSceneIndex];
+      dom.sceneCounter.textContent = `Part ${step.ordinal} of ${activeScene.steps.length}`;
+      dom.sceneStepTitle.textContent = step.title;
+      dom.sceneStepCopy.textContent = step.plain_language;
+      dom.scenePrevious.disabled = activeSceneIndex === 0;
+      dom.sceneNext.disabled = activeSceneIndex === activeScene.steps.length - 1;
+      dom.sceneNext.textContent = activeSceneIndex === activeScene.steps.length - 1 ? "End of guide" : "Continue";
+      for (const [dotIndex, dot] of [...dom.sceneProgress.children].entries()) dot.setAttribute("aria-current", dotIndex === activeSceneIndex ? "step" : "false");
+      renderSceneVisual(step);
+      window.__IAT_SCENE_RECEIPT__ = Object.freeze({ready: true, active: true, scene_id: activeScene.scene_id, step_id: step.step_id, step_index: activeSceneIndex, activation, authority_effect: "none"});
+    };
+    const initializeScene = (scene) => {
+      activeScene = scene;
+      dom.sceneProgress.replaceChildren(...scene.steps.map((step, index) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "scene-dot";
+        dot.setAttribute("aria-label", `Go to part ${step.ordinal}: ${step.title}`);
+        dot.addEventListener("click", () => renderSceneStep(index, "progress"));
+        return dot;
+      }));
+      window.__IAT_SCENE_STATIC_RECEIPT__ = Object.freeze({ready: true, scene_id: scene.scene_id, ontology_id: scene.ontology.ontology_id, ontology_type: scene.ontology.ontology_type, ontology_view_id: scene.proof_to_code.ontology_view_id, ontology_lifecycle_view_id: scene.ontology_lifecycle_view.view_id, ontology_lifecycle_stage_ids: Object.freeze(scene.ontology_lifecycle_view.stages.map((stage) => stage.stage_id)), semantic_tour_view_id: scene.ontology_tour.ontology_tour_view_id, semantic_tour_node_id: scene.ontology_tour.tour_node_id, step_ids: Object.freeze(scene.steps.map((step) => step.step_id)), ontology_tour_step_ids: Object.freeze(scene.ontology_tour.steps.map((step) => step.tour_step_id)), ontology_tour_step_node_ids: Object.freeze(scene.ontology_tour.steps.map((step) => step.tour_step_node_id)), counts: scene.counts, authority_effect: scene.authority_effect, verification_status: scene.verification_status});
+      window.__IAT_ONTOLOGY_TOUR_RECEIPT__ = Object.freeze({ready: true, active: false, semantic_tour_node_id: scene.ontology_tour.tour_node_id, total_steps: scene.ontology_tour.steps.length, activation: "initialized", authority_effect: "none"});
+    };
+    const render = (projection, scene) => {
+      activeProjection = projection;
+      initializeScene(scene);
+      dom.mappingCount.textContent = projection.counts.reciprocal_mappings;
+      dom.supportCount.textContent = projection.counts.supporting_types;
+      dom.relationCount.textContent = projection.counts.relations;
+      dom.viewStatus.textContent = "candidate";
+      dom.proofBoundary.textContent = projection.proof_boundary;
+      const [architectureRoot, domainRoot] = projection.hierarchy.filter((type) => type.role === "abstract-root");
+      const arrow = document.createElement("span");
+      arrow.className = "connector";
+      arrow.textContent = "→";
+      arrow.setAttribute("aria-hidden", "true");
+      dom.rootChain.replaceChildren(rootCard(architectureRoot), arrow, rootCard(domainRoot));
+      dom.mappingGrid.replaceChildren(...projection.mappings.map(mappingCard));
+      dom.supportGrid.replaceChildren(...projection.supporting_types.map(supportCard));
+      dom.relationList.replaceChildren(...projection.relations.map(relationCard));
+      dom.omittedList.replaceChildren(...projection.omitted_families.map((family) => {
+        const item = document.createElement("li");
+        item.textContent = family;
+        return item;
+      }));
+      dom.loading.hidden = true;
+      dom.content.hidden = false;
+      window.__IAT_STATIC_RECEIPT__ = Object.freeze({
+        ready: true,
+        projection_id: projection.projection_id,
+        verification_status: projection.verification_status,
+        authority_effect: projection.authority_effect,
+        counts: projection.counts,
+        mapping_ids: Object.freeze(projection.mappings.map((mapping) => mapping.mapping_id)),
+        relation_ids: Object.freeze(projection.relations.map((relation) => relation.id)),
+      });
+    };
+    const load = async () => {
+      try {
+        const [ontology, metaTypes, sceneSource, bridgeOntologySource] = await Promise.all([fetchSource(sources.ontology), fetchSource(sources.meta_types), fetchSource(sources.scene), fetchSource(sources.bridge_ontology)]);
+        const bundle = {ontology, meta_types: metaTypes};
+        const before = JSON.stringify({bundle, bridgeOntologySource});
+        const projection = BuildImplementationArchitectureTypesProjection(bundle);
+        const bridgeOntology = BuildFinancialSettlementProofLifecycleOntology(bridgeOntologySource);
+        if (before !== JSON.stringify({bundle, bridgeOntologySource})) throw new Error("Projection mutated source records.");
+        const scene = BuildBusinessOntologyObligationScene({scene: sceneSource, implementation_projection: projection, bridge_ontology: bridgeOntology});
+        render(projection, scene);
+      } catch (error) {
+        dom.viewStatus.textContent = "blocked";
+        dom.loading.textContent = `Unable to derive the minimal type view: ${error.message}`;
+        console.error(error);
+      }
+    };
+    dom.detailsClose.addEventListener("click", () => dom.details.close());
+    dom.ontologyNodeClose.addEventListener("click", () => dom.ontologyNodeDetails.close());
+    dom.sceneVisual.addEventListener("click", (event) => {
+      const tourStart = event.target.closest("[data-ontology-tour-start]");
+      if (tourStart) {
+        startOntologyTour(tourStart);
+        return;
+      }
+      if (event.target.closest("[data-ontology-tour-previous]")) {
+        moveOntologyTour(-1, "previous");
+        return;
+      }
+      if (event.target.closest("[data-ontology-tour-next]")) {
+        moveOntologyTour(1, "next");
+        return;
+      }
+      if (event.target.closest("[data-ontology-tour-close]")) {
+        closeOntologyTour("close");
+        return;
+      }
+      const nodeButton = event.target.closest("[data-ontology-node]");
+      if (!nodeButton || activeSceneIndex !== 6) return;
+      const node = activeScene.ontology_view.nodes.find((candidate) => candidate.node_id === nodeButton.dataset.ontologyNode);
+      if (node) openOntologyNodeDetails(node, nodeButton);
+    });
+    dom.sceneStart.addEventListener("click", () => {
+      dom.sceneStart.hidden = true;
+      dom.scenePlayer.hidden = false;
+      renderSceneStep(0, "start");
+      dom.scenePlayer.focus();
+    });
+    dom.sceneClose.addEventListener("click", () => {
+      if (ontologyTourIndex >= 0) closeOntologyTour("scene-close", false);
+      dom.scenePlayer.hidden = true;
+      dom.sceneStart.hidden = false;
+      window.__IAT_SCENE_RECEIPT__ = Object.freeze({...window.__IAT_SCENE_RECEIPT__, active: false});
+      dom.sceneStart.focus();
+    });
+    dom.scenePrevious.addEventListener("click", () => renderSceneStep(activeSceneIndex - 1, "previous"));
+    dom.sceneNext.addEventListener("click", () => renderSceneStep(activeSceneIndex + 1, "next"));
+    dom.scene.addEventListener("keydown", (event) => {
+      if (dom.scenePlayer.hidden) return;
+      if (ontologyTourIndex >= 0 && ["ArrowLeft", "ArrowRight", "Escape"].includes(event.key)) {
+        event.preventDefault();
+        if (event.key === "Escape") closeOntologyTour("escape");
+        else moveOntologyTour(event.key === "ArrowRight" ? 1 : -1, "keyboard");
+        return;
+      }
+      if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      renderSceneStep(activeSceneIndex + (event.key === "ArrowRight" ? 1 : -1), "keyboard");
+    });
+    dom.details.addEventListener("close", () => {
+      detailsOpener?.focus();
+      detailsOpener = null;
+      if (window.__IAT_DETAILS_RECEIPT__) window.__IAT_DETAILS_RECEIPT__ = Object.freeze({...window.__IAT_DETAILS_RECEIPT__, open: false});
+    });
+    dom.ontologyNodeDetails.addEventListener("close", () => {
+      ontologyNodeOpener?.focus();
+      ontologyNodeOpener = null;
+      if (window.__IAT_ONTOLOGY_NODE_RECEIPT__) window.__IAT_ONTOLOGY_NODE_RECEIPT__ = Object.freeze({...window.__IAT_ONTOLOGY_NODE_RECEIPT__, open: false});
+    });
+    await load();
+  </script>
+</body>
+</html>

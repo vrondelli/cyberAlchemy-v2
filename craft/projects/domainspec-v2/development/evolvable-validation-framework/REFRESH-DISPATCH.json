@@ -1,0 +1,139 @@
+{
+  "dispatch_id": "20260718-gcp-development-relocation-refresh",
+  "intent": {
+    "raw": "Refresh the current Invoke artifacts and move the package to the DomainSpec v2 development directory.",
+    "objective": "Relocate one complete planning package, repair provenance paths, preserve research authority and lifecycle state, and emit validated refresh evidence.",
+    "target_artifact": "projects/domainspec-v2/development/evolvable-validation-framework/REFRESH-REPORT.md",
+    "operator_sentence": "Apply the explicitly approved relocation only; do not execute SWU-GCP-001 or change release state.",
+    "arcanum_vocabulary": ["invoke", "inventory", "context-builder", "dispatch-spec", "task-session"]
+  },
+  "mode": "sequence",
+  "techniques": [
+    "sequence",
+    "frame_handoff",
+    "artifact_contract_bridge",
+    "owner_boundary_check",
+    "concrete_path_evidence",
+    "validation_loop",
+    "authority_split_gate",
+    "state_namespace_boundary",
+    "residue_ledger",
+    "observability_grouping"
+  ],
+  "subagent_strategy": {
+    "status": "none",
+    "explanation": "The refresh is a bounded local relocation with deterministic validation and no delegated execution.",
+    "context": ["The source package and empty destination were resolved before mutation."],
+    "roles": [],
+    "parallelism": "none",
+    "join_policy": "none",
+    "authorization": "not_needed",
+    "permission_prompt": "No subagent execution is required or authorized.",
+    "receipt_requirements": []
+  },
+  "subagent_lifecycle": {"status": "none", "agents": []},
+  "steps": [
+    {
+      "step_id": "s01-select-context",
+      "name": "Resolve source, destination, authority, and refresh obligations",
+      "capability_ref": "context-builder",
+      "mode": "standard-strict",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["frame_handoff", "concrete_path_evidence", "owner_boundary_check"],
+      "inputs": [
+        {"kind": "artifact", "ref": ".arcanum/inventory/index.json"},
+        {"kind": "artifact", "ref": "../../research/evolvable-validation-framework/findings.md"},
+        {"kind": "external_context", "ref": "explicit user apply approval dated 2026-07-18"}
+      ],
+      "outputs": [{"kind": "frame", "ref": "REFRESH-CONTEXT.md"}],
+      "stop_conditions": ["source package is ambiguous", "destination already contains a conflicting package", "research authority would be moved"]
+    },
+    {
+      "step_id": "s02-apply-refresh",
+      "name": "Relocate package and repair scoped references",
+      "capability_ref": "invoke",
+      "mode": "refresh-apply-approved",
+      "pattern": "sequential",
+      "parallel": false,
+      "techniques": ["artifact_contract_bridge", "authority_split_gate", "state_namespace_boundary", "residue_ledger"],
+      "inputs": [{"kind": "frame", "ref": "s01-select-context"}],
+      "outputs": [
+        {"kind": "artifact", "ref": "REFRESH-REPORT.md"},
+        {"kind": "artifact", "ref": "refresh-report.json"},
+        {"kind": "artifact", "ref": "projects/domainspec-v2/development/evolvable-validation-framework/"}
+      ],
+      "stop_conditions": ["write leaves the selected package", "lifecycle status is upgraded", "implementation or release state changes"]
+    },
+    {
+      "step_id": "s03-validate-refresh",
+      "name": "Validate dispatch, links, JSON, path residue, and diff hygiene",
+      "capability_ref": "dispatch-spec",
+      "mode": "validate-refresh-route",
+      "pattern": "validation",
+      "parallel": false,
+      "techniques": ["validation_loop", "observability_grouping", "concrete_path_evidence"],
+      "inputs": [{"kind": "artifact", "ref": "s02-apply-refresh"}],
+      "outputs": [{"kind": "artifact", "ref": "REFRESH-DISPATCH-VALIDATION.json"}],
+      "evidence_artifact": "REFRESH-DISPATCH-VALIDATION.json",
+      "stop_conditions": ["dispatch blocks or flags", "a local link is broken", "old source path remains", "diff check fails"]
+    }
+  ],
+  "gates": [
+    {"gate_id": "g01-apply-approval", "kind": "human_approval", "owner": "user", "condition": "The user explicitly requested refresh and relocation.", "on_fail": "block"},
+    {"gate_id": "g02-target-collision", "kind": "validation", "owner": "inventory", "condition": "Exactly one source package exists and the target directory has no conflicting package.", "on_fail": "block"},
+    {"gate_id": "g03-authority-split", "kind": "promotion_guardrail", "owner": "DomainSpec v2 research and development owners", "condition": "Research findings remain evidence authority and development artifacts remain candidate planning outputs.", "on_fail": "block"},
+    {"gate_id": "g04-validation", "kind": "validation", "owner": "dispatch-spec", "condition": "All declared refresh validations pass before closeout.", "on_fail": "block"}
+  ],
+  "stop_conditions": [
+    "Any unrelated dirty development artifact is changed.",
+    "Research findings or Inventory authority is moved or promoted.",
+    "SWU-GCP-001 is executed or marked complete.",
+    "Release state changes."
+  ],
+  "observability": {
+    "dispatch_id_required": true,
+    "trace_events": [
+      "20260718-gcp-development-relocation-refresh:context-selected",
+      "20260718-gcp-development-relocation-refresh:package-relocated",
+      "20260718-gcp-development-relocation-refresh:references-repaired",
+      "20260718-gcp-development-relocation-refresh:validation-passed"
+    ],
+    "signal_grouping": "Group refresh evidence by dispatch ID, source path, target path, signal ID, and validation result."
+  },
+  "boundary_evidence": {
+    "boundaries": [
+      {
+        "boundary_id": "b01-research-to-development",
+        "kind": "state_write",
+        "from_owner": "research evidence",
+        "to_owner": "development lifecycle package",
+        "applies_to_steps": ["s01-select-context", "s02-apply-refresh", "s03-validate-refresh"],
+        "contract": "Only the Invoke-authored package moves; findings and Inventory projections remain research evidence sources.",
+        "on_violation": "block"
+      },
+      {
+        "boundary_id": "b02-planning-to-execution",
+        "kind": "capability_handoff",
+        "from_owner": "invoke refresh",
+        "to_owner": "future task-session",
+        "applies_to_steps": ["s02-apply-refresh", "s03-validate-refresh"],
+        "contract": "Refresh preserves the one-SWU handoff and does not execute or promote it.",
+        "on_violation": "block"
+      }
+    ],
+    "authority": {
+      "lifecycle": "invoke refresh owns relocation and artifact-state synthesis",
+      "execution": "none; future task-session owns SWU-GCP-001",
+      "validation": "dispatch, JSON, links, path residue, and diff hygiene",
+      "evidence": "REFRESH-REPORT.md and refresh-report.json",
+      "promotion": "none"
+    },
+    "receipts": [],
+    "state_namespaces": [
+      {"namespace": "research/evolvable-validation-framework", "owner": "research evidence owner", "write_policy": "unchanged except removal of the relocated invoke child directory"},
+      {"namespace": "development/evolvable-validation-framework", "owner": "DomainSpec v2 development cycle", "write_policy": "relocated candidate planning package and refresh evidence only"},
+      {"namespace": "first-production-release and implementation", "owner": "existing lifecycle owners", "write_policy": "unchanged by this refresh"}
+    ]
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.dev/schemas/formal-claim-source-payload/v2",
+  "title": "FormalClaimSourcePayload/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "claim",
+    "business_binding",
+    "formal_language_profile",
+    "canonical_proposition",
+    "interpretation_environment",
+    "claim_ceiling",
+    "authority_effect"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "domainspec-v2.formal-claim-source-payload/v2"
+    },
+    "claim": {
+      "$ref": "#/$defs/claimIdentity"
+    },
+    "business_binding": {
+      "$ref": "#/$defs/businessBinding"
+    },
+    "formal_language_profile": {
+      "$ref": "#/$defs/profileBinding"
+    },
+    "canonical_proposition": {
+      "$ref": "#/$defs/canonicalProposition"
+    },
+    "interpretation_environment": {
+      "$ref": "#/$defs/interpretationEnvironment"
+    },
+    "claim_ceiling": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority_effect": {
+      "const": "none"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000]+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "stringSet": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "exactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "digest"],
+      "properties": {
+        "id": {"$ref": "#/$defs/nonEmptyString"},
+        "version": {"$ref": "#/$defs/nonEmptyString"},
+        "digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "claimIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "claim_version",
+        "owner",
+        "currentness",
+        "supersedes",
+        "source_digest"
+      ],
+      "properties": {
+        "claim_id": {"$ref": "#/$defs/nonEmptyString"},
+        "claim_version": {"$ref": "#/$defs/nonEmptyString"},
+        "owner": {"$ref": "#/$defs/nonEmptyString"},
+        "currentness": {"enum": ["current", "superseded"]},
+        "supersedes": {
+          "oneOf": [
+            {"$ref": "#/$defs/nonEmptyString"},
+            {"type": "null"}
+          ]
+        },
+        "source_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "businessBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "business_meaning_ref",
+        "business_meaning_digest",
+        "relation",
+        "acceptance_ref",
+        "acceptance_digest"
+      ],
+      "properties": {
+        "business_meaning_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "business_meaning_digest": {"$ref": "#/$defs/sha256"},
+        "relation": {"const": "formalizes"},
+        "acceptance_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "acceptance_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "profileBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formal_language_profile_ref", "profile_digest"],
+      "properties": {
+        "formal_language_profile_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "profile_digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "canonicalProposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "representation_media_type",
+        "representation",
+        "representation_digest",
+        "semantic_identity",
+        "semantic_identity_digest",
+        "identity_algorithm"
+      ],
+      "properties": {
+        "representation_media_type": {"$ref": "#/$defs/nonEmptyString"},
+        "representation": {"$ref": "#/$defs/nonEmptyString"},
+        "representation_digest": {"$ref": "#/$defs/sha256"},
+        "semantic_identity": {"$ref": "#/$defs/nonEmptyString"},
+        "semantic_identity_digest": {"$ref": "#/$defs/sha256"},
+        "identity_algorithm": {"$ref": "#/$defs/exactRef"}
+      }
+    },
+    "interpretationEnvironment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment_id",
+        "environment_digest",
+        "signature",
+        "theories",
+        "imports",
+        "assumptions",
+        "universe_bindings",
+        "configuration_bindings",
+        "model_profile_bindings"
+      ],
+      "properties": {
+        "environment_id": {"$ref": "#/$defs/nonEmptyString"},
+        "environment_digest": {"$ref": "#/$defs/sha256"},
+        "signature": {"$ref": "#/$defs/stringSet"},
+        "theories": {"$ref": "#/$defs/stringSet"},
+        "imports": {"$ref": "#/$defs/stringSet"},
+        "assumptions": {"$ref": "#/$defs/stringSet"},
+        "universe_bindings": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "configuration_bindings": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/nonEmptyString"}
+        },
+        "model_profile_bindings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/exactRef"}
+        }
+      }
+    }
+  }
+}

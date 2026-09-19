@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BTE Option 2 — formation replacement x-ray</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #081019;
+      --panel: #101c28;
+      --panel-2: #142434;
+      --line: #2f4558;
+      --ink: #ecf4fb;
+      --muted: #9db0c0;
+      --current: #edb45e;
+      --replacement: #69d5c3;
+      --flow: #76a8ff;
+      --risk: #ff7c86;
+      --external: #c69cff;
+      --good: #80daa0;
+      --shadow: 0 22px 70px rgba(0, 0, 0, .28);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 88% 4%, rgba(105, 213, 195, .12), transparent 24rem),
+        radial-gradient(circle at 8% 8%, rgba(118, 168, 255, .12), transparent 28rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a { color: #9fc0ff; }
+    a:hover { color: #c8d8ff; }
+
+    .shell {
+      width: min(1220px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 36px 0 72px;
+    }
+
+    .eyebrow,
+    .kicker {
+      color: var(--replacement);
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 860px;
+      margin: 10px 0 12px;
+      font-size: clamp(2.2rem, 6vw, 5rem);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    h2, h3 { line-height: 1.13; }
+    h2 { margin: 0 0 12px; font-size: clamp(1.55rem, 3vw, 2.35rem); }
+    h3 { margin: 0 0 8px; }
+    p { margin: 0 0 12px; }
+    code { color: #c8d8ff; }
+
+    .lede {
+      max-width: 840px;
+      color: #c5d3de;
+      font-size: 1.12rem;
+    }
+
+    .status-row,
+    .legend,
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      align-items: center;
+    }
+
+    .status-row { margin: 24px 0; }
+
+    .badge,
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 11px;
+      background: rgba(16, 28, 40, .76);
+      color: #d4e0e9;
+      font-size: .78rem;
+      font-weight: 750;
+    }
+
+    .badge.pass { border-color: rgba(128, 218, 160, .52); color: var(--good); }
+    .badge.ready { border-color: rgba(105, 213, 195, .48); color: var(--replacement); }
+    .badge.blocked { border-color: rgba(255, 124, 134, .5); color: #ff9aa2; }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .on-ramp,
+    .panel,
+    .controls,
+    .map-frame,
+    .callout {
+      border: 1px solid var(--line);
+      background: linear-gradient(145deg, rgba(20, 36, 52, .95), rgba(11, 21, 31, .96));
+      box-shadow: var(--shadow);
+    }
+
+    .on-ramp {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      overflow: hidden;
+      border-radius: 18px;
+      background: var(--line);
+    }
+
+    .on-ramp article {
+      min-height: 185px;
+      padding: 22px;
+      background: var(--panel);
+    }
+
+    .on-ramp .number {
+      color: var(--muted);
+      font-size: .76rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+    }
+
+    .on-ramp article:nth-child(1) h3 { color: var(--replacement); }
+    .on-ramp article:nth-child(2) h3 { color: var(--current); }
+    .on-ramp article:nth-child(3) h3 { color: var(--flow); }
+
+    .section { margin-top: 54px; }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+
+    .section-head > p { max-width: 570px; color: var(--muted); }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: 242px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .controls {
+      position: sticky;
+      top: 16px;
+      padding: 18px;
+      border-radius: 16px;
+    }
+
+    .controls label {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 10px 0;
+      color: #dbe6ee;
+      font-size: .9rem;
+      cursor: pointer;
+    }
+
+    .controls input { accent-color: var(--replacement); }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 7px 9px;
+      background: #132333;
+      color: var(--ink);
+      font: inherit;
+      font-size: .76rem;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: var(--replacement); }
+
+    .controls .help {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: .75rem;
+    }
+
+    .map-frame {
+      overflow: hidden;
+      border-radius: 18px;
+    }
+
+    .map-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .76rem;
+    }
+
+    .layer-stack { position: relative; aspect-ratio: 16 / 10.15; min-height: 560px; }
+    .layer { position: absolute; inset: 0; transition: opacity .18s ease; }
+    .layer.is-hidden { opacity: 0; pointer-events: none; }
+    .layer svg { width: 100%; height: 100%; display: block; }
+
+    .map-caption {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      background: rgba(8, 16, 25, .7);
+    }
+
+    .mini-outcome {
+      border: 1px solid #263b4d;
+      border-radius: 11px;
+      padding: 12px;
+      color: #b9cad6;
+      font-size: .78rem;
+    }
+
+    .mini-outcome strong { color: var(--ink); }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .panel { padding: 20px; border-radius: 16px; }
+    .panel p, .panel li { color: #becdd7; }
+    .panel ul, .panel ol { margin: 10px 0 0; padding-left: 20px; }
+    .panel li + li { margin-top: 8px; }
+    .panel.current { border-top: 3px solid var(--current); }
+    .panel.replacement { border-top: 3px solid var(--replacement); }
+    .panel.proof { border-top: 3px solid var(--flow); }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .time-step {
+      position: relative;
+      min-height: 175px;
+      padding: 16px 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+    }
+
+    .time-step::after {
+      content: "→";
+      position: absolute;
+      top: 18px;
+      right: -10px;
+      z-index: 2;
+      color: var(--flow);
+      font-weight: 900;
+    }
+
+    .time-step:last-child::after { display: none; }
+    .time-step .step { color: var(--flow); font-size: .72rem; font-weight: 800; }
+    .time-step h3 { margin-top: 12px; font-size: .98rem; }
+    .time-step p { color: var(--muted); font-size: .78rem; }
+    .time-step.now { border-color: var(--replacement); box-shadow: inset 0 0 0 1px rgba(105, 213, 195, .25); }
+
+    .dependency-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.3fr 1fr;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .dependency-grid .zone {
+      padding: 18px;
+      border: 1px dashed #3a5267;
+      border-radius: 15px;
+      background: rgba(10, 20, 30, .75);
+    }
+
+    .dependency-grid .core { border-style: solid; border-color: rgba(105, 213, 195, .65); }
+    .dependency-grid .zone h3 { color: var(--replacement); }
+    .dependency-grid .external h3 { color: var(--external); }
+    .dependency-grid ul { padding-left: 18px; color: #bdcdd8; }
+
+    .risk-grid {
+      display: grid;
+      grid-template-columns: 150px repeat(3, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      overflow: hidden;
+      background: var(--line);
+      gap: 1px;
+    }
+
+    .risk-cell { min-height: 112px; padding: 14px; background: var(--panel); }
+    .risk-cell.header { min-height: auto; color: var(--muted); font-size: .74rem; font-weight: 800; text-transform: uppercase; }
+    .risk-cell.axis { color: var(--muted); font-size: .78rem; font-weight: 800; }
+    .risk-cell.high { box-shadow: inset 4px 0 0 var(--risk); }
+    .risk-cell.med { box-shadow: inset 4px 0 0 var(--current); }
+    .risk-cell.low { box-shadow: inset 4px 0 0 var(--flow); }
+    .risk-cell strong { display: block; margin-bottom: 6px; }
+    .risk-cell span { color: var(--muted); font-size: .78rem; }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .callout {
+      padding: 18px;
+      border-radius: 15px;
+      box-shadow: none;
+    }
+
+    .callout.evidence { border-left: 4px solid var(--good); }
+    .callout.inference { border-left: 4px solid var(--external); }
+
+    .terms {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 13px 15px;
+      background: var(--panel);
+    }
+
+    summary { cursor: pointer; color: var(--ink); font-weight: 800; }
+    details p { margin-top: 10px; color: #bdccd7; font-size: .88rem; }
+
+    .source-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .source-list a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(12, 23, 34, .72);
+      text-decoration: none;
+      font-size: .82rem;
+    }
+
+    .footer-note {
+      margin-top: 46px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .78rem;
+    }
+
+    @media (max-width: 940px) {
+      .on-ramp, .cards, .split { grid-template-columns: 1fr; }
+      .map-grid { grid-template-columns: 1fr; }
+      .controls { position: static; }
+      .timeline { grid-template-columns: repeat(2, 1fr); }
+      .time-step::after { display: none; }
+      .dependency-grid { grid-template-columns: 1fr; }
+      .risk-grid { grid-template-columns: 110px 1fr; }
+      .risk-cell.header:nth-child(n+3) { display: none; }
+      .terms, .source-list { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 20px, 1220px); padding-top: 22px; }
+      .section { margin-top: 38px; }
+      .section-head { display: block; }
+      .timeline { grid-template-columns: 1fr; }
+      .layer-stack { min-height: 520px; }
+      .map-caption { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="eyebrow">Backend Type Test Engine · decision x-ray</div>
+      <h1>Option 2 — what was actually decided</h1>
+      <p class="lede">You selected a direction for replacing the formation-contract authority. The decision lets Design begin. It does not make YAML authoritative today, retire the current JSON schemas, or authorize source implementation.</p>
+      <div class="status-row" aria-label="Current status">
+        <span class="badge pass"><span class="dot"></span>Decision PASS</span>
+        <span class="badge ready"><span class="dot"></span>Design ready</span>
+        <span class="badge blocked"><span class="dot"></span>Implementation blocked</span>
+        <span class="badge">L0 static HTML/SVG</span>
+        <span class="badge">Working-reader mode</span>
+      </div>
+    </header>
+
+    <section class="on-ramp" aria-label="Reader on-ramp">
+      <article>
+        <div class="number">01 · WHAT YOU SELECTED</div>
+        <h3>A separate, versioned replacement</h3>
+        <p>A future profile may make YAML the formation-rule owner. It must be a distinct version with its own identity, digests, violations, receipts, and replay results.</p>
+      </article>
+      <article>
+        <div class="number">02 · WHAT STAYS TRUE</div>
+        <h3>Current v1 remains frozen</h3>
+        <p>Its four declared JSON formation schemas stay part of its history. The present YAML adapter cannot claim full conformance while those declared rules are bypassed.</p>
+      </article>
+      <article>
+        <div class="number">03 · WHAT HAPPENS NEXT</div>
+        <h3>Design the machine contracts</h3>
+        <p>Define the replacement, map every old constraint, specify fixture outcomes, force the known false green to fail, and preserve causal evidence before any admission.</p>
+      </article>
+    </section>
+
+    <section class="section" id="layer-map">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Layered map</div>
+          <h2>One decision, two version rails</h2>
+        </div>
+        <p>Toggle the orthogonal layers. The current-v1 rail does not transform in place; the replacement advances independently through proof and owner admission.</p>
+      </div>
+
+      <div class="map-grid">
+        <aside class="controls" aria-label="Layer controls">
+          <h3>Visible layers</h3>
+          <label><input id="toggle-surface" type="checkbox" checked data-target="surface"> Surface and properties</label>
+          <label><input id="toggle-flow" type="checkbox" checked data-target="flow"> Flow and lifecycle</label>
+          <label><input id="toggle-deps" type="checkbox" checked data-target="deps"> Dependencies</label>
+          <label><input id="toggle-risk" type="checkbox" checked data-target="risk"> Risks and questions</label>
+          <div class="actions">
+            <button type="button" data-preset="all">Show all</button>
+            <button type="button" data-preset="current">Current v1</button>
+            <button type="button" data-preset="replacement">Replacement</button>
+            <button type="button" data-preset="proof">Proof risks</button>
+          </div>
+          <p class="help">Interaction contract: stacked, isolate, compare, trace. Buttons change emphasis; checkboxes control layer visibility.</p>
+        </aside>
+
+        <div class="map-frame">
+          <div class="map-title">
+            <span>Boundary: accepted decision → Invoke Design handoff</span>
+            <span>Not runtime authority</span>
+          </div>
+          <div class="layer-stack" id="layer-stack">
+            <section class="layer" data-layer="surface" data-lane="surface properties components">
+              <svg viewBox="0 0 960 610" role="img" aria-label="Current version and versioned replacement surface">
+                <rect width="960" height="610" fill="#0b1621"/>
+                <path d="M0 48H960 M0 560H960" stroke="#1e3142"/>
+                <text x="38" y="33" fill="#8299ab" font-size="12" font-weight="700">TIME MOVES LEFT → RIGHT</text>
+                <rect x="35" y="72" width="890" height="197" rx="20" fill="#131f2b" stroke="#704f2d" stroke-width="2"/>
+                <text x="61" y="106" fill="#edb45e" font-size="14" font-weight="800">RAIL A · CURRENT V1</text>
+                <text x="61" y="133" fill="#f5f8fb" font-size="23" font-weight="800">Frozen history; full formation claim blocked</text>
+                <rect x="62" y="159" width="180" height="78" rx="12" fill="#1c2a37" stroke="#edb45e"/>
+                <text x="80" y="186" fill="#ecf4fb" font-size="14" font-weight="700">Current-v1 profile</text>
+                <text x="80" y="210" fill="#9db0c0" font-size="12">4 minted kinds</text>
+                <text x="80" y="228" fill="#9db0c0" font-size="12">existing identity</text>
+                <rect x="278" y="159" width="180" height="78" rx="12" fill="#1c2a37" stroke="#edb45e"/>
+                <text x="296" y="186" fill="#ecf4fb" font-size="14" font-weight="700">Declared JSON rules</text>
+                <text x="296" y="210" fill="#9db0c0" font-size="12">4 body schemas</text>
+                <text x="296" y="228" fill="#9db0c0" font-size="12">remain attached</text>
+                <rect x="494" y="159" width="180" height="78" rx="12" fill="#1c2a37" stroke="#edb45e"/>
+                <text x="512" y="186" fill="#ecf4fb" font-size="14" font-weight="700">YAML adapter path</text>
+                <text x="512" y="210" fill="#9db0c0" font-size="12">executes criteria</text>
+                <text x="512" y="228" fill="#ff9aa2" font-size="12">bypasses declared JSON</text>
+                <rect x="710" y="159" width="180" height="78" rx="12" fill="#271d25" stroke="#ff7c86"/>
+                <text x="728" y="186" fill="#ff9aa2" font-size="14" font-weight="800">FALSE GREEN</text>
+                <text x="728" y="210" fill="#c7b7bd" font-size="12">Entity can pass while</text>
+                <text x="728" y="228" fill="#c7b7bd" font-size="12">violating JSON schema</text>
+
+                <rect x="35" y="311" width="890" height="216" rx="20" fill="#10252a" stroke="#357d73" stroke-width="2"/>
+                <text x="61" y="345" fill="#69d5c3" font-size="14" font-weight="800">RAIL B · VERSIONED REPLACEMENT</text>
+                <text x="61" y="372" fill="#f5f8fb" font-size="23" font-weight="800">A new authority boundary, built visibly</text>
+                <rect x="62" y="400" width="180" height="91" rx="12" fill="#173039" stroke="#69d5c3"/>
+                <text x="80" y="427" fill="#ecf4fb" font-size="14" font-weight="700">New profile version</text>
+                <text x="80" y="451" fill="#a7c5c7" font-size="12">distinct ID + digest</text>
+                <text x="80" y="470" fill="#a7c5c7" font-size="12">not admitted yet</text>
+                <rect x="278" y="400" width="180" height="91" rx="12" fill="#173039" stroke="#69d5c3"/>
+                <text x="296" y="427" fill="#ecf4fb" font-size="14" font-weight="700">YAML formation rules</text>
+                <text x="296" y="451" fill="#a7c5c7" font-size="12">criteria + structure</text>
+                <text x="296" y="470" fill="#a7c5c7" font-size="12">machine contract</text>
+                <rect x="494" y="400" width="180" height="91" rx="12" fill="#173039" stroke="#69d5c3"/>
+                <text x="512" y="427" fill="#ecf4fb" font-size="14" font-weight="700">Retirement map</text>
+                <text x="512" y="451" fill="#a7c5c7" font-size="12">every JSON constraint</text>
+                <text x="512" y="470" fill="#a7c5c7" font-size="12">mapped or retired</text>
+                <rect x="710" y="400" width="180" height="91" rx="12" fill="#173039" stroke="#69d5c3"/>
+                <text x="728" y="427" fill="#ecf4fb" font-size="14" font-weight="700">Migration evidence</text>
+                <text x="728" y="451" fill="#a7c5c7" font-size="12">fixtures + false green</text>
+                <text x="728" y="470" fill="#a7c5c7" font-size="12">receipts + replay</text>
+                <text x="38" y="583" fill="#8299ab" font-size="12">Surface composition uses canonical shape.boundary, shape.layer-panel, and shape.node components.</text>
+              </svg>
+            </section>
+
+            <section class="layer" data-layer="flow" data-lane="flow lifecycle">
+              <svg viewBox="0 0 960 610" role="img" aria-label="Replacement flow and lifecycle">
+                <defs>
+                  <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0 0L10 5L0 10z" fill="#76a8ff"/>
+                  </marker>
+                </defs>
+                <path d="M242 199H270 M458 199H486 M674 199H702" stroke="#ff7c86" stroke-width="3" stroke-dasharray="6 5" marker-end="url(#arrow-flow)"/>
+                <path d="M242 446H270 M458 446H486 M674 446H702" stroke="#76a8ff" stroke-width="4" marker-end="url(#arrow-flow)"/>
+                <path d="M800 392C800 337 696 298 568 298C440 298 358 281 358 244" fill="none" stroke="#76a8ff" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrow-flow)"/>
+                <rect x="354" y="268" width="252" height="57" rx="28" fill="#15283a" stroke="#76a8ff" stroke-width="2"/>
+                <text x="480" y="292" text-anchor="middle" fill="#9fc0ff" font-size="12" font-weight="800">ACCEPTED HUMAN DECISION</text>
+                <text x="480" y="311" text-anchor="middle" fill="#d8e4ee" font-size="12">unblocks Design, not runtime</text>
+                <text x="380" y="388" fill="#9fc0ff" font-size="11" font-weight="800">DESIGN</text>
+                <text x="590" y="388" fill="#9fc0ff" font-size="11" font-weight="800">PROVE</text>
+                <text x="806" y="388" fill="#9fc0ff" font-size="11" font-weight="800">ADMIT</text>
+              </svg>
+            </section>
+
+            <section class="layer" data-layer="deps" data-lane="internal_dependencies external_dependencies">
+              <svg viewBox="0 0 960 610" role="img" aria-label="Internal and external dependencies">
+                <rect x="18" y="294" width="924" height="249" rx="25" fill="none" stroke="#69d5c3" stroke-width="2" stroke-dasharray="8 7"/>
+                <text x="44" y="538" fill="#69d5c3" font-size="11" font-weight="800">BTE INTERNAL IMPLEMENTATION BOUNDARY</text>
+                <rect x="18" y="10" width="275" height="48" rx="10" fill="#211b31" stroke="#c69cff"/>
+                <text x="36" y="31" fill="#d3b8ff" font-size="12" font-weight="800">EXTERNAL · formation-contract owner</text>
+                <text x="36" y="48" fill="#a99dbd" font-size="11">selected the direction</text>
+                <rect x="667" y="10" width="275" height="48" rx="10" fill="#211b31" stroke="#c69cff"/>
+                <text x="685" y="31" fill="#d3b8ff" font-size="12" font-weight="800">EXTERNAL · profile owner</text>
+                <text x="685" y="48" fill="#a99dbd" font-size="11">controls machine admission</text>
+                <path d="M157 58V259" stroke="#c69cff" stroke-width="2" stroke-dasharray="5 5"/>
+                <path d="M804 58V378" stroke="#c69cff" stroke-width="2" stroke-dasharray="5 5"/>
+                <rect x="18" y="552" width="275" height="43" rx="10" fill="#211b31" stroke="#c69cff"/>
+                <text x="36" y="578" fill="#d3b8ff" font-size="12" font-weight="800">LATER · IOLM consumer receipt</text>
+                <rect x="667" y="552" width="275" height="43" rx="10" fill="#211b31" stroke="#c69cff"/>
+                <text x="685" y="578" fill="#d3b8ff" font-size="12" font-weight="800">LATER · Body War consumer receipt</text>
+              </svg>
+            </section>
+
+            <section class="layer" data-layer="risk" data-lane="risk_questions">
+              <svg viewBox="0 0 960 610" role="img" aria-label="Open risks and proof questions">
+                <g font-family="system-ui, sans-serif" font-weight="800">
+                  <circle cx="801" cy="198" r="24" fill="#3a1e28" stroke="#ff7c86" stroke-width="2"/>
+                  <text x="801" y="204" text-anchor="middle" fill="#ff9aa2" font-size="17">!</text>
+                  <rect x="698" y="242" width="207" height="44" rx="9" fill="#261a23" stroke="#ff7c86"/>
+                  <text x="716" y="261" fill="#ff9aa2" font-size="11">GAP-029 · proof still open</text>
+                  <text x="716" y="277" fill="#b9a6ae" font-size="10">decision alone cannot close it</text>
+                  <circle cx="366" cy="446" r="19" fill="#302717" stroke="#edb45e" stroke-width="2"/>
+                  <text x="366" y="452" text-anchor="middle" fill="#edb45e" font-size="15">?</text>
+                  <rect x="267" y="499" width="201" height="42" rx="9" fill="#282317" stroke="#edb45e"/>
+                  <text x="283" y="517" fill="#edb45e" font-size="10">required_structure + domains</text>
+                  <text x="283" y="532" fill="#bfb29b" font-size="10">need stronger machine rules</text>
+                  <circle cx="801" cy="446" r="19" fill="#302717" stroke="#edb45e" stroke-width="2"/>
+                  <text x="801" y="452" text-anchor="middle" fill="#edb45e" font-size="15">?</text>
+                  <rect x="698" y="499" width="207" height="42" rx="9" fill="#282317" stroke="#edb45e"/>
+                  <text x="714" y="517" fill="#edb45e" font-size="10">GAP-030 · exact 16 execution</text>
+                  <text x="714" y="532" fill="#bfb29b" font-size="10">depends on replacement design</text>
+                </g>
+              </svg>
+            </section>
+          </div>
+          <div class="map-caption">
+            <div class="mini-outcome"><strong>Reader outcome · surface</strong><br>Explain why current v1 stays frozen while a new version is designed.</div>
+            <div class="mini-outcome"><strong>Reader outcome · flow</strong><br>Trace Design → contracts → migration proof → admission → completeness proof.</div>
+            <div class="mini-outcome"><strong>Reader outcome · dependencies</strong><br>Separate BTE work from owner admission and downstream consumer receipts.</div>
+            <div class="mini-outcome"><strong>Reader outcome · risks</strong><br>Distinguish a resolved choice from GAP-029/GAP-030 proof closure.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="decision-contract">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Decision contract</div>
+          <h2>Changed, unchanged, and still required</h2>
+        </div>
+        <p>This is the practical boundary that stops the work from circling back into the same authority question.</p>
+      </div>
+      <div class="cards">
+        <article class="panel replacement">
+          <h3>What changed</h3>
+          <ul>
+            <li>The formation-authority direction is no longer undecided.</li>
+            <li>The replacement will be a distinct profile/contract version.</li>
+            <li>YAML may become formation authority in that replacement.</li>
+            <li>Invoke Design is now unblocked.</li>
+          </ul>
+        </article>
+        <article class="panel current">
+          <h3>What did not change</h3>
+          <ul>
+            <li>Current v1 still declares four JSON formation schemas.</li>
+            <li>The existing adapter still cannot claim full formation proof.</li>
+            <li>No JSON contract has been retired.</li>
+            <li>No profile has been admitted and no source work authorized.</li>
+          </ul>
+        </article>
+        <article class="panel proof">
+          <h3>Before retirement can count</h3>
+          <ol>
+            <li>Map every JSON constraint.</li>
+            <li>Assign each to a YAML rule or explicit retirement impact.</li>
+            <li>Give every current fixture a migration outcome.</li>
+            <li>Reject the known false-green Entity.</li>
+            <li>Distinguish all old/new evidence and replay.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" data-lane="lifecycle">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Lifecycle</div>
+          <h2>The only safe order of work</h2>
+        </div>
+        <p>If a stage fails, the replacement returns to Design or implementation. Current-v1 history does not mutate to make the new path look green.</p>
+      </div>
+      <div class="timeline" aria-label="Formation replacement lifecycle">
+        <article class="time-step"><span class="step">STATE 1</span><h3>Freeze current v1</h3><p>Preserve its identity and declared JSON contracts. Block full-formation claims.</p></article>
+        <article class="time-step now"><span class="step">STATE 2 · NOW</span><h3>Accept Option 2</h3><p>Direction chosen. Design is permitted; implementation is not.</p></article>
+        <article class="time-step"><span class="step">STATE 3</span><h3>Design contracts</h3><p>Specify versions, mappings, rule semantics, fixtures, receipts, and failure behavior.</p></article>
+        <article class="time-step"><span class="step">STATE 4</span><h3>Implement and prove</h3><p>Execute compatibility, migration, false-green rejection, and replay evidence.</p></article>
+        <article class="time-step"><span class="step">STATE 5</span><h3>Owner admission</h3><p>Validate and admit the replacement; explicitly retire the mapped JSON contracts.</p></article>
+        <article class="time-step"><span class="step">STATE 6</span><h3>Completeness chain</h3><p>Run exact-16 compiler proof, then graph → obligations → tests → receipts → consumers.</p></article>
+      </div>
+    </section>
+
+    <section class="section" data-lane="internal_dependencies external_dependencies">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Dependency boundaries</div>
+          <h2>Who can prove what</h2>
+        </div>
+        <p>The engine can create evidence, but it cannot self-author owner decisions or manufacture independent consumer receipts.</p>
+      </div>
+      <div class="dependency-grid">
+        <article class="zone external">
+          <h3>Upstream owners</h3>
+          <ul>
+            <li>Formation owner chose Option 2.</li>
+            <li>Profile owners control machine admission.</li>
+            <li>Relationship-family admission remains deferred.</li>
+          </ul>
+        </article>
+        <article class="zone core">
+          <h3>BTE internal spine</h3>
+          <ul>
+            <li>Replacement profile identity and digest.</li>
+            <li>YAML formation contract and <code>required_structure</code>.</li>
+            <li>Constraint-retirement map and fixture migration corpus.</li>
+            <li>Compiler selection, exact criteria, receipts, and replay.</li>
+            <li>Later graph → obligation → test → evaluator → mutation chain.</li>
+          </ul>
+        </article>
+        <article class="zone external">
+          <h3>Downstream proof</h3>
+          <ul>
+            <li>IOLM runs as an independent consumer after a green core.</li>
+            <li>Body War runs as another independent consumer.</li>
+            <li>Each must produce a fresh receipt, not reuse core evidence.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" data-lane="risk_questions">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Risk questions</div>
+          <h2>What still blocks a completeness claim</h2>
+        </div>
+        <p>The highest risk is premature authority: editing a profile and calling the replacement complete before migration and replay evidence converge.</p>
+      </div>
+      <div class="risk-grid" role="table" aria-label="Open risk matrix">
+        <div class="risk-cell header"></div><div class="risk-cell header">Authority / migration</div><div class="risk-cell header">Formation semantics</div><div class="risk-cell header">Completeness proof</div>
+        <div class="risk-cell axis">High impact</div><div class="risk-cell high"><strong>GAP-029 proof remains open</strong><span>Replacement, retirement evidence, false-green rejection, receipts, and replay do not exist yet.</span></div><div class="risk-cell high"><strong>Premature JSON retirement</strong><span>An unmapped constraint can disappear behind a green migration result.</span></div><div class="risk-cell high"><strong>Equal counts are not exact sets</strong><span>Missing, extra, duplicated, stale, skipped, or surviving items can share totals.</span></div>
+        <div class="risk-cell axis">Medium impact</div><div class="risk-cell med"><strong>Identity ambiguity</strong><span>Old/new profile IDs, digests, violations, receipts, and replay must be distinguishable.</span></div><div class="risk-cell med"><strong>Weak formation details</strong><span><code>required_structure</code> is not evaluated; Interface and Mapping are presence-only; Value Object equality is substring-based.</span></div><div class="risk-cell med"><strong>GAP-030 remains open</strong><span>All exact 16 criteria need positive and discriminating-negative compiler execution after replacement design.</span></div>
+        <div class="risk-cell axis">Later boundary</div><div class="risk-cell low"><strong>Relationship admission</strong><span>The 16 planning families remain outside this formation decision.</span></div><div class="risk-cell low"><strong>Rule fixture locality</strong><span>DEC-GCP-001 stays local to the optional key-and-door semantic fixture.</span></div><div class="risk-cell low"><strong>Consumer receipts</strong><span>IOLM and Body War run only after the core is green and cannot substitute for core proof.</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Evidence discipline</div>
+          <h2>Source-backed vs inference</h2>
+        </div>
+        <p>Visual composition helps reading; it does not acquire authority by looking precise.</p>
+      </div>
+      <div class="split">
+        <article class="callout evidence">
+          <h3>Source-backed</h3>
+          <p>The accepted option, its non-authorizations, the seven compatibility clauses, current formation gaps, lifecycle gates, and consumer ordering come from the live Define, Requirements, decision, and gap ledger.</p>
+        </article>
+        <article class="callout inference">
+          <h3>Inference</h3>
+          <p>The two-rail layout, grouping order, dependency spine, and risk placement are explanatory choices. They do not add requirements or replace the pending Design artifact.</p>
+        </article>
+      </div>
+      <div class="legend" style="margin-top: 12px">
+        <span style="color: var(--good)"><span class="dot"></span>source-backed</span>
+        <span style="color: var(--external)"><span class="dot"></span>inference</span>
+        <span style="color: var(--risk)"><span class="dot"></span>open proof risk</span>
+      </div>
+    </section>
+
+    <section class="section" id="reader-terms">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Reader terms</div>
+          <h2>Plain language for the load-bearing ideas</h2>
+        </div>
+        <p>Each term includes why it matters and the misuse this decision must avoid.</p>
+      </div>
+      <div class="terms">
+        <details open><summary>Formation contract</summary><p>The machine-checkable rules deciding whether a node body matches its kind. <strong>Why it matters:</strong> current v1 names JSON rules but executes YAML checks. The current adapter is not newly authoritative.</p></details>
+        <details><summary>Current v1</summary><p>The existing four-kind minted-project profile and its historical declarations. <strong>Why it matters:</strong> freezing it prevents a silent compatibility rewrite. Frozen does not mean complete.</p></details>
+        <details><summary>Versioned replacement</summary><p>A new profile and contract version that can give YAML rule ownership honestly. <strong>Why it matters:</strong> it exposes migration and evidence boundaries. A design document alone does not admit it.</p></details>
+        <details><summary>Retirement map</summary><p>An exact account of every old JSON constraint and its new destination or explicit retirement impact. <strong>Why it matters:</strong> a prose claim that JSON is retired cannot expose missing rules.</p></details>
+        <details><summary>False green</summary><p>A pass that skipped a governing contract. <strong>Why it matters:</strong> the known Entity case can pass YAML while violating declared JSON. Existing regression totals do not close it.</p></details>
+        <details><summary>Machine admission</summary><p>The owner-controlled act that makes a particular profile version usable. <strong>Why it matters:</strong> it separates an accepted direction from live behavior. This x-ray and generated receipts cannot self-admit.</p></details>
+        <details><summary><code>required_structure</code></summary><p>The literal tables or sections a kind must supply. <strong>Why it matters:</strong> the kernel loads it but does not evaluate it across all 13 backend schemas. Named criteria alone are insufficient.</p></details>
+        <details><summary>Exact-set proof</summary><p>Compare the identities of every required and actual item, not totals. <strong>Why it matters:</strong> equal counts can hide missing, extra, duplicated, stale, skipped, or surviving items.</p></details>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Reader outcomes</div>
+          <h2>What this x-ray should let you say</h2>
+        </div>
+      </div>
+      <div class="cards">
+        <article class="panel"><h3>About the decision</h3><p>“We chose a new versioned YAML-owned replacement. We did not modify current v1 in place.”</p></article>
+        <article class="panel"><h3>About the gaps</h3><p>“GAP-029’s decision is resolved, but its machine proof remains open; GAP-030 still needs exact-16 execution.”</p></article>
+        <article class="panel"><h3>About the next route</h3><p>“Invoke Design must materialize the contracts and proof protocol before Plan or Task Session can authorize source work.”</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="kicker">Evidence boundary</div>
+          <h2>What this page reads — and what it excludes</h2>
+        </div>
+        <p>Scope ends at the Invoke Design handoff. Source implementation, machine admission, Plan, Task Session, UI work, and consumer execution are explicitly outside this x-ray.</p>
+      </div>
+      <div class="source-list">
+        <a href="../../DEFINE.md">Define — current semantics and decision boundary</a>
+        <a href="../../REQUIREMENTS.md">Requirements — proof and compatibility clauses</a>
+        <a href="../../decisions/DEC-BTE-FORMATION-AUTHORITY-001.md">Accepted decision — Option 2</a>
+        <a href="../../decisions/DEC-BTE-FORMATION-AUTHORITY-001.json">Machine decision record</a>
+        <a href="../../work-pack/shared/GAPS.md">Gap ledger — GAP-029, GAP-030, and formation details</a>
+        <a href="lanes.json">Machine-readable x-ray lanes</a>
+      </div>
+    </section>
+
+    <footer class="footer-note">
+      <p><strong>Renderer and library:</strong> L0 static HTML/SVG using the canonical x-ray seed vocabulary: <code>shape.node</code>, <code>shape.boundary</code>, <code>shape.layer-panel</code>, <code>shape.risk-marker</code>, <code>connector.arrow</code>, <code>connector.branch</code>, <code>connector.feedback-loop</code>, <code>chart.timeline-strip</code>, and <code>chart.risk-matrix</code>; composed through process-branch, dependency-boundary, lifecycle-stack, and evidence-inference-split patterns.</p>
+      <p><strong>Extension nudge:</strong> Design may need a domain-specific migration-parity matrix that maps each old JSON constraint to its replacement YAML criterion, <code>required_structure</code> rule, or explicit retirement impact. The starter library has no dedicated shape for that contract yet.</p>
+      <p><strong>Status:</strong> x-ray 0.2.0-seed. This is a local explanatory artifact, not a production visualization renderer, semantic source, admission record, or proof receipt.</p>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const toggles = [...document.querySelectorAll('[data-target]')];
+      const layers = [...document.querySelectorAll('[data-layer]')];
+
+      const sync = () => {
+        const visible = new Set(toggles.filter((toggle) => toggle.checked).map((toggle) => toggle.dataset.target));
+        layers.forEach((layer) => layer.classList.toggle('is-hidden', !visible.has(layer.dataset.layer)));
+      };
+
+      const setVisible = (names) => {
+        toggles.forEach((toggle) => { toggle.checked = names.includes(toggle.dataset.target); });
+        sync();
+      };
+
+      toggles.forEach((toggle) => toggle.addEventListener('change', sync));
+      document.querySelectorAll('[data-preset]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const preset = button.dataset.preset;
+          if (preset === 'all') setVisible(['surface', 'flow', 'deps', 'risk']);
+          if (preset === 'current') setVisible(['surface', 'flow', 'risk']);
+          if (preset === 'replacement') setVisible(['surface', 'flow', 'deps']);
+          if (preset === 'proof') setVisible(['flow', 'deps', 'risk']);
+        });
+      });
+      sync();
+    })();
+  </script>
+</body>
+</html>

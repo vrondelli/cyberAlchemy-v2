@@ -1,0 +1,12 @@
+// Opt-in full-window experiment. Open questions: DEEPSEEK-FULL-WINDOW-DAG.md.
+import {buildComparisonCell} from './comparison-repair-arm.mjs';
+export const FULL_WINDOW=Object.freeze({id:'glm-full-window-73',context_limit:1000000,recycle_at:990000,safety_margin:10000,total_tokens:4000000,output_cap:2048,maximum_calls:96,maximum_request_bytes:32*1024**2,maximum_stage_bytes:512*1024**2,request_budget:'contextbench-full-window-v1'});
+export function buildFullWindowCell({config,task_id}){
+ if(config.full_window_profile!==FULL_WINDOW.id)throw Error('full-window.explicit-profile-required');
+ // Original templates are immutable provenance, not the effective full-window policy.
+ const legacy={...config,context_limit:8000,total_tokens_per_arm:96000};
+ const cell=buildComparisonCell({config:legacy,task_id,arm:'current-are'});
+ return {...cell,cell_id:task_id+'-'+FULL_WINDOW.id,context_limit:FULL_WINDOW.context_limit,recycle_at:FULL_WINDOW.recycle_at,safety_margin:FULL_WINDOW.safety_margin,
+  limits:{...cell.limits,total_tokens:FULL_WINDOW.total_tokens,finalization_reserve_tokens:2*FULL_WINDOW.context_limit,output_cap:FULL_WINDOW.output_cap,maximum_calls:FULL_WINDOW.maximum_calls},
+  provider_profile:{...cell.provider_profile,request_budget:FULL_WINDOW.request_budget}};
+}
