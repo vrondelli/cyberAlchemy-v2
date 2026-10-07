@@ -16,6 +16,7 @@ import { buildApplicationFile, verifyApplicationFile } from "../src/application-
 import { lowerApplicationDomain } from "../src/application-domain-lowering.js";
 import { lowerApplicationRuleProjections } from "../src/application-rule-projection.js";
 import { createRequire } from "node:module";
+import { deriveApplicationIntegrationBindings } from "../src/application-integration-derivation.js";
 
 function materialize(t: test.TestContext, f: { source: string; bindings: unknown; interpretation: unknown; execution: unknown; sources: ReadonlyMap<string, Buffer> }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "alch-file-input-"));
@@ -31,6 +32,21 @@ function materialize(t: test.TestContext, f: { source: string; bindings: unknown
   const save = () => write("commerce.alch.application.json", json(manifest));
   save();
   return { root, write, manifest, save, source: path.join(root, "commerce.alch") };
+}
+
+function providerWorkspace(root: string, output: string, packageRoot: string) {
+  const workspace=path.join(root,"provider-native");fs.cpSync(output,workspace,{recursive:true,errorOnExist:true,force:false});
+  const modules=path.join(workspace,"node_modules");fs.mkdirSync(path.join(modules,"@types"),{recursive:true});
+  fs.symlinkSync(path.join(packageRoot,"node_modules/@types/node"),path.join(modules,"@types/node"),"dir");
+  fs.mkdirSync(path.join(modules,"nats"),{recursive:true});
+  fs.writeFileSync(path.join(modules,"nats/package.json"),JSON.stringify({name:"nats",type:"module",exports:{".":{types:"./index.d.ts",import:"./index.js"}}}));
+  fs.writeFileSync(path.join(modules,"nats/index.js"),'export const headers=()=>({set(){}});export const connect=async()=>({jetstream:()=>({}),drain:async()=>{}});\n');
+  fs.writeFileSync(path.join(modules,"nats/index.d.ts"),'export interface MsgHdrs{set(name:string,value:string):void} export function headers():MsgHdrs; export interface JetStreamClient{publish(subject:string,payload:Uint8Array,options?:{headers?:MsgHdrs}):Promise<{stream:string;seq:number}>} export interface NatsConnection{jetstream():JetStreamClient;drain():Promise<void>} export function connect(options:{servers:string}):Promise<NatsConnection>;\n');
+  fs.mkdirSync(path.join(modules,"pg"),{recursive:true});
+  fs.writeFileSync(path.join(modules,"pg/package.json"),JSON.stringify({name:"pg",type:"module",exports:{".":{types:"./index.d.ts",import:"./index.js"}}}));
+  fs.writeFileSync(path.join(modules,"pg/index.js"),'export class Pool{constructor(_options){}async connect(){throw Error("stub")}async query(){return{rows:[]}}async end(){}}\n');
+  fs.writeFileSync(path.join(modules,"pg/index.d.ts"),'export interface QueryResult<Row=Record<string,unknown>>{rows:Row[]} export interface PoolClient{query<Row=Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<QueryResult<Row>>;release():void} export class Pool{constructor(options?:{connectionString?:string});connect():Promise<PoolClient>;query<Row=Record<string,unknown>>(sql:string,values?:readonly unknown[]):Promise<QueryResult<Row>>;end():Promise<void>}\n');
+  return workspace;
 }
 
 test("public application loader prepares source-derived realization from exact file companions", async t => {
@@ -167,43 +183,58 @@ realization SubmitOrderExecution:`)
   }
 });
 
-test("file loader joins every explicit whole-application partition without synthesizing providers", async t => {
-  const f = await wholeApplicationFixture();
+test("file loader derives internal integration contracts and joins a provider application", async t => {
+  const f = await wholeApplicationFixture("provider-selection:commerce-runtime", false, true);
   const p = materialize(t, f);
-  const contexts = { persistence: f.contexts[0], messaging: f.contexts[1], external_api: f.contexts[2] };
-  for (const [name, context] of Object.entries(contexts)) p.manifest[name] = p.write(`inputs/${name}.json`, json(context.binding));
   p.manifest.runtime_profile = "CommerceRuntime";
   p.manifest.observation = p.write("inputs/observation.json", json(f.observation)); p.save();
   const loaded = await loadApplicationFile(p.source);
   assert.ok(Object.isFrozen(loaded.observation));
-  assert.deepEqual(loaded.candidate, f.candidate);
+  assert.ok(loaded.integration_derivation);
+  assert.equal(loaded.integration_derivation!.provider_pack, "domainspec.reference-postgresql16-nats-http/v1-candidate");
+  assert.equal(loaded.integration_derivation!.runtime_guarantees_observed, false);
+  assert.ok(!Object.keys(loaded.inputs).some(name => /persistence|messaging|external_api/.test(name)));
+  assert.equal(loaded.candidate.selection.schema_version, f.candidate.selection.schema_version);
   for (const [relative, bytes] of Object.entries(loaded.candidate.projectFiles)) p.write(`compiled-source/${relative}`, bytes);
   const graph = loaded.compiler.compileProject(path.join(p.root, "compiled-source")).graph;
   const whole = compileApplicationWhole(loaded.candidate, graph, loaded.observation, loaded.compiler);
   assert.equal(whole.runtimeBinding.providers.length, 5);
   assert.equal(whole.trace.runtime_guarantees_observed, false);
   const checked = await checkApplicationFile(p.source);
-  assert.equal(checked.scope, "whole-application-artifacts");
+  assert.equal(checked.scope, "provider-application-artifacts");
   assert.equal(checked.generated_artifacts, whole.application.artifacts.length);
   assert.equal(checked.runtime_guarantees_observed, false);
   const output = path.join(p.root, "whole-generated");
-  assert.equal((await buildApplicationFile(p.source, output)).scope, "whole-application-artifacts");
+  assert.equal((await buildApplicationFile(p.source, output)).scope, "provider-application-artifacts");
   assert.equal((await verifyApplicationFile(p.source, output)).status, "verified");
   assert.ok(fs.existsSync(path.join(output, ".alch/whole/application-runtime-binding.json")));
   assert.ok(fs.existsSync(path.join(output, "src/integrations/application-request-handlers.ts")));
+  assert.ok(fs.existsSync(path.join(output, "src/providers/reference/bootstrap.ts")));
+  assert.ok(fs.existsSync(path.join(output, ".domainspec/providers/manifest.json")));
   assert.ok(fs.existsSync(path.join(output, "tsconfig.json")));
-  execFileSync(testTypeScript(), ["-p", path.join(output, "tsconfig.json"), "--noEmit"], { stdio: "pipe" });
+  const native=providerWorkspace(p.root,output,loaded.compiler.binding.package_root);
+  const compiled=spawnSync(testTypeScript(), ["-p", path.join(native, "tsconfig.json"), "--noEmit", "--types", "node"], { encoding: "utf8" });
+  assert.equal(compiled.status,0,compiled.stdout+compiled.stderr);
   const handlerPath=path.join(output,"src/integrations/application-request-handlers.ts");
   fs.appendFileSync(handlerPath,"\n// changed generated handler\n");
   await assert.rejects(verifyApplicationFile(p.source,output), /APPLICATION_OUTPUT/);
   assertApplicationFileCurrent(loaded);
-  delete p.manifest.messaging; p.save();
-  await assert.rejects(loadApplicationFile(p.source), /APPLICATION_INTEGRATION_LOWERING_REQUIRED/);
+  p.manifest.persistence = p.write("inputs/persistence.json", json(f.contexts[0].binding)); p.save();
+  await assert.rejects(loadApplicationFile(p.source), /supplied together or derived together/);
+});
+
+test("internal integration derivation rejects unsupported packs and ambiguous failure ownership", async () => {
+  const f=await wholeApplicationFixture();
+  assert.throws(()=>deriveApplicationIntegrationBindings(
+    f.source.replace("domainspec.reference-postgresql16-nats-http/v1-candidate","domainspec.unsupported/v1-candidate"),"CommerceRuntime",f.compiler),
+    /APPLICATION_INTEGRATION_DERIVATION_PACK/);
+  assert.throws(()=>deriveApplicationIntegrationBindings(
+    f.source.replace("  accepts-writes-from SubmitOrder\n","  accepts-writes-from SubmitOrder\n  accepts-writes-from ReceiveNotice\n"),"CommerceRuntime",f.compiler),
+    /exactly one authored persistence write Operation/);
 });
 
 test("whole file build executes source-authored composed handlers and explicit absence rollback", async t => {
-  const f=await wholeApplicationFixture("provider-selection:commerce-runtime",true),p=materialize(t,f);
-  for(const [name,context] of Object.entries({persistence:f.contexts[0],messaging:f.contexts[1],external_api:f.contexts[2]}))p.manifest[name]=p.write(`inputs/${name}.json`,json(context.binding));
+  const f=await wholeApplicationFixture("provider-selection:commerce-runtime",true,true),p=materialize(t,f);
   p.manifest.runtime_profile="CommerceRuntime";
   p.manifest.observation=p.write("inputs/observation.json",json(f.observation));p.save();
   const loaded=await loadApplicationFile(p.source);
@@ -211,17 +242,19 @@ test("whole file build executes source-authored composed handlers and explicit a
   assert.equal(Object.hasOwn(f.execution.selection,"operations"),false);
   const output=path.join(p.root,"whole-composed");
   const built=await buildApplicationFile(p.source,output);
-  assert.equal(built.scope,"whole-application-artifacts");
+  assert.equal(built.scope,"provider-application-artifacts");
   await verifyApplicationFile(p.source,output);
   const entry=process.env.ALCHLANG_TEST_PUBLIC_CLI?[path.resolve(process.env.ALCHLANG_TEST_PUBLIC_CLI)]:[testTsx(),path.resolve(import.meta.dirname,"../src/core-cli.ts")];
   const cliOutput=path.join(p.root,"whole-cli");
   for(const command of ["build","verify"]){
     const result=spawnSync(process.execPath,[...entry,command,p.source,"--out",cliOutput],{encoding:"utf8",timeout:60000});
     assert.equal(result.status,0,result.stderr);
-    assert.equal(JSON.parse(result.stdout).scope,"whole-application-artifacts");
+    assert.equal(JSON.parse(result.stdout).scope,"provider-application-artifacts");
     assert.equal(JSON.parse(result.stdout).manifest_sha256,built.manifest_sha256);
   }
-  execFileSync(testTypeScript(),["-p",path.join(output,"tsconfig.json"),"--noEmit"],{stdio:"pipe"});
+  const native=providerWorkspace(p.root,output,loaded.compiler.binding.package_root);
+  const compiled=spawnSync(testTypeScript(),["-p",path.join(native,"tsconfig.json"),"--noEmit","--types","node"],{encoding:"utf8"});
+  assert.equal(compiled.status,0,compiled.stdout+compiled.stderr);
   const graph=JSON.parse(fs.readFileSync(path.join(output,".domainspec/application-graph.json"),"utf8"));
   const request=graph.operation_requests.find((r:any)=>r.operation_ref==="commerce:submit-order");
   const connection=request.bindings[0],mapping=graph.runtime_bindings.find((r:any)=>r.binding_id===connection.mapping_binding_ref);
@@ -230,19 +263,52 @@ test("whole file build executes source-authored composed handlers and explicit a
   for(const part of parts.slice(0,-1))target=target[part]={};
   const value={id:"7",accepted:true};
   if(parts.length)target[parts.at(-1)]=value;else Object.assign(body,value);
+  const wrongBody=structuredClone(body);let wrongTarget=wrongBody;
+  for(const part of parts)wrongTarget=wrongTarget[part];
+  wrongTarget.id="8";
   const runner=`import assert from 'node:assert/strict';
 import {APPLICATION_REQUEST_HANDLERS as handlers} from './src/integrations/application-request-handlers.ts';
 async function main(){
-for(const rows of [[],[{id:'7',accepted:true}]]){
+for(const [payload,row,expected] of [
+ [${JSON.stringify(body)},null,'READ_NOT_FOUND'],
+ [${JSON.stringify(body)},{id:'7',accepted:true},'committed'],
+ [${JSON.stringify(wrongBody)},{id:'7',accepted:true},'READ_IDENTITY_MISMATCH']]){
  const calls=[];
- const result=await handlers[${JSON.stringify(connection.mapping_binding_ref)}](${JSON.stringify(body)},{store:{begin:async()=>({
- read:async()=>{throw Error('not a keyed read')},querySource:async()=>rows,
+ const result=await handlers[${JSON.stringify(connection.mapping_binding_ref)}](payload,{store:{begin:async()=>({
+ read:async()=>row,querySource:async()=>{throw Error('unexpected Query source')},
  commit:async batch=>{calls.push('commit');assert.equal(batch.writes[0].value.id,7n);return {status:'committed'}},rollback:async()=>{calls.push('rollback')}
  })}});
- if(rows.length){assert.equal(result.status,'committed');assert.equal(result.value.id,7n);assert.deepEqual(calls,['commit']);}
- else{assert.equal(result.code,'ORDER_NOT_FOUND');assert.deepEqual(calls,['rollback']);}
+ if(expected==='committed'){assert.equal(result.status,'committed');assert.equal(result.value.id,7n);assert.deepEqual(calls,['commit']);}
+ else{assert.equal(result.code,expected);assert.deepEqual(calls,['rollback']);}
 }}
 main().catch(error=>{console.error(error);process.exitCode=1});`;
   const executed=spawnSync(testTsx(),["--eval",runner],{cwd:output,encoding:"utf8"});
   assert.equal(executed.status,0,executed.stdout+executed.stderr);
+  const mutantNative=path.join(p.root,"provider-native-identity-mutant");fs.cpSync(native,mutantNative,{recursive:true});
+  const operationRelative=(fs.readdirSync(mutantNative,{recursive:true,encoding:"utf8"}) as string[]).find(name=>name.endsWith("/operations/submit-order.provider.ts"));
+  assert.ok(operationRelative,"generated keyed Operation source");
+  const operationPath=path.join(mutantNative,operationRelative),operationSource=fs.readFileSync(operationPath,"utf8");
+  const operationMutant=operationSource.replace('ruleUInt64.key(read0["id"])!==ruleUInt64.key(key0)','ruleUInt64.key(read0["id"])===ruleUInt64.key(key0)');
+  assert.notEqual(operationMutant,operationSource,"identity mutant installed");fs.writeFileSync(operationPath,operationMutant);
+  const mutantCompiled=spawnSync(testTypeScript(),["-p",path.join(mutantNative,"tsconfig.json"),"--noEmit","--types","node"],{encoding:"utf8"});
+  assert.equal(mutantCompiled.status,0,mutantCompiled.stdout+mutantCompiled.stderr);
+  const mutantRunner=`import {APPLICATION_REQUEST_HANDLERS as handlers} from './src/integrations/application-request-handlers.ts';
+async function main(){
+const result=await handlers[${JSON.stringify(connection.mapping_binding_ref)}](${JSON.stringify(wrongBody)},{store:{begin:async()=>({
+ read:async()=>({id:'7',accepted:true}),querySource:async()=>{throw Error('unexpected Query source')},
+ commit:async()=>({status:'committed'}),rollback:async()=>{}
+})}});console.log(JSON.stringify({status:result.status,code:result.code??null}));}
+main().catch(error=>{console.error(error);process.exitCode=1});`;
+  const mutantExecuted=spawnSync(testTsx(),["--eval",mutantRunner],{cwd:mutantNative,encoding:"utf8"});
+  assert.equal(mutantExecuted.status,0,mutantExecuted.stdout+mutantExecuted.stderr);
+  const mutantObservation=JSON.parse(mutantExecuted.stdout);
+  assert.notDeepEqual(mutantObservation,{status:"failed",code:"READ_IDENTITY_MISMATCH"},"independent public-flow oracle kills the compiling keyed-read identity mutant");
+  assert.equal(mutantObservation.status,"committed");
+  const emitted=spawnSync(testTypeScript(),["-p",path.join(native,"tsconfig.json"),"--noEmit","false","--outDir",path.join(native,"dist"),"--types","node"],{encoding:"utf8"});
+  assert.equal(emitted.status,0,emitted.stdout+emitted.stderr);
+  const scenario=path.join(loaded.compiler.binding.package_root,"examples/reconciled-commerce/scenarios/typescript-webhook.mjs");
+  const loopback=spawnSync(process.execPath,[scenario,native,"/orders"],{encoding:"utf8",timeout:60000});
+  assert.equal(loopback.status,0,loopback.stdout+loopback.stderr);
+  assert.deepEqual(JSON.parse(loopback.stdout),{language:"typescript",startup:"http-listener",invalid_status:401,valid_status:202,handler_invocations:1,result:"pass"});
+  assert.equal((await verifyApplicationFile(p.source,output)).status,"verified");
 });

@@ -108,6 +108,30 @@ transaction failures fail closed. The provider system ontology, exact
 implementation binding, and evidence receipt are under
 `standard-conformance/`.
 
+The current V4b construction further separates transaction-scoped reads from
+decisions. `authorization-state-model/` contains kernel-free shared data;
+`authorization-state-reader/` reads the SQLite state in the caller's
+transaction and exposes no authorization decision. `sqlite-provider/`
+remains a legacy decision-capable facade, while the selected
+`authorization-service/` obtains state directly from the reader and calls
+the runtime decision engine only through its post-READY adapter. The earlier
+`authorization-metadata-reader/` split similarly isolates pre-admission
+metadata reads. `trusted-input-reader/` isolates transaction-scoped
+trusted-input admission reads from native authorization decisions; the legacy
+trusted-input provider retains its compatibility API. These are partial
+dependency boundaries, not proof that every
+pre-READY path avoids every native decision entrypoint. The current V4b
+certificate remains `indeterminate` with
+`runtime_guarantees_observed: false`.
+
+The current technical-evidence successor is
+`current-evidence-successor-v3/`. It freezes nine exact predecessor preimages
+separately from mutable D65 candidate outputs and verifies the selected
+service-root Cargo closure, current source inputs, release service tests, and
+the source-bound V4b bridge. Its passing local replay is not an all-entrypoint
+no-call proof or a production guarantee; the older v2 successor is retained
+as a stale predecessor record.
+
 The property-closed source under `operation-source/` is instantiated by the
 standard CLI as `standard-runtime/`. Its receipt binds all 22 record
 properties, 15 variants, eight Rules, the selected Operation, and the exact

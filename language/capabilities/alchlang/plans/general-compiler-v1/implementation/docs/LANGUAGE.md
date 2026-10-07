@@ -7,10 +7,11 @@ you need exact source, declaration, validation, or compilation behavior.
 > **Compatibility boundary:** this page documents the currently implemented
 > `sfol-v1` parser. It is not the selected successor model for formal domain
 > truth. New conceptual examples must follow the
-> [FormalClaim and sorted first-order logic reference](FORMAL-CLAIMS.md), where
-> Policies and State Machine guards reference declared Rules bound to
-> FormalClaims. Label any syntax not accepted by the current parser as target
-> syntax.
+> [FormalClaim and sorted first-order logic reference](FORMAL-CLAIMS.md).
+> Under `application-v1`, Policies, State Machine guards, Invariants,
+> Operations, Queries, and Workflow guard bindings reference declared Rules or
+> FormalClaims. The separate `legacy-sfol-v1` profile retains its older inline
+> compatibility syntax.
 
 ## Reference map
 
@@ -42,13 +43,13 @@ extensions fail with `SOURCE_EXTENSION`; fences inside `.alch` fail with
 Validate before generating anything:
 
 ```bash
-domainspec check examples/typed-backend.alch
+domainspec check examples/typed-backend.alch --backend local-compat
 ```
 
 Compile after validation:
 
 ```bash
-domainspec build examples/typed-backend.alch --out generated
+domainspec build examples/typed-backend.alch --backend local-compat --out generated
 ```
 
 For the local generator, `check` is read-only. `build` refuses to replace a non-empty output directory
@@ -501,6 +502,43 @@ runtime limits and open questions.
 ## Typed module composition
 
 Portable functions can import boundary types and call another generated function with `module-local` or `module-http` bindings. See [Module composition](MODULE-COMPOSITION.md) for the checkout example, import closure, trace scope and limits.
+
+## Multi-file application composition
+
+`alchlang.application-file/v2-candidate` composes two or more named
+`application-v1` source partitions into one selected application entry. The
+small root `.alch` file declares only the shared domain, profile and owner. Its
+companion lists exact source references, stable namespaces and two or more
+entries. Every entry names its ordered source namespaces, inbound endpoint,
+runtime identity, optional runtime profile and the same exact binding roles used
+by the one-file application path.
+
+The CLI selection is mandatory:
+
+```sh
+alchlang check commerce.composition.alch --entry PublicApi
+alchlang build commerce.composition.alch --entry PublicApi --out generated
+alchlang verify commerce.composition.alch --entry PublicApi --out generated
+```
+
+There is no first-entry default, including when only one caller-facing choice
+would appear convenient. Every selected source repeats the same domain title,
+`application-v1` profile and owner; the loader removes only those repeated
+identity headers and sends the joined declarations through the existing shared
+parser and lowering path. File boundaries therefore do not create another
+language or semantic authority.
+
+Source and entry namespaces are lowercase dotted identities. The generated
+`.alch/entry-manifest.json` retains every source namespace, exact path/digest,
+per-partition declaration inventory, entry namespace, runtime identity,
+selected endpoint, derived Operation and HTTP route. Duplicate namespaces,
+entry identities, runtime identities, normalized declaration identities or
+method/path pairs reject. All source and companion paths remain bounded beneath
+the composition directory; symlinks and escaping paths reject before output.
+
+The predecessor `alchlang.application-file/v1-candidate` remains the exact
+one-file compatibility contract and rejects `--entry` rather than silently
+ignoring it.
 
 ## Guarded module bindings
 

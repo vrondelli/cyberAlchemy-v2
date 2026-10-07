@@ -1,0 +1,15 @@
+# G01 reserved confirmation r4 — bounded archive-cap and rename repair
+
+Status: prospective source-only rule fixed after the terminal [r3 19/24 result](G01-BUGSWARM-GRAPH-CONFIRM-R3-SOURCE-ARCHIVES-RESULT-2026-10-04.md), before r4 requests. R3 remains failed; r4 is not an in-place threshold revision. Pin r2 final-cohort result SHA-256 `a55087a01c1b157ea7fcd6dfa4327037a3e4cb13c72df5e0c31b44d80513c22c`, r3 result SHA-256 `fa6220e629a4e88a6e7cdeb6d3d8ec812ebf6d832d886f95fcb2e4377483f608`, and every r3 complete archive SHA-256. The fixed 24 slots and their original repository identities do not change. No label, passing-commit source, model call, prediction, or score may enter r4.
+
+Retain and independently revalidate the 19 r3-admissible complete archives under the unchanged path and code-file limits. For r3 slots 6, 9, and 23, reuse their complete blobs only after a TLS-verified HTTPS `HEAD` of `https://github.com/{original_repo}/commit/{full_failed_sha}` returns one direct 301 redirect to `https://github.com/{canonical_repo}/commit/{same_full_failed_sha}` and a final HTTP 200. The only admitted canonical targets are slot 6 `cookiecutter/cookiecutter-django`, slot 9 `fastapi/sqlmodel`, and slot 23 `besu-eth/besu`, fixed from pre-r4 score-blind diagnostics. Each canonical repo name must equal the single tar root prefix before `-{first7_sha}`; it must not overlap any other final cohort repo or an exposed/development repo. Then apply the same strict tar/path and `.py`/`.java` projection checks as r3 against the canonical root. Preserve redirect status, final URL, original/canonical names, archive bytes/hash, and validation receipt. No generic “accept any root” fallback.
+
+For only slots 1 and 16, perform one new HTTPS codeload GET per exact failed commit into private WSL storage, with TLS validation, no automatic retry, a **512 MiB** compressed cap per archive, and a 180-second network timeout. Keep r3 partial attempts unchanged. Require HTTP 200, complete nonempty gzip, exact original tar root, and the unchanged r3 safety/code limits: no absolute/parent/backslash/duplicate source paths, at most 250,000 members, at most 4 GiB total regular-member bytes, individual eligible source files at most 1 MiB, at most 64 MiB eligible code bytes, and at least one eligible code file. Preserve full archive hash and size; retain partial r4 attempts if a bound fails.
+
+R4 passes only if all 24 cases meet their exact branch rule and the final archive/slot hashes, languages, failed commits, and repository exclusions reconcile. A failed slot terminates this r4 gate; no replacement or reduced-denominator score follows. This is source-archive admission only. Subsequent source-only ranking and model predictions must be sealed before evaluator-only label access; GLM generation stays on the approved VPS, not WSL.
+
+## Open Questions
+
+- Will both large repositories fit the 512 MiB archive and 64 MiB code-only projection bounds?
+- Will exact redirect-plus-root validation resolve all three renamed repositories?
+- Which prospectively frozen source-only selector and matched comparator protocol should be run on the fully admitted cohort?

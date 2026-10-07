@@ -11,7 +11,7 @@ const npm = '/home/vrondelli/.nvm/versions/node/v26.8.1/bin/npm';
 const tsc = '/home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/projects/domainspec-v2/impl/node_modules/.bin/tsc';
 const typeRoots = '/home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/projects/domainspec-v2/impl/node_modules/@types';
 const python = '/usr/bin/python3';
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const reconciliationRoot = path.join(domainSpecRoot, 'development/reconciliation-v1/profile-compiler-reconciliation');
 const evidenceRoot = path.join(reconciliationRoot, 'evidence/r16-installation-package');
 

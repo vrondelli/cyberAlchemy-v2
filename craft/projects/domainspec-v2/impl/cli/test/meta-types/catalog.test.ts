@@ -29,3 +29,40 @@ test("unknown type, language, duplicate and digest drift fail closed", () => {
   drift.baseline_digest = "0".repeat(64);
   assert.throws(() => validateFrozenCatalog(drift), (error) => error instanceof CatalogError && error.code === "MTCLI_CATALOG_BASELINE");
 });
+
+test("catalog rejects valid-member but mismatched identities and retired rows", () => {
+  const mismatchedType = structuredClone(FROZEN_META_TYPE_CATALOG);
+  mismatchedType.backend_meta_types[0] = { id: "DS-D1.1", label: "Value Object" };
+  assert.throws(
+    () => validateFrozenCatalog(mismatchedType),
+    (error) => error instanceof CatalogError && error.code === "MTCLI_CATALOG_SCHEMA",
+  );
+
+  const mismatchedRow = structuredClone(FROZEN_META_TYPE_CATALOG);
+  mismatchedRow.realization_rows[0] = { ...mismatchedRow.realization_rows[0]!, meta_type_label: "Value Object" };
+  assert.throws(
+    () => validateFrozenCatalog(mismatchedRow),
+    (error) => error instanceof CatalogError && error.code === "MTCLI_CATALOG_SCHEMA",
+  );
+
+  const retiredRow = structuredClone(FROZEN_META_TYPE_CATALOG);
+  retiredRow.realization_rows[0] = { ...retiredRow.realization_rows[0]!, meta_type_id: "DS-D1.10" };
+  assert.throws(
+    () => validateFrozenCatalog(retiredRow),
+    (error) => error instanceof CatalogError && error.code === "MTCLI_CATALOG_SCHEMA",
+  );
+});
+
+test("validation freezes descendants even when the candidate parent is already frozen", () => {
+  const candidate = structuredClone(FROZEN_META_TYPE_CATALOG);
+  Object.freeze(candidate);
+  assert.equal(Object.isFrozen(candidate.backend_meta_types[0]), false);
+  assert.equal(Object.isFrozen(candidate.realization_rows[0]?.source), false);
+
+  const validated = validateFrozenCatalog(candidate);
+  assert.equal(validated, candidate);
+  assert.equal(Object.isFrozen(validated.backend_meta_types), true);
+  assert.equal(Object.isFrozen(validated.backend_meta_types[0]), true);
+  assert.equal(Object.isFrozen(validated.realization_rows[0]?.source), true);
+  assert.equal(Reflect.set(validated.realization_rows[0]!.source, "path", "changed"), false);
+});

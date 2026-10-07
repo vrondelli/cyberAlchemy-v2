@@ -40,6 +40,7 @@ export function evaluateEffectRequest(input) {
     owner_gate_ref: metadata.owner_gate_ref,
     structurally_admissible: metadata.structurally_admissible,
     rejection_reasons: metadata.rejection_reasons,
+    proposal: input.message.params?.proposal ?? null,
   };
   const decision = evaluateContinuation({
     completion: {completion_id: `effect-boundary:${identity.turn_id}:${identity.item_id}`, status: "completed", continuation_required: true, evidence_refs: [`effect:${effectDigest}`]},
@@ -73,6 +74,13 @@ export function bindApprovalResponse(input) {
   if (input.response.id !== pending.rpc_id) return fail("approval-response", ["effect.approval-response-id-mismatch"]);
   if (isRecord(input.response.error)) {
     return freezeResult({ok: true, action: "forward", accepted: false, binding: null, authority_effect: "none"});
+  }
+  if ((pending.method === "item/commandExecution/requestApproval" || pending.method === "item/fileChange/requestApproval")
+    && !["accept", "decline", "cancel"].includes(input.response.result?.decision)) {
+    return fail("approval-response", ["effect.session-or-policy-grant-unsupported"]);
+  }
+  if (pending.method === "item/permissions/requestApproval" && input.response.result?.scope !== "turn") {
+    return fail("approval-response", ["effect.permission-scope-unsupported"]);
   }
   const accepted = approvalAccepted(pending.method, input.response.result);
   if (pending.directive_kind === "block" && accepted) return fail("approval-response", ["effect.blocked-approval-cannot-be-accepted"]);

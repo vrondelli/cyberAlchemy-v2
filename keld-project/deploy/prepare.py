@@ -35,7 +35,10 @@ def prepare(store,settings,destination,*,infrastructure_only=False):
         if settings.get('paypalCurrency') not in ('USD','BRL'):raise ValueError('paypal-currency-required')
         if not re.fullmatch(r'\d{1,32}',settings['mercadopagoApplicationId']):raise ValueError('application-id-required')
         quote=settings['quoteBrl']
-        if not all(type(quote.get(k)) is int and quote[k]>0 for k in ('numerator','denominator','expiresAt')):raise ValueError('quote-policy-required')
+        if (not all(type(quote.get(k)) is int and quote[k]>0 for k in ('numerator','denominator'))
+            or not isinstance(quote.get('reference'),str) or not quote['reference']
+            or not (quote.get('expiresAt') is None or type(quote.get('expiresAt')) is int and quote['expiresAt']>0)):
+            raise ValueError('quote-policy-required')
         artifact=Path(settings['artifact'])
         if artifact.is_symlink() or not artifact.is_file() or not 0<artifact.stat().st_size<=256*1024*1024:raise ValueError('artifact-invalid')
     destination.parent.mkdir(parents=True,exist_ok=True)
@@ -71,6 +74,9 @@ def prepare(store,settings,destination,*,infrastructure_only=False):
         realm={'realm':'keld','enabled':True,'sslRequired':'external','registrationAllowed':True,
           'registrationEmailAsUsername':True,'loginWithEmailAllowed':True,'duplicateEmailsAllowed':False,
           'verifyEmail':False,'resetPasswordAllowed':False,
+          'bruteForceProtected':True,'permanentLockout':False,'failureFactor':5,
+          'waitIncrementSeconds':60,'quickLoginCheckMilliSeconds':1000,
+          'minimumQuickLoginWaitSeconds':60,'maxFailureWaitSeconds':900,'maxDeltaTimeSeconds':43200,
           'passwordPolicy':'length(12) and upperCase(1) and lowerCase(1) and digits(1)',
           'accessTokenLifespan':300,'ssoSessionIdleTimeout':900,'ssoSessionMaxLifespan':28800,
           'clients':[{'clientId':'keld','enabled':True,'protocol':'openid-connect','publicClient':False,'secret':values['oidc'],

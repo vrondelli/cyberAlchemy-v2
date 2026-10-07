@@ -11,7 +11,8 @@ import {runCodingAgentPreflight} from "../../agent-reasoning-engine/packages/cod
 import {parseCodingAgentRunConfig} from "../../agent-reasoning-engine/packages/coding-agent-runtime/runtime-config.mjs";
 import {parseCodexScopeConfig} from "../../agent-reasoning-engine/packages/coding-agent-runtime/codex-proposal.mjs";
 import {runProductCanary} from "../../agent-reasoning-engine/packages/coding-agent-runtime/scripts/product-canary.mjs";
-import {createChatWorkspace, discoverCodingConfig, discoverExecutable} from "../src/chat-workspace.mjs";
+import {createChatWorkspace, discoverCodingConfig} from "../src/chat-workspace.mjs";
+import {createTuiGatewayRecoveryPath, defaultGatewaySocket} from "../src/gateway-recovery.mjs";
 
 const HELP = `CyberAlchemy v2 TUI
 
@@ -21,7 +22,7 @@ Usage:
   cyberalchemy --chat --repository-root <dir> [request]
   cyberalchemy --control-center-demo
   cyberalchemy --implement --coding-config <file> --repository-root <dir> --session <jsonl> [options] [request]
-  cyberalchemy --implement --codex-command <path> --coding-config <scope.json> --repository-root <dir> [request]
+  cyberalchemy --implement --coding-config <scope.json> --repository-root <dir> [request]
 
 Coding-agent options:
   --chat                    Open the persistent chat-first coding workspace
@@ -34,9 +35,10 @@ Coding-agent options:
   --cancel-file <path>      Stop when this file appears
   --tool-policy <json>      Override allow/ask/deny tool policy from a JSON file
   --context-config <json>   Override repository-map budgets from a JSON file
-  --codex-command <path>    Use the authenticated Codex App Server executable
+  --codex-command <path>    Optional local Codex executable preflight (gateway selects backend)
   --codex-profile <json>    Override the pinned repository wrapper profile
   --model <id>              Optional Codex model override
+  --durable-proposal-thread  Opt in to local Codex history for read-only crash reconciliation
 
 Commands inside the TUI:
   /help      Open the command palette
@@ -45,6 +47,7 @@ Commands inside the TUI:
   /implement Open the review-and-apply coding agent
   /self-test Run the disposable coding-agent product canary
   /diagnostics Inspect the current redacted run receipt
+  /reconcile Recheck an uncertain host turn without retrying it (Ctrl+R)
   /quit      Exit
 `;
 
@@ -69,6 +72,7 @@ export function parseArgs(argv) {
       const key = {"--coding-config": "codingConfig", "--repository-root": "repositoryRoot", "--session": "sessionPath", "--proposal-output": "proposalOutput", "--cancel-file": "cancelFile", "--max-steps": "maximumSteps", "--tool-policy": "toolPolicyPath", "--context-config": "contextConfigPath", "--codex-command": "codexCommand", "--codex-profile": "codexProfile", "--model": "model"}[value];
       options[key] = value === "--max-steps" ? Number(selected) : selected;
     } else if (value === "--resume") options.resume = true;
+    else if (value === "--durable-proposal-thread") options.durableProposalThread = true;
     else if (value.startsWith("-")) throw new Error(`cyberalchemy-tui.unknown-option:${value}`);
     else options.opening.push(value);
   }
@@ -93,9 +97,6 @@ if (options.repositoryRoot && !options.initialCapability) {
   options.initialCapability = "implement";
 }
 options.codingConfig = discoverCodingConfig(options.repositoryRoot, options.codingConfig);
-if (options.chat && !options.codexCommand) {
-  options.codexCommand = discoverExecutable("codex", {explicitPath: process.env.CODEX_COMMAND});
-}
 
 let chatWorkspace = null;
 if (options.initialCapability === "implement" && !options.controlCenterDemo && (!options.codingConfig || !options.repositoryRoot)) {
@@ -108,10 +109,6 @@ if (options.chat === true && (!options.sessionPath || !options.proposalOutput)) 
 }
 
 if (options.initialCapability === "implement" && !options.controlCenterDemo) {
-  if (!options.codexCommand && !options.sessionPath) {
-    process.stderr.write(`cyberalchemy-tui.coding-options-required\n${HELP}`);
-    process.exit(2);
-  }
   if (options.maximumSteps !== undefined && (!Number.isSafeInteger(options.maximumSteps) || options.maximumSteps < 1)) {
     process.stderr.write(`cyberalchemy-tui.max-steps-invalid\n${HELP}`);
     process.exit(2);
@@ -142,15 +139,20 @@ try {
   process.exit(2);
 }
 
-if (codingConfig?.schema_version === "are.codex-coding-agent-scope/v1" && !options.codexCommand) {
-  process.stderr.write(`cyberalchemy-tui.codex-command-required\n${HELP}`);
+const codexMode = codingConfig?.schema_version === "are.codex-coding-agent-scope/v1";
+if (options.durableProposalThread && !codexMode) {
+  process.stderr.write(`cyberalchemy-tui.durable-proposal-thread-requires-codex\n${HELP}`);
+  process.exit(2);
+}
+if (options.initialCapability === "implement" && !options.controlCenterDemo && !codexMode && !options.sessionPath) {
+  process.stderr.write(`cyberalchemy-tui.coding-options-required\n${HELP}`);
   process.exit(2);
 }
 
 let preflightResult = null;
 if (codingConfig) {
   preflightResult = runCodingAgentPreflight({
-    provider: options.codexCommand ? "codex-app-server" : "openai-compatible",
+    provider: codexMode ? "codex-app-server" : "openai-compatible",
     config: codingConfig,
     repository_root: options.repositoryRoot,
     session_path: options.sessionPath,
@@ -158,6 +160,7 @@ if (codingConfig) {
     proposal_output: options.proposalOutput,
     codex_command: options.codexCommand,
     codex_profile: codexProfile,
+    transport_mode: codexMode ? "gateway" : null,
     probe_container: options.doctor === true || options.selfTest === true,
   });
   if (options.doctor || preflightResult.status === "BLOCK") {
@@ -167,7 +170,7 @@ if (codingConfig) {
 }
 
 async function productSelfTest() {
-  const parsed = options.codexCommand ? parseCodexScopeConfig(codingConfig) : parseCodingAgentRunConfig(codingConfig);
+  const parsed = codexMode ? parseCodexScopeConfig(codingConfig) : parseCodingAgentRunConfig(codingConfig);
   if (!parsed.sandbox) return {schema_version: "are.coding-agent-product-canary/v1", status: "BLOCK", reason_codes: ["sandbox.required"], authority_effect: "none"};
   return runProductCanary({engine: parsed.sandbox.engine, image: parsed.sandbox.image});
 }
@@ -178,18 +181,26 @@ if (options.selfTest) {
   process.exit(result.status === "PASS_BOUNDED" ? 0 : 1);
 }
 
+const selectedGatewaySocket = options.gatewaySocket ?? defaultGatewaySocket();
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
   process.stderr.write(`cyberalchemy-tui.terminal-required\n${HELP}`);
   process.exit(2);
+}
+let gatewayRecoveryPath = null;
+try {
+  if (codexMode) gatewayRecoveryPath = createTuiGatewayRecoveryPath({socket_path: selectedGatewaySocket});
+} catch (error) {
+  process.stderr.write(`${error.message}\n`);
+  process.exit(1);
 }
 
 process.stdout.write("\u001b[?1049h\u001b[2J\u001b[H\u001b[?25l");
 const instance = render(React.createElement(CyberAlchemyApp, {
   initialOpening: options.opening,
   initialCapability: options.initialCapability,
-  gatewaySocket: options.gatewaySocket,
+  gatewaySocket: selectedGatewaySocket,
   codingAgent: codingConfig ? {
-    provider: options.codexCommand ? "codex-app-server" : "openai-compatible",
+    provider: codexMode ? "codex-app-server" : "openai-compatible",
     config: codingConfig,
     repositoryRoot: options.repositoryRoot,
     sessionPath: options.sessionPath,
@@ -203,6 +214,10 @@ const instance = render(React.createElement(CyberAlchemyApp, {
     codexCommand: options.codexCommand,
     codexProfile,
     wrapperPath,
+    gatewaySocket: selectedGatewaySocket,
+    durableProposalThread: options.durableProposalThread === true,
+    gatewayRecoveryPath,
+    transportMode: "gateway",
     authorityRepositoryRoot,
     model: options.model,
     preflightResult,

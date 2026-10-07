@@ -32,7 +32,7 @@ export async function runPreparedComparisonTask(options){
     throw Object.assign(Error('orchestration.failed-with-accounting: '+String((state.original_error??error).message)+'; final failure: '+String(error.message)),{cause:state.original_error??error,final_error:error,persistence_failure:state.errors.length>0,persistence_failures:structuredClone(state.errors),canonical_result_preserved:state.persisted_result!==null,original_receipt:(state.original_error??error).receipt??null,result,receipts,unknown_usage,...(!unknown_usage?{usage,receipt:{kind:'orchestration',usage,persistence_failure:state.errors.length>0}}:{})});
   }
 }
-async function runPreparedComparisonTaskImpl({task_path,task_sha256,repository_cache,out,cell,create_client,measure_index_tokens,model_dispatch_enabled=true,signal,before_model_dispatch=async()=>true,persistence,evidence_root,source_out,admit_source,io={}},state){
+async function runPreparedComparisonTaskImpl({task_path,task_sha256,repository_cache,out,cell,create_client,measure_index_tokens,candidate_view,model_dispatch_enabled=true,signal,before_model_dispatch=async()=>true,persistence,evidence_root,source_out,admit_source,io={}},state){
   const guarded=(stage,fn)=>{try{return fn();}catch(error){state.errors.push({stage,error:String(error.message),code:error.code??null});state.original_error??=error;throw error;}};
   if(!persistence||!['writeJson','append','atomicJson','createLock','removeLock'].every(k=>typeof persistence[k]==='function'))throw Error('orchestration.guarded-persistence-required');
   if(typeof source_out!=='string'||typeof evidence_root!=='string'||typeof admit_source!=='function')throw Error('orchestration.source-admission-required');
@@ -90,7 +90,7 @@ async function runPreparedComparisonTaskImpl({task_path,task_sha256,repository_c
     state.episode_entered=true;
     const taskTools=repositoryTools;
     const episode=await runNativeComparisonEpisode({arm:cell.comparison_arm,native:{client,profile:{model:client.model,reasoning_effort:cell.provider_profile.reasoning_effort,output_cap:cell.limits.output_cap},scope,fixture_root:join(sourceRoot,'base'),directory:join(root,'state'),persistence,signal,before_dispatch:async()=>model_dispatch_enabled&&!signal?.aborted&&providerAttemptHealth([...(client.receipts??[]),...(client.index_receipts??[])]).healthy&&await before_model_dispatch()===true},
-      task,source_hints,tools:taskTools,execute_tool:async(name,args)=>{if(!taskTools.some(t=>t.function.name===name))throw Error('orchestration.unknown-task-tool');return execute_tool(name,args);},
+      task,source_hints,candidate_view,tools:taskTools,execute_tool:async(name,args)=>{if(!taskTools.some(t=>t.function.name===name))throw Error('orchestration.unknown-task-tool');return execute_tool(name,args);},
       source_context:()=>({snapshots:[...snapshots.values()],repoRoot:join(sourceRoot,'base')}),measure_tokens:text=>measure_index_tokens(text,client),persist:append,output_cap:cell.limits.output_cap});
     result={...episode,index_tokenizer_receipts:client.index_receipts??[],instance_id:task.instance_id,cell_id:cell.cell_id,task_sha256,source_root:sourceRoot,
       patch:git(join(sourceRoot,'work'),['diff','--no-ext-diff','--no-textconv','--binary',task.base_commit,'--']),native_export:null};

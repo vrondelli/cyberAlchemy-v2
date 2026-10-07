@@ -1,0 +1,27 @@
+# G03 LongMemEval-V2 small-tier development r1 — terminal negative pilot
+
+Status: **two exposed development pairs scored; no confirmation question, full-benchmark result, or superiority claim**. This is a private source/retrieval pilot on the independently sourced LongMemEval-V2 benchmark, not a native leaderboard entry or a replication of LongMemEval-S r6.
+
+## Source and method
+
+The official [LongMemEval-V2 repository](https://github.com/xiaowu0162/LongMemEval-V2) was pinned at `2cc8c540bdb87fe6761629b585e727e1c4704520` in private WSL storage. Its backend interface takes a question and optional image, inserts the question's trajectory haystack, and returns bounded memory context to the answer model. The official small-tier dataset revision `f152293e235517d504809563c833d7190b8c713b`, its 28/140/283 development/confirmation/reserve [metadata split](G03-EXTERNAL-MEMORY-FRONTIER-2026-10-05.md), and its published source checksums were verified before source selection. The builder projected only development question text/image presence, small-tier haystack IDs, and trajectory source fields. It did not use answer or evaluator fields to select evidence.
+
+The [r1 source-only builder](../research/g03-beam-r1/build-lme-v2-dev-packets-r1.py) froze 28 paired packets (56 arms) into private WSL `DEV-WIRES-R1.json`, SHA-256 `0c2db03362bec33b7244f4bf0ed28ba0b59714cca9c7b349a387e7ec39601547`. The control used state-level BM25; treatment used episode-aware goal/action/state scoring. Both rendered the same trajectory fields under a 12,000-character evidence cap. Selected states differed on 28/28 pairs. The first build took several minutes because it recomputed state tokenization per question; that must be cached before a larger run. Admission also found an r1 treatment stop-condition defect: development ID `cdc46516` selected only two states while its control selected six. The frozen r1 packets remain diagnostic; do not run all 28 as a qualified mechanism or patch the evidence in place.
+
+Before reference access, the [two-pair zero-retry GLM runner](../research/g03-beam-r1/run-lme-v2-dev-two-pair-r1.mjs) selected text-only development IDs `19367bc7` (static) and `7e32e4a2` (procedure), excluding the defective pair. Four of four tokenizer requests admitted under the 8K window and four of four `glm-5.3-flash` generation requests returned valid nonempty answers. Known answer-model use was **13,706 prompt + 343 completion tokens**, with 13.94 seconds summed provider-call duration. The full private VPS freeze, tokenizer receipts, raw attempts, and result were copied checksum-wise to `/home/vlad_/are-benchmark-archive/g03-lme-v2-dev-two-pair-run-r1/`; `RESULT.json` SHA-256 is `f40626a1185bc2ae74e29ea98623f070cbc69fcf8c5e20893bfa3e4015eeaa14`. No automatic retry or substitution occurred.
+
+After prediction sealing, the [development scorer](../research/g03-beam-r1/score-lme-v2-dev-two-pair-r1.py) loaded only those two reference answers and the pinned official deterministic `norm_phrase_set_match` and `mc_choice_match` rules. The official scoring module SHA-256 was `f8ba659e237c4282a07a92538090ea500ce8483820b390b1d19af187c01417ac`. **Control: 0/2 correct. Treatment: 0/2 correct.** The private `SCORE.json` SHA-256 is `a92c4e888d39a6d721f8331453fdf5443079c9af1ea40aa2dc2b5ae62a4848c1`. Both arms abstained or reported insufficient evidence; the pilot failed to establish an improvement.
+
+## Failure diagnosis and next mechanism
+
+For the static case, the relevant source existed: a User-form accessibility-tree state displayed `Calendar integration` with `Outlook`. The r1 state-level ranker selected other trajectories, and a selected long accessibility-tree line was clipped before its later answer-bearing span. This is a **line/window extraction and page-context linkage failure**, not missing benchmark source. A general next mechanism should index bounded AXTree lines or windows, preserve the matched label/value span, and carry the trajectory/page identity into the answer packet. Test it against a same-budget line-level lexical comparator on development cases, not merely against the failed state-level r1.
+
+For the procedure case, the question asked which of five catalog item pages has the most visible configuration changes before `Order Now`. R1 returned isolated catalog/list states, not aligned item-page action sequences or counts. The next mechanism needs entity-normalized page grouping and a bounded, auditable per-item transition count. A line-ranking fix alone is insufficient. Any screenshot-derived evidence must use the same image budget in matched arms, and the actual model request needs a separate tokenizer admission.
+
+The official V2 leaderboard scores both full-set accuracy and memory-query latency against a fixed frontier. This two-question custom GLM comparison is neither that leaderboard protocol nor a strong-baseline superiority result. The 140 confirmation questions remain unopened for model answering and scoring. Do not advance r1 to them.
+
+## Open Questions
+
+- Can a source-only line/window index recover answer-bearing spans without matching test questions to reference answers or leaking confirmation content?
+- Which entity/time representation makes procedural step counts reliable under the same evidence and model budget as a strong comparator?
+- How will the eventual backend use the official harness with matched reader, evaluator, image handling, query latency, and full-set accounting while keeping the GLM credential and model calls on the VPS?

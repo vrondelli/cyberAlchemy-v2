@@ -129,8 +129,15 @@ verifies the digest of every Candidate 018 file. It groups the 907 files into
 copyright owner assertion. Its PASS receipt means the technical inventory is complete.
 Provenance and qualified rights clearance remain pending.
 
+Candidate 020 has a separate [qualified-review handoff](releases/0.10.0-rc.1-rights-license-review-handoff.md)
+that binds its 988-file closure to a successor-specific [inventory](source-rights-inventory.candidate-020.json),
+[engineering review](source-rights-review.candidate-020.json), and
+[license-requirements record](license-requirements.candidate-020.json). The
+package reconciles the private license-clause draft and exact closure facts.
+It does not approve the draft, certify ownership, clear distribution rights,
+or authorize a sale.
+
 ## Open Questions
 
 - Which trusted signing identity will sign a future accepted archive?
-- Which successor candidate will be frozen and reviewed as `0.10.0-rc.1`?
 - Who will approve the final license text and distribution-rights inventory?

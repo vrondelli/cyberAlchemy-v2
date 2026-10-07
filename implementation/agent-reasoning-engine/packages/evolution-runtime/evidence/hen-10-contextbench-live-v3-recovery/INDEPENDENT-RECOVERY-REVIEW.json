@@ -1,0 +1,62 @@
+{
+  "schema": "are.hen10-independent-recovery-review/v1",
+  "freeze_sha256": "07a5ecb3710cdbdd08c360a47f24f1a770b33ef8f96c9c6a3d02dc7de6b73c71",
+  "decision": "FAIL",
+  "dispatch_admitted": false,
+  "findings": [
+    {
+      "id": "HEN10-RCV3-001",
+      "severity": "blocking",
+      "summary": "The new provider-dispatch orchestration lacks execution-level tests for the exact two-task boundary, shared cancellation and worker settlement, storage denial, and reconciliation failure behavior.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/recovery.test.mjs:21",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/recovery.test.mjs:31",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/run-recovery.mjs:101",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/run-recovery.mjs:105"
+      ],
+      "required_fix": "Add injected, provider-free orchestration tests proving that only contextbench-3 and contextbench-4 can dispatch, a failure or parent abort cancels the shared workers and waits for settlement, storage denial prevents dispatch, partial evidence fails closed, and successful rows pass exact receipt, 8K, and durable-file reconciliation."
+    },
+    {
+      "id": "HEN10-RCV3-002",
+      "severity": "blocking",
+      "summary": "Selected-versus-all-attempt accounting is incomplete and partly hard-coded: it reports model-token totals but does not derive and preserve full model, request-tokenizer, index-tokenizer, failed-attempt, and prior diagnostic call accounting from the bound parent evidence.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/run-recovery.mjs:135",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/run-recovery.mjs:138",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/score-recovery.mjs:32",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/score-recovery.mjs:94"
+      ],
+      "required_fix": "Derive cumulative accounting from the frozen v1/v2 attempt evidence and selected ledgers, retain separate selected-outcome and all-attempt totals for every provider receipt family and failed dispatch, and test disagreement/tampering paths."
+    },
+    {
+      "id": "HEN10-RCV3-003",
+      "severity": "blocking",
+      "summary": "Composite scoring does not reverify the frozen executable/parent bindings or prove that the consumed recovery RESULTS and COMPOSITE-MANIFEST are exactly the artifacts embedded in the settled recovery process before evaluator execution.",
+      "evidence": [
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/score-recovery.mjs:39",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/score-recovery.mjs:44",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/score-recovery.mjs:46",
+        "implementation/agent-reasoning-engine/packages/evolution-runtime/research/hen-10-live-contextbench-v1/score-recovery.mjs:48"
+      ],
+      "required_fix": "Before scoring, reverify the exact recovery freeze source closure and parent freeze/evidence hashes, require the recovery root to match the frozen roots, and bind settlement.result byte-for-byte to RESULTS plus its composite-manifest digest; add mutation tests for each binding."
+    }
+  ],
+  "checks": {
+    "exact_freeze_sha256": "PASS",
+    "transitive_source_closure_348_bindings": "PASS",
+    "source_binding_drift": "0",
+    "parent_artifact_hashes": "PASS",
+    "recovery_slots_equal_parent_slots_2_and_3": "PASS",
+    "preserved_task_bindings": "PASS",
+    "candidate_view_bindings": "PASS",
+    "current_storage_admission": "PASS",
+    "provider_calls": 0,
+    "tests": "113 passed, including 2 recovery pure-function tests and 3 remote bridge tests; no recovery orchestration test exists"
+  },
+  "limitations": [
+    "No provider, model, tokenizer, native evaluator, or network operation was dispatched.",
+    "The exact freeze also omits the inherited --experimental-vm-modules runtime declaration; source verification fails closed without that flag and the successor freeze should restore it.",
+    "A FAIL decision grants no recovery dispatch or native-scoring authority."
+  ],
+  "authority_effect": "none"
+}

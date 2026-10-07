@@ -38,6 +38,10 @@ function selectedPaths() {
     "docs/releases/candidate-013-recovery-sources.json",
     "docs/releases/candidate-013-artifact-preflight.json",
     "docs/releases/0.10.0-self-contained-candidate.7-lifecycle-receipt.json",
+    "docs/releases/0.10.0-rc.1-lifecycle-receipt.json",
+    "docs/releases/0.10.0-rc.1-portability-receipt.json",
+    "docs/releases/0.10.0-rc.1-optional-module-composition-receipt.json",
+    "docs/releases/0.10.0-rc.1-rights-license-review-assignment.json",
     "docs/compatibility-matrix.json",
     "docs/compatibility-matrix-receipt.json",
     "docs/verify-compatibility-matrix.mjs",
@@ -48,6 +52,8 @@ function selectedPaths() {
     "docs/verify-release-policy.test.mjs",
     "docs/license-requirements.json",
     "docs/license-requirements-receipt.json",
+    "docs/license-requirements.candidate-020.json",
+    "docs/license-requirements-receipt.candidate-020.json",
     "docs/verify-license-requirements.mjs",
     "docs/verify-license-requirements.test.mjs",
     "docs/release-owner-decisions.json",
@@ -56,9 +62,12 @@ function selectedPaths() {
     "docs/verify-release-owner-decisions.test.mjs",
     "docs/source-rights-inventory.json",
     "docs/source-rights-inventory-receipt.json",
+    "docs/source-rights-inventory.candidate-020.json",
+    "docs/source-rights-inventory-receipt.candidate-020.json",
     "docs/generate-source-rights-inventory.mjs",
     "docs/generate-source-rights-inventory.test.mjs",
     "docs/source-rights-review.json",
+    "docs/source-rights-review.candidate-020.json",
     "docs/verify-source-rights-review.mjs",
     "docs/verify-source-rights-review.test.mjs",
     "docs/commercial-successor-materialization-receipt.json",
@@ -73,10 +82,14 @@ function selectedPaths() {
     "docs/lint-writing-style.test.mjs",
     "docs/verify-release-manifest.mjs",
     "../../development/agent-reasoning-engine/planning/documentation-readiness/verify-source-distribution-lifecycle.mjs",
+    "../../development/agent-reasoning-engine/planning/documentation-readiness/qualify-source-distribution-portability.mjs",
+    "../../development/agent-reasoning-engine/planning/documentation-readiness/qualify-optional-module-composition.mjs",
     "../../development/agent-reasoning-engine/planning/documentation-readiness/sign-source-distribution.mjs",
     "../../development/agent-reasoning-engine/planning/documentation-readiness/sign-source-distribution.test.mjs",
     "../../development/agent-reasoning-engine/planning/documentation-readiness/materialize-commercial-successor.mjs",
     "../../development/agent-reasoning-engine/planning/documentation-readiness/materialize-commercial-successor.test.mjs",
+    "../../development/agent-reasoning-engine/planning/documentation-readiness/prepare-candidate-rights-license-review.mjs",
+    "../../development/agent-reasoning-engine/planning/documentation-readiness/prepare-candidate-rights-license-review.test.mjs",
   ].map(path => resolve(productRoot, path));
   return [...new Set([...declared, ...infrastructure])]
     .map(path => ({absolute: path, path: relative(productRoot, path).replaceAll("\\", "/")}))
@@ -91,18 +104,18 @@ function buildManifest() {
   });
   return {
     schema_version: "are.documentation-release-manifest/v1",
-    release_id: "ARE-DOCUMENTATION-CANDIDATE-002",
+    release_id: "ARE-DOCUMENTATION-CANDIDATE-003",
     lifecycle_status: "candidate-internal",
     product_id: product.product_id,
     product_version: product.version,
     candidate_id: candidate.candidate_id,
     candidate_digest: candidate.candidate_digest,
     source_closure_digest: candidate.source_closure.closure_digest,
-    review_date: "2026-09-17",
+    review_date: "2026-09-25",
     selection_basis: "Every Markdown document in docs/manifest.json plus the product entry documents and documentation generators/verifiers.",
     files,
     exclusions: [
-      "frozen Candidate 018 source closure, which excludes this separate manual",
+      "frozen Candidate 020 source closure, which excludes this separate manual",
       "research artifacts and benchmark run data",
       "publication, deployment, security-policy activation, SLO, and compliance decisions",
       "release-manifest.json and release-receipt.json to avoid recursive self-digests",
@@ -116,7 +129,7 @@ function stableJson(value) {
 }
 
 function runDocumentationChecks() {
-  const apiTest = spawnSync(process.execPath, ["--test", "docs/generate-api-reference.test.mjs", "docs/generate-source-rights-inventory.test.mjs", "docs/lint-writing-style.test.mjs", "docs/verify-source-rights-review.test.mjs", "docs/verify-compatibility-matrix.test.mjs", "docs/verify-license-requirements.test.mjs", "docs/verify-release-owner-decisions.test.mjs", "docs/verify-release-policy.test.mjs", "docs/verify-release-readiness.test.mjs", "../../development/agent-reasoning-engine/planning/documentation-readiness/sign-source-distribution.test.mjs", "../../development/agent-reasoning-engine/planning/documentation-readiness/materialize-commercial-successor.test.mjs"], {cwd: productRoot, encoding: "utf8"});
+  const apiTest = spawnSync(process.execPath, ["--test", "docs/generate-api-reference.test.mjs", "docs/generate-source-rights-inventory.test.mjs", "docs/lint-writing-style.test.mjs", "docs/verify-source-rights-review.test.mjs", "docs/verify-compatibility-matrix.test.mjs", "docs/verify-license-requirements.test.mjs", "docs/verify-release-owner-decisions.test.mjs", "docs/verify-release-policy.test.mjs", "docs/verify-release-readiness.test.mjs", "../../development/agent-reasoning-engine/planning/documentation-readiness/prepare-candidate-rights-license-review.test.mjs", "../../development/agent-reasoning-engine/planning/documentation-readiness/sign-source-distribution.test.mjs"], {cwd: productRoot, encoding: "utf8"});
   need(apiTest.status === 0, "documentation-release.api-generator-test-failed");
   const compatibilityCheck = spawnSync(process.execPath, ["docs/verify-compatibility-matrix.mjs", "--check"], {cwd: productRoot, encoding: "utf8"});
   need(compatibilityCheck.status === 0, "documentation-release.compatibility-matrix-verification-failed");
@@ -130,6 +143,8 @@ function runDocumentationChecks() {
   need(sourceRightsCheck.status === 0, "documentation-release.source-rights-inventory-verification-failed");
   const sourceRightsReviewCheck = spawnSync(process.execPath, ["docs/verify-source-rights-review.mjs"], {cwd: productRoot, encoding: "utf8"});
   need(sourceRightsReviewCheck.status === 0, "documentation-release.source-rights-review-verification-failed");
+  const candidateRightsCheck = spawnSync(process.execPath, ["../../development/agent-reasoning-engine/planning/documentation-readiness/prepare-candidate-rights-license-review.mjs", "--check"], {cwd: productRoot, encoding: "utf8"});
+  need(candidateRightsCheck.status === 0, "documentation-release.candidate-020-rights-license-verification-failed");
   const readinessCheck = spawnSync(process.execPath, ["docs/verify-release-readiness.mjs", "--check"], {cwd: productRoot, encoding: "utf8"});
   need(readinessCheck.status === 0, "documentation-release.readiness-verification-failed");
   const docsCheck = spawnSync(process.execPath, ["docs/verify-docs.mjs"], {cwd: productRoot, encoding: "utf8"});
@@ -159,7 +174,8 @@ function runDocumentationChecks() {
     release_owner_decisions: "PASS",
     source_rights_inventory: "PASS",
     source_rights_review: "PASS",
-    commercial_successor_materialization: "PASS",
+    candidate_020_rights_license_preparation: "PASS",
+    commercial_successor_materialization: "HISTORICAL_BASELINE_NOT_RERUN_AFTER_SOURCE_DRIFT",
     artifact_signing_test: "PASS",
     release_readiness_ledger: "PASS",
     documentation_integrity: "PASS",
@@ -172,10 +188,10 @@ function runDocumentationChecks() {
 function buildReceipt(manifestBytes, checks) {
   return {
     schema_version: "are.documentation-release-receipt/v1",
-    release_id: "ARE-DOCUMENTATION-CANDIDATE-002",
+    release_id: "ARE-DOCUMENTATION-CANDIDATE-003",
     status: "PASS",
     lifecycle_status: "candidate-internal",
-    verified_on: "2026-09-17",
+    verified_on: "2026-09-24",
     release_manifest_sha256: sha256(manifestBytes),
     checks,
     claim_limit: "PASS proves deterministic API generation, manual structure, local links, lifecycle metadata, and selected documentation-byte digests. It grants no product approval, publication, deployment, policy activation, service commitment, or compliance conclusion.",
@@ -206,7 +222,7 @@ process.stdout.write(`${JSON.stringify({
   schema_version: "are.documentation-release-verification/v1",
   status: "PASS",
   mode,
-  release_id: "ARE-DOCUMENTATION-CANDIDATE-002",
+  release_id: "ARE-DOCUMENTATION-CANDIDATE-003",
   selected_file_count: JSON.parse(manifestBytes).files.length,
   manifest_sha256: sha256(manifestBytes),
   authority_effect: "none",

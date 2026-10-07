@@ -11,11 +11,15 @@
 **License supersession notice:** Apache-2.0 references in this preserved handoff
 and storefront prototype are historical and must not be published as the current
 ARE offer. The later owner direction selects candidate custom source-available
-terms: selling a redistributed software copy requires an added function or
-integration; cosmetic edits, renaming and bug fixes alone do not qualify;
-hosted access and paid support are outside that resale rule. Exact legal text
-and distribution-rights review remain required before sale. See
-[`docs/LICENSE-PAYMENT-RESEARCH.md`](docs/LICENSE-PAYMENT-RESEARCH.md).
+terms: selling a redistributed software copy requires new functionality or a
+material functional improvement; cosmetic edits, renaming and bug fixes alone
+do not qualify. The reseller should make the complete source code of its
+qualifying modified version available to verified ARE purchasers at no
+charge; no free binaries, future upgrades, or human support are required from
+the reseller. Purchase verification, final legal text and
+distribution-rights review remain open before sale. See the
+[resale/share-back decision](docs/decisions/ARE-RESALE-SHAREBACK-2026-09-21.md)
+and [candidate license clauses](docs/ARE-LICENSE-CANDIDATE.md).
 
 ## Start here
 

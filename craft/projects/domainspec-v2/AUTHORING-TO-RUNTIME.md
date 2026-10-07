@@ -629,11 +629,11 @@ implemented.
 | Surface | Current state | Target described here |
 | --- | --- | --- |
 | Backend graph | Thirteen compiled backend meta-types | Preserve the same application roles |
-| AlchLang formal conditions | Legacy inline `sfol-v1` compatibility exists | Rules bind one FormalClaim; Policies and guards reference Rules |
+| AlchLang formal conditions | Legacy inline `sfol-v1` compatibility and bounded `application-v1` Rule/FormalClaim consumer projections exist as candidates | Reconcile one admitted Rule/FormalClaim relationship and complete consumer coverage |
 | FormalClaim | v4 candidate definitions and ontology; current TDE intake still uses v2 | One reconciled current source contract and explicit compatibility adapter |
 | Rule–FormalClaim join | Not in the active relationship catalog | Typed cross-partition `condition-bound-to` relationship |
 | Integration authoring | Detailed validated JSON contracts | Concise graph-native AlchLang declarations lowering to those contracts |
-| Provider selection | Separate language-specific JSON selections | Runtime-profile syntax selecting capabilities and a provider pack |
+| Provider selection | Separate language-specific JSON selections and candidate `application-v1` runtime-profile authoring/lowering exist | Admit the selected provider-binding contract and qualify actual provider execution |
 | Runtime | Reference and experimental runtime surfaces | Separately versioned downstream runtime product |
 | D65 | Review-only, effect-free governance candidate | Exact ConstructionBinding for a frozen tested product candidate |
 

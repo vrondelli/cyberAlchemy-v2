@@ -106,6 +106,36 @@ class DeliveryTests(unittest.TestCase):
         with approved.redeem_snapshot('alice',token,now=104) as snapshot:
             self.assertEqual(snapshot.read(),self.data)
 
+    def test_verified_full_refund_invalidates_existing_unused_grant(self):
+        self.pay();token=self.issue()
+        reversal={'provider':'stripe','event_id':'refund-event','order_id':self.order['id'],
+                  'customer':'alice','payment_id':'payment1','kind':'full-refund',
+                  'provider_ref':'re_full','verified_at':104}
+        self.ledger.record_verified_reversal(reversal,now=104)
+        with self.assertRaisesRegex(Rejected,'delivery-not-authorized'):
+            self.delivery.redeem_snapshot('alice',token,now=105)
+        with self.assertRaisesRegex(Rejected,'delivery-not-authorized'):
+            self.delivery.issue('alice',self.order['id'],now=105)
+        with self.ledger.connection() as db:
+            self.assertIsNone(db.execute('SELECT consumed_at FROM download_grants').fetchone()[0])
+
+    def test_partial_refund_preserves_unused_grant_until_verified_lost_dispute(self):
+        self.pay();token=self.issue()
+        reversal={'provider':'stripe','event_id':'partial-event','order_id':self.order['id'],
+                  'customer':'alice','payment_id':'payment1','kind':'partial-refund',
+                  'provider_ref':'re_partial','verified_at':104}
+        self.assertEqual(self.ledger.record_verified_reversal(reversal,now=104)['disposition'],'review')
+        self.assertTrue(self.ledger.entitlement('alice',self.order['id'],now=105)['download_allowed'])
+        self.assertEqual(self.delivery.redeem('alice',token,now=105),self.data)
+        unused=self.issue()
+        dispute={**reversal,'event_id':'lost-event','kind':'lost-dispute',
+                 'provider_ref':'du_lost','verified_at':106}
+        self.assertEqual(self.ledger.record_verified_reversal(dispute,now=106)['disposition'],'revoked')
+        with self.assertRaisesRegex(Rejected,'delivery-not-authorized'):
+            self.delivery.redeem('alice',unused,now=107)
+        with self.assertRaisesRegex(Rejected,'delivery-not-authorized'):
+            self.delivery.issue('alice',self.order['id'],now=107)
+
     def test_paths_cannot_escape_artifact_root(self):
         with self.assertRaises(Rejected):Delivery(self.ledger,self.root,[replace(self.artifact,relative_path='../outside')],mode='local-test')
         with tempfile.TemporaryDirectory() as other:

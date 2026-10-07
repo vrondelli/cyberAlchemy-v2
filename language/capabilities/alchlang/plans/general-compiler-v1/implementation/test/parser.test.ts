@@ -81,6 +81,6 @@ test("compatibility is not a fallback for target, unknown, or mixed profiles", (
   const source = 'domain inventory "Inventory"\nowner inventory-owner\n';
   assert.throws(() => parseDomainSource(source + 'profile application-v1\nprofile legacy-sfol-v1\n'), /ALCH_PROFILE_CONFLICT/);
   assert.throws(() => parseDomainSource(source + 'profile legacy-sfol-v1\nprofile legacy-sfol-v1\n'), /ALCH_PROFILE_CONFLICT/);
-  assert.throws(() => parseDomainSource(source + 'profile unknown-v1\n'), /TEXT_SYNTAX/);
+  assert.throws(() => parseDomainSource(source + 'profile unknown-v1\n'), /ALCH_PROFILE_UNSUPPORTED/);
   assert.throws(() => parseDomainSource(source + 'profile legacy-sfol-v1\nformal-claim Claim:\n'), /ALCH_PROFILE_REQUIRED/);
 });

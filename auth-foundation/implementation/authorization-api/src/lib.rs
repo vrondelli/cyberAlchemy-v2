@@ -1,15 +1,20 @@
 //! Versioned fail-closed HTTP projection of the concurrent in-process Auth Service.
 
+#[cfg(feature = "trace")]
+use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use auth_foundation_authorization_service::{EpochAllocator, SqliteAuthService};
-use auth_foundation_runtime_adapter::{BinaryAuthorizationDecision, DecisionClock, PortFailure};
-use auth_foundation_trusted_boundary::InboundAuthorizationRequest;
+use auth_foundation_authorization_service::SqliteAuthService;
+pub use auth_foundation_authorization_service::SystemDecisionClock;
+use auth_foundation_authorization_service::EpochAllocator;
+use auth_foundation_authorization_state_model::{
+    BinaryAuthorizationDecision, InboundAuthorizationRequest, PortFailure,
+};
 use axum::body::{Body, to_bytes};
 use axum::extract::State;
 use axum::http::{Request, StatusCode, header};
@@ -23,30 +28,37 @@ use tokio::time::timeout;
 pub const AUTHORIZE_PATH: &str = "/v1/authorize";
 pub const MAX_AUTHORIZATION_BODY_BYTES: usize = 1024;
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SystemDecisionClock;
-
-impl DecisionClock for SystemDecisionClock {
-    fn decision_time(&self) -> Result<u64, PortFailure> {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .map_err(|_| PortFailure)
-    }
-}
-
-/// Minimal mutable capability owned by one pool slot.
-pub trait AuthorizationEngine: Send + 'static {
+/// Mock engine capability for unit probes only. Production pool slots hold
+/// the concrete SQLite service and never dispatch through a trait object.
+///
+/// ```compile_fail
+/// use auth_foundation_authorization_api::AuthorizationEngine;
+/// ```
+#[cfg(test)]
+trait AuthorizationEngine: Send + 'static {
     fn authorize(&mut self, request: InboundAuthorizationRequest) -> BinaryAuthorizationDecision;
 }
 
-impl<C> AuthorizationEngine for SqliteAuthService<C>
-where
-    C: DecisionClock + Send + 'static,
-{
+#[cfg(test)]
+impl AuthorizationEngine for SqliteAuthService<SystemDecisionClock> {
     fn authorize(&mut self, request: InboundAuthorizationRequest) -> BinaryAuthorizationDecision {
         SqliteAuthService::authorize(self, request)
     }
+}
+
+#[cfg(test)]
+type PoolEngine = Box<dyn AuthorizationEngine>;
+#[cfg(not(test))]
+type PoolEngine = SqliteAuthService<SystemDecisionClock>;
+
+#[cfg(test)]
+fn pool_engine(service: SqliteAuthService<SystemDecisionClock>) -> PoolEngine {
+    Box::new(service)
+}
+
+#[cfg(not(test))]
+fn pool_engine(service: SqliteAuthService<SystemDecisionClock>) -> PoolEngine {
+    service
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -131,11 +143,11 @@ impl AuthorizationMetrics {
 }
 
 struct EnginePool {
-    engines: Mutex<Vec<Box<dyn AuthorizationEngine>>>,
+    engines: Mutex<Vec<PoolEngine>>,
 }
 
 impl EnginePool {
-    fn take(&self) -> Result<Box<dyn AuthorizationEngine>, AuthorizationRuntimeError> {
+    fn take(&self) -> Result<PoolEngine, AuthorizationRuntimeError> {
         self.engines
             .lock()
             .map_err(|_| AuthorizationRuntimeError::WorkerUnavailable)?
@@ -143,7 +155,7 @@ impl EnginePool {
             .ok_or(AuthorizationRuntimeError::WorkerUnavailable)
     }
 
-    fn put(&self, engine: Box<dyn AuthorizationEngine>) -> Result<(), AuthorizationRuntimeError> {
+    fn put(&self, engine: PoolEngine) -> Result<(), AuthorizationRuntimeError> {
         self.engines
             .lock()
             .map_err(|_| AuthorizationRuntimeError::WorkerUnavailable)?
@@ -162,6 +174,64 @@ struct AuthorizationRuntimeInner {
     acquisition_timeout: Duration,
     evaluation_timeout: Duration,
     metrics: Arc<AuthorizationMetrics>,
+    #[cfg(feature = "trace")]
+    traces: Arc<Mutex<TraceBuffer>>,
+    #[cfg(feature = "trace")]
+    trace_enabled: std::sync::atomic::AtomicBool,
+}
+
+#[cfg(feature = "trace")]
+const MAX_STORED_TRACES: usize = 64;
+
+#[cfg(feature = "trace")]
+#[derive(Default)]
+struct TraceBuffer {
+    traces: VecDeque<auth_foundation_authorization_trace::Trace>,
+    dropped: u64,
+}
+
+#[cfg(feature = "trace")]
+impl TraceBuffer {
+    fn push(&mut self, trace: auth_foundation_authorization_trace::Trace) {
+        if self.traces.len() == MAX_STORED_TRACES {
+            self.traces.pop_front();
+            self.dropped = self.dropped.saturating_add(1);
+        }
+        self.traces.push_back(trace);
+    }
+
+    fn drain(&mut self) -> TraceDrain {
+        let dropped = std::mem::take(&mut self.dropped);
+        TraceDrain {
+            traces: self.traces.drain(..).collect(),
+            dropped,
+        }
+    }
+}
+
+#[cfg(all(test, feature = "trace"))]
+#[test]
+fn trace_buffer_reports_bounded_loss() {
+    let mut buffer = TraceBuffer::default();
+    for invocation_id in 0..=MAX_STORED_TRACES {
+        buffer.push(auth_foundation_authorization_trace::Trace {
+            root: auth_foundation_authorization_trace::Root::Api,
+            invocation_id: invocation_id as u64,
+            request_id: "bounded-test".into(),
+            events: Vec::new(),
+        });
+    }
+    let batch = buffer.drain();
+    assert_eq!(batch.traces.len(), MAX_STORED_TRACES);
+    assert_eq!(batch.dropped, 1);
+    assert_eq!(batch.traces[0].invocation_id, 1);
+}
+
+/// A nonzero dropped count invalidates any no-call inference from this batch.
+#[cfg(feature = "trace")]
+pub struct TraceDrain {
+    pub traces: Vec<auth_foundation_authorization_trace::Trace>,
+    pub dropped: u64,
 }
 
 #[derive(Clone)]
@@ -170,8 +240,16 @@ pub struct AuthorizationRuntime {
 }
 
 impl AuthorizationRuntime {
-    pub fn from_engines(
-        engines: Vec<Box<dyn AuthorizationEngine>>,
+    /// Internal pool assembly for the concrete database builder and unit tests.
+    ///
+    /// ```compile_fail
+    /// use auth_foundation_authorization_api::AuthorizationRuntime;
+    /// use std::time::Duration;
+    /// let _ = AuthorizationRuntime::from_engines(
+    ///     Vec::new(), Duration::from_millis(1), Duration::from_millis(1));
+    /// ```
+    fn from_engines(
+        engines: Vec<PoolEngine>,
         acquisition_timeout: Duration,
         evaluation_timeout: Duration,
     ) -> Result<Self, PortFailure> {
@@ -188,6 +266,10 @@ impl AuthorizationRuntime {
                 acquisition_timeout,
                 evaluation_timeout,
                 metrics: Arc::new(AuthorizationMetrics::default()),
+                #[cfg(feature = "trace")]
+                traces: Arc::new(Mutex::new(TraceBuffer::default())),
+                #[cfg(feature = "trace")]
+                trace_enabled: std::sync::atomic::AtomicBool::new(false),
             }),
         })
     }
@@ -212,6 +294,10 @@ impl AuthorizationRuntime {
 
         let pool = Arc::clone(&self.inner.pool);
         let metrics = Arc::clone(&self.inner.metrics);
+        #[cfg(all(feature = "trace", not(test)))]
+        let traces = Arc::clone(&self.inner.traces);
+        #[cfg(all(feature = "trace", not(test)))]
+        let trace_enabled = self.inner.trace_enabled.load(Ordering::Acquire);
         let worker = tokio::task::spawn_blocking(move || {
             let _permit = permit;
             let in_flight = metrics.in_flight.fetch_add(1, Ordering::AcqRel) + 1;
@@ -220,14 +306,32 @@ impl AuthorizationRuntime {
                 .fetch_max(in_flight, Ordering::Relaxed);
             let _in_flight = InFlightGuard { metrics: &metrics };
             let mut engine = pool.take()?;
+            #[cfg(all(feature = "trace", not(test)))]
+            let trace_scope = trace_enabled.then(|| {
+                auth_foundation_authorization_trace::Scope::enter(
+                    auth_foundation_authorization_trace::Root::Api,
+                    &request.request_id,
+                )
+            });
+            #[cfg(test)]
             let outcome = catch_unwind(AssertUnwindSafe(|| engine.authorize(request)));
-            match outcome {
+            #[cfg(not(test))]
+            let outcome = catch_unwind(AssertUnwindSafe(|| engine.authorize(request)));
+            let result = match outcome {
                 Ok(decision) => {
                     pool.put(engine)?;
                     Ok(decision)
                 }
                 Err(_) => Err(AuthorizationRuntimeError::WorkerUnavailable),
+            };
+            #[cfg(all(feature = "trace", not(test)))]
+            if let Some(scope) = trace_scope {
+                traces
+                    .lock()
+                    .map_err(|_| AuthorizationRuntimeError::WorkerUnavailable)?
+                    .push(scope.finish());
             }
+            result
         });
 
         let decision = match timeout(self.inner.evaluation_timeout, worker).await {
@@ -257,6 +361,23 @@ impl AuthorizationRuntime {
 
     pub fn metrics(&self) -> AuthorizationMetricsSnapshot {
         self.inner.metrics.snapshot()
+    }
+
+    /// Opt in explicitly; trace feature alone never retains request identifiers.
+    #[cfg(feature = "trace")]
+    pub fn enable_trace_collection(&self) {
+        self.inner.trace_enabled.store(true, Ordering::Release);
+    }
+
+    /// Completed worker traces only; a timed-out worker may still be running.
+    /// A nonzero dropped count invalidates no-call inference.
+    #[cfg(feature = "trace")]
+    pub fn drain_traces(&self) -> Result<TraceDrain, AuthorizationRuntimeError> {
+        self.inner
+            .traces
+            .lock()
+            .map(|mut traces| traces.drain())
+            .map_err(|_| AuthorizationRuntimeError::WorkerUnavailable)
     }
 
     pub fn is_ready(&self) -> bool {
@@ -316,13 +437,13 @@ pub fn authorization_runtime_from_database(
     config: AuthorizationApiConfig,
 ) -> Result<AuthorizationRuntime, PortFailure> {
     let epoch_allocator = Arc::new(EpochAllocator::new());
-    let mut engines: Vec<Box<dyn AuthorizationEngine>> = Vec::new();
+    let mut engines: Vec<PoolEngine> = Vec::new();
     for _ in 0..config.pool_size.get() {
-        engines.push(Box::new(SqliteAuthService::open_with_epoch_allocator(
+        let service = SqliteAuthService::open_with_epoch_allocator(
             path.as_ref(),
-            SystemDecisionClock,
             Arc::clone(&epoch_allocator),
-        )?));
+        )?;
+        engines.push(pool_engine(service));
     }
     AuthorizationRuntime::from_engines(
         engines,
@@ -392,3 +513,6 @@ fn respond(status: StatusCode, decision: BinaryAuthorizationDecision) -> Respons
     );
     response
 }
+
+#[cfg(test)]
+mod http_api_tests;

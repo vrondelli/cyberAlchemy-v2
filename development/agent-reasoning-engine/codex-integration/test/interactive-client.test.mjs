@@ -99,7 +99,7 @@ test("interaction proposal requires exact digest binding before its next turn", 
     continuation: {interaction_bound: [{
       option_id: "CHAT-1",
       route_id: "CA2-ROUTE-VALIDATE",
-      effect_classes: ["local-read"],
+      effect_classes: ["non-effectful-validate"],
       reversible: true,
       next_turn: {input: [{type: "text", text: "Validate the human-selected successor."}]},
     }]},

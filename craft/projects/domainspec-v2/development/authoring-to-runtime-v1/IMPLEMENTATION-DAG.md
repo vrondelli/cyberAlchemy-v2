@@ -1,7 +1,7 @@
 ---
 title: AlchLang to DomainSpec Authoring-to-Runtime Implementation DAG
 status: planning-candidate
-updatedAt: 2026-09-17
+updatedAt: 2026-09-20
 owner: AlchLang and DomainSpec product construction
 scope: product capability
 authority_effect: none
@@ -9,12 +9,14 @@ authority_effect: none
 
 # Authoring-to-runtime implementation DAG
 
-Current frontier: I06's one-source domain/integration/runtime graph join is scoped
-complete; see `APPLICATION-JOIN.md`. I03–I05 retain their scoped closure evidence.
-I07 is ready: public source-to-application loading/build/verification, optional
-Query semantic consumers, and the bounded runnable scenario.
-Fifteen scoped completions, 22 remaining nodes. Earlier review snapshots below
-retain their original evidence and do not override this frontier.
+Current frontier: P03 is scoped complete; see `P03-COMPLETION.md`. One exact
+working-tree-selected candidate binds per-file source, test, tool, extracted
+package and generated-project inventories to the archive and build identities
+tested by P02. Its currentness validator is non-mutating and fails closed on
+source, receipt, tool, environment, archive, generated-project or claim drift.
+P04 owns the Project-controlled D65 ConstructionBinding candidate for this
+exact candidate identity. Thirty-four scoped completions, 3 remaining nodes. Earlier review
+snapshots below retain their original evidence and do not override this frontier.
 
 Revision 5: [current implementation review and reviewed execution sequence](CURRENT-REVIEW-AND-PLAN.md)
 is the current scheduling entry point. The machine DAG retains all 37 nodes and
@@ -83,6 +85,10 @@ current.
    convention.
 9. Compiler planning and generation remain effect-free. Runtime execution is a
    downstream, separately invoked product surface.
+10. Product-owner testing begins only at the L4X product-validation boundary.
+    All earlier smoke, compilation, runtime, parity, evidence, packaging, and
+    clean-consumer checks are internal construction verification and must not be
+    presented as a request for owner validation.
 
 ## Layer boundary heuristic
 
@@ -103,6 +109,37 @@ proof. Later layers must preserve all earlier guarantees.
 | L2 — Complete authoring breadth | the coherent path supports the full declared language and all three target languages. | Thirteen meta-types, formal consumers, modules/multiple entries, TypeScript/Python/Rust. | A realistic multi-feature application uses one language and one compilation model. | Profile forks, cross-language drift, partial entry-point behavior. | Continue only with complete obligation accounting and no silent unsupported residue. |
 | L3 — Evidence-connected runtime | verification and runtime observations bind to authored meaning without becoming that meaning. | Verification profile, exact projection adapter, EVF join, stage-separated runtime evidence. | Users can inspect what was checked and what actually ran. | Proof/runtime/authority collapse and stale evidence. | Continue only when typed non-pass states and source-to-evidence currentness work. |
 | L4 — Installed product candidate | a clean consumer can reproduce the complete path from `.alch` to bounded runtime evidence. | Packages, examples, clean installs, exact candidate, independent review, D65 binding candidate. | Reviewable first-release candidate. | Checkout coupling, stale receipts, unbounded claims. | Present for product review; do not infer approval or release. |
+
+## Product-validation boundary
+
+The sole product-owner test handoff is **after L4X**. No L0, L1, L2, L3, I07,
+smoke, native-compilation, runtime-evidence, or P02 result asks the product owner
+to test. Those checks remain implementation-team evidence used to decide whether
+construction can advance.
+
+The L4X handoff is eligible for product-owner validation only when all of the
+following are current and mutually bound:
+
+1. P01 records exact package and documentation boundaries with no checkout-only
+   dependency or development residue.
+2. P02 has three passing clean-consumer reports covering the documented `.alch`
+   path, native compilation, bounded runtime scenario, evidence inspection, and
+   cleanup for TypeScript, Python, and Rust.
+3. P03 freezes one exact candidate manifest and a non-mutating currentness
+   validator for its source, emitted contracts, generated projects, package
+   files, tools, environments, receipts, and claim ceiling.
+4. P04 records complete D65 construction-stage accounting for that exact tested
+   candidate without treating registration as approval.
+5. P05 supplies an independent read-only obligation review with no unresolved
+   discrepancy in the handoff scope.
+6. L4X names the exact candidate, provides one product-level validation
+   protocol and expected outcomes, identifies known limitations, and repeats the
+   forbidden-inference list.
+
+If any condition is missing, stale, failed, or not evaluable, work returns to
+the responsible construction node without asking the product owner to test.
+Passing product-owner validation may support a later product-approval decision;
+it does not itself authorize publication, release, deployment, or operation.
 
 ## Cross-layer DAG
 
@@ -251,7 +288,7 @@ the documented product path and reproduce its bounded evidence.
 | P03 | Product construction | Freeze exact source, emitted contracts, generated projects, package files, tests, tools, environments, receipts, and claim ceiling. | Immutable candidate manifest and non-mutating currentness validator. | Historical evidence is refreshed instead of replaced or broad directories stand in for file inventories. |
 | P04 | Product construction | Prepare a Project-owned D65 ConstructionBinding candidate for the exact tested product. | Complete stage accounting and product-review request eligibility only. | Registration is treated as approval, authority, admission, publication, or release. |
 | P05 | Product construction | Perform independent obligation-by-obligation read-only review. | Pass/fail/not-evaluable report with no unresolved discrepancy for handoff. | Review mutates candidate bytes or omits a failed obligation. |
-| L4X | Product construction | Form the product-review handoff. | Exact candidate identifier and forbidden-inference list. | Product approval or operational authority is inferred. |
+| L4X | Product construction | Form the sole product-owner validation handoff. | Exact candidate identifier, product-level validation protocol, expected outcomes, known limitations, and forbidden-inference list. | Any earlier construction result is presented for owner testing, or product approval or operational authority is inferred. |
 
 ## Runnable work and parallelism
 

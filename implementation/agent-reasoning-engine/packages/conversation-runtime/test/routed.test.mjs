@@ -35,7 +35,7 @@ test("ARE changes internal routes while the user remains in one conversation", a
   assert.equal(runtime.inspect({conversation_id: "one-chat"}).value.messages.length, 4);
 });
 
-test("route ambiguity becomes an inline question rather than a TUI mode choice", async () => {
+test("route ambiguity becomes an inline question rather than an adapter mode choice", async () => {
   const runtime = createRoutedConversationRuntime({decisionProfile: loaded.value, modulePort, idFactory: ids(), routeHandlers: {}});
   runtime.open({conversation_id: "one-chat"});
   const result = await runtime.submitMessage({conversation_id: "one-chat", text: "Research and validate this evidence."});

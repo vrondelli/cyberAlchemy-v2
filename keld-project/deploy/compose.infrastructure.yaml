@@ -4,7 +4,7 @@ x-logging: &logging
   options: {max-size: 10m, max-file: "3"}
 services:
   edge:
-    image: keld-caddy:2.11.4-security-candidate
+    image: keld-caddy:2.11.4-security-plan-20260920-r2
     build: {context: ., dockerfile: Caddy.Dockerfile}
     user: "1001:1001"
     read_only: true
@@ -54,6 +54,10 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
     entrypoint: ["/bin/bash", "/opt/keld-entrypoint.sh"]
+    user: "1000:0"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -67,12 +71,18 @@ services:
     volumes:
       - ./keycloak-entrypoint.sh:/opt/keld-entrypoint.sh:ro
       - ./.runtime/keld-realm.json:/opt/keycloak/data/import/keld-realm.json:ro
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     depends_on:
       postgres: {condition: service_healthy}
     networks: [backend, egress]
     restart: unless-stopped
     mem_limit: 2g
     logging: *logging
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q 'HTTP/1.1 200' <&3"]
+      interval: 10s
+      timeout: 3s
+      retries: 18
 secrets:
   postgres_admin_password: {file: ./.runtime/secrets/postgres_admin_password}
   keycloak_db_password: {file: ./.runtime/secrets/keycloak_db_password}

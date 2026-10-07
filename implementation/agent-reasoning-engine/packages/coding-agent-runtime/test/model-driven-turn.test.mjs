@@ -65,7 +65,7 @@ test("malformed model final bytes fail closed before mutation", async () => {
   } finally { item.cleanup(); }
 });
 
-test("Codex App Server adapter forces a read-only no-approval turn", async () => {
+test("Codex App Server adapter forces a read-only on-request turn", async () => {
   const calls = [];
   const client = {async runTurn(params) { calls.push(params); return {started: {turn: {id: "turn-1"}}, completed: {turn: {id: "turn-1", status: "completed"}}, text: "{\"ok\":true}"}; }};
   const additionalContext = {"cyberalchemy.request-context": {kind: "application", value: "{\"schema_version\":\"are.request-context-hint/v1\",\"raw_request\":\"propose only\"}"}};
@@ -73,9 +73,53 @@ test("Codex App Server adapter forces a read-only no-approval turn", async () =>
   const generated = await transport.generate({prompt: "prompt", run_id: "run-1"});
   assert.equal(generated.final_bytes, "{\"ok\":true}");
   assert.equal(generated.receipt.live_model_invoked, true);
-  assert.equal(calls[0].approvalPolicy, "never");
+  assert.equal(calls[0].approvalPolicy, "on-request");
   assert.deepEqual(calls[0].sandboxPolicy, {type: "readOnly", networkAccess: false});
   assert.deepEqual(calls[0].additionalContext, additionalContext);
+});
+
+test("Codex App Server transport gives iterative turns distinct stable request keys", async () => {
+  const keys = [];
+  const client = {async runTurn(_params, options) {
+    keys.push(options.idempotency_key);
+    return {started: {turn: {id: `turn-${keys.length}`}}, completed: {turn: {id: `turn-${keys.length}`, status: "completed"}}, text: "{\"ok\":true}"};
+  }};
+  const transport = createCodexAppServerModelTransport({client, thread_id: "thread-1", request_key_prefix: "coding:turn:run-1"});
+  await transport.generate({prompt: "first", run_id: "run-1"});
+  await transport.generate({prompt: "second", run_id: "run-1"});
+  assert.deepEqual(keys, ["coding:turn:run-1:1", "coding:turn:run-1:2"]);
+});
+
+test("Codex App Server transport checkpoints a turn before dispatch and settles only after completion", async () => {
+  const events = [];
+  const client = {async runTurn(_params, options) {
+    events.push(["dispatch", options.idempotency_key]);
+    return {started: {turn: {id: "turn-1"}}, completed: {turn: {id: "turn-1", status: "completed"}}, text: "ok"};
+  }};
+  const transport = createCodexAppServerModelTransport({client, thread_id: "thread-1",
+    request_key_prefix: "coding:turn:recovery",
+    on_before_turn: (intent) => { events.push(["checkpoint", intent]); },
+    on_turn_completed: (completion) => { events.push(["settle", completion]); }});
+  await transport.generate({prompt: "private prompt", run_id: "run-1"});
+  assert.deepEqual(events.map((entry) => entry[0]), ["checkpoint", "dispatch", "settle"]);
+  assert.equal(events[0][1].request_key, "coding:turn:recovery:1");
+  assert.equal(events[2][1].turn_id, "turn-1");
+  assert.equal(events[0][1].prompt_sha256.length, 64);
+  assert.equal(JSON.stringify(events[0]).includes("private prompt"), false);
+
+  const failed = createCodexAppServerModelTransport({client: {async runTurn() { throw new Error("unknown outcome"); }},
+    thread_id: "thread-1", request_key_prefix: "coding:turn:failed",
+    on_before_turn: () => { events.push(["failed-checkpoint"]); },
+    on_turn_completed: () => { events.push(["incorrect-settle"]); }});
+  await assert.rejects(failed.generate({prompt: "another prompt"}), /unknown outcome/u);
+  assert.equal(events.some((entry) => entry[0] === "incorrect-settle"), false);
+
+  const missingStatus = createCodexAppServerModelTransport({client: {async runTurn() {
+    return {started: {turn: {id: "turn-2"}}, completed: {turn: {id: "turn-2"}}, text: "ok"};
+  }}, thread_id: "thread-1", on_before_turn: () => {},
+  on_turn_completed: () => { events.push(["incorrect-settle"]); }});
+  await assert.rejects(missingStatus.generate({prompt: "status missing"}), /MODEL_TURN_COMPLETION_UNVERIFIED/u);
+  assert.equal(events.some((entry) => entry[0] === "incorrect-settle"), false);
 });
 
 test("base drift during model generation blocks the proposed effect", async () => {

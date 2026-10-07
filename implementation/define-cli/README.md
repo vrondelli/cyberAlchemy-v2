@@ -153,9 +153,28 @@ node cyberAlchemy-v2/implementation/define-cli/bin/define.mjs \
 
 The conversational path connects to the persistent ARE gateway at
 `$XDG_RUNTIME_DIR/are-codex/gateway.sock` (or `/run/user/<uid>/are-codex/gateway.sock`) and
-creates an ephemeral read-only Codex thread on the `codex:human-chat` interaction lane. The
+creates an ephemeral read-only Codex thread on the dedicated `codex:define-cli`
+interaction consumer. It no longer attaches to the hosted Windows client's
+`codex:human-chat` gateway session. The
 gateway preserves its consumer runtime across transport reconnects; Define itself does not
 create durable conversation storage. Use `--gateway-socket <path>` for a different gateway.
+The client pins `codex-app-server/v1` in the gateway handshake and uses
+`ARE_GATEWAY_CONNECTION_TOKEN` when the gateway requires one. Thread and turn
+requests use on-request approval, a read-only sandbox, and stable request keys;
+the shared RPC client declines approvals by default. Define sends its bounded
+application request as turn input and a separate ARE request-context hint, then
+validates the returned JSON against its own candidate-turn contract. The
+no-tools instruction is a prompt constraint, not proof that every host tool is
+unavailable. This fixed Define consumer ID supports one attached Define client
+at a time; a second concurrent Define process is rejected rather than sharing
+the first process's session. It is not a unique invocation ID, durable Define
+conversation, or the current desktop task's identity. Existing historical
+`codex:human-chat` gateway sessions are not migrated or adopted by Define.
+The local gateway/real-wrapper fixture proves one no-provider turn. The
+installed-host canary below separately proves one Define turn through the
+pinned local Codex binary and fixed loopback provider, including structured
+output on the provider wire. Neither test proves live-model behavior, a desktop
+task handover, or general multi-client operation.
 
 `--direct` is an explicit diagnostic fallback that spawns the strict app-server wrapper for
 this process. It does not permit protocol drift and is not the normal conversational path.
@@ -198,6 +217,18 @@ readiness block. All outputs retain `authority_effect: none`.
 cd cyberAlchemy-v2/implementation/define-cli
 npm test
 ```
+
+To check the installed host without reaching an external model or touching the
+current desktop task, run the isolated canary with an exact installed binary
+and version:
+
+```bash
+node scripts/native-gateway-canary.mjs /absolute/path/to/codex 'codex-cli <exact-version>'
+```
+
+The canary uses a temporary `CODEX_HOME`, a fixed loopback Responses provider,
+and a disposable gateway socket. Its JSON report binds the host path, version,
+and SHA-256 and reports provider-wire and teardown checks.
 
 The candidate intentionally excludes an adopted identity provider, encryption
 and secret handling, backup/restore policy, retention duration and deletion

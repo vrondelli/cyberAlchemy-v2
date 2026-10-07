@@ -12,6 +12,14 @@ Its events retain their original evidence and authority posture. Sealing or
 reusing an epoch does not admit evidence, authorize an effect, or promote a
 claim.
 
+The optional `are.reasoning-plan-context/v1` record preserves a bounded parent
+plan reference and content digest, feature obligations, active slice, unresolved
+decisions, and source digests for one backend thread. Construction requires an
+exact trusted source-digest map and matching thread identity. Append rejects a
+stale predecessor; log recovery verifies the per-thread plan chain. The record
+can be sealed and checkpointed like other explicit events. It does not derive
+scope from a transcript or identify a desktop-host task.
+
 A Reasoning State Frontier is an explicit, content-addressed state record for a
 completed reasoning boundary. `sealReasoningStateFrontier` appends that record,
 seals its single-event epoch, and flushes an `after-turn-completion` checkpoint
@@ -73,6 +81,7 @@ The advanced reusable-state surface adds seven bounded mechanisms:
 Public operations include:
 
 - `createReasoningStateLedger`
+- `materializeReasoningPlanContext`, `verifyReasoningPlanContext`, `appendReasoningPlanContext`, and `getLatestReasoningPlanContext`
 - `acquireReasoningStateWriterLock`
 - `appendReasoningStateEvent`
 - `sealReasoningStateEpoch`
@@ -113,8 +122,29 @@ Public operations include:
 - `verifyReasoningDispatch`
 - `reconstructReasoningDispatch`
 
-The package is a bounded implementation candidate. It provides exclusive
-single-writer locking, not stale-lock adjudication, multi-writer coordination,
-log repair, compaction, or distributed replication. It does not establish a durable
+The package is a bounded implementation candidate. It provides local
+single-writer locking and can reclaim a digest-verified v2 lock left by a
+confirmed terminated process on the same host under an exclusive recovery
+marker. A live, legacy, foreign-host, invalid, or interrupted-recovery lock
+remains fail-closed; inspection alone never removes it. This is not general
+stale-lock adjudication, multi-writer coordination, log repair, compaction, or
+distributed replication. It does not establish a durable
 CyberAlchemy Session, admission, conformance, publication, deployment, or
 authority.
+
+The ledger's read-only `checkpoints()` listing returns immutable checkpoint
+records. A live entry appears only after `checkpoint()` successfully flushes;
+a failed flush is not a retained checkpoint even if its record was appended.
+After file recovery, the listing represents exact checkpoints retained in the
+verified log. That is not evidence that the previous caller received an ACK,
+and it cannot reconstruct a historical fsync failure from surviving bytes.
+Consumers must still match the checkpoint's kind, subject, epoch and event head
+to the operation they are validating. `inspect().checkpoint_count` counts
+recorded checkpoint attempts; it is not a success or operation-completion count.
+
+## Open Questions
+
+Compact full-plan replacement accounting and its Host integration are tracked
+in the [DSH continuity analysis](../../apps/desktop-companion/docs/DSH-OBJECTIVE-CONTINUITY-IMPLEMENTATION-ANALYSIS-2026-10-06.md).
+General stale-lock adjudication, compaction and distributed replication remain
+outside this package's current qualification.

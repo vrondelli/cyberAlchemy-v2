@@ -1,5 +1,6 @@
 {$KELD_DOMAIN} {
 	header X-Robots-Tag "noindex, nofollow, noarchive"
+	header Strict-Transport-Security "max-age=86400"
 	@private path /readyz
 	handle @private {
 		respond 404
@@ -11,19 +12,48 @@
 	}
 }
 
+{$SYNVORA_DOMAIN} {
+	header Strict-Transport-Security "max-age=86400"
+	@private path /readyz
+	handle @private {
+		respond 404
+	}
+	handle {
+		reverse_proxy web-synvora:8080 {
+			header_up Host {$SYNVORA_DOMAIN}
+		}
+	}
+}
+
+www.{$SYNVORA_DOMAIN} {
+	header Strict-Transport-Security "max-age=86400"
+	redir https://{$SYNVORA_DOMAIN}{uri} 308
+}
+
 {$AUTH_DOMAIN} {
 	header X-Robots-Tag "noindex, nofollow, noarchive"
+	header Strict-Transport-Security "max-age=86400"
+	@clientRegistration path /realms/keld/clients-registrations /realms/keld/clients-registrations/*
+	handle @clientRegistration {
+		respond "Not found" 404
+	}
 	@public path /realms/keld/* /resources/* /robots.txt
 	handle @public {
-		reverse_proxy keycloak:8080
+		reverse_proxy keycloak:8080 {
+			header_up -X-Forwarded-Client-Cert
+			header_up -SSL-Client-Cert
+			header_up -SSL-Cert-Chain
+			header_down -Strict-Transport-Security
+		}
 	}
 	handle {
 		respond "Not found" 404
 	}
 }
 
-are.keld.studio {
+{$ARE_DOMAIN} {
 	header X-Robots-Tag "noindex, nofollow, noarchive"
+	header Strict-Transport-Security "max-age=86400"
 	header Cache-Control "no-store"
 
 	@legacyPage path /are /are/

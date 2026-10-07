@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {loadBenchmark} from "../src/corpus.mjs";
-import {packageRoot} from "../src/common.mjs";
+import {loadRuntime, packageRoot} from "../src/common.mjs";
 import {runLiveMultiTurnBenchmark} from "../src/live.mjs";
 
 function mockClient(turns, variant) {
@@ -39,7 +39,7 @@ test("multi-turn live runner preserves one thread per conversation and scores ev
   const result = await runLiveMultiTurnBenchmark(benchmark, {
     repetitions: 1,
     model: "gpt-5.6-luna",
-    observed_version: "codex-cli 0.153.0-alpha.5",
+    observed_version: loadRuntime(benchmark.profile).value.protocol_binding.observed_codex_version,
     clients,
   });
   assert.equal(result.status, "PASS");

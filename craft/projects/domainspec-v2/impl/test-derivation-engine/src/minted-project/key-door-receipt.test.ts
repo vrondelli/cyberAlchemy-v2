@@ -9,6 +9,7 @@ import {
   buildPositiveReceipt,
   receiptDigest,
   verifyReceipt,
+  verifyReceiptCurrent,
   type EvolvableValidationReceipt,
 } from "./evolvable-validation-receipt.js";
 import {
@@ -80,5 +81,41 @@ describe("EVF S1 non-admitting receipts", () => {
       return;
     }
     throw new Error("expected receipt tamper rejection");
+  });
+
+  it("rejects a structurally valid receipt whose referenced bytes are stale", () => {
+    const current = exactRef(REPO_ROOT, EVF_PATHS.validationContract);
+    const receipt = buildNegativeReceipt({
+      mutantId: "M01-predicate-operator-ne",
+      stableCode: "PREDICATE_OPERATOR_UNSUPPORTED",
+      exactRefs: [{ ...current, sha256: "0".repeat(64) }],
+    });
+    expect(() => verifyReceipt(receipt)).not.toThrow();
+    try {
+      verifyReceiptCurrent(receipt, REPO_ROOT, receipt.exact_refs);
+    } catch (error) {
+      expect(error).toBeInstanceOf(EvfS1Error);
+      expect((error as EvfS1Error).code).toBe("ARTIFACT_STALE");
+      return;
+    }
+    throw new Error("expected stale receipt ref rejection");
+  });
+
+  it("rejects a current but incomplete positive evidence set", () => {
+    const bundle = loadEvfS1Bundle(REPO_ROOT);
+    const observations = executeEnforcesCases(bundle.predicate.predicate.ast, bundle.fixtures.cases);
+    const expectedRefs = [
+      exactRef(REPO_ROOT, EVF_PATHS.validationContract),
+      exactRef(REPO_ROOT, EVF_PATHS.binding),
+    ];
+    const receipt = buildPositiveReceipt({ exactRefs: expectedRefs.slice(0, 1), observations });
+    try {
+      verifyReceiptCurrent(receipt, REPO_ROOT, expectedRefs, observations);
+    } catch (error) {
+      expect(error).toBeInstanceOf(EvfS1Error);
+      expect((error as EvfS1Error).code).toBe("RECEIPT_TAMPERED");
+      return;
+    }
+    throw new Error("expected omitted evidence rejection");
   });
 });

@@ -54,3 +54,12 @@ test("an engine block stays a block and separate bridges use independent credent
   await a.bridge.close(); await a.bridge.close();
   await assert.rejects(a.send({}));
 });
+
+test("bridge carries only the tool decision kind needed to validate strict projection", async t => {
+  const {send} = await fixture(t, () => ({ok: true, kind: "block", stdout: {hookSpecificOutput: {
+    hookEventName: "PreToolUse", additionalContext: "Bound decision.", permissionDecision: "deny"}},
+    private_receipt: "never-on-wire"}));
+  const response = await send({hook_event_name: "PreToolUse"});
+  assert.deepEqual(await response.json(), {ok: true, kind: "block", stdout: {hookSpecificOutput: {
+    hookEventName: "PreToolUse", additionalContext: "Bound decision.", permissionDecision: "deny"}}, reason_codes: []});
+});

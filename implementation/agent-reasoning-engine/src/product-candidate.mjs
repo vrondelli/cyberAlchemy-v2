@@ -8,13 +8,13 @@ import {
   sha256Hex,
   sha256HexText,
 } from "../packages/intent-route-resolver/index.mjs";
-import {inspectProduct, materializeProductClosure, productRoot, repositoryRoot} from "./product.mjs";
+import {inspectProduct, materializeProductClosure, packagedProductPath, productRoot} from "./product.mjs";
 import {materializeProductTestPlan} from "./product-test-plan.mjs";
 
-export const PRODUCT_CANDIDATE_ID = "ARE-PRODUCT-CANDIDATE-018";
-export const PRODUCT_CANDIDATE_PATH = resolve(productRoot, "evidence/product-candidate.018.json");
-export const PRODUCT_TEST_RECEIPT_PATH = resolve(productRoot, "evidence/product-test-receipt.018.json");
-export const FAILURE_LEARNING_CANARY_PATH = resolve(productRoot, "evidence/failure-learning-canary.018.json");
+export const PRODUCT_CANDIDATE_ID = "ARE-PRODUCT-CANDIDATE-020";
+export const PRODUCT_CANDIDATE_PATH = resolve(productRoot, "evidence/product-candidate.020.json");
+export const PRODUCT_TEST_RECEIPT_PATH = resolve(productRoot, "evidence/product-test-receipt.020.json");
+export const FAILURE_LEARNING_CANARY_PATH = resolve(productRoot, "evidence/failure-learning-canary.020.json");
 
 function digest(value) {
   return sha256HexText(canonicalJson(value));
@@ -40,8 +40,8 @@ function unique(values) {
 }
 
 function repositoryPath(path) {
-  const relative = resolve(path).slice(repositoryRoot.length + 1).replaceAll("\\", "/");
-  return relative.startsWith("../") ? resolve(path).replaceAll("\\", "/") : relative;
+  try { return packagedProductPath(path); }
+  catch { return resolve(path).replaceAll("\\", "/"); }
 }
 
 export function materializeProductCandidate() {
@@ -221,7 +221,7 @@ export function materializeProductTestReceipt(input) {
   const status = reasons.length === 0 ? "PASS" : "BLOCK";
   return sealed({
     schema_version: "are.integrated-product-test-receipt/v1",
-    receipt_id: "ARE-PRODUCT-TEST-RECEIPT-013",
+    receipt_id: "ARE-PRODUCT-TEST-RECEIPT-020",
     status,
     candidate_binding: {
       candidate_id: candidate?.candidate_id ?? null,

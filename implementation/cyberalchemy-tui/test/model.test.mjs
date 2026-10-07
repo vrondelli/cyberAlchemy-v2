@@ -31,6 +31,7 @@ test("completed, blocked, and cancelled controller phases expose a terminal exit
   assert.equal(isTerminalConversationPhase("completed"), true);
   assert.equal(isTerminalConversationPhase("error"), true);
   assert.equal(isTerminalConversationPhase("stopped"), true);
+  assert.equal(isTerminalConversationPhase("uncertain"), true);
   assert.equal(isTerminalConversationPhase("working"), false);
   assert.equal(isTerminalConversationPhase("waiting"), false);
 });

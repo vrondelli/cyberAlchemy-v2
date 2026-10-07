@@ -25,6 +25,16 @@ test('Stripe SDK verifies original bytes and rejects stale/future, live, wrong-a
  await assert.rejects(()=>verify(body,{'stripe-signature':signature(body)+',t='+now/1000}));
 });
 
+test('signed Stripe dispute closure retains only its dispute resource as a lookup hint',async()=>{
+ const raw=Buffer.from(JSON.stringify({...e,id:'evt_dispute',type:'charge.dispute.closed',
+   data:{object:{id:'du_fixture',object:'dispute',status:'lost',charge:'ch_untrusted',
+     payment_intent:'pi_untrusted',customer_email:'private@example.test'}}}));
+ const event=await stripeVerifier()(raw,{'stripe-signature':signature(raw)});
+ assert.deepEqual(event,{provider:'stripe',account:'acct_fixture',environment:'sandbox',
+   eventId:'evt_dispute',eventType:'charge.dispute.closed',resourceId:'du_fixture',resourceKind:'dispute'});
+ await assert.rejects(()=>stripeVerifier()(raw,{'stripe-signature':signature(body)}));
+});
+
 test('durable inbox deduplicates across restart, rejects conflicting references and stores no payer payload',async t=>{
  const root=await mkdtemp(join(tmpdir(),'keld-events-'));t.after(()=>rm(root,{recursive:true,force:true}));const database=join(root,'ledger.db');
  const repo=()=>createRepository({database,releaseDigest:'a'.repeat(64)});
@@ -33,7 +43,7 @@ test('durable inbox deduplicates across restart, rejects conflicting references 
  assert.deepEqual(await make().receive('stripe',body,{'stripe-signature':signature(body)}),{accepted:true,duplicate:true});
  const changed=Buffer.from(JSON.stringify({...e,data:{object:{id:'cs_other',object:'checkout.session'}}}));
  await assert.rejects(()=>inbox.receive('stripe',changed,{'stripe-signature':signature(changed)}),x=>x.status===409);
- assert.equal((await repo()('reconcile-scan',{now:now/1000})).orders.length,0);
+ assert.equal((await repo()('reconcile-inspect',{now:now/1000})).total,0);
  assert.equal((await readFile(database)).includes(Buffer.from('private-payer@example.test')),false);
  await assert.rejects(()=>inbox.receive('paypal',body,{}),x=>x.status===404);
 });
@@ -63,13 +73,37 @@ test('PayPal reuses SDK OAuth and preserves raw event JSON in bounded sandbox po
  await assert.rejects(()=>verify(paypalRaw,{...paypalHeaders,'paypal-cert-url':'http://127.0.0.1/private'}));assert.equal(calls,2);
 });
 
+test('signed PayPal refund webhook stores only a refund-ID lookup hint',async t=>{
+ t.after(()=>nock.cleanAll());
+ const raw=Buffer.from('{"id":"WH-REFUND","event_type":"PAYMENT.CAPTURE.REFUNDED","resource_type":"refund","resource":{"id":"REFUND123","status":"COMPLETED","amount":{"value":"999.00"}}}');
+ nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,
+   {access_token:'fixture-token',token_type:'Bearer',expires_in:3600});
+ let postback;
+ const verify=createEventVerifiers(paypalConfig,{request:async(_url,options)=>{
+   postback=options.body;return new Response('{"verification_status":"SUCCESS"}');
+ }}).paypal;
+ assert.deepEqual(await verify(raw,paypalHeaders),{provider:'paypal',account:'MERCHANT123',
+   environment:'sandbox',eventId:'WH-REFUND',eventType:'PAYMENT.CAPTURE.REFUNDED',
+   resourceId:'REFUND123',resourceKind:'refund'});
+ assert.ok(postback.includes('"webhook_event":'+raw.toString()));assert.ok(nock.isDone());
+});
+
 test('PayPal verification failure and oversized/unavailable responses never reach the inbox',async t=>{
  t.after(()=>nock.cleanAll());nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,{access_token:'fixture-token',token_type:'Bearer',expires_in:3600});
  let mode='failure',stored=0;const verifiers=createEventVerifiers(paypalConfig,{request:async()=>mode==='failure'?new Response('{"verification_status":"FAILURE"}'):mode==='large'?new Response('x'.repeat(9000)):Promise.reject(Error('private failure'))});
  let admitted=0;const inbox=createEventInbox({verifiers,repository:async operation=>{if(operation==='event-admit')admitted++;else if(operation==='event-receive')stored++;else assert.fail('unexpected repository operation');}});
  await assert.rejects(()=>inbox.receive('paypal',paypalRaw,paypalHeaders),e=>e.status===403);
  for(mode of ['large','unavailable'])await assert.rejects(()=>inbox.receive('paypal',paypalRaw,paypalHeaders),e=>e.code==='event-verification-unavailable');
- assert.equal(admitted,3);assert.equal(stored,0);assert.ok(nock.isDone());
+ assert.equal(admitted,0);assert.equal(stored,0);assert.ok(nock.isDone());
+});
+
+test('webhook pre-auth gate bounds expensive concurrent verification without consuming durable allowance',async()=>{
+ let release;const blocked=new Promise(resolve=>{release=resolve;});let durable=0;
+ const inbox=createEventInbox({verifiers:{paypal:async()=>{await blocked;return {provider:'paypal',account:'MERCHANT123',environment:'sandbox',eventId:'bounded',eventType:'PAYMENT.CAPTURE.COMPLETED',resourceId:'CAPTURE1',resourceKind:'capture'};}},
+  repository:async operation=>{if(operation==='event-admit')durable++;return {accepted:true,duplicate:false};},maxConcurrentVerifications:1});
+ const first=inbox.receive('paypal',Buffer.from('{}'),{},'/events/paypal');
+ await assert.rejects(()=>inbox.receive('paypal',Buffer.from('{}'),{},'/events/paypal'),e=>e.code==='event-verification-busy'&&e.status===503);
+ assert.equal(durable,0);release();await first;assert.equal(durable,1);
 });
 
 test('HTTP event routes bypass buyer cookies only through verified durable receipt and default to disabled',async t=>{

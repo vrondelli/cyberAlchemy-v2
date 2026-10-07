@@ -4,7 +4,9 @@ import {EventEmitter, once} from "node:events";
 import {PassThrough} from "node:stream";
 import {mkdtempSync, rmSync} from "node:fs";
 import {createInterface} from "node:readline";
+import {createJsonLineProcessBackendAdapter} from "../packages/codex-app-server-wrapper/src/backend-adapter.mjs";
 import {createPersistentGateway} from "../packages/codex-app-server-wrapper/src/gateway.mjs";
+import {gatewayClientMethodPosture} from "../packages/codex-app-server-wrapper/src/host-method-policy.mjs";
 import {createGatewaySessionClient} from "../src/gateway-session-client.mjs";
 import {checkoutRoot} from "../src/prompt-hook.mjs";
 import {decide} from '../src/decision-cli.mjs';
@@ -21,6 +23,10 @@ async function fixture(t, options = {}) {
   const children = [], received = [];
   const build = () => createPersistentGateway({listen_path: `${dir}/gateway.sock`,
     session_store_path: `${dir}/sessions.jsonl`,
+    backend_adapter: createJsonLineProcessBackendAdapter({adapter_id: "fixture-json-line/v1",
+      client_method_posture: message => message?.method === "fixture/pending"
+        ? {kind: "admitted-host"} : gatewayClientMethodPosture(message)}),
+    backend: {command: "fixture"},
     wrapper_factory: () => ({
       processClientMessage: async message => ({to_server: [message], to_client: []}),
       processServerMessage: async message => ({to_server: [], to_client: [message]}),
@@ -31,7 +37,12 @@ async function fixture(t, options = {}) {
       child.kill = () => child.emit("exit", 0, "SIGTERM");
       createInterface({input: child.stdin}).on("line", line => {
         const message = JSON.parse(line); received.push(message);
-        if (message.method !== "fixture/pending" && Object.hasOwn(message, "id")) child.stdout.write(JSON.stringify({id: message.id, result: {echo: message.params}}) + "\n");
+        if (message.method !== "fixture/pending" && Object.hasOwn(message, "id")) {
+          const result = message.method === "turn/start"
+            ? {turn: {id: `fixture-turn-${received.length}`, threadId: message.params?.threadId}}
+            : {echo: message.params};
+          child.stdout.write(JSON.stringify({id: message.id, result}) + "\n");
+        }
       });
       children.push(child); return child;
     },
@@ -63,6 +74,20 @@ test('host-bound objective reaches real hook routing and completion without chan
 
 test('invalid host hook decision binding is rejected', () => {
   assert.throws(() => createGatewaySessionClient({socket_path: '/tmp/unused', consumer_id: 'a', lane: 'interaction-bound', hook_decide: true}), /hook-decide-invalid/);
+  assert.throws(() => createGatewaySessionClient({socket_path: '/tmp/unused', consumer_id: 'a', lane: 'interaction-bound', enforce_supported_tool_blocks: 'true'}), /tool-block-mode-invalid/);
+});
+
+test('gateway hook denial is opt-in and keeps the exact prompt binding', async t => {
+  const {client} = await fixture(t, {enforce_supported_tool_blocks: true});
+  const common = {session_id: 'bound-thread', turn_id: 'bound-turn', cwd: checkoutRoot};
+  const prompt = client.observeHook({...common, hook_event_name: 'UserPromptSubmit',
+    prompt: 'Explain the repository routing architecture'});
+  assert.equal(prompt.ok, true);
+  const effect = client.observeHook({...common, hook_event_name: 'PreToolUse',
+    tool_name: 'Bash', tool_use_id: 'blocked-tool', tool_input: {command: 'printf fixture'}});
+  assert.equal(effect.binding_digest, prompt.binding_digest);
+  assert.equal(effect.kind, 'block');
+  assert.equal(effect.stdout.hookSpecificOutput.permissionDecision, 'deny');
 });
 
 test("authenticated reconnect replays the exact stable request without redispatch", async t => {

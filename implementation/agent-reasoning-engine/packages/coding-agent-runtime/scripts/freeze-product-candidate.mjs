@@ -11,7 +11,6 @@ export function freezeProductCandidate({repository_root = resolve(import.meta.di
   const repositoryRoot = realpathSync(repository_root);
   const roots = [
     resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/coding-agent-runtime"),
-    resolve(repositoryRoot, "cyberAlchemy-v2/implementation/cyberalchemy-tui"),
   ];
   const excluded = new Set(["PRODUCT-CANDIDATE.json", "PRODUCT-TEST-RECEIPT.json"]);
   const files = {};
@@ -28,7 +27,7 @@ export function freezeProductCandidate({repository_root = resolve(import.meta.di
   }
   for (const root of roots) walk(root);
   const sourceSetDigest = sha256(stable(files));
-  return Object.freeze({schema_version: "cav2.coding-agent-product-candidate/v1", status: "frozen-testable-candidate", frozen_at: "content-addressed-no-wall-clock-binding", source_set_digest: sourceSetDigest, source_file_count: Object.keys(files).length, files, product_approval: "not-requested", authority_effect: "none", claim_limit: "Exact local testable product candidate only; no approval, adoption, publication, release, deployment, or external-effect authority."});
+  return Object.freeze({schema_version: "cav2.coding-agent-product-candidate/v2", status: "frozen-testable-candidate", frozen_at: "content-addressed-no-wall-clock-binding", source_set_digest: sourceSetDigest, source_file_count: Object.keys(files).length, files, product_approval: "not-requested", authority_effect: "none", claim_limit: "Exact runtime-only candidate; discontinued TUI and all UI conformance are outside this source set. No approval, adoption, publication, release, deployment, or external-effect authority."});
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.stdout.write(`${JSON.stringify(freezeProductCandidate(), null, 2)}\n`);

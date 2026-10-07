@@ -31,7 +31,7 @@ use separate databases and catalogues, not just separate ID namespaces.
 
 | Decision | Current evidence | Stage it controls |
 | --- | --- | --- |
-| License direction | User wants broad use/sharing/modification rights with resale requiring a change or addition; custom terms remain to be defined | Distribution review, customer terms and approved artifact |
+| License direction | User selected paid resale only for substantive new functionality or material functional improvement; reseller offers its modified source code free to verified ARE purchasers. [Candidate clauses](ARE-LICENSE-CANDIDATE.md) are not operative. | Distribution review, customer terms and approved artifact |
 | Payment provider | User requests Stripe, PayPal, USDC and Pix; country-dependent routing is researched; no adapter or provider session exists | Checkout API, currency-aware quotes, signature/event verification and sandbox integration |
 | Merchant/account and sandbox access | Not configured | Running the chosen provider's real sandbox journey |
 | Customer identity and recovery | Ledger accepts a trusted internal customer ID; no login or recovery implementation | Binding orders and protected downloads to the actual buyer |

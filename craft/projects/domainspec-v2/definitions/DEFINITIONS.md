@@ -1696,8 +1696,9 @@ historical decisions.
 
 Domain-context voice: the current baseline admits 13 backend meta-types and 39 realization rows across
 TypeScript, Python, and Rust. It preserves the 11 UI states as supporting context, the 31-row DS-D8
-relationship denominator, and the complete D36-D44 compensation definition epoch. Baselines `@1` through
-`@5` are historical; the current state points to `@6`.
+relationship denominator, and the complete D36-D44 compensation definition epoch. Earlier baselines
+`@1` through `@9` are historical; the current state points to `@10` through
+`definitions/meta-types/current-implementation.json`.
 
 Use carefully: distinguish baseline admission from DS-D1 semantic maturity and from conformance of a generated
 consumer project. These three axes can change independently.

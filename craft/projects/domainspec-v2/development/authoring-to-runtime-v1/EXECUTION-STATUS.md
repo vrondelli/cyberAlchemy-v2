@@ -1,31 +1,613 @@
 # Authoring-to-runtime execution
 
-## I07 decision pending — physical messaging destination ownership
+## L4X bounded completion — sole product-owner validation handoff
 
-Read-only provider review found a consequential unresolved choice. The checked
-messaging channel schema permits `provider_name: null`; the commerce fixture
-uses null for every channel. Its provider selection declares NATS and environment
-references but no channel-to-subject mapping. Nevertheless the TypeScript,
-Python and Rust reference publisher templates use `orders.submitted`. This is
-reference implementation behavior, not a graph-derived destination.
+Handoff `alchlang-domainspec-l4x-7f3bfe50b6dc40d8` now names exact P03
+candidate `alchlang-domainspec-p03-3ab76c2d9ee8bee4`, binds P04 and the
+discrepancy-free P05 review, and provides the only product-owner validation
+protocol. It covers three installed-language journeys, exact archive and output
+identities, evidence inspection, tamper rejection, explicit owner judgment,
+known limitations, and forbidden inferences.
 
-Decision requested from the product owner: should concrete channel destinations
-be authored in the existing channel `provider_name`, or in environment-specific
-runtime/provider bindings keyed by logical channel identity? The latter is the
-recommendation because one logical domain can retain identity across development
-and production destinations; it requires an explicit binding contract. The former
-reuses the current field but ties provider naming to the integration composition.
-Neither alternative authorizes inferring a physical subject from a logical ID.
+The handoff contract passes 13/13 static checks and its copyable Bash protocol
+passes syntax validation. Product-owner validation has not been executed and no
+result or approval is inferred. See `L4X-COMPLETION.md`,
+`PRODUCT-VALIDATION-HANDOFF.md`, and
+`evidence/l4x-product-validation-handoff/handoff.json`.
 
-Selected option: **pending owner decision** (2026-09-17). No provider code or
-default was changed by this review. The scope needing the decision is generic
-publication destination generation and its bootstrap configuration; graph-derived
-request dispatch and joined artifact compilation remain verified as below.
-The active goal remains 15/37 scoped completions, not achieved or globally blocked.
-Evidence: `impl/cli/examples/reconciled-commerce/integrations/application.json`,
-`impl/cli/examples/reconciled-commerce/providers/typescript.json`,
-`impl/system-integration/contracts/messaging-composition-v2.schema.json`, and
-`impl/cli/src/generation/provider-application-v1.ts`.
+Progress is **37/37 scoped completions**. The construction plan has reached its
+terminal handoff. Running the product-owner protocol and retaining its receipt
+are separate user decisions; publication, release, deployment and operation
+remain outside this plan.
+
+### Open Questions
+
+The product owner may now choose whether to run the protocol and where to retain
+the resulting receipt. A later product-approval request remains separately
+routed and separately decided.
+
+## P05 bounded completion — independent read-only obligation review
+
+The independent P05 review recomputed P01–P04 package, consumer, candidate,
+construction-binding, selected-byte, cross-binding, registry and claim-boundary
+obligations without importing the P04 materializer or changing candidate bytes.
+All 15 obligations pass; none fail or remain not evaluable, and there is no
+unresolved discrepancy.
+
+The pre/post snapshot covers 694 protected paths and is byte-identical. P03 and
+P04 currentness also pass inside that interval. See `P05-COMPLETION.md` and
+`evidence/p05-independent-review/review.json`.
+
+Progress is **36/37 scoped completions**. L4X handoff authoring is now eligible
+and is the remaining terminal node. Product-owner testing has not yet occurred;
+the handoff remains deferred until L4X authors its exact protocol.
+
+### Open Questions
+
+L4X owns the exact candidate identifier, product-level validation protocol,
+expected outcomes, known limitations, and forbidden-inference list.
+
+## P04 bounded completion — project-owned D65 construction binding
+
+Project-owned binding `alchlang-domainspec-p04-8a89b406e0218528` now accounts
+for all eleven CAV2-D65 revision-2 construction stages around exact P03
+candidate `alchlang-domainspec-p03-3ab76c2d9ee8bee4`. Seventeen selected
+artifacts are hash-bound, the first eight stages retain prototype/scaffold/
+testable posture, and the final three remain explicitly blocked.
+
+The currentness checker passes all 16 checks and the focused suite passes 4/4,
+including nine hostile mutations and a non-mutation proof. The binding is not
+registered; product-owner tests, product approval, authority requests,
+publication, release and deployment remain absent. See `P04-COMPLETION.md` and
+`evidence/p04-d65-construction-binding/construction-binding.json`.
+
+Progress is **35/37 scoped completions**. P05 is dependency-ready and owns the
+independent read-only obligation review. Product-owner validation remains
+deferred until L4X.
+
+### Open Questions
+
+P05 must leave no unresolved discrepancy in the exact P03/P04 handoff scope
+before L4X becomes eligible.
+
+## P03 bounded completion — exact tested candidate freeze
+
+The successor candidate now binds exact per-file inventories for current
+AlchLang and DomainSpec source, tests, construction tools, all four extracted
+npm archives and all three generated projects. Archive SHA-256 values match the
+exact P02-tested bytes, and regenerated TypeScript, Python and Rust build
+manifest identities match their P02 reports before the construction root is
+removed.
+
+The candidate records exact Node, npm, Python, TypeScript, tsx, Cargo and rustc
+identities plus the WSL/Linux environment and predecessor receipts. It
+explicitly uses a selected working-tree posture and does not claim the whole
+dirty repository is clean. The `--check` path performs only reads and hashes;
+the non-mutation and hostile-drift suite passes. See `P03-COMPLETION.md` and
+`evidence/p03-exact-candidate/candidate.json`.
+
+Progress is **34/37 scoped completions**. P04 is dependency-ready and owns the
+Project-controlled D65 ConstructionBinding candidate for the exact P03
+candidate. Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+P04 must account for every D65 construction stage without treating
+registration, evidence or candidate identity as approval, admission, release
+or authority.
+
+## P02 bounded completion — three clean installed consumers
+
+Three separate consumer projects install exact local DomainSpec and AlchLang
+archives outside the checkout. Each uses the installed `application-v1`
+TypeScript, Python or Rust example and passes source check, lowering, provider
+application build, exact verification, generated-evidence inspection, native
+compilation, an invalid/valid signed loopback webhook scenario, post-scenario
+verification and task-owned cleanup.
+
+The core archive now includes the deterministic example companions and
+`CLEAN-CONSUMER.md`; the refreshed P01 allowlist remains exact. TypeScript and
+Python install their lock-bound native dependencies into disposable copies;
+Rust uses the repository-locked Cargo 1.98.1 toolchain offline. No generated
+target is mutated, no checkout link or fallback is used, and all consumer roots
+are removed before the reports are persisted. See `P02-COMPLETION.md` and
+`evidence/p02-clean-consumers/qualification.json`.
+
+Progress is **33/37 scoped completions**. P03 is dependency-ready and owns the
+exact candidate manifest plus non-mutating currentness validator. Product-owner
+validation remains deferred until L4X.
+
+### Open Questions
+
+P03 must freeze the exact package files, tools, environments, reports and claim
+ceiling without treating P02's passing runtime smokes as product approval.
+
+## O01 bounded completion — portable declared tool identities
+
+The AlchLang command wrapper now resolves `tsc` and `tsx` only from exact
+package-lock bin targets. Cargo and rustc are version-bound to the repository
+Rust lock, including when an already-installed sysroot is mounted read-only in
+the container. Ambient Node-tool fallback and checkout-relative tool borrowing
+are rejected.
+
+The same five-test resolver suite passes on the host and in a network-disabled,
+read-only container without path repair. The qualification validator passes
+2/2, and the combined O01/P01 selection passes 9/9 with zero skips. See
+`O01-COMPLETION.md`, the AlchLang `TOOLCHAIN-HARNESS.md`, and
+`evidence/o01-portable-toolchain/qualification.json`.
+
+Progress is **32/37 scoped completions**. With P01 and O01 complete, P02 is now
+dependency-ready and owns the three clean installed-consumer flows.
+Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+P02 must preserve exact tool identities across installation, execution and
+residue-free cleanup for every consumer path.
+
+## P01 bounded completion — exact package boundaries
+
+AlchLang core, optional Rust and experimental local-host packages now have
+committed exact file allowlists, command maps, export maps, curated docs and
+examples. The separate DomainSpec CLI boundary is hash-bound and expanded to
+exact current schema/example/documentation files. Package construction copies
+only allowlisted files and rejects any archive inventory difference.
+
+Emitted declarations no longer contain checkout-relative DomainSpec type
+imports. The combined package and qualification suite passes 10/10 with zero
+skips. See `P01-COMPLETION.md`, the AlchLang `PACKAGE-BOUNDARIES.md`, and
+`evidence/p01-package-boundaries/qualification.json`.
+
+Progress is **31/37 scoped completions**. P02 now waits only for O01
+host/container tool-path equivalence, making O01 the next causal prerequisite.
+Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+O01 owns package-local TypeScript and Cargo resolution on host and container.
+P02 owns clean installation, execution and cleanup from the candidate archives.
+
+## L3X bounded completion — evidence-connected construction candidate
+
+E01–E05 now join into one current evidence-connected construction candidate.
+All five node completions and qualifications are exact-hash bound, each node's
+claim ceiling is separately digested, and the joined denominator has no
+missing, failed or skipped node.
+
+The join explicitly records that product-owner validation was not performed,
+product approval and production proof are not claimed, release admission is
+not granted and authority remains unchanged. See `L3-COMPLETION.md` and
+`evidence/l3-completion/qualification.json`.
+
+Progress is **30/37 scoped completions**. P01 is the next product-construction
+node. O01 remains a separate operational-support prerequisite for P02 and does
+not block P01. Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+P01 owns exact package boundaries and user documentation. O01 owns host and
+container tool-path equivalence before installed-consumer qualification.
+
+## E05 bounded completion — cross-layer semantic evidence qualification
+
+All 32 inherited obligations from E01–E04 now bind to current behavioral
+oracles across non-collapse, semantics, orthogonality, property/oracle,
+mutation, determinism and currentness. The closed matrix rejects stale test or
+source bindings, missing obligations, representation-only substitutions and
+unexplained gaps.
+
+The behavioral suite covers the 2-provider × 8-causal-outcome product and all
+16 runtime-stage subsets. The complete serial application regression passes
+149/149 with zero skips. See `L3-EVIDENCE-OBLIGATION-MATRIX.md`,
+`E05-COMPLETION.md` and
+`evidence/e05-cross-layer-evidence/qualification.json`.
+
+Progress is **29/37 scoped completions**. L3X is now dependency-ready and owns
+the joined evidence-connected candidate receipt. Product-owner validation
+remains deferred until L4X.
+
+### Open Questions
+
+L3X must preserve the E01–E05 claim ceilings and must not describe formal or
+runtime evidence as product approval or production proof.
+
+## E04 bounded completion — exact stage-separated runtime observation joining
+
+Exact runtime receipts and immutable DomainSpec observations now join to the
+authored source, compiled graph, provider selection, generated bytes, runtime
+environment, cleanup report and one-way ORODI binding. Application commit,
+provider acceptance, transport delivery and business completion remain four
+independent evidence slots; missing stages stay explicitly unobserved.
+
+Receipt/observation identity, claim ceilings and canonical digests must agree.
+Swapped stages, inferred stages, incomplete evidence pairs, ORODI return/control
+edges and cleanup residue reject. See `RUNTIME-OBSERVATION-JOIN.md`,
+`E04-COMPLETION.md` and
+`evidence/e04-runtime-observation-join/qualification.json`.
+
+Progress is **28/37 scoped completions**. E05 is now dependency-ready and owns
+the cross-layer semantic and non-collapse qualification across E01-E04.
+Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+E05 owns non-collapse, semantic, orthogonality, property/oracle, mutation,
+determinism and currentness coverage. L3X owns bounded evidence closure after
+E05.
+
+## E03 bounded completion — exact causal EVF evidence joining
+
+The current execution-evidence and theorem-evidence routes now consume exact
+provider requests and receipts, emit the corresponding current DomainSpec
+evidence binding and EVF join, and retain an AlchLang causal wrapper. All eight
+outcomes remain distinct across both routes: pass, fail, unknown, timeout,
+malformed, stale, unavailable and not-evaluable.
+
+Only pass can satisfy an obligation. Non-pass outcomes retain their cause,
+residue and revision route; unavailable evidence is represented by an exact
+availability observation rather than omission. Pass requires complete semantic
+comparability and current bytes. See `EVF-EVIDENCE-JOIN.md`,
+`E03-COMPLETION.md` and
+`evidence/e03-evf-evidence-join/qualification.json`.
+
+Progress is **27/37 scoped completions**. E04 is next on the runtime-evidence
+branch; E05 waits for E03 and E04. Product-owner validation remains deferred
+until L4X.
+
+### Open Questions
+
+E04 owns source-bound, stage-separated runtime observations. E05 owns the
+cross-layer semantic and non-collapse qualification across E01-E04.
+
+## E02 bounded completion — exact FormalClaim v4-to-v2 projection
+
+The current AlchLang definition-bound FormalClaim v4 subset now projects into
+the current `FormalClaimSourcePayload/v2` TDE intake without creating a second
+claim or repairing meaning. Claim identity, business binding, profile,
+proposition, signature, definition dependency, interpretation boundary and
+ceiling remain bound across the compatibility view.
+
+Five v2 target-shape losses are explicit and retained through the projection
+record and preservation binding; semantic loss is zero. Proposition and ceiling
+mutations create new claim/projection identities rather than being normalized
+back to prior meaning. See `FORMAL-CLAIM-V4-V2-PROJECTION.md`,
+`E02-COMPLETION.md` and
+`evidence/e02-formal-claim-projection/qualification.json`.
+
+Progress is **26/37 scoped completions**. E03 is next on the serial
+formal-evidence chain; E04 remains dependency-ready in parallel. Product-owner
+validation remains deferred until L4X.
+
+### Open Questions
+
+E03 owns typed provider request/result evidence and EVF joining. FormalClaim
+admission remains independent from this compatibility construction.
+
+## E01 bounded completion — exact verification-profile authoring
+
+`application-v1` now authors one exact verification question over a declared
+FormalClaim. Lowering resolves current route, provider and runtime bytes, emits
+the existing DomainSpec EvaluationContext shape, a closed bounded request and a
+source trace, and explicitly reports no provider execution, evaluation result,
+release admission or authority effect.
+
+Two provider variants preserve the exact FormalClaim identity while changing
+the context and request digests. Missing, stale, mismatched and over-broad
+bindings reject. See `VERIFICATION-PROFILE-AUTHORING.md`, `E01-COMPLETION.md`
+and `evidence/e01-verification-profile/qualification.json`.
+
+Progress is **25/37 scoped completions**. E02 is next on the serial
+formal-evidence chain; E04 remains dependency-ready in parallel. Product-owner
+validation remains deferred until L4X.
+
+### Open Questions
+
+E02 owns the exact v4-to-current-v2 FormalClaim projection. E03 owns typed
+provider outcomes and the EVF evidence join.
+
+## L2X bounded completion — complete three-language authoring breadth
+
+C01–C06 are joined with no missing, failed or skipped denominator. The one
+`application-v1` product grammar now covers thirteen backend meta-types,
+declared formal consumers, explicit multi-file/multi-entry composition,
+TypeScript/Python/Rust realization and hostile/currentness closure. Optional
+profiles and legacy compatibility remain bounded adapters rather than being
+advertised as alternate core behavior.
+
+The L2 qualification binds every node completion and primary evidence artifact,
+and its validator rejects stale evidence, a skipped denominator or prototype
+promotion. See `L2-COMPLETION.md` and
+`evidence/l2-completion/qualification.json`.
+
+Progress is **24/37 scoped completions**. E01 and E04 are dependency-ready; E01
+is next in the serial schedule. Product-owner validation remains deferred until
+L4X.
+
+### Open Questions
+
+E01 owns verification-profile authoring. E04 owns stage-separated runtime
+observation binding. Neither may infer approval or authority from evidence.
+
+## C06 bounded completion — diagnostics, exact currentness and safe publication
+
+Public application checks now emit a deterministic currentness receipt binding
+the exact source, selected-input inventory, compiled domain manifest, executable
+trace, entry/application plans and explicit unsupported residue. The build
+manifest binds that receipt, and verify reforms expected bytes from current
+inputs rather than trusting output metadata.
+
+A closed 16-case hostile corpus passes without skips across source admission,
+input currentness, portable output identity, publication sealing, exact
+verification and repeatability. Two complete 21-file builds are byte-identical.
+Case/NFKC aliases reject before writes; existing destinations are not
+overwritten; late failures cannot leave a completion marker on owned partial
+output. See `DIAGNOSTICS-AND-CURRENTNESS.md`, `C06-COMPLETION.md` and
+`evidence/c06-hardening/qualification.json`.
+
+Progress is **23/37 scoped completions**. L2X is next. Product-owner validation
+remains deferred until L4X.
+
+### Open Questions
+
+L2X owns the joined full-language completion record. Installed-package and
+clean-consumer hostile behavior remains P02 work.
+
+## C05 bounded completion — TypeScript, Python and Rust parity
+
+The current compiler now has native and semantic evidence for all 39 domain
+realization cells: thirteen backend meta-types across TypeScript, Python and
+Rust, with no missing or skipped cell. The exact cell-selected run reports
+399/399 passing, the current realization matrix passes 3/3, and the Rust lane
+passes 68/68 under the repository toolchain launcher.
+
+The same authored L1 application forms, compiles and runs its bounded signed
+loopback scenario in all three target languages. Their normalized semantic
+outcome digests match; byte equality is explicitly not used as semantic proof.
+See `THREE-LANGUAGE-PARITY.md`, `C05-COMPLETION.md` and the current
+`evidence/c05-domain-realization/qualification.json`.
+
+Progress is **22/37 scoped completions**. C06 is next. Product-owner validation
+remains deferred until L4X.
+
+### Open Questions
+
+C06 owns hostile diagnostics, unsupported residue, exact currentness,
+repeatability and failed-build destination safety. Durable PostgreSQL, NATS and
+outbound HTTP behavior remains outside the C05 evidence ceiling.
+
+## C04 bounded completion — multi-file and explicit-entry composition
+
+The `application-v1` file path now supports a closed v2 composition companion
+with multiple exact source namespaces and multiple entry records. Every check,
+build or verify names one entry explicitly. Selected partitions join before the
+shared parser and DomainSpec lowering path; build and verify bind the resulting
+namespace/declaration/endpoint/Operation/route/runtime identities in an exact
+entry manifest. Missing selection, escaped paths, route collisions and identity
+collisions reject before output.
+
+Fresh validation passes TypeScript typecheck, the focused C04 suite **2/2**, the
+combined application-file/module/`service-v1` regression **17/17**, and the
+complete adjacent application suite **105/105**, all with zero skips. See
+`APPLICATION-COMPOSITION.md` and `C04-COMPLETION.md`.
+
+Progress is **21/37 scoped completions**. C05 is next. Product-owner validation
+remains deferred until L4X.
+
+### Open Questions
+
+C05 owns the complete TypeScript/Python/Rust domain and integration parity
+matrix. C06 owns broader Unicode/case collision and hostile currentness closure.
+
+## C03 bounded completion — formal-condition consumer closure
+
+Policy, State Machine, Invariant, Operation, Query and Workflow conditions now
+reuse declared Rules or FormalClaims under `application-v1`. Policy and target
+State Machine nodes carry exact typed Rule arguments; Workflow evidence retains
+direct Rule bindings and the guards of ordered Operation steps without inventing
+a backend Workflow guard field. Trigger and output Events remain distinct.
+
+Fresh validation passes TypeScript typecheck, the focused C03 suite **2/2**, the
+complete 18-case syntax contract in **2/2** groups, and the adjacent application
+suite **103/103** with zero skips. See `FORMAL-CONSUMER-GRAPH.md` and
+`C03-COMPLETION.md`.
+
+Progress is **20/37 scoped completions**. C04 is next; C05 still waits for C04.
+Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+E02 owns formal-provider/EVF connection. C05 owns three-language native parity.
+Any direct Workflow guard in DomainSpec requires a separate backend contract;
+C03 does not invent one.
+
+## C02 bounded completion — thirteen meta-types and selected constructors
+
+The `application-v1` normalized model now represents all thirteen active
+DomainSpec backend meta-types. One complete source lowers to thirteen distinct
+node kinds accepted together by the current DomainSpec compiler. Its Entity and
+public contract fields preserve scalar, explicit identity reference, optional,
+list, set and declared Enum-backed sum constructors.
+
+Fresh validation passes TypeScript typecheck, the focused C02 positive/hostile
+suite **2/2**, and the adjacent application suite **102/102** with zero skips.
+See `META-TYPE-OBLIGATION-MATRIX.md` and `C02-COMPLETION.md`.
+
+Progress was **19/37 scoped completions** at this boundary. C03 and C04 were
+dependency-ready; C05 still waited for both. Product-owner validation remained
+deferred until L4X.
+
+### Open Questions
+
+C03 owned complete FormalClaim consumer binding and C04 owns multi-file,
+namespace and entry selection. C02 does not broaden its payload-free,
+Enum-backed sum into an anonymous payload-union language.
+
+## C01 bounded completion — one closed root-profile selector
+
+The CLI and shared domain parser now use one closed root-profile registry.
+`application-v1` is the sole product grammar; explicit/historical SFOL remains
+compatibility, and existing capability/Rust/local-host packages are bounded
+adapters with `product_language: false`. Duplicate, malformed and unknown
+profile claims reject before semantic dispatch, and profiles expose closed
+command capabilities. See `PROFILE-ARCHITECTURE.md`.
+
+Strict typecheck and the focused selector/parser/source suite pass **18/18**,
+including CLI rejection of a command outside the selected profile contract.
+The applicable cross-profile adapter selection passes **35/35**; three
+module-configuration cases are not evaluable because a pre-existing external
+semantic-adapter file is absent. Optional-package and relevant Rust/ontology/
+migration regression evidence passes **48/48**. A broader local-host runtime
+run is not completion evidence because the existing provisioner rejects its
+dirty runtime input with a causal `SOURCE_DRIFT` diagnostic.
+
+C01 is scoped complete at **18/37**. The matrix, compatibility boundary,
+validation accounting and claim ceiling are joined in `C01-COMPLETION.md`.
+C02, C03 and C04 are now dependency-ready; product-owner validation remains
+deferred until L4X.
+
+### Open Questions
+
+The absent module-port adapter and the provisioner source drift belong to their
+existing package owners and are not authority to substitute checkout-local
+bytes or refresh unrelated manifests. C02–C04 own any later promotion of
+package-local capabilities into the shared product model.
+
+## L1X bounded completion — one-source TypeScript whole application
+
+I07 and L1X now satisfy their bounded review-5 obligations. The public
+application path derives persistence, messaging and external-API contracts from
+the checked `application-v1` source plus the explicitly selected reference
+provider pack; the companion no longer contains those backend documents.
+Unsupported packs, partial manual companions and ambiguous persistence failure
+ownership reject.
+
+The public scenario observes optional Query absence rollback, one-row commit
+and multiple-row `QUERY_CARDINALITY` rollback. A strict-compiling Query
+cardinality mutant disagrees with the independent public-flow oracle. The same
+path builds, exactly verifies and natively compiles the provider application,
+then observes the signed inbound loopback. See `L1-COMPLETION.md` for obligation
+accounting, evidence limits and checkpoint hashes.
+
+Progress is **17/37 scoped completions**. C01 is the next
+product-construction node. PostgreSQL, NATS and outbound HTTP remain
+unobserved; no durability, delivery, deployment, approval or production claim
+is made. Product-owner validation remains deferred until L4X.
+
+### Open Questions
+
+L2 owns richer applications with more than one persistence write Operation and
+the complete language/three-target denominator. No new product decision blocks
+C01.
+
+## Chronological prior increments
+
+The sections below preserve their contemporaneous evidence and claim ceilings.
+Their earlier I07-open statements and 15/37 counts are superseded by the L1X
+completion record above; they do not reset the current frontier.
+
+## I07 progress — public Alch provider formation and bounded loopback
+
+The public Alch file check/build/verify path now composes the checked
+whole-application result into a DomainSpec provider application. Its report,
+trace, artifact index and sealed manifest retain both the whole-application and
+provider-plan digests. The public DomainSpec facade exposes the same provider
+composer used by the Alch adapter.
+
+For non-reference TypeScript applications, provider generation now derives
+request, response, publication and subscription mapping identities from the
+checked application graph. It no longer assumes the reconciled-commerce
+`perform` operation or its mapping IDs. The frozen reference fixture keeps its
+existing generator unchanged.
+
+Fresh evidence passes: DomainSpec CLI build; focused Alch application tests
+**9/9** with zero skips; and focused provider generation, CLI and output tests
+**24/24** with zero skips. The public Alch scenario builds and exactly verifies
+the emitted provider application, natively compiles a disposable copy, observes
+source-authored optional-Query absence rollback and one-row commit behavior,
+then exercises a signed inbound loopback with invalid signature `401`, valid
+signature `202` and exactly one handler invocation. The original generated
+target verifies unchanged afterward.
+
+This establishes provider code formation, static compilation and a bounded
+signed-inbound observation. PostgreSQL, NATS and outbound HTTP behavior remain
+unobserved. The generic persistence and messaging bodies are not qualified for
+durable runtime use.
+
+### Open Questions
+
+I07 remains open at **15/37 scoped completions**. The public source path still
+requires manually supplied persistence, messaging and external-API companion
+contracts. Those internal contracts must be derived from authored inputs before
+the product path satisfies the no-hand-written-backend-JSON requirement. The
+complete public flow also retains optional Query multiple-result rejection and
+a semantic-mutant witness. No product-owner test is requested before L4X.
+
+## I07 internal construction smoke — one-command TypeScript check
+
+The reconciled commerce example now includes a packaged, maintainer-runnable
+TypeScript smoke command. From the CLI checkout,
+`npm run smoke:reconciled-commerce:typescript -- --output <new-directory>`
+builds the CLI, generates the provider application, verifies exact currentness,
+natively compiles a disposable copy, exercises the signed loopback webhook, and
+verifies the unchanged generated target again. The requested output remains for
+inspection; the command refuses to overwrite an existing path.
+
+Fresh execution passes with native compilation, loopback listener startup,
+invalid-signature `401`, valid-signature `202`, exactly one handler invocation,
+zero generated-target mutation, and removal of verifier-owned temporary
+resources. The npm package dry run includes the runner and its instructions.
+PostgreSQL, NATS and outbound HTTP remain explicitly unobserved, so this is
+internal construction evidence rather than I07 completion, a product-owner
+validation surface, or a production-runtime claim.
+
+Evidence: `impl/cli/examples/reconciled-commerce/test-typescript.mjs`,
+`impl/cli/examples/reconciled-commerce/README.md`, and the external
+`provider-application-runtime-evidence/v1-candidate` receipt produced by the
+command.
+
+### Open Questions
+
+I07 still owns the public Alch source-to-provider join and broader bounded
+application loopback. This smoke surface supports maintainers without changing
+the recorded 15/37 completion count. It must not be presented to the product
+owner for testing; the sole owner-facing validation handoff follows L4X as
+defined in `IMPLEMENTATION-DAG.md`.
+
+## I07 owner choice implemented — runtime/provider messaging destinations
+
+On 2026-09-20 the product owner selected environment-specific runtime/provider
+bindings keyed by logical channel identity. Provider selections now declare an
+exact `messaging_destinations` mapping from each publication `channel_ref` to a
+required endpoint environment reference. Composition rejects missing, extra, or
+wrong-channel bindings; it never derives a physical destination from the logical
+channel ID or from the integration channel's nullable `provider_name`.
+
+The reference TypeScript, Python and Rust publisher generators no longer embed
+`orders.submitted`. Generated configuration requires `ORDER_EVENTS_TOPIC`, the
+runtime-port manifest identifies that environment reference on the publication
+port, and bootstrap construction passes the decoded value into the publisher.
+The reference runtime supplies its bounded fixture subject through the same
+configuration boundary. Logical channel identity therefore remains stable while
+each runtime environment owns its physical destination.
+
+Fresh evidence: provider generation **17/17**, focused provider/CLI/runtime tests
+**12/12**, whole-application regression **57/57**, TypeScript typecheck and build
+all pass. The Rust provider case includes pinned-toolchain `clippy -D warnings`
+and locked offline tests. This closes the physical destination ownership blocker,
+not I07 as a whole; the recorded goal count remains **15/37 scoped completions**
+pending a separate node-completion assessment. Publication, release, deployment,
+and live runtime guarantees remain outside this construction result.
+
+Evidence: `impl/system-integration/contracts/provider-pack-selection-v1.schema.json`,
+`impl/cli/src/system-integration/provider-pack-v1.ts`,
+`impl/cli/src/generation/provider-application-v1.ts`, and
+`impl/cli/test/generation/provider-application-v1.test.ts`.
+
+### Open Questions
+
+Remaining I07 work is owned by the runnable construction frontier below: complete
+the remaining graph-derived provider bodies and the bounded application loopback
+proof. No messaging-destination ownership decision remains open.
 
 ## I07 progress — Alch builds joined whole-application artifacts
 

@@ -44,21 +44,21 @@ test("default and explicit DomainSpec builds share output; compatibility is expl
   }
 });
 
-test("compiler checkout binding is exact and ambiguity never selects a first match", t => {
+test("compiler checkout binding selects Craft and legacy roots require an explicit binding", t => {
   const parent = temporary(t), checkout = path.join(parent, "cyberAlchemy-v2");
-  const old = path.join(parent, "projects/domainspec-v2/impl/cli");
+  const craft = path.join(checkout, "craft/projects/domainspec-v2/impl/cli");
   const sibling = path.join(parent, "domainspec-core/projects/domainspec-v2/impl/cli");
   assert.throws(() => resolveDomainSpecPackageRoot(checkout), /PACKAGE_MISSING/);
   mkdirSync(sibling, { recursive: true }); writeFileSync(path.join(sibling, "package.json"), "{}");
-  assert.equal(resolveDomainSpecPackageRoot(checkout), sibling);
-  mkdirSync(old, { recursive: true }); writeFileSync(path.join(old, "package.json"), "{}");
-  assert.throws(() => resolveDomainSpecPackageRoot(checkout), /PACKAGE_AMBIGUOUS/);
+  assert.throws(() => resolveDomainSpecPackageRoot(checkout), /PACKAGE_MISSING/);
+  mkdirSync(craft, { recursive: true }); writeFileSync(path.join(craft, "package.json"), "{}");
+  assert.equal(resolveDomainSpecPackageRoot(checkout), craft);
   assert.equal(resolveDomainSpecPackageRoot(checkout, sibling), sibling);
   assert.equal(
-    resolveTypeScriptCompiler(sibling, undefined, path.join(parent, "compiler-without-toolchain")),
-    path.join(parent, "domainspec-core/projects/domainspec-v2/impl/node_modules/.bin/tsc"),
+    resolveTypeScriptCompiler(craft, undefined, path.join(parent, "compiler-without-toolchain")),
+    path.join(checkout, "craft/projects/domainspec-v2/impl/node_modules/.bin/tsc"),
   );
-  assert.equal(resolveTypeScriptCompiler(sibling, path.join(parent, "tools/tsc")), path.join(parent, "tools/tsc"));
+  assert.equal(resolveTypeScriptCompiler(craft, path.join(parent, "tools/tsc")), path.join(parent, "tools/tsc"));
 });
 
 test("AlchLang uses the public shared-ontology adapter without mutating source evidence", async () => {

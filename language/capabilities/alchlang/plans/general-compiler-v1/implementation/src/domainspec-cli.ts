@@ -17,7 +17,8 @@ export interface DomainSpecGraph {
 }
 export interface DomainSpecIo { stdout(value: string): void; stderr(value: string): void }
 export interface DomainSpecCompiler {
-  composeApplicationArtifacts(plan: any, source: unknown, binding: unknown): { artifacts: readonly { relative_path: string; content: string; sha256: string; size_bytes: number }[]; plan_sha256: string; runtime_guarantees_observed: false; authority_effect: "none" };
+  composeApplicationArtifacts(plan: any, source: unknown, binding: unknown): { language: "typescript" | "python" | "rust"; artifacts: readonly { relative_path: string; content: string; sha256: string; size_bytes: number }[]; plan_sha256: string; runtime_guarantees_observed: false; authority_effect: "none" };
+  composeProviderApplicationArtifacts(whole: unknown, selection: unknown, source: unknown, route?: Readonly<{ method: "POST"; path: string }>): { language: "typescript" | "python" | "rust"; artifacts: readonly { relative_path: string; content: string; sha256: string; size_bytes: number }[]; plan_sha256: string; whole_application_plan_sha256: string; provider_selection_sha256: string; runtime_guarantees_observed: false; authority_effect: "none" };
   compileApplicationRuntimeBinding(graph: DomainSpecGraph, source: unknown, providers: unknown, selection: unknown): any;
   compileProviderRuntimeProfile(input: unknown, requirements: unknown): { selection: { language: "typescript" | "python" | "rust"; [key: string]: unknown }; requirements: Record<string, string>; selection_sha256: string; requirements_sha256: string; runtime_guarantees_observed: false; authority_effect: "none" };
   compileExternalApiRuntimeBindings(graph: DomainSpecGraph, input: unknown, selection: unknown): any;
@@ -25,6 +26,7 @@ export interface DomainSpecCompiler {
   compileMessagingRuntimeBindings(graph: DomainSpecGraph, input: unknown, selection: unknown): any;
   compileMessagingComposition(input: unknown): any;
   compilePersistenceComposition(input: unknown): any;
+  integrationDefinitionPackSha256: string;
   decodeReconciledCompilationSelection(input: unknown): any;
   planApplicationRealization(graph: DomainSpecGraph, selection: unknown): { plan: any; view: { artifacts: readonly { relative_path: string; content: string; sha256: string; size_bytes: number }[]; [key: string]: unknown } };
   compileFormalConditionBindings(graph: DomainSpecGraph, input: unknown, sources: ReadonlyMap<string, Buffer>): unknown;
@@ -67,17 +69,14 @@ export function defaultDomainSpecPackageRoot(): string {
   return resolveDomainSpecPackageRoot(checkout);
 }
 
-/** The two documented checkout layouts; ambiguity requires an explicit binding. */
+/** Resolve the repository-owned Craft compiler; other layouts require an explicit binding. */
 export function resolveDomainSpecPackageRoot(checkout: string, explicitRoot?: string): string {
   if (explicitRoot) return path.resolve(explicitRoot);
-  const parent = path.dirname(checkout);
-  const relative = "projects/domainspec-v2/impl/cli";
-  const candidates = [path.join(parent, relative), path.join(parent, "domainspec-core", relative)]
-    .filter((root) => existsSync(path.join(root, "package.json")));
-  if (candidates.length !== 1) throw new Error(candidates.length
-    ? "DOMAINSPEC_PACKAGE_AMBIGUOUS: set ALCHLANG_DOMAINSPEC_PACKAGE_ROOT"
-    : "DOMAINSPEC_PACKAGE_MISSING: set ALCHLANG_DOMAINSPEC_PACKAGE_ROOT");
-  return candidates[0]!;
+  const craftRoot = path.join(path.resolve(checkout), "craft/projects/domainspec-v2/impl/cli");
+  if (!existsSync(path.join(craftRoot, "package.json"))) {
+    throw new Error("DOMAINSPEC_PACKAGE_MISSING: expected the Craft compiler or set ALCHLANG_DOMAINSPEC_PACKAGE_ROOT");
+  }
+  return craftRoot;
 }
 
 export async function loadDomainSpecCompiler(packageRoot = defaultDomainSpecPackageRoot()): Promise<DomainSpecCompiler> {
@@ -106,19 +105,24 @@ export async function loadDomainSpecCompiler(packageRoot = defaultDomainSpecPack
   const requireLayout=()=>{if(api.APPLICATION_LAYOUT?.id!=="domainspec.application-layout/v1" || !api.APPLICATION_PATHS || typeof api.outputImport!=="function")throw Error("DOMAINSPEC_APPLICATION_LAYOUT_BUILD_REQUIRED");};
   const decodeExecutionSelection=(input:unknown)=>{
     const version=input&&typeof input==='object'?Object.getOwnPropertyDescriptor(input,'schema_version'):undefined;
-    const decode=version?.value==='domainspec.reconciled-compilation/v2-candidate'?api.decodeComposedReconciledCompilationSelection:api.decodeReconciledCompilationSelection;
+    const decode=version?.value==='domainspec.reconciled-compilation/v2-candidate'?api.decodeComposedReconciledCompilationSelection:api.decodeSelectedReconciledCompilation;
     if(typeof decode!=='function')throw Error('DOMAINSPEC_REALIZATION_BUILD_REQUIRED');
     return decode(input);
   };
   return {
     composeApplicationArtifacts(plan, source, binding) {
-      if (typeof api.assertReconciledProjectPlan !== "function" || typeof api.planEmbeddedIntegrationContributionV1 !== "function") throw Error("DOMAINSPEC_WHOLE_APPLICATION_BUILD_REQUIRED");
-      api.assertReconciledProjectPlan(plan);
+      if (typeof api.assertSelectedReconciledProject !== "function" || typeof api.planEmbeddedIntegrationContributionV1 !== "function") throw Error("DOMAINSPEC_WHOLE_APPLICATION_BUILD_REQUIRED");
       const compose = plan.selection.schema_version === "domainspec.reconciled-compilation/v2-candidate"
         ? api.composeComposedWholeApplicationPlan : api.composeWholeApplicationPlanV1;
       if (typeof compose !== "function") throw Error("DOMAINSPEC_WHOLE_APPLICATION_BUILD_REQUIRED");
+      if (plan.selection.schema_version === "domainspec.reconciled-compilation/v2-candidate") api.assertReconciledProjectPlan(plan);
+      else api.assertSelectedReconciledProject(plan);
       const contribution = api.planEmbeddedIntegrationContributionV1(source, plan.selection.language);
       return compose(plan, contribution, binding);
+    },
+    composeProviderApplicationArtifacts(whole, selection, source, route) {
+      if (typeof api.composeProviderApplicationV1 !== "function") throw Error("DOMAINSPEC_PROVIDER_APPLICATION_BUILD_REQUIRED");
+      return api.composeProviderApplicationV1(whole, selection, source, route);
     },
     compileApplicationRuntimeBinding(graph, source, providers, selection) {
       if (typeof api.compileApplicationRuntimeBindingV1 !== "function") throw Error("DOMAINSPEC_APPLICATION_RUNTIME_BUILD_REQUIRED");
@@ -156,16 +160,22 @@ export async function loadDomainSpecCompiler(packageRoot = defaultDomainSpecPack
       if (typeof api.compilePersistenceCompositionV2 !== "function") throw Error("DOMAINSPEC_PERSISTENCE_BUILD_REQUIRED");
       return api.compilePersistenceCompositionV2(input);
     },
+    get integrationDefinitionPackSha256() {
+      if (typeof api.SYSTEM_INTEGRATION_DEFINITION_PACK_SHA256 !== "string") throw Error("DOMAINSPEC_INTEGRATION_DEFINITION_BUILD_REQUIRED");
+      return api.SYSTEM_INTEGRATION_DEFINITION_PACK_SHA256;
+    },
     decodeReconciledCompilationSelection(input) {
       return decodeExecutionSelection(input);
     },
     planApplicationRealization(graph, selection) {
-      if (typeof api.planCompiledReconciledProject !== "function" || typeof api.selectReconciledArtifacts !== "function") throw Error("DOMAINSPEC_REALIZATION_BUILD_REQUIRED");
+      if (typeof api.planCompiledSelectedReconciledProject !== "function" || typeof api.selectSelectedReconciledArtifacts !== "function") throw Error("DOMAINSPEC_REALIZATION_BUILD_REQUIRED");
       const decoded=decodeExecutionSelection(selection);
-      const generate=decoded.schema_version==='domainspec.reconciled-compilation/v2-candidate'?api.planCompiledComposedReconciledProject:api.planCompiledReconciledProject;
+      const generate=decoded.schema_version==='domainspec.reconciled-compilation/v2-candidate'?api.planCompiledComposedReconciledProject:api.planCompiledSelectedReconciledProject;
       if(typeof generate!=='function')throw Error('DOMAINSPEC_REALIZATION_BUILD_REQUIRED');
       const plan = generate(graph, decoded);
-      return { plan, view: api.selectReconciledArtifacts(plan) };
+      const select=decoded.schema_version==='domainspec.reconciled-compilation/v2-candidate'?api.selectReconciledArtifacts:api.selectSelectedReconciledArtifacts;
+      if(typeof select!=='function')throw Error('DOMAINSPEC_REALIZATION_BUILD_REQUIRED');
+      return { plan, view: select(plan) };
     },
     compileFormalConditionBindings(graph, input, sources) {
       if (typeof api.compileFormalConditionBindings !== "function") throw Error("DOMAINSPEC_FORMAL_BINDING_BUILD_REQUIRED");

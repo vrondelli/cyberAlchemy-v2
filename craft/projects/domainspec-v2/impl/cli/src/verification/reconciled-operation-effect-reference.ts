@@ -8,6 +8,7 @@ import {createStructuralFacts,type FactRecipe} from './reconciled-rule-facts.js'
 import {operationReferenceValue,OperationReferenceUnsupported,type OperationFixtureMode} from './reconciled-operation-reference.js';
 import {captureOperationRecipe,createOperationValueReference,operationReferenceEvent,operationReferenceFields} from './reconciled-operation-values.js';
 import type {FactoryBinding} from '../generation/configured-factories.js';
+import {eventReferenceIdentity} from '../generation/event-reference-identity.js';
 
 export interface OperationEffectFixture {
  readonly reads:readonly Readonly<{slot:string;value:FactRecipe;throws?:boolean}>[];
@@ -30,6 +31,7 @@ export function createBoundEffectfulOperationReference(graph:CompiledProjectGrap
  assertCompiledProjectSnapshot(graph);assertCheckedOperationAction(action);
  if(action.certificate.graph_sha256!==createCompiledProjectCertificate(graph).graph_sha256)throw new TypeError('OPERATION_REFERENCE_BINDING');
  const b=action.bindings,values=createOperationValueReference(graph),factories=new Map(bindings.map(f=>[f.selector,f]));
+ const eventReferenceScalar=(selector:string)=>eventReferenceIdentity(graph,selector,reason=>{throw new OperationReferenceUnsupported(reason);}).scalar;
  const roots=[...b.guards.map(g=>g.selector),...bindings.flatMap(f=>f.base_validators.map(v=>v.rule))];
  const facts=createStructuralFacts(graph,roots,[b.result.value,...b.guards.flatMap(g=>g.arguments.map(a=>a.value))]);
  const ensure=(type:TypedType,v:any,depth=0):void=>{
@@ -96,7 +98,7 @@ export function createBoundEffectfulOperationReference(graph:CompiledProjectGrap
    const events=action.events.map(e=>({slot:e.slot,target:e.target,value:operationReferenceEvent(e.contract,captured[e.parameter],()=>{
     clock_calls.push(e.slot);const c=fixture.clocks.find(c=>c.slot===e.slot)!;
     if(c.mode==='throw')throw new TypeError('OPERATION_REFERENCE_CLOCK');return c.value;
-   })}));
+   },eventReferenceScalar)}));
    stage='result';const result=values.normalize(b.result.type,values.value(b.result.value,scope).value);ensure(b.result.type,result);
    stage='commit';trace.push('commit');batches.push(operationReferenceValue({writes,events}));
    trace.push(mode==='commit-throw'?'commit-rejected':'commit-resolved');
@@ -107,5 +109,5 @@ export function createBoundEffectfulOperationReference(graph:CompiledProjectGrap
   }catch(e){rethrowUnsupported(e);return abort('failed','OPERATION_FAILED');}
  };
  const checkOwned=(type:TypedType,recipe:FactRecipe)=>{const value=values.normalize(type,captureOperationRecipe(recipe));ensure(type,value);return value;};
- return {action,facts,values,expected,checkOwned};
+ return {action,facts,values,expected,checkOwned,eventReferenceScalar};
 }

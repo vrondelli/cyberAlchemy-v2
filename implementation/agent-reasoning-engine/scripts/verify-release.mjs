@@ -3,7 +3,7 @@ import {readFileSync} from "node:fs";
 import {basename, resolve} from "node:path";
 
 import {inspectFrozenProductCandidate, PRODUCT_TEST_RECEIPT_PATH} from "../src/product-candidate.mjs";
-import {inspectProduct, materializeProductClosure, PRODUCT_CLOSURE_LIMITS, productRoot, repositoryRoot} from "../src/product.mjs";
+import {inspectProduct, materializeProductClosure, PRODUCT_CLOSURE_LIMITS, productRoot, resolveProductSourcePath} from "../src/product.mjs";
 import {materializeProductTestPlan} from "../src/product-test-plan.mjs";
 
 const packageManifest = JSON.parse(readFileSync(resolve(productRoot, "package.json"), "utf8"));
@@ -77,7 +77,7 @@ const secretPatterns = [
 for (const file of closure.files) {
   const name = basename(file.path);
   if (name === ".env" || name === ".npmrc") reasonCodes.push(`security.sensitive-filename:${file.path}`);
-  const bytes = readFileSync(resolve(repositoryRoot, file.path), "utf8");
+  const bytes = readFileSync(resolveProductSourcePath(file.path), "utf8");
   for (const [kind, pattern] of secretPatterns) {
     if (pattern.test(bytes)) reasonCodes.push(`security.${kind}:${file.path}`);
   }

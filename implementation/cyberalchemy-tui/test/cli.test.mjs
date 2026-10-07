@@ -18,6 +18,20 @@ test("CLI help advertises the review-and-apply Implement workspace", () => {
   assert.match(result.stdout, /--self-test/u);
   assert.match(result.stdout, /--chat/u);
   assert.match(result.stdout, /--control-center-demo/u);
+  assert.match(result.stdout, /--durable-proposal-thread/u);
+  assert.match(result.stdout, /\/reconcile/u);
+});
+
+test("durable proposal history is explicit and Codex-only", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "cyberalchemy-durable-cli-test-"));
+  try {
+    const scope = resolve(root, "scope.json");
+    writeFileSync(scope, JSON.stringify({schema_version: "are.coding-agent-run-config/v1"}));
+    const result = spawnSync(process.execPath, [executable, "--implement", "--coding-config", scope,
+      "--repository-root", root, "--durable-proposal-thread"], {encoding: "utf8"});
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /durable-proposal-thread-requires-codex/u);
+  } finally { rmSync(root, {recursive: true, force: true}); }
 });
 
 test("control-center demo needs no model or repository configuration", () => {
@@ -44,4 +58,21 @@ test("CLI fails closed before rendering when coding options are incomplete", () 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /coding-options-required/u);
   assert.doesNotMatch(result.stdout, /\u001b\[\?1049h/u);
+});
+
+test("Codex scope selects the gateway without requiring a second local executable", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "cyberalchemy-gateway-cli-test-"));
+  try {
+    const scope = resolve(root, "scope.json");
+    writeFileSync(scope, JSON.stringify({schema_version: "are.codex-coding-agent-scope/v1", observation_allowlist: ["scope.json"],
+      mutation_allowlist: ["scope.json"], verification_command: [process.execPath, "--test"]}));
+    const result = spawnSync(process.execPath, [executable, "--doctor", "--implement", "--coding-config", scope,
+      "--repository-root", root], {encoding: "utf8", env: {...process.env, PATH: ""}});
+    assert.equal(result.status, 1);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.provider, "codex-app-server");
+    assert.equal(report.checks.find((item) => item.check_id === "codex-command")?.status, "PASS");
+    assert.deepEqual(report.reason_codes, ["sandbox.required"]);
+    assert.doesNotMatch(result.stderr, /codex-command-required/u);
+  } finally { rmSync(root, {recursive: true, force: true}); }
 });

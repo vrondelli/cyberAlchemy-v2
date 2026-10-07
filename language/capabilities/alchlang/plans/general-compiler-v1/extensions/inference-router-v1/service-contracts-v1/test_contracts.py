@@ -9,7 +9,7 @@ from validate import BASE, validate_service, trace_stream
 VALUE = json.loads((BASE / 'service.example.json').read_text())
 STATE = json.loads((BASE / 'stream-state.json').read_text())
 ROOT = next(p for p in BASE.parents if (p / 'agent-routing/routes.json').exists())
-DS = ROOT.parent / 'domainspec-core/projects/domainspec-v2'
+DS = ROOT / 'craft/projects/domainspec-v2'
 
 
 class Contracts(unittest.TestCase):

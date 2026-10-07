@@ -45,21 +45,22 @@ Run its deterministic product checks with:
 ## Chat-first coding workspace
 
 The coding agent can start directly as a conversation. Put the bounded scope at
-`.cyberalchemy/coding-agent.json` in the target repository, ensure `codex` is on
-`PATH` (or set `CODEX_COMMAND`), and run:
+`.cyberalchemy/coding-agent.json` in the target repository and run the ARE
+gateway separately with its pinned Codex backend; the TUI does not need a
+second local Codex executable:
 
 ```bash
 node bin/cyberalchemy.mjs --repository-root /path/to/repository
 ```
 
-You can also select the scope and executable explicitly without supplying
+You can also select the scope and gateway socket explicitly without supplying
 session or proposal paths:
 
 ```bash
 node bin/cyberalchemy.mjs --chat \
   --repository-root /path/to/repository \
   --coding-config /path/to/coding-agent.json \
-  --codex-command /absolute/path/to/codex
+  --gateway-socket /absolute/path/to/gateway.sock
 ```
 
 The TUI creates a private unique workspace outside the repository for the
@@ -109,11 +110,13 @@ node bin/cyberalchemy.mjs --self-test \
   --proposal-output /tmp/unique-self-test-proposal.json
 ```
 
-`--doctor` checks configuration, repository, executable, wrapper profile,
+`--doctor` checks configuration, repository, optional local executable, wrapper profile,
 output path, sandbox engine, and pinned image. `--self-test` uses a newly
 created temporary repository and cannot approve or mutate the selected user
 repository. The TUI also shows a bounded phase timeline for preflight, model
 and tools, proposal, apply/verify, and terminal state.
+Gateway connection and backend identity are checked at proposal start;
+`--doctor` does not itself prove that a gateway is running.
 
 The Implement workspace performs iterative read-only discovery and produces an
 approval-bound proposal. It enters a separate review state and applies only
@@ -125,8 +128,8 @@ controller yields once so the applying state is visibly painted.
 
 ### Codex App Server
 
-Codex mode reuses the authenticated Codex executable and the pinned ARE wrapper;
-it needs a scope configuration, not an API key:
+Codex mode uses the gateway's authenticated, pinned Codex backend and ARE
+wrapper; the TUI needs a scope configuration, not an API key:
 
 ```json
 {
@@ -162,8 +165,41 @@ node bin/cyberalchemy.mjs --implement \
   "Repair sumInclusive so it includes both endpoints"
 ```
 
-The wrapper verifies the exact Codex version from its repository profile and
-starts an ephemeral thread with approvals disabled and a read-only sandbox.
+The Codex coding-proposal path now connects to the persistent ARE gateway as
+`codex:coding-proposal`, separate from Define's `codex:human-chat` consumer. The
+gateway pins the backend adapter and starts an ephemeral thread by default with
+`on-request` approvals and a read-only sandbox. Thread and turn mutations use
+stable request keys; a private, single-writer POSIX state file retains the
+gateway resume token across completed proposal turns and TUI process restarts.
+Each model turn now checkpoints a content-free intent before dispatch and
+clears it only after a verified completed response. If a process exits with an
+unresolved intent, the restarted TUI displays an uncertain/blocked state and
+disables new proposals; it never automatically retries that turn.
+
+The default ephemeral Codex thread does not expose full turn history through
+this installed App Server. The TUI can recheck its owned thread's runtime
+status with Ctrl+R, but cannot match the saved intent to a particular turn or
+clear the block from that status alone. `--durable-proposal-thread` explicitly
+opts into local Codex thread history. In that mode, read-only recovery can
+match the saved prompt digest to exactly one host turn and report active or
+terminal status without showing the prompt. Even a matching terminal turn
+does not automatically restore the lost proposal or unblock new requests.
+
+The file lives under the user's XDG state directory, outside the target
+repository. A missing gateway or conflicting writer fails closed; the TUI does
+not silently launch a second direct writer. This does not yet reconcile an
+interrupted turn against host history or recover its lost proposal. Restored UI
+history and native Windows secret custody remain open. This is not a handover
+of the current Codex desktop task.
+
+The two-process installed-host, fixed-provider canary exercises restart
+recovery through this gateway path without an external model call or repository
+mutation:
+
+```bash
+npm run canary:native-gateway -- /absolute/path/to/codex 'codex-cli <exact-version>'
+npm run canary:native-gateway -- /absolute/path/to/codex 'codex-cli <exact-version>' --crash-recovery
+```
 The outer runtime supplies a deterministic map plus allowlisted `list-files`,
 `read-file`, `search-text`, and `repository-map` observations across at most
 `maximum_steps` model turns. Unknown, denied, or unattended `ask` tools block;
@@ -176,8 +212,8 @@ revalidates candidate bytes, scope configuration, wrapper profile, repository
 baseline, and the approval digest before using the transactional patch-set
 runtime. A configured digest-pinned container sandbox is mandatory; without it,
 application blocks before mutation.
-Closing the TUI while Codex is active closes the RPC client and terminates its
-spawned wrapper transport; cancellation never grants an apply effect.
+Closing the TUI while Codex is active closes its RPC client and gateway
+connection; cancellation never grants an apply effect.
 
 The package is an in-memory, non-authorizing interface realization. It does not
 create durable sessions, admit ontology, promote definitions, or grant effects.

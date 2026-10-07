@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/alchlang/finalized-execution-request/v1-candidate",
+  "title": "Post-TDE Finalized Execution Request Candidate",
+  "description": "Exact request-only selection of one base verification request and a complete current TDE case/input domain; no provider result or authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "base_request_id", "request_id", "request_state", "base_request_ref", "formal_claim_ref", "evaluation_context_ref", "interpretation_model_ref", "obligation_set_ref", "projection_ref", "preservation_binding_ref", "route_binding_ref", "provider_profile_ref", "runtime_ref", "execution_policy", "selected_case_ids", "selected_case_count", "case_domain_sha256", "witness_input_set_sha256", "domain_and_bound", "domain_and_bound_sha256", "provider_execution_observed", "release_admission", "authority_effect", "claim_ceilings", "claim_ceiling"],
+  "properties": {
+    "schema_version": {"const": "alchlang.finalized-execution-request/v1-candidate"},
+    "base_request_id": {"type": "string", "minLength": 1},
+    "request_id": {"type": "string", "pattern": "^FinalizedExecutionRequest:[a-f0-9]{64}$"},
+    "request_state": {"const": "ready"},
+    "base_request_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "formal_claim_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "evaluation_context_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "interpretation_model_ref": {"oneOf": [{"$ref": "#/$defs/exactCurrentRef"}, {"type": "null"}]},
+    "obligation_set_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "projection_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "preservation_binding_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "route_binding_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "provider_profile_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "runtime_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "execution_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["timeout_ms", "memory_ceiling_bytes", "max_output_bytes", "network", "working_directory", "environment_allowlist"],
+      "properties": {
+        "timeout_ms": {"type": "integer", "minimum": 1},
+        "memory_ceiling_bytes": {"type": "integer", "minimum": 1},
+        "max_output_bytes": {"type": "integer", "minimum": 1},
+        "network": {"const": "forbidden"},
+        "working_directory": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"},
+        "environment_allowlist": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}}
+      }
+    },
+    "selected_case_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "selected_case_count": {"type": "integer", "minimum": 1},
+    "case_domain_sha256": {"$ref": "#/$defs/digest"},
+    "witness_input_set_sha256": {"$ref": "#/$defs/digest"},
+    "domain_and_bound": {"type": "string", "minLength": 1},
+    "domain_and_bound_sha256": {"$ref": "#/$defs/digest"},
+    "provider_execution_observed": {"const": false},
+    "release_admission": {"const": "not-granted"},
+    "authority_effect": {"const": "none"},
+    "claim_ceilings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["base_request", "evaluation_context", "capability_assessment", "obligation_set", "projection", "preservation_binding"],
+      "properties": {
+        "base_request": {"type": "string", "minLength": 1},
+        "evaluation_context": {"type": "string", "minLength": 1},
+        "capability_assessment": {"type": "string", "minLength": 1},
+        "obligation_set": {"type": "string", "minLength": 1},
+        "projection": {"type": "string", "minLength": 1},
+        "preservation_binding": {"type": "string", "minLength": 1}
+      }
+    },
+    "claim_ceiling": {"const": "Intersection of exact selected artifact ceilings; request construction only, with no provider result, proof, runtime guarantee, release or authority claim"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "exactCurrentRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "current"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "current": {"const": true}
+      }
+    }
+  }
+}

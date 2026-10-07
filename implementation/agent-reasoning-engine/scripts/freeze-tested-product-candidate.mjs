@@ -56,9 +56,9 @@ if (receipt.status !== "PASS") throw new Error(`PRODUCT_TEST_RECEIPT_BLOCKED:${r
 const receiptBytes = pretty(receipt);
 
 const writes = {
-  candidate: writeImmutable(PRODUCT_CANDIDATE_PATH, candidateBytes, "PRODUCT_CANDIDATE_018"),
-  canary: writeImmutable(FAILURE_LEARNING_CANARY_PATH, canaryBytes, "FAILURE_LEARNING_CANARY_018"),
-  receipt: writeImmutable(PRODUCT_TEST_RECEIPT_PATH, receiptBytes, "PRODUCT_TEST_RECEIPT_018"),
+  candidate: writeImmutable(PRODUCT_CANDIDATE_PATH, candidateBytes, "PRODUCT_CANDIDATE_020"),
+  canary: writeImmutable(FAILURE_LEARNING_CANARY_PATH, canaryBytes, "FAILURE_LEARNING_CANARY_020"),
+  receipt: writeImmutable(PRODUCT_TEST_RECEIPT_PATH, receiptBytes, "PRODUCT_TEST_RECEIPT_020"),
 };
 const inspection = inspectFrozenProductCandidate();
 if (inspection.status !== "PASS") throw new Error(`PRODUCT_CANDIDATE_INSPECTION_BLOCKED:${inspection.reason_codes.join(",")}`);

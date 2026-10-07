@@ -96,6 +96,7 @@ test('ordinary Compose startup makes the hardened preflight a direct ARE depende
     ...valid(),
     KELD_DOMAIN: 'shop.example.test',
     AUTH_DOMAIN: 'auth.example.test',
+    ARE_DOMAIN: 'are.example.test',
     ACME_EMAIL: 'test@example.test',
     KELD_VERSION: 'candidate',
   };

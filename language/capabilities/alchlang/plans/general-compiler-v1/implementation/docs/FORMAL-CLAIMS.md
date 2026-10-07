@@ -1,7 +1,7 @@
 # AlchLang FormalClaim and sorted first-order logic reference
 
-Status: owner-directed AlchLang authoring reference; successor implementation
-required
+Status: owner-directed AlchLang authoring reference; `application-v1` consumer
+syntax and bounded projections implemented
 
 Consult this page before writing or reviewing an AlchLang example containing a
 Rule, Policy, Invariant, Query condition, permission condition, or State Machine
@@ -49,21 +49,56 @@ Policy selection returns a declared target identifier and does not execute it.
 Consult these sources in this order:
 
 1. DomainSpec FormalClaim identity and profile explanation:
-   `projects/domainspec-v2/formalization/docs/FORMALCLAIM-AND-PROFILES.md`.
+   `craft/projects/domainspec-v2/formalization/docs/FORMALCLAIM-AND-PROFILES.md`.
 2. Candidate FormalClaim source contract:
-   `projects/domainspec-v2/formalization/schemas/formal-claim-source-v4-candidate.schema.json`.
+   `craft/projects/domainspec-v2/formalization/schemas/formal-claim-source-v4-candidate.schema.json`.
 3. Formal-language profile registry:
-   `projects/domainspec-v2/formalization/profiles/formal-language-profiles.json`.
+   `craft/projects/domainspec-v2/formalization/profiles/formal-language-profiles.json`.
 4. Definition-binding contract:
-   `projects/domainspec-v2/formalization/schemas/formal-claim-definition-binding.schema.json`.
+   `craft/projects/domainspec-v2/formalization/schemas/formal-claim-definition-binding.schema.json`.
 5. Current implemented TDE intake, where compatibility matters:
    `FormalClaimSourcePayload/v2`, as identified by the DomainSpec formalization
    guide and v4 candidate contract.
 
-The first four paths are relative to the private `domainspec-core` repository.
+The first four paths are relative to this repository's selected Craft source.
 The v4 contract is a candidate. It requires an exact v2 projection before the
 current TDE intake can consume it; an adapter may not add or reinterpret
 meaning.
+
+## Opt-in v4 formation check
+
+The core CLI can check one exact-referenced v4 candidate without accepting or
+admitting it:
+
+```sh
+node scripts/run-toolchain.mjs tsx src/core-cli.ts check-formal-claim < request.json
+```
+
+Run this from `language/capabilities/alchlang/plans/general-compiler-v1/implementation`.
+`request.json` has this shape (replace the illustrative digest and size with
+the actual bytes of the claim file):
+
+```json
+{
+  "schema_version": "alchlang.formal-claim-formation-request/v1",
+  "root_directory": "/absolute/evidence/root",
+  "claim_ref": {
+    "path": "relative/claim.json",
+    "sha256": "<actual lowercase SHA-256>",
+    "size_bytes": 123,
+    "current": true
+  },
+  "selected_profile": "fol-core/1-candidate"
+}
+```
+
+The claim itself must exact-reference its profile registry under the same
+root. `checked` exits 0; `rejected` exits 2; `unsupported` exits 3. Every
+result has `authority_effect: none` and a formation-only ceiling. A checked
+proposition is not a checked definition closure, accepted business meaning,
+admitted FormalClaim, TDE case set, F5/EVF result, or runtime guarantee. The
+DomainSpec package validator remains a separate structural/package check and
+does not invoke this command.
 
 ## FormalClaim identity
 
@@ -106,10 +141,9 @@ A Rule is the named DomainSpec consumer of one formal condition. Its condition
 must resolve to one FormalClaim or to a lossless, identity-bound projection of
 that FormalClaim. It must not introduce a second expression language.
 
-Conceptual target form (the current parser does not yet accept this syntax):
+Current `application-v1` form:
 
 ```alch
-# TARGET SYNTAX — not current parser syntax
 formal-claim OrderCanBeSubmittedClaim:
   profile fol-core/1-candidate
   sort Order
@@ -117,6 +151,7 @@ formal-claim OrderCanBeSubmittedClaim:
   predicate HasNonNegativeTotal(Order)
   proposition forall order: Order:
     HasLine(order) and HasNonNegativeTotal(order)
+  ceiling "Formal submission eligibility only; no observed runtime guarantee."
 
 rule OrderCanBeSubmitted:
   ontology "Only a non-empty order with a valid total may be submitted."
@@ -133,7 +168,6 @@ assumptions, and semantic identity are closed by the same claim contract.
 A Policy references declared Rules. It does not own inline SFOL formulas.
 
 ```alch
-# TARGET SYNTAX — not current parser syntax
 policy FulfillmentPolicy:
   inputs order
   case HighValueOrder -> ManualReview
@@ -161,7 +195,6 @@ A transition guard references a declared Rule. An event selector references a
 declared Event. The State Machine must not parse either as an inline formula.
 
 ```alch
-# TARGET SYNTAX — not current parser syntax
 state-machine OrderLifecycle:
   subject Order
   initial Draft
@@ -195,7 +228,6 @@ An Invariant references a declared Rule/FormalClaim. An Operation can be
 enforced by a declared Rule. Neither duplicates the proposition text.
 
 ```alch
-# TARGET SYNTAX — not current parser syntax
 invariant MoneyIsNonNegative:
   claim NonNegativeMoneyClaim
 
@@ -213,11 +245,11 @@ replace the claim or silently narrow its meaning.
 
 ## What remains implemented as legacy compatibility
 
-The current general compiler still contains an older path:
+The general compiler retains an explicitly separate compatibility path:
 
 - `logic sfol-v1` selects a quantifier-free comparison/presence expression
   dialect in the base parser;
-- `parser.ts` parses Policy cases as inline formulas;
+- the legacy branch in `parser.ts` parses Policy cases as inline formulas;
 - `predicate-parser.ts` implements the bounded expression parser;
 - `model.ts` names the resulting AST `SfolFormula`;
 - `typed-backend.ts` directly evaluates Policy case formulas;
@@ -227,9 +259,8 @@ The current general compiler still contains an older path:
   by itself implement FormalClaim identity, definition closure, or profile-bound
   preservation.
 
-These facts describe implementation state, not the accepted successor design.
-Until the successor compiler is implemented, examples must say whether they are
-`CURRENT COMPATIBILITY SYNTAX` or `TARGET SYNTAX — not current parser syntax`.
+These facts describe the retained `legacy-sfol-v1` implementation, not
+`application-v1`. New examples must select their profile explicitly.
 
 ## Review checklist
 
@@ -255,11 +286,21 @@ Before accepting an AlchLang example, verify all of the following:
 | `definitions/DEFINITIONS.md` `ALCH-TB-D5` | Defines the reduced `sfol-v1` kernel as the shared language | Replace or supersede it with the FormalClaim-bound sorted-FOL model |
 | `docs/LANGUAGE.md` | Calls `sfol-v1` the only supported logic profile | Keep this only as implementation compatibility and link here |
 | `docs/TUTORIAL.md` | Teaches inline formulas in Policy cases | Teach declared Rule references for target Alch |
-| `src/parser.ts` | Parses each Policy case as `parseSfolFormula(...)` | Resolve a declared Rule and its claim-bound projection |
-| `src/model.ts` | Represents only the reduced formula AST | Carry FormalClaim identity, signature, profile, and projection binding |
+| legacy branch in `src/parser.ts` | Parses each compatibility Policy case as `parseSfolFormula(...)` | Kept isolated behind `legacy-sfol-v1`; `application-v1` resolves declared Rules |
+| `src/model.ts` | Represents the compatibility formula AST | Does not own the `application-v1` FormalClaim model |
 | `src/predicate-parser.ts` | Owns formula meaning locally | Become an explicit bounded projection parser or be superseded |
 | `src/typed-backend.ts` | Evaluates inline Policy predicates | Evaluate referenced Rules without granting target execution |
 | declarative-function expressions | Support finite collection quantifiers without FormalClaim identity | Bind any formal use to an explicit claim/projection contract |
 
-This ledger is a migration map. It does not claim that the successor parser,
-lowering, evaluator, or DomainSpec/EVF bridge already exists.
+This ledger now distinguishes retained compatibility debt from the implemented
+`application-v1` parser and bounded consumer projections. It does not claim the
+later E02 formal-provider or EVF bridge.
+
+## Open Questions
+
+- Which selected DomainSpec v4 validation contract will consume the opt-in
+  formation result without treating unsupported historical media as checked?
+- How will accepted inline definitions and their complete theory be parsed,
+  type-checked, and bound to the current proposition?
+- Which independently reviewed preservation and runtime evidence will close
+  the remaining Auth no-call and F5/EVF obligations?

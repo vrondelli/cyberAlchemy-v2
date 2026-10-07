@@ -28,7 +28,9 @@ export function buildCoverageLedger({captures,receipts,snapshots,ranked_evidence
    for(const {tool_call_id,o} of observationItems(call,result)){
     const revision=o.source_revision??null;
     need(revision===null||['base','current'].includes(revision),'revision-value');
-    need(revision===null||args.revision===revision,'revision-arguments');
+    const compactRecovery=call.function.name===recoveryName&&
+      Object.keys(args).sort().join(',')==='archive_sha256,observation_index';
+    need(revision===null||compactRecovery||args.revision===revision,'revision-arguments');
     const value={revision,base_commit:o.base_commit??null,total_lines:o.total_lines??null};
     if(metadata.has(tool_call_id))need(JSON.stringify(metadata.get(tool_call_id))===JSON.stringify(value),'revision-replay-conflict');
     metadata.set(tool_call_id,value);

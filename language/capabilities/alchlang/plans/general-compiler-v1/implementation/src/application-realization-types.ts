@@ -10,6 +10,7 @@ type Type = { kind: "scalar"; name: string } | { kind: "named"; selector: string
   | { kind: "contract"; interface_selector: string; contract_id: string }
   | { kind: "reference"; selector: string; projection: string[] }
   | { kind: "projection"; owner: { kind: "named"; selector: string }; fields: string[] }
+  | { kind: "sum"; variants: Array<{ name: string; ontology_variant: string; payload: Type | null }> }
   | { kind: "optional" | "list" | "set"; element: Type };
 interface Value { type: Type; value: { op: "path"; root: string; properties: string[] } }
 const fail = (line: number, message: string): never => {
@@ -31,11 +32,12 @@ export function checkApplicationRealizationTypes(projection: ReturnType<typeof l
     if (value.kind === "declaration") return { kind: "named", selector: selector(value.ref) };
     if (value.kind === "public-contract") return { kind: "contract", interface_selector: selector(value.interface), contract_id: symbol(value.contract) };
     if (value.kind === "reference") return { kind: "reference", selector: selector(value.entity), projection: [symbol(value.field, "_")] };
+    if (value.kind === "sum") return node(selector(value.enum));
     return { kind: value.kind, element: type(value.element) };
   };
   const publicType = (value: ApplicationPublicType, owner: string): Type => {
     if (value.kind === "contract") return { kind: "contract", interface_selector: owner, contract_id: symbol(value.ref) };
-    if (value.kind === "scalar" || value.kind === "declaration" || value.kind === "reference") return type(value);
+    if (value.kind === "scalar" || value.kind === "declaration" || value.kind === "reference" || value.kind === "sum") return type(value);
     return { kind: value.kind, element: publicType(value.element, owner) };
   };
   const equal = (actual: Type, expected: Type, line: number) => {

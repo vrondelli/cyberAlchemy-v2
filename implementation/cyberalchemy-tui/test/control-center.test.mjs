@@ -4,7 +4,11 @@ import React, {createElement as h} from "react";
 import {renderToString} from "ink";
 
 import {ControlCenterPanels, QueueFooter} from "../src/app.mjs";
-import {controlCenterCounts, createControlCenterState, reduceControlCenterEvent} from "../src/control-center.mjs";
+import {controlCenterCounts, conversationStatus, createControlCenterState, reduceControlCenterEvent} from "../src/control-center.mjs";
+
+test("unresolved host turn is blocked, not idle", () => {
+  assert.equal(conversationStatus("uncertain"), "blocked");
+});
 
 test("demo state exposes sessions, queued work, and origin-bound attention", () => {
   const state = createControlCenterState({demo: true});

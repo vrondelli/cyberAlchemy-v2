@@ -13,6 +13,7 @@ export const COMMANDS = Object.freeze([
   Object.freeze({id: "implement", invocation: "/implement", key: "", title: "Open the coding-agent chat"}),
   Object.freeze({id: "self-test", invocation: "/self-test", key: "", title: "Run the disposable product canary"}),
   Object.freeze({id: "diagnostics", invocation: "/diagnostics", key: "", title: "Inspect the redacted run receipt"}),
+  Object.freeze({id: "reconcile", invocation: "/reconcile", key: "Ctrl+R", title: "Recheck an uncertain host turn without retrying"}),
   Object.freeze({id: "approve", invocation: "/approve", key: "", title: "Apply the exact pending digest"}),
   Object.freeze({id: "reject", invocation: "/reject", key: "", title: "Reject the pending proposal"}),
   Object.freeze({id: "quit", invocation: "/quit", key: "Ctrl+C", title: "Exit"}),
@@ -23,7 +24,7 @@ export function initialShellState() {
 }
 
 export function isTerminalConversationPhase(phase) {
-  return phase === "completed" || phase === "error" || phase === "stopped";
+  return phase === "completed" || phase === "error" || phase === "stopped" || phase === "uncertain";
 }
 
 export function reduceShellEvent(state, event) {

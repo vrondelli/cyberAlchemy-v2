@@ -11,7 +11,7 @@ const loaded=loadVerifiedDecisionProfile(profilePath,root);
 assert.equal(loaded.ok,true,loaded.reason_codes?.join(','));
 const modulePort=semanticModulePort();
 const routeRequest=(input,profile)=>routeRequestWithoutDefaults(input,profile,modulePort);
-const context=(raw_request,objective_kind=null,requested_effects=[])=>({schema_version:'are.request-context/v1',request_id:'recent-regression',raw_request,objective_kind,requested_effects,target_refs:[],constraints:[],evidence_refs:['user']});
+const context=(raw_request,objective_kind=null,requested_effects=[])=>({schema_version:'are.request-context/v1',request_id:'recent-regression',raw_request,objective_kind,requested_effects,target_refs:[],constraints:[],evidence_refs:['user'],field_postures:{request_id:'inferred',raw_request:'explicit',objective_kind:objective_kind===null?'absent':'explicit',requested_effects:requested_effects.length?'explicit':'absent',target_refs:'absent',constraints:'absent',evidence_refs:'explicit'}});
 test('RECENT covers declared query phrases under explicit read-only intent',()=>{
   const policy=loaded.value.routes.find(r=>r.route_id==='CA2-ROUTE-RECENT');
   assert.deepEqual(policy.effect_classes,['local-read']);assert.equal(policy.owner_gate_ref,null);

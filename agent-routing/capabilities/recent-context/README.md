@@ -118,10 +118,10 @@ package does not activate the hook in this checkout.
 Example commands for a separately authorized local installation:
 
 ```bash
-RECENT_CAP=/home/vrondelli/projects/domainspec-core/cyberAlchemy-v2/agent-routing/capabilities/recent-context
-python3 -B "$RECENT_CAP/hooks.py" status --repo /home/vrondelli/projects/domainspec-core
-python3 -B "$RECENT_CAP/hooks.py" install --repo /home/vrondelli/projects/domainspec-core --project KEP --project alchLang --limit 20 --max-files 100
-python3 -B "$RECENT_CAP/hooks.py" uninstall --repo /home/vrondelli/projects/domainspec-core
+RECENT_CAP="$PWD/agent-routing/capabilities/recent-context"
+python3 -B "$RECENT_CAP/hooks.py" status --repo "$PWD"
+python3 -B "$RECENT_CAP/hooks.py" install --repo "$PWD" --project KEP --project alchLang --limit 20 --max-files 100
+python3 -B "$RECENT_CAP/hooks.py" uninstall --repo "$PWD"
 ```
 
 Alternatively select one group of literal paths with repeated `--path`. Up to

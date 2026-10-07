@@ -1,8 +1,8 @@
 """Supervise the unchanged loopback controller and its bounded HTTP gateway."""
 import os,signal,subprocess,sys,time
 from pathlib import Path
-ROOT=Path('/home/vrondelli/projects/domainspec-core')
-APP=ROOT/'cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/extensions/host-lifecycle-v1/control_plane.py'
+ROOT=Path(__file__).resolve().parents[7]
+APP=ROOT/'language/capabilities/alchlang/plans/general-compiler-v1/extensions/host-lifecycle-v1/control_plane.py'
 Path('/var/lib/alch/registry').mkdir(mode=0o700,exist_ok=True)
 os.chmod('/var/lib/alch/registry',0o700)
 children=[]

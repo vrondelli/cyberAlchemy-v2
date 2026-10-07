@@ -23,6 +23,12 @@ lowercase, substring, regular-expression, model, or old-runtime fallback. This
 makes separator normalization and substring non-collapse common with Define
 and ARE request intent while the verified Decision Profile still owns route
 vocabulary, exclusions, priority, and the final route decision.
+Only the raw request and structured target/constraint fields marked `explicit`
+can supply lexical route signals or exclusions. Inferred fields remain bound
+context, not user instructions. A read-only product requirement does not veto
+an implementation request; direct `do not implement` wording still does.
+An excluded explicit objective cannot fall through to an incidental lexical
+route from another field.
 
 `routeRequest(request, profile, modulePort)` records `semantic_evidence` as
 `evaluated`, `unavailable`, or `blocked`, including the module-set digest and a
@@ -58,7 +64,14 @@ the host remains responsible for execution, persistence, and owner interaction.
 
 ## Performance boundary
 
-`loadVerifiedDecisionProfile` reads and hashes provenance once. The hot-path
+Production routing loads the content-addressed
+`profiles/cyberalchemy-route-pack-v1.json` policy bundle. Repository files are
+authoring inputs to `scripts/build-policy-bundle.mjs`; they are not reread by a
+normal `are decide route` invocation. The bundle contains the admitted decision
+profile, complete route contracts, provenance digests, and its own digest.
+Tampering fails closed before routing. Live `loadVerifiedDecisionProfile`
+loading remains the development/compiler path and reads and hashes provenance
+once. The hot-path
 functions receive the admitted frozen profile and perform no filesystem,
 network, model, discovery, persistence, or tool calls. Run the local benchmark:
 

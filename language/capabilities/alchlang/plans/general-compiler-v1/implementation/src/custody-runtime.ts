@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import type {RequestCustody,LocalOutcome} from '../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/runtime/request-custody.js';
+import type {RequestCustody,LocalOutcome} from './integration-runtime-types.js';
 // Generated contract drives identity/defaults/decisions. Open Questions: ../CUSTODY.md.
 const fault=(code:string,id?:string)=>Object.assign(new Error(code),{code,request_id:id});
 function canonical(value:any):string{

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {spawnSync} from "node:child_process";
 import {createHash} from "node:crypto";
 import {mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs";
 import {dirname, resolve} from "node:path";
@@ -29,6 +30,8 @@ import {createNativeSemanticAdapter} from "../../module-port/native-semantic-ada
 import {createStaticContextSourcesAdapter, contextSourceOutputValidators} from "../../module-port/context-sources.mjs";
 import {composeStaticModulePort, sealStaticModuleConfiguration} from "../../module-port/static-composition.mjs";
 import {semanticTextOutputValidators} from "../../module-port/semantic-text.mjs";
+import {observeMarkedTurnInHostHistory} from "../src/host-turn-reconciliation.mjs";
+import {bindApprovalResponse} from "../src/effect-boundary.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../../../../..");
@@ -72,6 +75,26 @@ test("wrapper starts and exposes non-context operations with no definition or on
   assert.equal(blocked.to_client[0].error.code, -32072);
   assert.equal(blocked.to_client[0].error.data.reason_codes.includes("module.capability-unavailable"), true);
   assert.equal(blocked.to_client[0].error.data.residue.every((item) => item.kind === "context-dependency"), true);
+});
+
+test("wrapper rejects alternate host execution and model-entry methods before backend dispatch", async () => {
+  const instance = wrapper();
+  for (const method of [
+    "thread/shellCommand", "thread/rollback", "review/start", "command/exec", "process/spawn",
+    "thread/compact", "thread/compact/start", "thread/queue/start", "thread/realtime/start", "turn/unknownStart",
+  ]) {
+    const message = {jsonrpc: "2.0", id: method, method, params: {threadId: "thread-alternate-ingress"}};
+    const result = await instance.processClientMessage(message);
+    assert.deepEqual(result.to_server, [], method);
+    assert.equal(result.to_client[0]?.error?.code, -32081, method);
+    assert.deepEqual(result.to_client[0]?.error?.data?.reason_codes, ["host.method-ungoverned"], method);
+  }
+  const notification = await instance.processClientMessage({jsonrpc: "2.0", method: "thread/shellCommand", params: {threadId: "thread-alternate-ingress"}});
+  assert.deepEqual(notification, {to_server: [], to_client: []});
+  for (const method of ["thread/read", "thread/resume", "turn/interrupt"]) {
+    const message = {jsonrpc: "2.0", id: method, method, params: {threadId: "thread-alternate-ingress"}};
+    assert.deepEqual((await instance.processClientMessage(message)).to_server, [message], method);
+  }
 });
 
 test("one statically composed module port supplies semantic and context capabilities", async () => {
@@ -219,10 +242,10 @@ async function startAndBind(instance, {id, text, threadId, turnId, extras = {}})
 test("repository profile verifies exact sources and materializes production inputs", () => {
   assert.equal(loaded.decision_profile.profile_id, "cyberalchemy-fast-routing");
   assert.ok(loaded.definition_catalog.definitions.length > 20);
-  assert.equal(loaded.ontology_snapshot.nodes.length, 77);
+  assert.equal(loaded.ontology_snapshot.nodes.length, 98);
   assert.equal(loaded.ontology_snapshot.nodes.some((node) => node.node_id === "agent-reasoning-engine.EvolutionCycle"), true);
   assert.equal(loaded.ontology_snapshot.nodes.some((node) => node.node_id === "agent-reasoning-engine.CacheAffinityProjection"), true);
-  assert.equal(loaded.ontology_snapshot.edges.length, 101);
+  assert.equal(loaded.ontology_snapshot.edges.length, 123);
   assert.deepEqual(loaded.value.semantic_evaluation, {enabled: false, trigger: "turn/completed"});
   assert.deepEqual(loaded.value.evolution_signals, {enabled: false, trigger: "turn/completed"});
   assert.equal(loaded.semantic_profile.profile_id, "semantic-input:definition-readiness@1");
@@ -251,6 +274,8 @@ test("repository profile verifies exact sources and materializes production inpu
     },
     allowed_clients: [
       {consumer_id: "codex:benchmark", lane: "interaction-bound", window_ref: null, request_id: null},
+      {consumer_id: "codex:define-cli", lane: "interaction-bound", window_ref: null, request_id: null},
+      {consumer_id: "codex:desktop-wsl", lane: "interaction-bound", window_ref: null, request_id: null},
       {consumer_id: "codex:human-chat", lane: "interaction-bound", window_ref: null, request_id: null},
       {consumer_id: "codex:plan", lane: "plan-bound", window_ref: "plan:persistent-codex", request_id: "request:persistent-codex-plan"},
     ],
@@ -296,8 +321,20 @@ test("an explicitly enabled repository profile exact-loads its semantic profile"
   assert.deepEqual(drift.reason_codes, ["config.source-digest-drift"]);
 });
 
+test("repository context bindings cannot read outside the declared repository root", () => {
+  const directory = mkdtempSync(resolve(packageRoot, ".tmp-path-confinement-"));
+  temporaryPaths.push(directory);
+  const profile = JSON.parse(readFileSync(resolve(packageRoot, "profiles/repository-v1.json"), "utf8"));
+  profile.sources.canonical_definition_sources[0].path = "/etc/passwd";
+  const path = resolve(directory, "profile.json");
+  writeFileSync(path, JSON.stringify(profile));
+  const result = loadRepositoryProfile(path, repositoryRoot);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.reason_codes, ["config.source-path-escape"]);
+});
+
 test("protocol binding accepts the observed binary and blocks version drift", () => {
-  assert.equal(protocolBindingCheck(loaded.value.protocol_binding, "codex-cli 0.153.0-alpha.5").ok, true);
+  assert.equal(protocolBindingCheck(loaded.value.protocol_binding, "codex-cli 0.155.0-alpha.16.4").ok, true);
   const drift = protocolBindingCheck(loaded.value.protocol_binding, "codex-cli 0.152.1");
   assert.equal(drift.ok, false);
   assert.deepEqual(drift.reason_codes, ["protocol.codex-version-drift"]);
@@ -349,6 +386,7 @@ test("typed request hint retrieves canonical ontology meaning, related nodes, an
     schema_version: "are.request-context-hint/v1",
     raw_request: "How does ontology work in CyberAlchemy?",
     objective_kind: "define",
+    field_postures: {objective_kind: "explicit"},
     requested_effects: [],
     target_refs: ["CA2-CAP-DEFINE-SHARED-MEANING"],
     constraints: ["candidate-meaning-only"],
@@ -372,8 +410,8 @@ test("typed request hint retrieves canonical ontology meaning, related nodes, an
 });
 
 test("a request naming CyberAlchemy v2 and ontology projects both exact definitions", async () => {
-  const rawRequest = "I want to understand and use the ontology already present in CyberAlchemy v2.";
-  const hint = {schema_version: "are.request-context-hint/v1", raw_request: rawRequest, objective_kind: "define"};
+  const rawRequest = "Define the ontology already present in CyberAlchemy v2.";
+  const hint = {schema_version: "are.request-context-hint/v1", raw_request: rawRequest, objective_kind: "define", field_postures: {objective_kind: "explicit"}};
   const result = await wrapper().processClientMessage(turnStart(1903, rawRequest, "thread-disjoint-exact", {
     additionalContext: {[REQUEST_CONTEXT_KEY]: {kind: "application", value: JSON.stringify(hint)}},
   }));
@@ -407,12 +445,98 @@ test("turn/start seals, reconstructs, verifies, and checkpoints reasoning state 
   assert.equal(verified.sequence < forwarded.sequence, true);
   const state = instance.inspectState().reasoning_state;
   assert.equal(state.ledger_id, "are-reasoning-state:domainspec-core-codex");
-  assert.equal(state.event_count, 3);
-  assert.equal(state.epoch_count, 1);
-  assert.equal(state.checkpoint_count, 1);
+  assert.equal(state.event_count, 5);
+  assert.equal(state.epoch_count, 3);
+  assert.equal(state.checkpoint_count, 3);
   assert.equal(state.durability, "process-memory");
-  assert.equal(state.sink.record_count, 5);
-  assert.equal(state.sink.flush_count, 1);
+  assert.equal(state.sink.record_count, 11);
+  assert.equal(state.sink.flush_count, 3);
+});
+
+test("trusted plan context keeps the full obligation set in checkpointed model dispatch", async () => {
+  const sourceRef = "plans:companion-whole-ui-fixture";
+  const sourceDigest = createHash("sha256").update("full seven-feature plan").digest("hex");
+  const ledger = createReasoningStateLedger({ledger_id: "reasoning:plan-context-wrapper"});
+  let version = 1;
+  const provider = ({thread_ref, previous_plan_context_digest}) => ({
+    input: {
+      thread_ref,
+      parent_plan_ref: sourceRef,
+      parent_plan_digest: sourceDigest,
+      feature_obligations: [
+        {obligation_id: "overview", summary: "Show independent product health", status: version === 1 ? "open" : "completed"},
+        {obligation_id: "adapters", summary: "Show selected adapter path", status: "open"},
+        {obligation_id: "threads", summary: "Show explicit Reasoning State", status: "open"},
+        {obligation_id: "decisions", summary: "Show scoped gateway decisions", status: "open"},
+        {obligation_id: "evolution", summary: "Show verified cycle evidence", status: "open"},
+        {obligation_id: "evidence", summary: "Separate source postures", status: "open"},
+        {obligation_id: "appearance", summary: "Persist local skin and placement", status: "open"},
+      ],
+      active_slice_id: version === 1 ? "overview" : "evolution",
+      unresolved_decisions: [{decision_id: "host-handover", question: "Can this desktop task be exclusively handed to ARE?"}],
+      source_refs: [{source_ref: sourceRef, source_digest: sourceDigest}],
+      previous_plan_context_digest: version === 1 ? null : previous_plan_context_digest,
+    },
+    source_digests: {[sourceRef]: sourceDigest},
+  });
+  const instance = wrapper({reasoning_ledger: ledger, plan_context_provider: provider});
+  const first = await instance.processClientMessage(turnStart(1003, "Continue the whole UI plan.", "thread-plan-context"));
+  assert.equal(first.to_server.length, 1);
+  const initial = ledger.snapshot().filter(event => event.event_kind === "plan-context-recorded");
+  assert.equal(initial.length, 1);
+  assert.equal(initial[0].content.feature_obligations.length, 7);
+  assert.equal(first.to_server[0].params.additionalContext[CACHE_AFFINITY_KEY].value.includes("host-handover"), true);
+  assert.equal(instance.ledger.snapshot().find(event => event.event_kind === "reasoning-dispatch-verified").plan_context_digest, initial[0].content.plan_context_digest);
+  assert.equal(instance.inspectState().reasoning_state.checkpoint_count, 3);
+  const firstObservation = instance.observeReasoningThreads();
+  assert.equal(firstObservation.length, 1);
+  assert.equal(firstObservation[0].plan_obligation_count, 7);
+  assert.equal(firstObservation[0].plan_completed_count, 0);
+  assert.equal(firstObservation[0].plan_open_decision_count, 1);
+  assert.doesNotMatch(JSON.stringify(firstObservation), /host-handover|Show independent/);
+
+  const repeated = await instance.processClientMessage(turnStart(1004, "Continue the same plan.", "thread-plan-context"));
+  assert.equal(repeated.to_server.length, 1);
+  assert.equal(ledger.snapshot().filter(event => event.event_kind === "plan-context-recorded").length, 1);
+  version = 2;
+  const successor = await instance.processClientMessage(turnStart(1005, "Research current context management approaches.", "thread-plan-context"));
+  assert.equal(successor.to_server.length, 1);
+  const contexts = ledger.snapshot().filter(event => event.event_kind === "plan-context-recorded");
+  assert.equal(contexts.length, 2);
+  assert.equal(contexts[1].content.previous_plan_context_digest, contexts[0].content.plan_context_digest);
+  assert.equal(contexts[1].content.active_slice_id, "evolution");
+  const successorObservation = instance.observeReasoningThreads();
+  assert.equal(successorObservation[0].plan_context_digest, contexts[1].content.plan_context_digest);
+  assert.equal(successorObservation[0].plan_completed_count, 1);
+});
+
+test("wrapper rejects forged, unverified, or stale plan context before forwarding", async () => {
+  const sourceRef = "plans:fixture";
+  const sourceDigest = createHash("sha256").update("plan").digest("hex");
+  const input = {
+    thread_ref: "wrong-thread", parent_plan_ref: sourceRef, parent_plan_digest: sourceDigest,
+    feature_obligations: [{obligation_id: "scope", summary: "Preserve scope", status: "active"}], active_slice_id: "scope",
+    unresolved_decisions: [], source_refs: [{source_ref: sourceRef, source_digest: sourceDigest}], previous_plan_context_digest: null,
+  };
+  for (const [name, supplied, code] of [
+    ["forged", {input, source_digests: {[sourceRef]: sourceDigest}}, "reasoning.plan-context-thread-mismatch"],
+    ["unverified", {input: {...input, thread_ref: "thread-plan-negative"}, source_digests: {[sourceRef]: "0".repeat(64)}}, "reasoning.plan-context-source-unverified"],
+  ]) {
+    const result = await wrapper({plan_context_provider: () => supplied}).processClientMessage(turnStart(1006, "Research current context management approaches.", "thread-plan-negative"));
+    assert.equal(result.to_server.length, 0);
+    assert.equal(result.to_client[0].error.data.reason_codes.includes(code), true);
+  }
+  const ledger = createReasoningStateLedger({ledger_id: "reasoning:plan-context-stale"});
+  let changed = false;
+  const instance = wrapper({reasoning_ledger: ledger, plan_context_provider: ({thread_ref}) => ({
+    input: {...input, thread_ref, feature_obligations: [{obligation_id: "scope", summary: changed ? "Changed scope" : "Preserve scope", status: "active"}]},
+    source_digests: {[sourceRef]: sourceDigest},
+  })});
+  assert.equal((await instance.processClientMessage(turnStart(1007, "Research current context management approaches.", "thread-plan-stale"))).to_server.length, 1);
+  changed = true;
+  const stale = await instance.processClientMessage(turnStart(1008, "Research current context management approaches.", "thread-plan-stale"));
+  assert.equal(stale.to_server.length, 0);
+  assert.equal(stale.to_client[0].error.data.reason_codes.includes("reasoning.plan-context-stale-predecessor"), true);
 });
 
 test("turn/start places the reusable reasoning projection before volatile context and measures exact reuse", async () => {
@@ -481,7 +605,7 @@ test("provider usage on the turn response is automatically bound and checkpointe
   const state = instance.inspectState();
   assert.equal(state.cache_affinity_consumers[0].cache_hit_posture, "observed-hit");
   assert.equal(state.cache_affinity_consumers[0].observed_token_savings, 700);
-  assert.equal(state.reasoning_state.checkpoint_count, 2);
+  assert.equal(state.reasoning_state.checkpoint_count, 5);
 });
 test("file-backed turn/start persists the verified dispatch sequence before forwarding", async () => {
   const directory = mkdtempSync("/tmp/are-wrapper-reasoning-state-");
@@ -496,17 +620,18 @@ test("file-backed turn/start persists the verified dispatch sequence before forw
   reasoningLedger.close();
 
   const records = readFileSync(logPath, "utf8").trim().split("\n").map((line) => JSON.parse(line));
-  assert.deepEqual(records.map((record) => record.record_kind), [
-    "reasoning-state-event",
-    "reasoning-state-event",
-    "reasoning-state-epoch",
-    "reasoning-state-event",
-    "reasoning-state-checkpoint",
-  ]);
-  assert.equal(records[3].value.event_kind, "dispatch-materialized");
-  assert.equal(records[4].value.checkpoint_kind, "before-model-request");
-  assert.equal(records[3].value.content.dispatch.dispatch_digest, records[4].value.subject_digest);
-  assert.ok(records[3].value.content.verification_digest);
+  const decision = records.find((record) => record.value.event_kind === "decision-observation-recorded");
+  const dispatch = records.find((record) => record.value.event_kind === "dispatch-materialized");
+  const dispatchCheckpoint = records.find((record) => record.value.checkpoint_kind === "before-model-request"
+    && record.value.subject_digest === dispatch?.value.content.dispatch.dispatch_digest);
+  const semanticState = records.find((record) => record.value.event_kind === "semantic-turn-state-prepared");
+  const semanticCheckpoint = records.find((record) => record.value.checkpoint_kind === "before-model-request"
+    && record.value.subject_digest === semanticState?.value.content.state_digest);
+  assert.ok(decision && dispatch && dispatchCheckpoint && semanticState && semanticCheckpoint);
+  assert.ok(dispatch.value.content.verification_digest);
+  assert.ok(records.indexOf(decision) < records.indexOf(dispatch));
+  assert.ok(records.indexOf(dispatch) < records.indexOf(dispatchCheckpoint));
+  assert.ok(records.indexOf(semanticState) < records.indexOf(semanticCheckpoint));
 });
 
 test("file-backed wrapper recovers the last checkpoint before accepting a new turn", async () => {
@@ -530,11 +655,475 @@ test("file-backed wrapper recovers the last checkpoint before accepting a new tu
 
   const result = await instance.processClientMessage(turnStart(1004, "Research state recovery.", "thread-recovered"));
   assert.equal(result.to_server.length, 1);
-  assert.equal(instance.inspectState().reasoning_state.event_count, 4);
+  assert.equal(instance.inspectState().reasoning_state.event_count, 6);
   instance.close();
   const verified = verifyReasoningStateLog(logPath, {expected_ledger_id: loaded.value.reasoning_state.ledger_id});
   assert.equal(verified.ok, true);
-  assert.equal(verified.value.index.checkpoint_count, 2);
+  assert.equal(verified.value.index.checkpoint_count, 4);
+});
+
+test("file-backed wrapper restores a bound semantic turn across restart", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-semantic-turn-recovery-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: resolve(directory, "reasoning-state.jsonl")};
+  profile.semantic_evaluation = {enabled: true, trigger: "turn/completed"};
+  const create = () => wrapper({loaded_profile: profile, semantic_profile: semanticProfile.value,
+    semantic_input_provider: () => semanticInput()});
+  const first = create();
+  await startAndBind(first, {id: 10044, text: "Research whether this refund is eligible.", threadId: "thread-semantic-restart", turnId: "turn-semantic-restart"});
+  assert.deepEqual(first.inspectState().active_semantic_turn_ids, ["turn-semantic-restart"]);
+  assert.equal(first.close().ok, true);
+
+  const second = create();
+  assert.deepEqual(second.inspectState().active_semantic_turn_ids, ["turn-semantic-restart"]);
+  assert.equal(second.observeReasoningThreads()[0].phase, "recovery-unverified",
+    "A recovered binding is not a current host-active observation.");
+  assert.deepEqual(second.inspectState().pending_semantic_rpc_ids, []);
+  const recoveredBinding = second.ledger.snapshot().find((event) => event.event_kind === "turn-state-bound");
+  assert.equal(recoveredBinding.direction, "reasoning-state-recovery");
+  assert.match(recoveredBinding.binding_digest, /^[a-f0-9]{64}$/);
+  assert.doesNotMatch(JSON.stringify(second.ledger.snapshot()), /Research whether this refund is eligible/);
+  const conflicting = await second.processClientMessage(turnStart(10046, "Follow up on the refund.", "thread-semantic-restart"));
+  assert.equal(conflicting.to_server.length, 0, "An unresolved prior turn must not admit another host turn.");
+  assert.deepEqual(conflicting.to_client[0].error.data.reason_codes, ["reasoning.prior-turn-unsettled"]);
+  const staleSteer = await second.processClientMessage({jsonrpc: "2.0", id: 10047, method: "turn/steer",
+    params: {threadId: "thread-semantic-restart", expectedTurnId: "turn-semantic-restart",
+      input: [{type: "text", text: "Continue the old turn."}]}});
+  assert.equal(staleSteer.to_server.length, 0, "A recovered turn cannot be steered before host reconciliation.");
+  assert.deepEqual(staleSteer.to_client[0].error.data.reason_codes, ["reasoning.recovery-unverified"]);
+  const completedTurn = await second.processServerMessage(completed("thread-semantic-restart", "turn-semantic-restart"));
+  const semantic = completedTurn.to_client.find((message) => message.method === SEMANTIC_NOTIFICATION);
+  assert.equal(semantic.params.disposition, "evaluated", JSON.stringify(semantic.params));
+  assert.equal(semantic.params.semantic_outcome, "RecommendedUnderSnapshot");
+  assert.deepEqual(second.inspectState().active_semantic_turn_ids, []);
+  assert.equal(second.observeReasoningThreads()[0].phase, "turn-completed");
+  const followUp = await second.processClientMessage(turnStart(10048, "Research whether this refund is eligible.", "thread-semantic-restart"));
+  assert.equal(followUp.to_server.length, 1,
+    `A real completion notification releases the thread for the next turn: ${JSON.stringify(followUp.to_client)}`);
+  assert.equal(second.close().ok, true);
+});
+
+for (const hostStatus of ["interrupted", "completed"]) test(`verified ${hostStatus} host history checkpoints a recovered terminal turn without semantic completion`, async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-terminal-recovery-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: resolve(directory, "reasoning-state.jsonl")};
+  profile.semantic_evaluation = {enabled: true, trigger: "turn/completed"};
+  const create = () => wrapper({loaded_profile: profile, semantic_profile: semanticProfile.value,
+    semantic_input_provider: () => semanticInput()});
+  const threadId = "thread-terminal-recovery", turnId = "turn-terminal-recovery", requestKey = "request-terminal-recovery";
+  const first = create();
+  await startAndBind(first, {id: 10049, text: "Research the bounded case.", threadId, turnId});
+  first.close();
+  const second = create();
+  const bindingDigest = digestValue("exact forwarded request");
+  const threadRef = `backend-thread:${digestValue(threadId)}`;
+  const request = {method: "turn/start", status: "complete", request_key: requestKey,
+    binding_digest: bindingDigest, thread_ref: threadRef};
+  const acceptance = {kind: "turn-start-accepted", thread_ref: threadRef, turn_ref: digestValue(turnId),
+    request_key_digest: digestValue(requestKey), request_digest: bindingDigest};
+  const response = {result: {thread: {id: threadId, turns: [{id: turnId, status: hostStatus}]}}};
+  assert.equal(second.reconcileRecoveredTerminalTurn({request, acceptance, response: {result: {thread: {id: threadId,
+    turns: [{id: turnId, status: "inProgress"}]}}}, thread_id: threadId, turn_id: turnId}).ok, false);
+  assert.equal(second.observeReasoningThreads()[0].phase, "recovery-unverified");
+  const settled = second.reconcileRecoveredTerminalTurn({request, acceptance, response, thread_id: threadId, turn_id: turnId});
+  assert.equal(settled.ok, true, JSON.stringify(settled));
+  assert.equal(settled.disposition, "reconciled-terminal");
+  assert.equal(second.observeReasoningThreads()[0].phase, "recovery-terminal");
+  assert.equal(second.observeReasoningThreads()[0].latest_frontier_digest, null);
+  assert.deepEqual(second.inspectState().semantic_completion_turn_ids, []);
+  assert.deepEqual(second.inspectState().evolution_signal_turn_ids, []);
+  assert.deepEqual(second.inspectState().active_semantic_turn_ids, []);
+  assert.equal(second.reconcileRecoveredTerminalTurn({request, acceptance, response, thread_id: threadId, turn_id: turnId}).disposition,
+    "already-reconciled");
+  assert.equal(second.ledger.snapshot().filter((event) => event.event_kind === "recovered-turn-terminal-reconciled").length, 1);
+  const late = await second.processServerMessage(completed(threadId, turnId));
+  assert.equal(late.to_client.some((message) => message.method === SEMANTIC_NOTIFICATION), false);
+  assert.equal(second.observeReasoningThreads()[0].latest_frontier_digest, null);
+  second.close();
+  const third = create();
+  assert.equal(third.observeReasoningThreads()[0].phase, "recovery-terminal");
+  assert.deepEqual(third.inspectState().completion_frontier_turn_ids, []);
+  const next = await third.processClientMessage(turnStart(10050, "Research whether this refund is eligible.", threadId));
+  assert.equal(next.to_server.length, 1, JSON.stringify(next.to_client));
+  third.close();
+});
+
+for (const previouslyBound of [false, true]) test(`marked unknown dispatch reconciles exact ${previouslyBound ? "bound" : "pending"} semantic state without completion`, async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-marker-recovery-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync",
+    log_path: resolve(directory, "reasoning-state.jsonl")};
+  profile.semantic_evaluation = {enabled: true, trigger: "turn/completed"};
+  const create = () => wrapper({loaded_profile: profile, semantic_profile: semanticProfile.value,
+    semantic_input_provider: () => semanticInput()});
+  const threadId = "thread-marker-recovery", turnId = "turn-marker-recovery";
+  const marker = `are-gateway-client:${"a".repeat(32)}`;
+  const input = turnStart(10051, "Research the bounded case.", threadId);
+  const first = create();
+  assert.equal((await first.processClientMessage(input)).to_server.length, 1);
+  if (previouslyBound) await first.processServerMessage(turnResponse(input.id, turnId));
+  first.close();
+  const second = create();
+  const bindingDigest = digestValue({method: input.method, params: input.params});
+  const request = {method: "turn/start", status: "outcome-unknown", request_key: "request-marker-recovery",
+    binding_digest: bindingDigest, thread_ref: `backend-thread:${digestValue(threadId)}`,
+    client_message_id: marker};
+  const response = {result: {thread: {id: threadId, turns: [{id: turnId, status: "completed",
+    items: [{type: "userMessage", clientId: marker}]}]}}};
+  const markerObservation = observeMarkedTurnInHostHistory({request, response}).observation;
+  assert.equal(second.reconcileRecoveredTerminalTurn({request, marker_observation: {...markerObservation,
+    observation_digest: "0".repeat(64)}, response, thread_id: threadId, turn_id: turnId}).ok, false);
+  const wrongRequest = {...request, binding_digest: "f".repeat(64)};
+  assert.deepEqual(second.reconcileRecoveredTerminalTurn({request: wrongRequest,
+    marker_observation: observeMarkedTurnInHostHistory({request: wrongRequest, response}).observation,
+    response, thread_id: threadId, turn_id: turnId}).reason_codes,
+  [previouslyBound ? "reasoning.recovery-marker-state-mismatch" : "reasoning.recovery-marker-state-unbound"]);
+  const settled = second.reconcileRecoveredTerminalTurn({request, marker_observation: markerObservation,
+    response, thread_id: threadId, turn_id: turnId});
+  assert.equal(settled.ok, true, JSON.stringify(settled));
+  assert.equal(settled.disposition, "reconciled-terminal");
+  assert.equal(second.observeReasoningThreads()[0].phase, "recovery-terminal");
+  assert.deepEqual(second.inspectState().pending_semantic_rpc_ids, []);
+  assert.deepEqual(second.inspectState().semantic_completion_turn_ids, []);
+  assert.deepEqual(second.inspectState().evolution_signal_turn_ids, []);
+  assert.equal(second.reconcileRecoveredTerminalTurn({request, marker_observation: markerObservation,
+    response, thread_id: threadId, turn_id: turnId}).disposition, "already-reconciled");
+  second.close();
+  const third = create();
+  assert.equal(third.observeReasoningThreads()[0].phase, "recovery-terminal");
+  assert.deepEqual(third.inspectState().completion_frontier_turn_ids, []);
+  third.close();
+});
+
+test("marked unknown dispatch accepts an exactly bound completion already checkpointed before restart", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-marker-completed-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync",
+    log_path: resolve(directory, "reasoning-state.jsonl")};
+  const create = () => wrapper({loaded_profile: profile});
+  const threadId = "thread-marker-completed", turnId = "turn-marker-completed";
+  const marker = `are-gateway-client:${"b".repeat(32)}`;
+  const input = turnStart(10052, "Research the bounded case.", threadId);
+  const first = create();
+  assert.equal((await first.processClientMessage(input)).to_server.length, 1);
+  await first.processServerMessage(turnResponse(input.id, turnId));
+  await first.processServerMessage(completed(threadId, turnId));
+  assert.equal(first.observeReasoningThreads()[0].phase, "turn-completed");
+  first.close();
+  const second = create();
+  const request = {method: "turn/start", status: "outcome-unknown", request_key: "request-marker-completed",
+    binding_digest: digestValue({method: input.method, params: input.params}),
+    thread_ref: `backend-thread:${digestValue(threadId)}`, client_message_id: marker};
+  const response = {result: {thread: {id: threadId, turns: [{id: turnId, status: "completed",
+    items: [{type: "userMessage", clientId: marker}]}]}}};
+  const observation = observeMarkedTurnInHostHistory({request, response}).observation;
+  assert.equal(second.reconcileRecoveredTerminalTurn({request, marker_observation: observation,
+    response, thread_id: threadId, turn_id: turnId}).disposition, "already-completed");
+  const conflictingResponse = {result: {thread: {id: threadId,
+    turns: [{id: turnId, status: "failed", items: [{type: "userMessage", clientId: marker}]}]}}};
+  const conflictingObservation = observeMarkedTurnInHostHistory({request, response: conflictingResponse}).observation;
+  assert.equal(second.reconcileRecoveredTerminalTurn({request, marker_observation: conflictingObservation,
+    response: conflictingResponse, thread_id: threadId, turn_id: turnId}).ok, false);
+  const wrongRequest = {...request, binding_digest: "f".repeat(64)};
+  assert.deepEqual(second.reconcileRecoveredTerminalTurn({request: wrongRequest,
+    marker_observation: observeMarkedTurnInHostHistory({request: wrongRequest, response}).observation,
+    response, thread_id: threadId, turn_id: turnId}).reason_codes,
+  ["reasoning.recovery-marker-state-unbound"]);
+  assert.equal(second.observeReasoningThreads()[0].phase, "turn-completed");
+  second.close();
+});
+
+test("gateway marker checkpoint binds the original request through a completed restart", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-gateway-marker-binding-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync",
+    log_path: resolve(directory, "reasoning-state.jsonl")};
+  const create = () => wrapper({loaded_profile: profile});
+  const threadId = "thread-gateway-marker-binding", turnId = "turn-gateway-marker-binding";
+  const marker = `are-gateway-client:${"c".repeat(32)}`;
+  const input = turnStart(10053, "Research the bounded case.", threadId);
+  const marked = {...input, params: {...input.params, clientUserMessageId: marker}};
+  const bindingDigest = digestValue({method: input.method, params: input.params});
+  const first = create();
+  const rejected = await first.processClientMessage(marked,
+    {gateway_request_binding_digest: "f".repeat(64)});
+  assert.deepEqual(rejected.to_server, []);
+  assert.deepEqual(rejected.to_client[0].error.data.reason_codes,
+    ["semantic.gateway-request-binding-mismatch"]);
+  assert.deepEqual(first.inspectState().pending_semantic_rpc_ids, []);
+  const accepted = await first.processClientMessage(marked,
+    {gateway_request_binding_digest: bindingDigest});
+  assert.equal(accepted.to_server.length, 1);
+  await first.processServerMessage(turnResponse(input.id, turnId));
+  await first.processServerMessage(completed(threadId, turnId));
+  first.close();
+
+  const second = create();
+  const request = {method: "turn/start", status: "outcome-unknown", request_key: "request-gateway-marker-binding",
+    binding_digest: bindingDigest, thread_ref: `backend-thread:${digestValue(threadId)}`,
+    client_message_id: marker};
+  const response = {result: {thread: {id: threadId, turns: [{id: turnId, status: "completed",
+    items: [{type: "userMessage", clientId: marker}]}]}}};
+  const observation = observeMarkedTurnInHostHistory({request, response}).observation;
+  const reconciled = second.reconcileRecoveredTerminalTurn({request, marker_observation: observation,
+    response, thread_id: threadId, turn_id: turnId});
+  assert.equal(reconciled.ok, true, JSON.stringify(reconciled));
+  assert.equal(reconciled.disposition, "already-completed");
+  second.close();
+});
+
+test("file-backed wrapper checkpoints a rejected turn start and does not recover it as pending", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-semantic-turn-rejected-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: resolve(directory, "reasoning-state.jsonl")};
+  const create = () => wrapper({loaded_profile: profile});
+  const first = create();
+  const started = await first.processClientMessage(turnStart(10045, "Research refund eligibility.", "thread-semantic-rejected"));
+  assert.equal(started.to_server.length, 1);
+  assert.deepEqual(first.inspectState().pending_semantic_rpc_ids, ["10045"]);
+  const rejection = {jsonrpc: "2.0", id: 10045, error: {code: -32602, message: "Rejected by host"}};
+  assert.deepEqual((await first.processServerMessage(rejection)).to_client, [rejection]);
+  assert.deepEqual(first.inspectState().pending_semantic_rpc_ids, []);
+  assert.equal(first.close().ok, true);
+  const second = create();
+  assert.deepEqual(second.inspectState().pending_semantic_rpc_ids, []);
+  assert.deepEqual(second.inspectState().active_semantic_turn_ids, []);
+  assert.equal(second.close().ok, true);
+});
+
+test("file-backed plan context survives wrapper restart and rejects a concurrent writer", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-plan-recovery-");
+  temporaryPaths.push(directory);
+  const logPath = resolve(directory, "reasoning-state.jsonl");
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: logPath, single_writer: true};
+  const sourceRef = "plans:restart-fixture";
+  const sourceDigest = createHash("sha256").update("restart-bound plan").digest("hex");
+  let version = 1;
+  const provider = ({thread_ref, previous_plan_context_digest}) => ({
+    input: {
+      thread_ref,
+      parent_plan_ref: sourceRef,
+      parent_plan_digest: sourceDigest,
+      feature_obligations: [
+        {obligation_id: "one", summary: "Preserve first obligation", status: version === 1 ? "active" : "completed"},
+        {obligation_id: "two", summary: "Preserve next obligation", status: version === 1 ? "open" : "active"},
+      ],
+      active_slice_id: version === 1 ? "one" : "two",
+      unresolved_decisions: [],
+      source_refs: [{source_ref: sourceRef, source_digest: sourceDigest}],
+      previous_plan_context_digest,
+    },
+    source_digests: {[sourceRef]: sourceDigest},
+  });
+  const first = wrapper({loaded_profile: profile, plan_context_provider: provider});
+  assert.equal((await first.processClientMessage(turnStart(10045, "Research the first obligation.", "thread-plan-restart"))).to_server.length, 1);
+  const firstPlanDigest = first.observeReasoningThreads()[0].plan_context_digest;
+  assert.equal(first.observeReasoningThreads()[0].plan_completed_count, 0);
+  assert.throws(() => wrapper({loaded_profile: profile, plan_context_provider: provider}), /reasoning\.writer-lock-held/);
+  first.close();
+
+  version = 2;
+  const second = wrapper({loaded_profile: profile, plan_context_provider: provider});
+  assert.equal(second.inspectState().reasoning_state.recovery.disposition, "recovered");
+  assert.equal((await second.processClientMessage(turnStart(10046, "Research the second obligation.", "thread-plan-restart"))).to_server.length, 1);
+  const secondObservation = second.observeReasoningThreads()[0];
+  assert.equal(secondObservation.plan_obligation_count, 2);
+  assert.equal(secondObservation.plan_completed_count, 1);
+  assert.notEqual(secondObservation.plan_context_digest, firstPlanDigest);
+  assert.doesNotMatch(JSON.stringify(secondObservation), /Preserve first|Preserve next|restart-fixture/);
+  second.close();
+  assert.equal(verifyReasoningStateLog(logPath, {expected_ledger_id: profile.reasoning_state.ledger_id}).ok, true);
+});
+
+test("file-backed wrapper opens after a terminated Reasoning State lock owner", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-crash-lock-");
+  temporaryPaths.push(directory);
+  const logPath = resolve(directory, "reasoning-state.jsonl");
+  const moduleUrl = new URL("../../reasoning-state-runtime/index.mjs", import.meta.url).href;
+  const script = `const {acquireReasoningStateWriterLock} = await import(${JSON.stringify(moduleUrl)}); const result = acquireReasoningStateWriterLock({path: ${JSON.stringify(logPath)}}); if (!result.ok) throw new Error(JSON.stringify(result.reason_codes));`;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {encoding: "utf8"});
+  assert.equal(child.status, 0, child.stderr);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: logPath, single_writer: true};
+  const instance = wrapper({loaded_profile: profile});
+  const result = await instance.processClientMessage(turnStart(10047, "Research state recovery after the terminated writer.", "thread-crash-lock"));
+  assert.equal(result.to_server.length, 1, JSON.stringify(result.to_client));
+  instance.close();
+  assert.equal(verifyReasoningStateLog(logPath, {expected_ledger_id: profile.reasoning_state.ledger_id}).ok, true);
+});
+
+test("steer admission commits a successor plan only after host acceptance and preserves it across compaction and restart", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-steer-plan-");
+  temporaryPaths.push(directory);
+  const logPath = resolve(directory, "reasoning-state.jsonl");
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: logPath, single_writer: true};
+  const sourceRef = "plans:steer-fixture";
+  const sourceDigest = createHash("sha256").update("steering plan source").digest("hex");
+  let version = 1;
+  const seenPredecessors = [];
+  const provider = ({thread_ref, previous_plan_context_digest}) => {
+    seenPredecessors.push(previous_plan_context_digest);
+    return {input: {thread_ref, parent_plan_ref: sourceRef, parent_plan_digest: sourceDigest,
+      feature_obligations: [{obligation_id: "first", summary: "Keep the first obligation", status: version === 1 ? "active" : "completed"},
+        {obligation_id: "second", summary: "Keep the second obligation", status: version === 1 ? "open" : "active"}],
+      active_slice_id: version === 1 ? "first" : "second", unresolved_decisions: [],
+      source_refs: [{source_ref: sourceRef, source_digest: sourceDigest}], previous_plan_context_digest},
+    source_digests: {[sourceRef]: sourceDigest}};
+  };
+  const first = wrapper({loaded_profile: profile, plan_context_provider: provider});
+  assert.equal((await first.processClientMessage(turnStart(10048, "Research the first obligation.", "thread-steer-plan"))).to_server.length, 1);
+  assert.equal((await first.processServerMessage({jsonrpc: "2.0", id: 10048, result: {turn: {id: "turn-steer-plan"}}})).to_client.length, 1);
+  const originalDigest = first.observeReasoningThreads()[0].plan_context_digest;
+  const dispatchedContext = first.inspectState().current_context_epochs;
+  version = 2;
+  const steer = {jsonrpc: "2.0", id: 10049, method: "turn/steer", params: {threadId: "thread-steer-plan", expectedTurnId: "turn-steer-plan", input: [{type: "text", text: "Research the second obligation now."}]}};
+  const admitted = await first.processClientMessage(steer);
+  assert.deepEqual(admitted.to_server, [steer]);
+  assert.equal(first.observeReasoningThreads()[0].plan_context_digest, originalDigest);
+  assert.deepEqual(first.inspectState().pending_steer_rpc_ids, ["10049"]);
+  const accepted = await first.processServerMessage({jsonrpc: "2.0", id: 10049, result: {turnId: "turn-steer-plan"}});
+  assert.equal(accepted.to_client[0].result.turnId, "turn-steer-plan");
+  const successor = first.observeReasoningThreads()[0];
+  assert.equal(successor.plan_completed_count, 1);
+  assert.notEqual(successor.plan_context_digest, originalDigest);
+  assert.deepEqual(first.inspectState().current_context_epochs, dispatchedContext,
+    "Steer admission context was assessed but was not injected into the host turn.");
+  assert.deepEqual(first.inspectState().pending_steer_rpc_ids, []);
+  const compaction = {jsonrpc: "2.0", method: "item/completed", params: {threadId: "thread-steer-plan", turnId: "turn-steer-plan",
+    item: {type: "contextCompaction", id: "compact-steer-plan", status: "completed"}}};
+  assert.deepEqual((await first.processServerMessage(compaction)).to_client, [compaction]);
+  assert.equal(first.observeReasoningThreads()[0].plan_context_digest, successor.plan_context_digest);
+  await first.processServerMessage(completed("thread-steer-plan", "turn-steer-plan"));
+  first.close();
+  assert.equal(verifyReasoningStateLog(logPath, {expected_ledger_id: profile.reasoning_state.ledger_id}).ok, true);
+
+  version = 3;
+  const resumed = wrapper({loaded_profile: profile, plan_context_provider: provider});
+  assert.equal(resumed.inspectState().reasoning_state.recovery.disposition, "recovered");
+  const nextTurn = await resumed.processClientMessage(turnStart(10050, "Research the remaining obligation.", "thread-steer-plan"));
+  assert.equal(nextTurn.to_server.length, 1);
+  assert.equal(seenPredecessors.at(-1), successor.plan_context_digest);
+  assert.match(nextTurn.to_server[0].params.additionalContext[CACHE_AFFINITY_KEY].value, /Keep the second obligation/);
+  assert.equal(resumed.ledger.snapshot().find((event) => event.event_kind === "reasoning-dispatch-verified")?.plan_context_digest,
+    resumed.observeReasoningThreads()[0].plan_context_digest);
+  resumed.close();
+});
+
+test("rejected or unbound steering never commits a successor plan", async () => {
+  let version = 1;
+  const sourceRef = "plans:rejected-steer";
+  const sourceDigest = createHash("sha256").update("rejected steer source").digest("hex");
+  const provider = ({thread_ref, previous_plan_context_digest}) => ({input: {thread_ref, parent_plan_ref: sourceRef,
+    parent_plan_digest: sourceDigest, feature_obligations: [
+      {obligation_id: "one", summary: "Retain one obligation", status: version === 1 ? "active" : "completed"},
+      {obligation_id: "two", summary: "Continue the next obligation", status: version === 1 ? "open" : "active"},
+    ], active_slice_id: version === 1 ? "one" : "two", unresolved_decisions: [], source_refs: [{source_ref: sourceRef, source_digest: sourceDigest}], previous_plan_context_digest},
+    source_digests: {[sourceRef]: sourceDigest}});
+  const instance = wrapper({plan_context_provider: provider});
+  assert.equal((await instance.processClientMessage(turnStart(10051, "Research the first obligation.", "thread-rejected-steer"))).to_server.length, 1);
+  await instance.processServerMessage({jsonrpc: "2.0", id: 10051, result: {turn: {id: "turn-rejected-steer"}}});
+  const originalDigest = instance.observeReasoningThreads()[0].plan_context_digest;
+  version = 2;
+  const unbound = await instance.processClientMessage({jsonrpc: "2.0", id: 10052, method: "turn/steer", params: {threadId: "thread-rejected-steer", expectedTurnId: "wrong-turn", input: [{type: "text", text: "Research the next obligation."}]}});
+  assert.equal(unbound.to_server.length, 0);
+  const steer = {jsonrpc: "2.0", id: 10053, method: "turn/steer", params: {threadId: "thread-rejected-steer", expectedTurnId: "turn-rejected-steer", input: [{type: "text", text: "Research the next obligation."}]}};
+  const admitted = await instance.processClientMessage(steer);
+  assert.equal(admitted.to_server.length, 1, JSON.stringify(admitted.to_client));
+  const rejected = await instance.processServerMessage({jsonrpc: "2.0", id: 10053, error: {code: -32602, message: "No active turn"}});
+  assert.equal(rejected.to_client[0].error.message, "No active turn");
+  assert.equal(instance.observeReasoningThreads()[0].plan_context_digest, originalDigest);
+  assert.deepEqual(instance.inspectState().pending_steer_rpc_ids, []);
+  instance.close();
+});
+
+test("hosted steering requires verified input before any host dispatch", async () => {
+  const instance = wrapper({require_hosted_input_attestation: true});
+  const steer = {jsonrpc: "2.0", id: 10064, method: "turn/steer", params: {
+    threadId: "thread-hosted-steer", expectedTurnId: "turn-hosted-steer",
+    input: [{type: "text", text: "Correct the objective."}]}};
+  const denied = await instance.processClientMessage(steer);
+  assert.equal(denied.to_server.length, 0);
+  assert.deepEqual(denied.to_client[0].error.data.reason_codes, ["steer.hosted-input-unverified"]);
+  instance.close();
+});
+
+test("steering serializes a turn and a mismatched host acceptance blocks further dispatch", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-steer-mismatch-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync",
+    log_path: resolve(directory, "reasoning-state.jsonl"), single_writer: true};
+  const instance = wrapper({loaded_profile: profile});
+  const threadId = "thread-steer-mismatch";
+  const turnId = "turn-steer-mismatch";
+  assert.equal((await instance.processClientMessage(turnStart(10054, "Research the first obligation.", threadId))).to_server.length, 1);
+  await instance.processServerMessage({jsonrpc: "2.0", id: 10054, result: {turn: {id: turnId}}});
+  const steer = {jsonrpc: "2.0", id: 10055, method: "turn/steer", params: {threadId, expectedTurnId: turnId,
+    input: [{type: "text", text: "Research the next obligation."}]}};
+  assert.deepEqual((await instance.processClientMessage(steer)).to_server, [steer]);
+  const duplicate = await instance.processClientMessage({...steer, id: 10056});
+  assert.equal(duplicate.to_server.length, 0);
+  assert.deepEqual(duplicate.to_client[0].error.data.reason_codes, ["steer.pending-for-turn"]);
+  const prematureTurn = await instance.processClientMessage(turnStart(10057, "Research another obligation.", threadId));
+  assert.equal(prematureTurn.to_server.length, 0);
+  assert.deepEqual(prematureTurn.to_client[0].error.data.reason_codes, ["steer.outcome-pending"]);
+  const mismatch = await instance.processServerMessage({jsonrpc: "2.0", id: 10055, result: {turnId: "unexpected-turn"}});
+  assert.equal(mismatch.to_client[0].error.code, -32080);
+  assert.deepEqual(instance.inspectState().degraded_steer_threads, [threadId]);
+  const nextTurn = await instance.processClientMessage(turnStart(10057, "Research another obligation.", threadId));
+  assert.equal(nextTurn.to_server.length, 0);
+  assert.deepEqual(nextTurn.to_client[0].error.data.reason_codes, ["steer.continuity-degraded"]);
+  instance.close();
+  const resumed = wrapper({loaded_profile: profile});
+  assert.deepEqual(resumed.inspectState().degraded_steer_threads, [threadId]);
+  resumed.close();
+});
+
+test("restart keeps an unresolved steer degraded while a durably rejected steer remains retryable", async () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-steer-recovery-");
+  temporaryPaths.push(directory);
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync",
+    log_path: resolve(directory, "reasoning-state.jsonl"), single_writer: true};
+  const threadId = "thread-steer-recovery";
+  const turnId = "turn-steer-recovery";
+  const first = wrapper({loaded_profile: profile});
+  assert.equal((await first.processClientMessage(turnStart(10058, "Research the first obligation.", threadId))).to_server.length, 1);
+  await first.processServerMessage({jsonrpc: "2.0", id: 10058, result: {turn: {id: turnId}}});
+  const steer = {jsonrpc: "2.0", id: 10059, method: "turn/steer", params: {threadId, expectedTurnId: turnId,
+    input: [{type: "text", text: "Research the next obligation."}]}};
+  assert.deepEqual((await first.processClientMessage(steer)).to_server, [steer]);
+  first.close();
+
+  const resumed = wrapper({loaded_profile: profile});
+  assert.deepEqual(resumed.inspectState().degraded_steer_threads, [threadId]);
+  const denied = await resumed.processClientMessage(turnStart(10060, "Research after an unknown steer outcome.", threadId));
+  assert.equal(denied.to_server.length, 0);
+  assert.deepEqual(denied.to_client[0].error.data.reason_codes, ["steer.continuity-degraded"]);
+  resumed.close();
+
+  const rejectedProfile = structuredClone(profile);
+  rejectedProfile.reasoning_state.log_path = resolve(directory, "rejected-state.jsonl");
+  const rejected = wrapper({loaded_profile: rejectedProfile});
+  assert.equal((await rejected.processClientMessage(turnStart(10061, "Research the first obligation.", threadId))).to_server.length, 1);
+  await rejected.processServerMessage({jsonrpc: "2.0", id: 10061, result: {turn: {id: turnId}}});
+  assert.deepEqual((await rejected.processClientMessage({...steer, id: 10062})).to_server[0].method, "turn/steer");
+  assert.equal((await rejected.processServerMessage({jsonrpc: "2.0", id: 10062,
+    error: {code: -32602, message: "No active turn"}})).to_client[0].error.message, "No active turn");
+  await rejected.processServerMessage(completed(threadId, turnId));
+  rejected.close();
+  const afterRejection = wrapper({loaded_profile: rejectedProfile});
+  assert.deepEqual(afterRejection.inspectState().degraded_steer_threads, []);
+  assert.equal((await afterRejection.processClientMessage(turnStart(10063, "Research after a rejected steer.", threadId))).to_server.length, 1);
+  afterRejection.close();
 });
 
 test("file-backed wrapper recovers context-bound reuse receipts and observed provider cache telemetry", async () => {
@@ -573,6 +1162,40 @@ test("file-backed wrapper rejects an uncheckpointed recovery tail at startup", (
   assert.throws(() => wrapper({loaded_profile: profile}), /reasoning\.log-uncheckpointed-tail/);
 });
 
+test("file-backed decision recovery exposes only the latest 128 content-free evaluations", () => {
+  const directory = mkdtempSync("/tmp/are-wrapper-decision-recovery-");
+  temporaryPaths.push(directory);
+  const logPath = resolve(directory, "reasoning-state.jsonl");
+  const sink = createAppendOnlyFileReasoningStateSink({path: logPath});
+  const seed = createReasoningStateLedger({ledger_id: loaded.value.reasoning_state.ledger_id, sink});
+  const threadRef = `backend-thread:${digestValue("private-recovery-thread")}`;
+  for (let sequence = 1; sequence <= 140; sequence += 1) {
+    const appended = seed.append({event_kind: "decision-observation-recorded", content: {
+      decision_type: "turn-preflight", outcome: "direct", thread_ref: threadRef,
+      decision_digest: digestValue({sequence, kind: "decision"}),
+      evidence_event_digest: digestValue({sequence, kind: "evidence"}),
+      event_sequence: sequence, observed_at_unix_ms: 1_700_000_000_000 + sequence,
+      reason_codes: ["selection.unique-capability"],
+    }});
+    assert.equal(appended.ok, true);
+  }
+  const epoch = seed.seal({consumer_ref: "codex:decision-recovery", request_ref: "decision-recovery-seed"});
+  assert.equal(epoch.ok, true);
+  assert.equal(seed.checkpoint({checkpoint_kind: "manual", epoch: epoch.value}).ok, true);
+  seed.close();
+
+  const profile = structuredClone(loaded.value);
+  profile.reasoning_state = {...profile.reasoning_state, storage_mode: "append-only-file-fsync", log_path: logPath};
+  const recovered = wrapper({loaded_profile: profile});
+  const decisions = recovered.observeDecisions();
+  assert.equal(decisions.length, 128);
+  assert.equal(decisions[0].event_sequence, 13);
+  assert.equal(decisions.at(-1).event_sequence, 140);
+  assert.doesNotMatch(JSON.stringify(decisions), /private-recovery-thread/);
+  assert.equal(recovered.inspectState().decision_observation_persistence_failure, null);
+  recovered.close();
+});
+
 test("file-backed completion frontier replays after restart without semantic, continuation, or successor calls", async () => {
   const directory = mkdtempSync("/tmp/are-wrapper-completion-frontier-");
   temporaryPaths.push(directory);
@@ -601,9 +1224,20 @@ test("file-backed completion frontier replays after restart without semantic, co
     continuation_provider: continuationProvider,
   });
   await startAndBind(first, {id: 1005, text: "Research whether this refund is eligible.", threadId: "thread-frontier", turnId: "turn-frontier"});
+  assert.equal(first.completedTurnProof("thread-frontier", digestValue("turn-frontier")), null);
+  assert.equal(first.observeDecisions().some((decision) => decision.decision_type === "turn-preflight"), true);
   const initial = await first.processServerMessage(completed("thread-frontier", "turn-frontier"));
   assert.equal(initial.to_server.length, 1);
   assert.equal(first.inspectState().reasoning_state.frontier_count, 1);
+  const completedProof = first.completedTurnProof("thread-frontier", digestValue("turn-frontier"));
+  assert.equal(completedProof.turn_status, "completed");
+  assert.match(completedProof.frontier_digest, /^[0-9a-f]{64}$/);
+  assert.equal(first.completedTurnProof("other-thread", digestValue("turn-frontier")), null);
+  assert.equal(first.observeReasoningThreads().find((thread) => thread.phase === "turn-completed")?.latest_frontier_digest?.length, 64);
+  assert.equal(first.observeDecisions().some((decision) => decision.decision_type === "turn-continuation"), true);
+  assert.doesNotMatch(JSON.stringify(first.observeDecisions()), /thread-frontier|refund/);
+  const firstDecisions = first.observeDecisions();
+  const storedDecisionEvents = first.inspectState().reasoning_state.event_count;
   assert.deepEqual({semanticInputCalls, semanticLifecycleCalls, continuationCalls}, {semanticInputCalls: 0, semanticLifecycleCalls: 0, continuationCalls: 1});
   first.close();
 
@@ -614,6 +1248,19 @@ test("file-backed completion frontier replays after restart without semantic, co
     continuation_provider: continuationProvider,
   });
   assert.deepEqual(second.inspectState().completion_frontier_turn_ids, ["thread-frontier:turn-frontier"]);
+  assert.deepEqual(second.completedTurnProof("thread-frontier", digestValue("turn-frontier")), completedProof);
+  assert.equal(second.observeReasoningThreads()[0].phase, "dispatch-pending", "the already-dispatched automatic successor remains pending after restart");
+  assert.deepEqual(second.observeDecisions(), firstDecisions, "Content-free decision observations replay from the consumer ledger.");
+  assert.equal(second.inspectState().reasoning_state.event_count, storedDecisionEvents);
+  assert.equal(second.inspectState().decision_observation_persistence_failure, null);
+  const decisionEvents = readFileSync(logPath, "utf8").trim().split("\n")
+    .map((line) => JSON.parse(line))
+    .filter((record) => record.record_kind === "reasoning-state-event" && record.value.event_kind === "decision-observation-recorded")
+    .map((record) => record.value);
+  assert.equal(decisionEvents.length, 2);
+  assert.deepEqual(Object.keys(decisionEvents[0].content).sort(), ["decision_digest", "decision_type", "event_sequence", "evidence_event_digest", "observed_at_unix_ms", "outcome", "reason_codes", "thread_ref"]);
+  assert.doesNotMatch(JSON.stringify(decisionEvents), /thread-frontier|refund/);
+  assert.doesNotMatch(JSON.stringify(second.observeReasoningThreads()), /thread-frontier|refund/);
   const replayed = await second.processServerMessage(completed("thread-frontier", "turn-frontier"));
   assert.equal(replayed.to_server.length, 0);
   assert.equal(replayed.to_client.some((message) => message.method === "cyberalchemy/successor" && message.params.kind === "replayed"), true);
@@ -638,6 +1285,27 @@ test("a failed required model checkpoint blocks turn/start", async () => {
   assert.equal(result.to_server.length, 0);
   assert.equal(result.to_client[0].error.code, -32075);
   assert.deepEqual(result.to_client[0].error.data.reason_codes, ["reasoning.sink-closed"]);
+});
+
+test("a failed semantic binding checkpoint withholds the host-accepted turn", async () => {
+  const reasoningLedger = createReasoningStateLedger({ledger_id: "reasoning:failed-binding"});
+  const instance = wrapper({reasoning_ledger: reasoningLedger});
+  const started = await instance.processClientMessage(turnStart(10046, "Research refund eligibility.", "thread-binding-fail"));
+  assert.equal(started.to_server.length, 1);
+  assert.deepEqual(instance.inspectState().pending_semantic_rpc_ids, ["10046"]);
+  reasoningLedger.close();
+  await assert.rejects(instance.processServerMessage(turnResponse(10046, "turn-binding-fail")), /semantic.turn-binding-not-durable/);
+  assert.deepEqual(instance.inspectState().active_semantic_turn_ids, []);
+  assert.deepEqual(instance.inspectState().pending_semantic_rpc_ids, ["10046"]);
+});
+
+test("a successful turn response without a turn identity is withheld", async () => {
+  const instance = wrapper();
+  const started = await instance.processClientMessage(turnStart(10047, "Research refund eligibility.", "thread-unbound-response"));
+  assert.equal(started.to_server.length, 1);
+  await assert.rejects(instance.processServerMessage({jsonrpc: "2.0", id: 10047, result: {}}), /semantic.turn-response-unbound/);
+  assert.deepEqual(instance.inspectState().pending_semantic_rpc_ids, ["10047"]);
+  assert.deepEqual(instance.inspectState().active_semantic_turn_ids, []);
 });
 
 test("ambiguous preflight returns an exact gate and never forwards turn/start", async () => {
@@ -749,6 +1417,188 @@ test("effect gate waits for independent client approval and binds the exact resp
   assert.equal(checkpoint.sequence < approval.sequence, true);
 });
 
+test("hosted effect decisions use the accepted turn route and reject missing route bindings", async () => {
+  const instance = wrapper({require_bound_effect_route: true,
+    effect_metadata_provider: () => ({route_id: "CA2-ROUTE-IMPLEMENT",
+      effect_classes: ["persistent-mutation"], reversible: false})});
+  const missing = await instance.processServerMessage({jsonrpc: "2.0", id: 801,
+    method: "item/fileChange/requestApproval", params: {threadId: "thread-route", turnId: "turn-unbound",
+      itemId: "item-unbound", startedAtMs: 1, reason: "edit"}});
+  assert.equal(missing.to_server[0].result.decision, "decline");
+  assert.equal(missing.to_client.some(message => message.method === "item/fileChange/requestApproval"), false);
+  await startAndBind(instance, {id: 802, text: "Research current context management approaches.",
+    threadId: "thread-route", turnId: "turn-research"});
+  const bound = await instance.processServerMessage({jsonrpc: "2.0", id: 803,
+    method: "item/fileChange/requestApproval", params: {threadId: "thread-route", turnId: "turn-research",
+      itemId: "item-research", startedAtMs: 2, reason: "edit"}});
+  assert.equal(bound.to_server[0].result.decision, "decline");
+  assert.equal(bound.to_client.some(message => message.method === "item/fileChange/requestApproval"), false);
+  assert.equal(instance.ledger.snapshot().filter(event => event.event_kind === "effect-decision").length, 2);
+});
+
+test("hosted effect assessment is default-off and bound to an active accepted turn", async () => {
+  const params = {threadId: "thread-hosted", turnId: "turn-hosted",
+    effectId: `hosted-effect:${"a".repeat(64)}`, kind: "command",
+    proposal: {command: ["pwd"]}};
+  const request = {jsonrpc: "2.0", id: 810, method: "cyberalchemy/hostedEffect/assess", params};
+  const disabled = await wrapper().processClientMessage(request);
+  assert.equal(disabled.to_client[0].error.data.reason_codes[0], "hosted-effect.disabled");
+
+  const instance = wrapper({allow_hosted_effect_tool: true, require_bound_effect_route: true,
+    effect_metadata_provider: () => ({route_id: "CA2-ROUTE-IMPLEMENT",
+      effect_classes: ["persistent-mutation"], reversible: false,
+      owner_gate_ref: "Owner of exact hosted command"})});
+  const before = await instance.processClientMessage(request);
+  assert.equal(before.to_client[0].error.data.reason_codes[0], "hosted-effect.turn-not-active");
+  await startAndBind(instance, {id: 811, text: "Implement the bounded change.",
+    threadId: params.threadId, turnId: params.turnId});
+  const accepted = await instance.processClientMessage(request);
+  assert.deepEqual(accepted.to_server, []);
+  assert.equal(accepted.to_client[0].result.ok, true);
+  assert.equal(accepted.to_client[0].result.value.thread_id, params.threadId);
+  assert.equal(accepted.to_client[0].result.value.turn_id, params.turnId);
+  assert.equal(accepted.to_client[0].result.value.item_id, params.effectId);
+  assert.equal(accepted.to_client[0].result.value.authority_effect, "none");
+  assert.equal(instance.ledger.snapshot().some(event => event.event_kind === "effect-decision"
+    && event.rpc_id === params.effectId), true);
+  const invalid = await instance.processClientMessage({...request, id: 812,
+    params: {...params, routeId: "CA2-ROUTE-IMPLEMENT"}});
+  assert.equal(invalid.to_client[0].error.data.reason_codes[0], "hosted-effect.assessment-request-invalid");
+  await instance.processServerMessage(completed(params.threadId, params.turnId));
+  const after = await instance.processClientMessage({...request, id: 813});
+  assert.equal(after.to_client[0].error.data.reason_codes[0], "hosted-effect.turn-not-active");
+
+  await startAndBind(instance, {id: 814, text: "Research current context management approaches.",
+    threadId: params.threadId, turnId: "turn-research-hosted"});
+  const researched = await instance.processClientMessage({...request, id: 815,
+    params: {...params, turnId: "turn-research-hosted", kind: "file-change"}});
+  assert.equal(researched.to_client[0].result.value.directive_kind, "block");
+});
+
+test("hosted command dispatch requires its bound assessment and one-use intent", async () => {
+  const effectId = `hosted-effect:${"b".repeat(64)}`;
+  const params = {threadId: "thread-execute", turnId: "turn-execute", effectId,
+    kind: "command", proposal: {command: ["node", "--version"], cwd: repositoryRoot}};
+  const instance = wrapper({allow_hosted_effect_tool: true,
+    hosted_effect_repository_root: repositoryRoot, require_bound_effect_route: true,
+    effect_metadata_provider: () => ({route_id: "CA2-ROUTE-IMPLEMENT",
+      effect_classes: ["persistent-mutation"], reversible: false,
+      owner_gate_ref: "Owner of exact hosted command"})});
+  await startAndBind(instance, {id: 9001, text: "Implement the bounded change.",
+    threadId: params.threadId, turnId: params.turnId});
+  const assessed = await instance.processClientMessage({jsonrpc: "2.0", id: 9002,
+    method: "cyberalchemy/hostedEffect/assess", params});
+  const directive = assessed.to_client[0].result.value;
+  assert.equal(["direct", "gate"].includes(directive.directive_kind), true);
+  const request = {thread_id: params.threadId, turn_id: params.turnId,
+    effect_id: effectId, kind: "command", proposal: params.proposal};
+  const binding = bindApprovalResponse({pending: directive,
+    response: {jsonrpc: "2.0", id: effectId, result: {decision: "accept"}}}).binding;
+  const intent = {schema_version: "are.hosted-effect-intent/v1", effect_id: effectId,
+    proposal_digest: digestValue(request), engine_decision_digest: directive.decision_digest,
+    approval_binding_digest: binding.binding_digest, request, status: "intent",
+    authority_effect: "none"};
+  const execute = {jsonrpc: "2.0", id: 9003, method: "cyberalchemy/hostedEffect/execute",
+    params: {request, intent, approval_binding: binding}};
+  const changed = await instance.processClientMessage({...execute, id: 9004,
+    params: {...execute.params, intent: {...intent, proposal_digest: "wrong"}}});
+  assert.equal(changed.to_server.length, 0);
+  const forwarded = await instance.processClientMessage(execute);
+  if (process.platform === "win32") {
+    assert.equal(forwarded.to_server.length, 0);
+    assert.deepEqual(forwarded.to_client[0].error.data.reason_codes,
+      ["hosted-effect.windows-sandbox-unverified"]);
+    return;
+  }
+  assert.equal(forwarded.to_server[0].method, "command/exec");
+  assert.equal(forwarded.to_server[0].params.sandboxPolicy.networkAccess, false);
+  assert.equal((await instance.processClientMessage({...execute, id: 9005})).to_server.length, 0);
+  const settled = await instance.processServerMessage({jsonrpc: "2.0", id: 9003,
+    result: {exitCode: 0, stdout: "ok", stderr: ""}});
+  assert.equal(settled.to_client[0].result.ok, true);
+  assert.equal(settled.to_client[0].result.stdout, "ok");
+});
+
+test("hosted broker opt-in denies the duplicate native approval path", async () => {
+  const instance = wrapper({allow_hosted_effect_tool: true,
+    hosted_effect_repository_root: repositoryRoot});
+  const native = {jsonrpc: "2.0", id: 9010,
+    method: "item/commandExecution/requestApproval",
+    params: {threadId: "thread-native", turnId: "turn-native",
+      itemId: "native-command", command: "echo bypass"}};
+  const rejected = await instance.processServerMessage(native);
+  assert.equal(rejected.to_client.length, 0);
+  assert.equal(rejected.to_server[0].result.decision, "decline");
+  assert.equal(instance.ledger.snapshot().some(event =>
+    event.event_kind === "native-effect-path-denied"), true);
+});
+
+test("shared wrapper declines session-wide and policy-amending approval responses", async () => {
+  const instance = wrapper();
+  const decisions = ["acceptForSession", {acceptWithExecpolicyAmendment: {command: "echo"}},
+    {applyNetworkPolicyAmendment: {enabled: true}}];
+  for (const [index, decision] of decisions.entries()) {
+    const id = 180 + index;
+    const effect = {jsonrpc: "2.0", id, method: "item/commandExecution/requestApproval",
+      params: {threadId: "thread-1", turnId: "turn-1", itemId: `item-${id}`, command: "echo test"}};
+    const requested = await instance.processServerMessage(effect);
+    assert.equal(requested.to_client[0], effect);
+    const rejected = await instance.processClientMessage({jsonrpc: "2.0", id, result: {decision}});
+    assert.deepEqual(rejected.to_server, [{jsonrpc: "2.0", id, result: {decision: "decline"}}]);
+    assert.deepEqual(rejected.to_client[0].error.data.reason_codes, ["effect.session-or-policy-grant-unsupported"]);
+    assert.equal(instance.inspectState().pending_approval_ids.includes(String(id)), false);
+  }
+  const evidence = instance.ledger.snapshot();
+  assert.equal(evidence.filter((event) => event.event_kind === "approval-response-rejected").length, decisions.length);
+  assert.equal(evidence.some((event) => event.event_kind === "effect-approval-bound"), false);
+});
+
+test("shared wrapper denies unassessed host tool calls before client delivery", async () => {
+  const instance = wrapper();
+  for (const [index, method] of ["item/tool/call", "account/chatgptAuthTokens/refresh",
+    "attestation/generate", "applyPatchApproval", "execCommandApproval", "future/effect"].entries()) {
+    const request = {jsonrpc: "2.0", id: `unsupported-${index}`, method,
+      params: {threadId: "thread-1", turnId: "turn-1", tool: "unassessed"}};
+    const result = await instance.processServerMessage(request);
+    assert.deepEqual(result.to_client, [], method);
+    assert.deepEqual(result.to_server[0].error.data.reason_codes,
+      [method === "future/effect" ? "host.server-request-unknown" : "host.server-request-unsupported"], method);
+  }
+  assert.equal(instance.ledger.snapshot().filter((event) => event.event_kind === "unsupported-host-request-rejected").length, 6);
+  for (const method of ["item/tool/requestUserInput", "mcpServer/elicitation/request", "currentTime/read"]) {
+    const request = {jsonrpc: "2.0", id: method, method, params: {threadId: "thread-1"}};
+    const result = await instance.processServerMessage(request);
+    assert.deepEqual(result.to_client, [request], method);
+    assert.deepEqual(result.to_server, [], method);
+  }
+});
+
+test("shared wrapper forwards only the opted-in hosted effect tool to its broker client", async () => {
+  const instance = wrapper({allow_hosted_effect_tool: true});
+  const request = {jsonrpc: "2.0", id: "hosted-effect-1", method: "item/tool/call", params: {
+    threadId: "thread-1", turnId: "turn-1", callId: "call-1", namespace: null,
+    tool: "are_effect_request", arguments: {kind: "command", proposal: {command: ["pwd"]}}}};
+  const accepted = await instance.processServerMessage(request);
+  assert.deepEqual(accepted.to_client, [request]);
+  assert.deepEqual(accepted.to_server, []);
+  const unrelated = await instance.processServerMessage({...request, id: "other-tool",
+    params: {...request.params, tool: "unrelated"}});
+  assert.deepEqual(unrelated.to_client, []);
+  assert.deepEqual(unrelated.to_server[0].error.data.reason_codes, ["host.server-request-unsupported"]);
+});
+
+test("shared wrapper declines permission expansion beyond the current turn", async () => {
+  const instance = wrapper();
+  const effect = {jsonrpc: "2.0", id: 184, method: "item/permissions/requestApproval",
+    params: {threadId: "thread-1", turnId: "turn-1", itemId: "item-permission", permissions: {network: true}}};
+  const requested = await instance.processServerMessage(effect);
+  assert.equal(requested.to_client[0], effect);
+  const rejected = await instance.processClientMessage({jsonrpc: "2.0", id: 184,
+    result: {permissions: {network: {enabled: true}}, scope: "session"}});
+  assert.deepEqual(rejected.to_server, [{jsonrpc: "2.0", id: 184, result: {permissions: {}, scope: "turn", strictAutoReview: true}}]);
+  assert.deepEqual(rejected.to_client[0].error.data.reason_codes, ["effect.permission-scope-unsupported"]);
+});
+
 test("structurally blocked effect is denied without reaching the client approval surface", async () => {
   const instance = wrapper({effect_metadata_provider: () => ({route_id: "CA2-ROUTE-IMPLEMENT", effect_classes: ["persistent-mutation"], reversible: true, structurally_admissible: false, rejection_reasons: ["fixture.block"]})});
   const effect = {jsonrpc: "2.0", id: 81, method: "item/fileChange/requestApproval", params: {threadId: "thread-1", turnId: "turn-1", itemId: "item-2", startedAtMs: 1}};
@@ -843,6 +1693,8 @@ test("opt-in evolution signals emit immutable compact records exactly once per c
       return [{kind: "context-precision-failure", scope: "context-precision", observed_value: 0.71, expected_value: 0.8, metric: "context_precision"}];
     },
     evolution_signal_sink: (signal) => { emitted.push(signal); return {ok: true}; },
+    evolution_signal_factory: (candidate) => Object.freeze({schema_version: "are.improvement-signal/v1", ...candidate,
+      record_id: `signal:${createHash("sha256").update(JSON.stringify(candidate)).digest("hex")}`, authority_effect: "none"}),
   });
   await startAndBind(instance, {id: 2102, text: "Explain the current context.", threadId: "thread-evolution-on", turnId: "turn-evolution-on"});
   const completion = completed("thread-evolution-on", "turn-evolution-on");
@@ -857,6 +1709,27 @@ test("opt-in evolution signals emit immutable compact records exactly once per c
   assert.equal(event.signal_count, 1);
   assert.equal(Object.hasOwn(event, "completion_message"), false);
   assert.equal(Object.hasOwn(event, "context_contents"), false);
+});
+
+test("opt-in evolution does not label an unacknowledged signal as emitted", async () => {
+  const profile = structuredClone(loaded.value);
+  profile.evolution_signals = {enabled: true, trigger: "turn/completed"};
+  let sinkCalls = 0;
+  const instance = wrapper({
+    loaded_profile: profile,
+    evolution_signal_provider: () => [{kind: "context-precision-failure", scope: "context-precision",
+      observed_value: 0.71, expected_value: 0.8, metric: "context_precision"}],
+    evolution_signal_sink: () => { sinkCalls += 1; },
+    evolution_signal_factory: (candidate) => Object.freeze({schema_version: "are.improvement-signal/v1", ...candidate,
+      record_id: `signal:${createHash("sha256").update(JSON.stringify(candidate)).digest("hex")}`, authority_effect: "none"}),
+  });
+  await startAndBind(instance, {id: 2103, text: "Explain the current context.",
+    threadId: "thread-evolution-unacknowledged", turnId: "turn-evolution-unacknowledged"});
+  await instance.processServerMessage(completed("thread-evolution-unacknowledged", "turn-evolution-unacknowledged"));
+  const event = instance.ledger.snapshot().find((entry) => entry.event_kind === "evolution-signals-assessed");
+  assert.equal(sinkCalls, 1);
+  assert.equal(event.signal_disposition, "sink-failed");
+  assert.equal(event.signal_count, 1);
 });
 
 test("the configured definition-readiness domain evaluates only when explicitly enabled", async () => {
@@ -980,7 +1853,13 @@ test("RecommendedUnderSnapshot is advisory and preserves ordinary consequence as
   assert.equal(receipt.ordering.reasoning_receipt_constraints_after_semantic_evaluation, true);
   assert.equal(receipt.ordering.reasoning_receipt_constraints_before_continuation, true);
 
-  const consequential = semanticWrapper({continuation_provider: () => ({plan_bound: [planProposal("semantic-consequential", {required: true}, {effect_classes: ["persistent-mutation"]})]})});
+  const consequential = semanticWrapper({continuation_provider: () => ({plan_bound: [planProposal("semantic-consequential", {required: true}, {
+    action_ref: "implement",
+    route_id: "CA2-ROUTE-IMPLEMENT",
+    objective_kind: "implement",
+    effect_classes: ["persistent-mutation"],
+    next_turn: {params: {threadId: "successor:semantic-consequential", input: [{type: "text", text: "Implement the bounded change."}]}},
+  })]})});
   await startAndBind(consequential, {id: 217, text: "Research whether this refund is eligible.", threadId: "thread-semantic-consequential", turnId: "turn-semantic-consequential"});
   const gated = await consequential.processServerMessage(completed("thread-semantic-consequential", "turn-semantic-consequential"));
   assert.equal(gated.to_client.find((message) => message.method === "cyberalchemy/decision").params.directive_kind, "gate");

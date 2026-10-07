@@ -12,7 +12,7 @@ import { parseFormal } from "../formal/ast.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FEATURE_DIR = resolve(
   __dirname,
-  "../../../../../../validation/poker-team/docs/features/financial-settlement",
+  "../../__fixtures__/financial-settlement",
 );
 const BINDINGS = resolve(__dirname, "../../bindings/financial-settlement.json");
 
@@ -97,6 +97,34 @@ describe("hybrid emit_tests over financial-settlement (P4)", () => {
     expect(file).toContain("shouldCreatePayoutEvent).toBe(false)");
     // No characterization snapshot / toEqual against a recorded run.
     expect(file).not.toContain("toMatchSnapshot");
+  });
+
+  it("derives cap-two and operator witnesses instead of reusing cap-one fixtures", () => {
+    const variant = (formal: string) => ({
+      nodes: [{ id: "rules#R4", source_anchor: "rules#R4", type: "Rule" as const, fields: { id: "R4", formal } }],
+      edges: [],
+    });
+    const capTwo = variant("count(tx[type=MAKEUP_APPLIED,date=endDate]) <= 2");
+    const selected = derive(capTwo).filter((o) => o.canonical_params.id === "R4");
+    const emitted = emitHybridTests(selected, bindings, capTwo);
+    expect(emitted.report.assertions).toBe(2);
+    expect(emitted.file).toContain('existingTransactions: [{ type: "MAKEUP_APPLIED", date: "2026-01-31" }]');
+    expect(emitted.file).toContain('existingTransactions: [{ type: "MAKEUP_APPLIED", date: "2026-01-31" }, { type: "MAKEUP_APPLIED", date: "2026-01-31" }]');
+
+    const strict = variant("count(tx[type=MAKEUP_APPLIED,date=endDate]) < 2");
+    const strictFile = emitHybridTests(
+      derive(strict).filter((o) => o.canonical_params.id === "R4"), bindings, strict,
+    );
+    expect(strictFile.report.assertions).toBe(2);
+    expect(strictFile.file).toContain("existingTransactions: []");
+    expect(strictFile.file).toContain('existingTransactions: [{ type: "MAKEUP_APPLIED", date: "2026-01-31" }]');
+
+    const unsupported = variant("count(tx[type=MAKEUP_APPLIED,date=endDate]) >= 1");
+    const gaps = emitHybridTests(
+      derive(unsupported).filter((o) => o.canonical_params.id === "R4"), bindings, unsupported,
+    );
+    expect(gaps.report.assertions).toBe(0);
+    expect(gaps.report.coverageGaps).toBe(1);
   });
 
   it("annotates every skip with a coverage_gap reason (honest holes)", () => {

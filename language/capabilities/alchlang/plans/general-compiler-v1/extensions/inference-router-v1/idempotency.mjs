@@ -1,5 +1,5 @@
-import {openSqliteRequestCustody} from '../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/runtime/sqlite-request-custody.js';
-import {createMemoryRequestCustody} from '../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/runtime/request-custody.js';
+import {openSqliteRequestCustody} from '../../../../../../../craft/projects/domainspec-v2/impl/cli/dist/runtime/sqlite-request-custody.js';
+import {createMemoryRequestCustody} from '../../../../../../../craft/projects/domainspec-v2/impl/cli/dist/runtime/request-custody.js';
 // Native memory binding only; policy/identity configuration is generated. Open Questions: custody/README.md.
 export function createIdempotentDispatcher({custodyFactory,policy,token,durable,...options}){
  if(typeof custodyFactory!=='function')throw Object.assign(Error('CUSTODY_BINDING_REQUIRED'),{code:'CUSTODY_BINDING_REQUIRED'});

@@ -20,8 +20,10 @@ export function compileConfig(input,{env=process.env,baseDir=process.cwd(),now=M
   const secret=(name,path)=>{if(typeof name!=='string'||!/^KELD_[A-Z0-9_]+$/.test(name)){bad(path,'environment-reference-required');return '';}
     if(typeof env[name]!=='string'||!env[name]){bad(path,'environment-value-missing');return '';}return env[name];};
   const file=(value,path)=>{const s=string(value,path);return s?resolve(baseDir,s):'';};
-  const c=record(input,'config',['version','origin','auth','payments','tls','ledger','quoteBrl','webhooks','listener']);
+  const c=record(input,'config',['version','origin','auth','payments','tls','ledger','quoteBrl','webhooks','listener','checkout']);
   if(c.version!==1)bad('version','unsupported-version');
+  const checkout=c.checkout===undefined?{}:record(c.checkout,'checkout',['automaticReplacement']);
+  if(checkout.automaticReplacement!==undefined&&typeof checkout.automaticReplacement!=='boolean')bad('checkout.automaticReplacement','boolean-required');
   let listener;
   if(c.listener!==undefined){
     listener=record(c.listener,'listener',['mode','host','port']);
@@ -61,7 +63,8 @@ export function compileConfig(input,{env=process.env,baseDir=process.cwd(),now=M
   const q=record(c.quoteBrl,'quoteBrl',['numerator','denominator','reference','expiresAt']);
   for(const k of ['numerator','denominator'])if(!Number.isSafeInteger(q[k])||q[k]<1||q[k]>100000000)bad('quoteBrl.'+k,'positive-integer-required');
   string(q.reference,'quoteBrl.reference');
-  if(!Number.isSafeInteger(q.expiresAt)||q.expiresAt<=0||(requireCurrentQuote&&q.expiresAt<=now))bad('quoteBrl.expiresAt','future-expiry-required');
+  const fixedQuote=q.expiresAt===null;
+  if(!fixedQuote&&(!Number.isSafeInteger(q.expiresAt)||q.expiresAt<=0||(requireCurrentQuote&&q.expiresAt<=now)))bad('quoteBrl.expiresAt','future-expiry-or-null-fixed-required');
   let events;
   if(c.webhooks!==undefined&&role==='web'){
     const w=record(c.webhooks,'webhooks',['stripe','mercadopago','paypal']);events={environment:'sandbox'};
@@ -72,9 +75,10 @@ export function compileConfig(input,{env=process.env,baseDir=process.cwd(),now=M
   if(issues.length)throw new ConfigurationError(issues);
   return {port:listener?.port??Number(origin.port),bindHost:listener?.host??'127.0.0.1',transport:listener?'http':'https',hostname:origin.hostname,tlsFiles,fixtureFile,
     integration:{events,auth:role==='web'?{profile,databaseUrl,key,namespace:'keld'}:undefined,payments,
+      automaticReplacement:checkout.automaticReplacement===true,
       ledger:{database,releaseDigest:l.sha256,reservationSeconds:l.reservationSeconds,delivery:{root:dirname(fixtureFile),artifacts:[{sha256:l.sha256,bytes:l.bytes,relative_path:basename(fixtureFile)}]}},
       quoteBrl:async cents=>{
-        if(Math.floor(Date.now()/1000)>=q.expiresAt)throw new Error('quote-expired');
+        if(!fixedQuote&&Math.floor(Date.now()/1000)>=q.expiresAt)throw new Error('quote-expired');
         const value=Number((BigInt(cents)*BigInt(q.numerator)+BigInt(Math.floor(q.denominator/2)))/BigInt(q.denominator));
         if(value<1||value>100000000)throw new Error('quote-out-of-range');
         return {amountCents:value,currency:'BRL',reference:q.reference};

@@ -26,6 +26,20 @@ test('validates explicit config before effects; preflight cell builder matches b
   const out=join(f.directory,'bad');await assert.rejects(runPair({...f.bounded,config:{...f.config,context_limit:8192},task_id:'task0',directory:out}),/fixed-budget/);assert.equal(existsSync(out),false);await assert.rejects(runPair({...f.bounded,directory:out}),/explicit-config/);
  }finally{f.clean();}
 });
+test('separately admitted 160k diagnostic preserves the 8k context and rejects mismatched budgets',()=>{
+ const f=fixture();try{
+  const config=structuredClone(f.config);config.total_tokens_per_arm=160000;
+  for(const task of config.tasks)task.cell_template.limits.total_tokens=160000;
+  assert.equal(validateConfig(config),true);
+  for(const arm of ['control','treatment']){
+   const cell=buildCell({config,task_id:'task0',arm});
+   assert.equal(cell.context_limit,8000);assert.equal(cell.limits.total_tokens,160000);
+  }
+  assert.throws(()=>validateConfig({...config,total_tokens_per_arm:128000}),/fixed-budget/);
+  config.tasks[0].cell_template.limits.total_tokens=96000;
+  assert.throws(()=>validateConfig(config),/cell-call-budget/);
+ }finally{f.clean();}
+});
 test('alternates AB/BA by task index and repetition; both fixed arms sealed and score remains separate',async()=>{
  const f=fixture();try{
   for(const [task_id,repetition,order]of [['task0',1,['control','treatment']],['task1',1,['treatment','control']],['task0',2,['treatment','control']]]){

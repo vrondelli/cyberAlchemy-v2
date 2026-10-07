@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { FORMAL_IDENTITY_ALGORITHM_BYTES } from "../../src/formal-claim-lowering.js";
+import { FORMAL_IDENTITY_ALGORITHM_BYTES, businessAcceptanceSubjectDigest } from "../../src/formal-claim-lowering.js";
 const sha = (text: string | Buffer) => createHash("sha256").update(text).digest("hex");
 const canonical = (value: any): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value && typeof value === "object" ? `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}` : JSON.stringify(value);
 export const source = `domain commerce "Commerce"
@@ -23,15 +23,27 @@ export function formalLoweringFixture() {
     const bytes = Buffer.from(typeof value === "string" ? value : JSON.stringify(value));
     sources.set(path, bytes); return { path, sha256: sha(bytes), size_bytes: bytes.length, current: true as const };
   };
-  const acceptance = put("fixture/acceptance.json", { status: "accepted", owner: "fixture-owner", purpose: "synthetic fixture only" });
-  const business = put("fixture/meaning.json", {
+  const meaning = {
     schema_version: "domainspec-v2.business-meaning/v1-candidate", meaning_id: "Meaning:fixture", version: "1", owner: "fixture-owner", status: "accepted",
     domain_context: "Synthetic orders", rule: "An eligible order satisfies the declared condition", applies_when: ["fixture"], actors: [], inputs: ["Order"], outcomes: ["eligible"],
     examples: [{ case_id: "yes", given: "eligible order", when: "checked", then: "eligible", why: "fixture" }],
     counterexamples: [{ case_id: "no", given: "ineligible order", when: "checked", then: "ineligible", why: "fixture" }], boundaries: ["synthetic only"],
-    acceptance: { status: "accepted", owner_ref: "fixture-owner", acceptance_ref: acceptance.path, acceptance_digest: acceptance.sha256 },
+    acceptance: { status: "accepted", owner_ref: "fixture-owner", acceptance_ref: "", acceptance_digest: "" },
     claim_ceiling: "Synthetic only", authority_effect: "none",
-  });
+  };
+  const acceptMeaning = (value: typeof meaning, decisionPath = "fixture/acceptance.json") => {
+    const acceptance = put(decisionPath, {
+      schema_version: "domainspec-v2.business-acceptance-decision/v1-candidate",
+      decision_id: "fixture-decision", owner: value.owner, outcome: "accepted",
+      subject: { meaning_id: value.meaning_id, version: value.version,
+        canonicalization: "domainspec-json-keysort-excluding-acceptance-v1", digest_algorithm: "sha256",
+        digest: businessAcceptanceSubjectDigest(value) }, authority_effect: "none"
+    });
+    value.acceptance = { status: "accepted", owner_ref: value.owner, acceptance_ref: acceptance.path, acceptance_digest: acceptance.sha256 };
+    return acceptance;
+  };
+  const acceptance = acceptMeaning(meaning);
+  const business = put("fixture/meaning.json", meaning);
   const definition = { definition_id: "FIXTURE-ORDER", status: "accepted", term: "Order", definition_kind: "entity",
     formal: { definition: "A synthetic order", expression: "Order", notation: [{ symbol: "Order", meaning: "synthetic order" }], operational_interpretation: "fixture only" },
     plain_language: "Synthetic order", domain_context: "fixture", depends_on: [], business_fact_refs: ["#/rule"], interpretation_refs: ["#/types"], source_concept_refs: [], forbidden_collapses: ["Not production data"] };
@@ -47,11 +59,11 @@ export function formalLoweringFixture() {
     authority_effect: "none", claim_ceiling: "Synthetic closure only",
   };
   const bindingRef = put("fixture/definition-binding.json", graph);
-  const profile = put("fixture/profile.json", JSON.parse(readFileSync(new URL("../../../../../../../../../domainspec-core/projects/domainspec-v2/formalization/profiles/formal-language-profiles.json", import.meta.url), "utf8")));
+  const profile = put("fixture/profile.json", JSON.parse(readFileSync(new URL("../../../../../../../../craft/projects/domainspec-v2/formalization/profiles/formal-language-profiles.json", import.meta.url), "utf8")));
   const algorithm = put("fixture/identity.json", FORMAL_IDENTITY_ALGORITHM_BYTES);
   const input = { schema_version: "alchlang.formal-claim-bindings/v1", source_sha256: sha(source), owner: "fixture-owner",
     formal_claims: { EligibleClaim: { claim_id: "FormalClaim:fixture", claim_version: "1", supersedes: null,
       business_meaning_ref: business, business_acceptance_ref: acceptance, definition_binding_ref: bindingRef,
       formal_language_profile_ref: profile, identity_algorithm_ref: algorithm } } };
-  return { sources, put, input, graph, definition, source };
+  return { sources, put, input, graph, definition, source, acceptMeaning };
 }

@@ -73,7 +73,7 @@ export async function authorizePayment(provider:PaymentGateway,input:OperationIn
 }
 
 export async function dispatchOutbox(pool:Pool,js:JetStreamClient):Promise<readonly StageReceipt[]>{
-  const receipts=await new NatsJetStreamOrderPublisher(js).publishPending(pool);
+  const receipts=await new NatsJetStreamOrderPublisher(js,CHANNELS.topic).publishPending(pool);
   return Object.freeze(receipts.map(receipt=>Object.freeze({stage:"broker-acceptance" as const,outcome:"accepted" as const,reference:receipt.provider_acknowledgement_ref})));
 }
 
@@ -127,7 +127,7 @@ const address=fixture.address();assert(address&&typeof address!=="string","fixtu
 const pool=new Pool({connectionString:databaseUrl});const nc=await connect({servers:natsUrl});const js=nc.jetstream();const jsm=await nc.jetstreamManager();
 try{
   for(let attempt=1;attempt<=20;attempt++){try{await pool.query("SELECT 1");break;}catch(error){if(attempt===20)throw error;await wait(100);}}
-  const providers=composeReferenceApplication({DATABASE_URL:databaseUrl,NATS_URL:natsUrl,PAYMENT_BASE_URL:baseUrl,INBOUND_BIND_ADDRESS:"127.0.0.1:0",WEBHOOK_SECRET:secret},{database:pool,messaging:js,onWebhook:async()=>{webhookInvocations++;}});await providers.migrate();assert(providers.health().status==="unverified","provider-bootstrap-health");await providers.publisher.publish(Object.freeze({type:"posted" as const,version:"1" as const,occurrence:Object.freeze({"event-id":"provider-probe"}),occurredAt:"2026-09-15T11:59:00Z",payload:Object.freeze({"order-id":9000n})}));
+  const providers=composeReferenceApplication({DATABASE_URL:databaseUrl,NATS_URL:natsUrl,PAYMENT_BASE_URL:baseUrl,INBOUND_BIND_ADDRESS:"127.0.0.1:0",WEBHOOK_SECRET:secret,ORDER_EVENTS_TOPIC:CHANNELS.topic},{database:pool,messaging:js,onWebhook:async()=>{webhookInvocations++;}});await providers.migrate();assert(providers.health().status==="unverified","provider-bootstrap-health");await providers.publisher.publish(Object.freeze({type:"posted" as const,version:"1" as const,occurrence:Object.freeze({"event-id":"provider-probe"}),occurredAt:"2026-09-15T11:59:00Z",payload:Object.freeze({"order-id":9000n})}));
   providerWebhook=providers.webhooks;await new Promise<void>((resolve,reject)=>{providerWebhook!.once("error",reject);providerWebhook!.listen(0,"127.0.0.1",resolve);});const providerAddress=providerWebhook.address();assert(providerAddress&&typeof providerAddress!=="string","provider-inbound-address");const providerBaseUrl="http://127.0.0.1:"+providerAddress.port;
   await applyRuntimeMigration(pool,await readFile("migrations/0002_domainspec_reference_runtime.sql","utf8"));const channelReceipt=await configureNats(jsm,runId);
   if(mode==="success"){

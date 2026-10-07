@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {spawnSync} from "node:child_process";
-import {mkdtempSync, rmSync, symlinkSync, existsSync} from "node:fs";
+import {mkdtempSync, rmSync, symlinkSync, existsSync, writeFileSync, chmodSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {resolve} from "node:path";
 import {fileURLToPath} from "node:url";
@@ -116,5 +116,35 @@ test("host inspector reports an unavailable executable without claiming readines
   const result = JSON.parse(run.stdout);
   assert.equal(result.readiness, "host-unavailable");
   assert.equal(result.native_delivery_verified, false);
-  assert.equal(result.installed, false);
+  assert.equal(result.installed, null);
+  assert.equal(result.installation_inspected, false);
+});
+
+test("host inspector recognizes canonical and legacy hook features without claiming installation", () => {
+  const fixtures = [
+    {rows: "hooks stable true\n", readiness: "native-canary-required", key: "hooks"},
+    {rows: "codex_hooks under development true\n", readiness: "native-canary-required", key: "codex_hooks"},
+    {rows: "hooks stable false\n", readiness: "feature-disabled", key: "hooks"},
+    {rows: "hooks stable true\ncodex_hooks under development true\n", readiness: "native-canary-required", key: "hooks"},
+    {rows: "hooks stable true\ncodex_hooks under development false\n", readiness: "feature-unknown", key: null},
+    {rows: "unrelated stable true\n", readiness: "feature-unknown", key: null},
+    {rows: "hooks stable maybe\n", readiness: "feature-unknown", key: null},
+  ];
+  const temp = mkdtempSync(resolve(tmpdir(), "are-hook-host-"));
+  try {
+    const executable = resolve(temp, "codex-fixture");
+    for (const fixture of fixtures) {
+      writeFileSync(executable, `#!${process.execPath}\nconst args = process.argv.slice(2);\nif (args[0] === "--version") process.stdout.write("codex-cli fixture\\n");\nelse if (args[0] === "features" && args[1] === "list") process.stdout.write(${JSON.stringify(fixture.rows)});\nelse process.exitCode = 1;\n`);
+      chmodSync(executable, 0o700);
+      const run = spawnSync(process.execPath, [cli, "hook", "inspect-host", executable], {encoding: "utf8"});
+      assert.equal(run.status, 0, run.stderr);
+      const result = JSON.parse(run.stdout);
+      assert.equal(result.schema_version, "are.hook-host-observation/v2");
+      assert.equal(result.readiness, fixture.readiness);
+      assert.equal(result.hooks_feature_key, fixture.key);
+      assert.equal(result.native_delivery_verified, false);
+      assert.equal(result.installed, null);
+      assert.equal(result.installation_inspected, false);
+    }
+  } finally { rmSync(temp, {recursive: true, force: true}); }
 });

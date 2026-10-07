@@ -10,10 +10,10 @@ const tool = extra => ({...common, hook_event_name: "PreToolUse", tool_name: "Ba
 const stop = extra => ({...common, hook_event_name: "Stop", stop_hook_active: false, last_assistant_message: "fixture complete", ...extra});
 const done = (status = "completed", session = "session-a", turn = "turn-a") => ({method: "turn/completed", params: {threadId: session, turn: {id: turn, status, items: []}}});
 
-test("tool and terminal evidence share the originating prompt binding", () => {
+test("a tool that exceeds the originating no-write route is blocked and stays bound", () => {
   const session = createHookEventSession(); const binding = session.observe(prompt());
   const effect = session.observe(tool());
-  assert.equal(effect.kind, "gate");
+  assert.equal(effect.kind, "block");
   assert.equal(effect.binding_digest, binding.binding_digest);
   assert.equal(effect.stdout.hookSpecificOutput.permissionDecision, undefined);
   const observedStop = session.observe(stop());
@@ -23,6 +23,61 @@ test("tool and terminal evidence share the originating prompt binding", () => {
   assert.equal(completion.kind, "complete");
   assert.equal(completion.binding_digest, binding.binding_digest);
   assert.equal(completion.completion_scope, "native-turn-only");
+});
+
+test("opt-in supported-tool mode denies exact bound ARE blocks and unresolved gates", () => {
+  const session = createHookEventSession({enforce_supported_tool_blocks: true});
+  const binding = session.observe(prompt());
+  const effect = session.observe(tool());
+  assert.equal(effect.ok, true);
+  assert.equal(effect.kind, "block");
+  assert.equal(effect.binding_digest, binding.binding_digest);
+  assert.equal(effect.stdout.hookSpecificOutput.permissionDecision, "deny");
+  assert.equal(effect.stdout.hookSpecificOutput.permissionDecisionReason,
+    "ARE blocked this bound tool proposal.");
+  assert.equal(session.observe(tool()).stdout.hookSpecificOutput.permissionDecision, "deny");
+
+  const gated = createHookEventSession({enforce_supported_tool_blocks: true,
+    decide: (operation, input) => operation === "effect"
+      ? {ok: true, kind: "gate", result_digest: "a".repeat(64)} : decide(operation, input)});
+  gated.observe(prompt());
+  assert.equal(gated.observe(tool()).stdout.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(gated.observe(tool()).stdout.hookSpecificOutput.permissionDecisionReason, /separate decision/);
+  assert.equal(gated.observe(tool({turn_id: "unknown"})).ok, false);
+});
+
+test("file-change hooks use the file-change effect boundary and remain denied when out of scope", () => {
+  const observed = [];
+  const session = createHookEventSession({enforce_supported_tool_blocks: true,
+    decide: (operation, input) => {
+      if (operation === "effect") observed.push(input.effect);
+      return decide(operation, input);
+    }});
+  const binding = session.observe(prompt());
+  const result = session.observe(tool({tool_name: "apply_patch", tool_use_id: "file-change-a",
+    tool_input: {patch: "*** Begin Patch\n*** End Patch"}}));
+  assert.equal(observed.length, 1);
+  assert.equal(observed[0].method, "item/fileChange/requestApproval");
+  assert.equal(observed[0].item_id, "file-change-a");
+  assert.equal(result.binding_digest, binding.binding_digest);
+  assert.equal(result.kind, "block");
+  assert.equal(result.stdout.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("an implementation-route goal tool remains withheld at an unresolved ARE effect gate", () => {
+  const session = createHookEventSession({enforce_supported_tool_blocks: true});
+  const route = session.observe(prompt({prompt: "Change code in the selected ARE gateway file"}));
+  assert.equal(route.kind, "direct");
+  const effect = session.observe(tool({tool_name: "create_goal", tool_use_id: "goal-a",
+    tool_input: {objective: "Disposable test"}}));
+  assert.equal(effect.kind, "gate");
+  assert.equal(effect.stdout.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(effect.stdout.hookSpecificOutput.permissionDecisionReason, /separate decision/);
+});
+
+test("supported-tool enforcement mode must be explicit and boolean", () => {
+  assert.throws(() => createHookEventSession({enforce_supported_tool_blocks: "true"}),
+    /events.invalid-tool-block-mode/);
 });
 
 test("events cannot attach to an absent or different session or turn", () => {
@@ -66,7 +121,7 @@ test("Stop cannot certify completion and may precede more tools", () => {
   const session = createHookEventSession({decide: (operation, input) => {calls.push(operation);return decide(operation,input);}});
   session.observe(prompt());session.observe(stop());
   assert.equal(calls.includes("continue"), false);
-  assert.equal(session.observe(tool()).kind, "gate");
+  assert.equal(session.observe(tool()).kind, "block");
   assert.equal(session.observe(stop()).replayed, true);
   assert.equal(session.observe(done()).kind, "complete");
   assert.equal(calls.includes("continue"), true);

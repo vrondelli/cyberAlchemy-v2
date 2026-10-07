@@ -110,7 +110,7 @@ export function createOperationProtocolReference(graph:CompiledProjectGraph,plan
      const value=operationReferenceEvent(event.contract,captured[event.parameter],()=>{
       const c=fixture.clocks.find(c=>c.slot===event.slot)??fail('clock fixture');
       if(c.mode==='throw')throw Error('fixture-clock');return c.value;
-     });
+     },oracle.eventReferenceScalar);
      emit(event.target,'event',args,{value,frozen:true});
     }catch(e){
      if(e instanceof OperationReferenceUnsupported)throw e;
@@ -123,4 +123,3 @@ export function createOperationProtocolReference(graph:CompiledProjectGraph,plan
  };
  return {binding,initialization,expected};
 }
-

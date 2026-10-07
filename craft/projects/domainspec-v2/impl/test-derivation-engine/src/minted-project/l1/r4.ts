@@ -1,7 +1,5 @@
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-
-import { digestValue, repositoryRoot } from "./exact-ref.js";
+import { digestValue } from "./exact-ref.js";
+import { importHistoricalPokerTeamBackendModule } from "./historical-backend.js";
 import { fail, R4_IDENTITY, type L1Obligation } from "./types.js";
 
 type Transaction = { readonly type: string; readonly date: string };
@@ -44,11 +42,7 @@ export type R4Execution = {
 
 type Decision = (input: DecisionInput) => boolean;
 
-const settlementModuleUrl = pathToFileURL(resolve(
-  repositoryRoot(),
-  "validation/poker-team/backend/src/domain/settlement/settlement.service.ts",
-)).href;
-const { decideSettlementSideEffects } = await import(settlementModuleUrl) as {
+const { decideSettlementSideEffects } = await importHistoricalPokerTeamBackendModule("r4-settlement") as {
   decideSettlementSideEffects(input: DecisionInput): {
     readonly shouldCreateMakeupAppliedEvent: boolean;
   };

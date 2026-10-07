@@ -1,4 +1,3 @@
-import type {NativeState} from '@cyberalchemy/orchestrator-console/embedded';
 // Open questions: README.md#open-questions.
 export interface RuntimeControls {
  scheduler?:{runtimeId:string;available:boolean;enabled:boolean};
@@ -13,5 +12,5 @@ export interface RuntimeControls {
  canReview:boolean;
  canLaunch:boolean;
  cancelLaunchIds:string[];
- state:NativeState|null;
+ state:unknown|null;
 }

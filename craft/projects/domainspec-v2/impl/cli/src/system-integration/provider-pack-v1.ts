@@ -23,6 +23,9 @@ export const PROVIDER_ENVIRONMENT = Object.freeze([
   Object.freeze({ name: "WEBHOOK_SECRET", classification: "secret-reference", required: true as const }),
 ] as const);
 
+export interface ProviderEnvironmentReferenceV1 { readonly name: string; readonly classification: "endpoint-reference" | "secret-reference"; readonly required: true; }
+export interface MessagingDestinationBindingV1 { readonly channel_ref: string; readonly environment_name: string; }
+
 export interface ProviderLibraryV1 { readonly provider_id: string; readonly library: string; readonly version: string; }
 export interface ProviderPackSelectionV1 {
   readonly schema_version: "domainspec.provider-pack-selection/v1-candidate";
@@ -31,7 +34,10 @@ export interface ProviderPackSelectionV1 {
   readonly language: IntegrationGenerationLanguage;
   readonly capabilities: typeof PROVIDER_CAPABILITIES;
   readonly providers: Readonly<{ persistence: ProviderLibraryV1; messaging: ProviderLibraryV1; outbound_http: ProviderLibraryV1; inbound_http: ProviderLibraryV1 }>;
-  readonly configuration: Readonly<{ environment: typeof PROVIDER_ENVIRONMENT }>;
+  readonly configuration: Readonly<{
+    environment: readonly ProviderEnvironmentReferenceV1[];
+    messaging_destinations: readonly MessagingDestinationBindingV1[];
+  }>;
   readonly authority_effect: "none";
 }
 
@@ -66,6 +72,8 @@ export class ProviderPackSelectionError extends Error {
 
 const snapshots = new WeakMap<ProviderPackSelectionV1, string>();
 const selectionPattern = /^provider-selection:[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const channelPattern = /^channel:[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const environmentNamePattern = /^[A-Z][A-Z0-9_]*$/;
 
 function fail(code: string, pointer: string, message: string): never { throw new ProviderPackSelectionError(code, pointer, message); }
 function keys(value: unknown, expected: readonly string[], pointer: string): Record<string, unknown> {
@@ -89,8 +97,30 @@ export function validateProviderPackSelectionV1(value: unknown, language?: Integ
     const provider = keys(providerRoot[role], ["provider_id", "library", "version"], `/providers/${role}`);
     if (canonicalJson(provider) !== canonicalJson(expected[role])) fail("DS_PROVIDER_SELECTION_REALIZATION", `/providers/${role}`, "provider realization does not match the pinned reference matrix");
   }
-  const configuration = keys(root.configuration, ["environment"], "/configuration");
-  if (canonicalJson(configuration.environment) !== canonicalJson(PROVIDER_ENVIRONMENT)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", "/configuration/environment", "configuration must contain exact environment references and no values");
+  const configuration = keys(root.configuration, ["environment", "messaging_destinations"], "/configuration");
+  if (!Array.isArray(configuration.environment) || configuration.environment.length <= PROVIDER_ENVIRONMENT.length) fail("DS_PROVIDER_SELECTION_CONFIGURATION", "/configuration/environment", "base environment references and at least one messaging destination reference are required");
+  if (canonicalJson(configuration.environment.slice(0, PROVIDER_ENVIRONMENT.length)) !== canonicalJson(PROVIDER_ENVIRONMENT)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", "/configuration/environment", "configuration must begin with the exact base environment references and contain no values");
+  const environmentNames = new Set<string>();
+  for (const [index, rawReference] of configuration.environment.entries()) {
+    const reference = keys(rawReference, ["name", "classification", "required"], `/configuration/environment/${index}`);
+    if (typeof reference.name !== "string" || !environmentNamePattern.test(reference.name) || (reference.classification !== "endpoint-reference" && reference.classification !== "secret-reference") || reference.required !== true) fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/environment/${index}`, "invalid environment reference");
+    if (environmentNames.has(reference.name)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/environment/${index}/name`, "environment reference names must be unique");
+    environmentNames.add(reference.name);
+    if (index >= PROVIDER_ENVIRONMENT.length && reference.classification !== "endpoint-reference") fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/environment/${index}/classification`, "messaging destinations must be endpoint references");
+  }
+  if (!Array.isArray(configuration.messaging_destinations) || configuration.messaging_destinations.length === 0) fail("DS_PROVIDER_SELECTION_CONFIGURATION", "/configuration/messaging_destinations", "at least one messaging destination binding is required");
+  const channelRefs = new Set<string>();
+  const destinationEnvironmentNames = new Set<string>();
+  for (const [index, rawDestination] of configuration.messaging_destinations.entries()) {
+    const destination = keys(rawDestination, ["channel_ref", "environment_name"], `/configuration/messaging_destinations/${index}`);
+    if (typeof destination.channel_ref !== "string" || !channelPattern.test(destination.channel_ref)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/messaging_destinations/${index}/channel_ref`, "invalid logical channel reference");
+    if (typeof destination.environment_name !== "string" || !environmentNamePattern.test(destination.environment_name) || !environmentNames.has(destination.environment_name)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/messaging_destinations/${index}/environment_name`, "destination must reference a declared environment name");
+    if (channelRefs.has(destination.channel_ref)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/messaging_destinations/${index}/channel_ref`, "logical channel destinations must be unique");
+    if (destinationEnvironmentNames.has(destination.environment_name)) fail("DS_PROVIDER_SELECTION_CONFIGURATION", `/configuration/messaging_destinations/${index}/environment_name`, "destination environment names must be unique");
+    channelRefs.add(destination.channel_ref); destinationEnvironmentNames.add(destination.environment_name);
+  }
+  const extraEnvironmentNames = new Set([...environmentNames].filter(name => !PROVIDER_ENVIRONMENT.some(reference => reference.name === name)));
+  if (canonicalJson([...extraEnvironmentNames].sort()) !== canonicalJson([...destinationEnvironmentNames].sort())) fail("DS_PROVIDER_SELECTION_CONFIGURATION", "/configuration", "destination environment references and messaging bindings must have exact coverage");
   const result = freeze(structuredClone(value) as ProviderPackSelectionV1);
   snapshots.set(result, sha256(canonicalJson(result)));
   return result;

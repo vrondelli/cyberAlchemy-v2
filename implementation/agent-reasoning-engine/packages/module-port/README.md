@@ -21,8 +21,10 @@ publish, release, deploy, or grant module effects.
 ## Semantic text facade
 
 `./semantic-text` declares typed capability names, protocol validators, and a
-consumer facade without importing Alch. The optional compiled-Alch adapter is
-available only through the separate `./alch-semantic-adapter` export:
+consumer facade without importing Alch. The optional adapter is available
+through the separate `./alch-semantic-adapter` export, but it does not import
+Alch into ARE Core. Its caller must explicitly provide the compiled Alch
+`semanticKey` and `containsPhrase` functions:
 
 ```js
 import {createModulePort} from "@cyberalchemy/module-port";
@@ -34,8 +36,13 @@ const result = semantic.semanticKey("Build—a—new system", {invocation_id: "i
 // result.disposition === "unavailable"
 ```
 
-Import `./alch-semantic-adapter` and inject `createAlchSemanticAdapter()` only
-when that candidate module is explicitly configured.
+Import `./alch-semantic-adapter` and call
+`createAlchSemanticAdapter({semanticKey, containsPhrase})` only when the
+compiled Alch runtime has been separately selected and verified by the
+caller. The integration test that imports that external runtime is deliberately
+outside the standalone Core product closure; the packaged adapter itself has
+no external language dependency. Supplying functions is not module admission
+or authority.
 
 ## Route availability adapter
 

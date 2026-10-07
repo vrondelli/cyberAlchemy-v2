@@ -11,7 +11,7 @@ const loaded = loadVerifiedDecisionProfile(profilePath, root);
 assert.equal(loaded.ok, true, loaded.reason_codes?.join(','));
 const modulePort = semanticModulePort();
 const routeRequest = (input, profile) => routeRequestWithoutDefaults(input, profile, modulePort);
-const context = (text, objective = null, effects = []) => ({schema_version:'are.request-context/v1',request_id:'lookup-regression',raw_request:text,objective_kind:objective,requested_effects:effects,target_refs:[],constraints:[],evidence_refs:['user']});
+const context = (text, objective = null, effects = []) => ({schema_version:'are.request-context/v1',request_id:'lookup-regression',raw_request:text,objective_kind:objective,requested_effects:effects,target_refs:[],constraints:[],evidence_refs:['user'],field_postures:{request_id:'inferred',raw_request:'explicit',objective_kind:objective===null?'absent':'explicit',requested_effects:effects.length?'explicit':'absent',target_refs:'absent',constraints:'absent',evidence_refs:'explicit'}});
 
 test('lookup policy is read-only and complete against the declared route', () => {
   const policy = loaded.value.routes.find(r => r.route_id === 'CA2-ROUTE-DOMAINSPEC-CORE');

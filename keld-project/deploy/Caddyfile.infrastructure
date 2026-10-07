@@ -1,13 +1,24 @@
 {$KELD_DOMAIN} {
  header X-Robots-Tag "noindex, nofollow, noarchive"
+ header Strict-Transport-Security "max-age=86400"
  header Cache-Control "no-store"
  respond "KELD staging — infrastructure ready. Checkout testing is not enabled yet." 503
 }
 {$AUTH_DOMAIN} {
  header X-Robots-Tag "noindex, nofollow, noarchive"
+ header Strict-Transport-Security "max-age=86400"
+ @clientRegistration path /realms/keld/clients-registrations /realms/keld/clients-registrations/*
+ handle @clientRegistration {
+  respond "Not found" 404
+ }
  @public path /realms/keld/* /resources/* /robots.txt
  handle @public {
-  reverse_proxy keycloak:8080
+  reverse_proxy keycloak:8080 {
+   header_up -X-Forwarded-Client-Cert
+   header_up -SSL-Client-Cert
+   header_up -SSL-Cert-Chain
+   header_down -Strict-Transport-Security
+  }
  }
  handle {
   respond "Not found" 404

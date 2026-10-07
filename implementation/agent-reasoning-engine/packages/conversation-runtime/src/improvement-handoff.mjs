@@ -1,4 +1,3 @@
-import {projectBenchmarkFailuresToHypotheses} from "../../evolution-runtime/index.mjs";
 import {digest, sealed, text} from "./canonical.mjs";
 import {fail, pass, verifyRecordDigest} from "./contracts.mjs";
 
@@ -40,7 +39,7 @@ export function classifyUsabilityFailure(input = {}) {
     target_component: input.observation.target_component,
     rationale: text(input.rationale) ? input.rationale.trim() : null,
     disposition: failureDomain === "reasoning-engine" ? "engine-improvement-candidate"
-      : failureDomain === "interaction-adapter" ? "tui-improvement-candidate"
+      : failureDomain === "interaction-adapter" ? "interaction-adapter-improvement-candidate"
         : failureDomain === "conversation-protocol" ? "protocol-improvement-candidate" : "not-evaluable",
   }, "classification_digest");
   return pass(classification);
@@ -70,11 +69,12 @@ export function createEngineImprovementHandoff(input = {}) {
   return pass(handoff);
 }
 
-export function projectEngineHandoffToHypotheses({handoff, benchmark_result: benchmarkResult} = {}) {
+export function projectEngineHandoffToHypotheses({handoff, benchmark_result: benchmarkResult, projector} = {}) {
   if (!verifyRecordDigest(handoff, "handoff_digest")) return fail("engine-handoff-projection", ["usability.handoff-invalid"]);
   const actualDigest = digest(benchmarkResult);
   if (actualDigest !== handoff.source_benchmark_result_digest) return fail("engine-handoff-projection", ["usability.benchmark-digest-mismatch"]);
-  const projected = projectBenchmarkFailuresToHypotheses({benchmark_result: benchmarkResult, expected_result_digest: actualDigest});
+  if (typeof projector !== "function") return fail("engine-handoff-projection", ["usability.research-projector-required"]);
+  const projected = projector({benchmark_result: benchmarkResult, expected_result_digest: actualDigest});
   if (!projected.ok) return projected;
   const failedScenarioIds = new Set(projected.value.failed_scenario_ids);
   if (handoff.scenario_ids.some((id) => !failedScenarioIds.has(id))) return fail("engine-handoff-projection", ["usability.handoff-scenario-not-failed"]);

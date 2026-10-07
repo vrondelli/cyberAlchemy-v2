@@ -11,7 +11,7 @@ import {planConfiguredRustEvents, RUST_EVENT_CONTRACT_SHA256, RUST_EVENT_PROTOCO
 import {rustSelectorModule} from '../../src/generation/configured-rust-values.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const contractPath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation/rust-event-generation-contract.json');
 const primitive = (name: string) => ({kind: 'primitive', name});
 

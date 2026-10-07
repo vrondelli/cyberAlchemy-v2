@@ -1,5 +1,10 @@
 # ARE release process
 
+The working product version is `0.10.0-rc.1`, frozen as
+`ARE-PRODUCT-CANDIDATE-020`. Candidates 018 and 019 remain immutable historical
+evidence. Candidate 020 is verified but not approved, signed, tagged,
+published, delivered, deployed, or activated.
+
 The supported release unit is a self-contained source-closure candidate. It
 contains the ARE runtime, declared components and integrations, and immutable
 test evidence without Alch or DomainSpec build-time or runtime dependencies.
@@ -10,10 +15,16 @@ Use Node `26.8.1`. From this directory, run:
 ```sh
 node bin/are.mjs doctor --json
 node bin/are.mjs test
-node bin/are.mjs candidate freeze
+npm run release:prepare
 npm run release:verify
 npm run distribution:materialize -- /tmp/are-standalone
 ```
+
+`release:prepare` runs the complete suite from a copied source closure and writes
+the exact preparation receipt to `evidence/release-preparation.rc1.json`. The
+preparation sequence intentionally omits freezing. Candidate 020 was frozen
+through its separately approved gate. Signing, tagging, publishing, and
+deploying remain later owner-gated effects.
 
 `candidate freeze` binds the exact source closure to the complete product test
 result and failure-learning canary. Candidate identities are immutable; change

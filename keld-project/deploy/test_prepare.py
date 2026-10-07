@@ -44,6 +44,12 @@ class ProvisionTests(unittest.TestCase):
             self.assertTrue(realm['registrationEmailAsUsername'])
             self.assertFalse(realm['verifyEmail'])
             self.assertFalse(realm['resetPasswordAllowed'])
+            self.assertTrue(realm['bruteForceProtected'])
+            self.assertFalse(realm['permanentLockout'])
+            self.assertEqual(realm['failureFactor'],5)
+            self.assertEqual(realm['waitIncrementSeconds'],60)
+            self.assertEqual(realm['minimumQuickLoginWaitSeconds'],60)
+            self.assertEqual(realm['maxFailureWaitSeconds'],900)
     def test_real_copied_vault_provisions_private_files_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);store,values=synthetic_store(root);config=settings(root)
@@ -66,6 +72,13 @@ class ProvisionTests(unittest.TestCase):
             self.assertEqual(realm['passwordPolicy'],'length(12) and upperCase(1) and lowerCase(1) and digits(1)')
             self.assertFalse((root/'runtime/key').exists())
             with self.assertRaises(ValueError):prepare(store,config,root/'runtime')
+    def test_fixed_quote_is_preserved_as_non_expiring_policy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);store,_=synthetic_store(root);config=settings(root)
+            config['quoteBrl']={'numerator':510,'denominator':100,'reference':'merchant-fixed-5.10','expiresAt':None}
+            prepare(store,config,root/'runtime')
+            quote=json.loads((root/'runtime/keld.json').read_text())['quoteBrl']
+            self.assertEqual(quote,config['quoteBrl'])
     def test_infrastructure_seeding_is_idempotent_and_silent_about_values(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)

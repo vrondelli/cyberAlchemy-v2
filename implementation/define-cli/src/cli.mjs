@@ -170,6 +170,7 @@ export async function runDefineCli(argv, environment = {}) {
           model: options.model,
           gateway_socket: options.gateway_socket ?? environment.gateway_socket,
           transport_mode: options.direct || environment.transport_mode === "direct" ? "direct" : "gateway",
+          define_entrypoint_selected: true,
         });
         result = await runDefineConversation({
           agent,

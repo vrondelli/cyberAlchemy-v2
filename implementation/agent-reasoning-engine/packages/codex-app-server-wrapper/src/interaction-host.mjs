@@ -69,7 +69,9 @@ export function materializeInteractionHostInput(request, state) {
   for (const ref of request.invalidated_refs ?? []) check(Object.values(state.lessons).some(l => l.preference.grounding.source.request_ref === ref), 'invalidation-source-missing');
   if (feedback) {
     const prior = state.turns[feedback.response_id];
-    check(prior?.outcome && prior.interaction_ref === request.thread_id, 'completed-response-required');
+    check(prior?.outcome && prior.interaction_ref === request.thread_id
+      && prior.completion_status === 'completed' && prior.response_present === true
+      && nonEmptyString(prior.turn_ref), 'completed-response-required');
     if (feedback.revises_lesson_id) check(Object.hasOwn(state.lessons, feedback.revises_lesson_id), 'revision-target-missing');
   }
   return freezeResult({target: 'response', representation: classifyRepresentationRequest(request.text), checks: request.checks,

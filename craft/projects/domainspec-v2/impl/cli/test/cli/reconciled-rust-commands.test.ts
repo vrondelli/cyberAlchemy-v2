@@ -7,7 +7,7 @@ import {runCli, loadCompiledProjectGraph, planCompiledReconciledRustProject, ver
 import {RESOLVED_ARTIFACT_LAYOUT} from '../../src/generation/resolved-artifact-plan.ts';
 import {pythonAllTypesFixture} from '../generation/reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 function prepared(t: any) {
   const source = pythonAllTypesFixture(t), graph = loadCompiledProjectGraph(source.source);
   const selection = {schema_version: RECONCILED_RUST_COMPILATION_VERSION, profile_id: RECONCILED_RUST_PROFILE, language: 'rust' as const, module_root: 'generated/domain', layout_version: RESOLVED_ARTIFACT_LAYOUT, field_bindings: [], factories: source.factories, operations: source.operations, workflows: source.workflows};

@@ -223,7 +223,7 @@ def validate_root_agents(text: str, errors: list[str], mode: str | None = None) 
         "cyberAlchemy-v2/agent-routing/project-index.json",
         "CA2-ROUTE-RECENT",
     ]
-    if mode == "sibling":
+    if mode != "umbrella":
         required = [marker.replace("# CyberAlchemy-v2 Agent Entry Router", "# CyberAlchemy v2 Agent Instructions")
                     .replace("cyberAlchemy-v2/agent-routing/", "agent-routing/") for marker in required]
         required.append("CA2-ROUTE-DOMAINSPEC-CORE")
@@ -234,11 +234,10 @@ def validate_root_agents(text: str, errors: list[str], mode: str | None = None) 
     # Local authority-map references are evidence, not route directives. Keep
     # instruction injection checks on every line except the exact read-model link.
     checked_text = text
-    if mode == "sibling":
+    if mode != "umbrella":
         checked_text = checked_text.replace(
-            "- Treat [../.arcanum/inventory/](../.arcanum/inventory/) and\n"
-            "  [../.arcanum/ontology-vault/](../.arcanum/ontology-vault/) as read models and\n"
-            "  candidate maps, not promoted authority.", "read-model declaration", 1
+            "Legacy umbrella inventory and ontology read models retained under `craft/support/core` are\n"
+            "provenance only, not active routing or authority dependencies.", "read-model declaration", 1
         )
     for label, pattern in FORBIDDEN_ROOT_ROUTE_PATTERNS.items():
         if re.search(pattern, checked_text, flags=re.IGNORECASE):
@@ -481,8 +480,9 @@ def validate_generated(errors: list[str], semantic_bindings: list[dict[str, Any]
     if contract.get("root_instruction_ref") != LAYOUT.agents_ref or contract.get("checkout_layout") != LAYOUT.mode:
         errors.append("generated system ontology checkout layout binding drift")
     for field in ["compiler", "views"]:
-        ref = f"projects/domainspec-v2/impl/tools/minted-project/{field}.ts"
-        if system.get("compiler", {}).get(f"{field}_path") != ref or system.get("compiler", {}).get(f"{field}_sha256") != sha256_file(resolve_ref(ref)):
+        source_ref = f"projects/domainspec-v2/impl/tools/minted-project/{field}.ts"
+        recorded_ref = f"cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/{field}.ts"
+        if system.get("compiler", {}).get(f"{field}_path") != recorded_ref or system.get("compiler", {}).get(f"{field}_sha256") != sha256_file(resolve_ref(source_ref)):
             errors.append(f"generated system ontology selected {field} binding drift")
     expected_recent = {name: sha256_file(PACKAGE_ROOT / "capabilities/recent-context" / name) for name in RECENT_FILES}
     if contract.get("recent_context_sources") != expected_recent:

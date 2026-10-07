@@ -13,20 +13,23 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import jsonschema
+from legacy_capability_schema import inspect_legacy_capability
 
 
 SCRIPT = Path(__file__).resolve()
 IMPLEMENTATION = SCRIPT.parents[1]
 AUTH_ROOT = SCRIPT.parents[2]
-REPOSITORY = SCRIPT.parents[4]
+REPOSITORY = SCRIPT.parents[3]
+DOMAINSPEC_CLI = REPOSITORY / "craft/projects/domainspec-v2/impl/cli"
 NODE = shutil.which("node") or "/home/vrondelli/.nvm/versions/node/v22.12.0/bin/node"
 TSX = os.environ.get("DOMAINSPEC_TSX") or str(
-    REPOSITORY / "projects/domainspec-v2/impl/cli/node_modules/tsx/dist/cli.mjs"
+    DOMAINSPEC_CLI / "node_modules/tsx/dist/cli.mjs"
 )
-CLI = REPOSITORY / "projects/domainspec-v2/impl/cli/src/cli/main.ts"
+CLI = DOMAINSPEC_CLI / "src/cli/main.ts"
 OPERATION_SOURCE = IMPLEMENTATION / "operation-source"
 STANDARD_RUNTIME = IMPLEMENTATION / "standard-runtime"
+CURRENT_RUNTIME_SUCCESSOR = IMPLEMENTATION / "current-runtime-successor-v1"
+CURRENT_RUNTIME_SUCCESSOR_VALIDATOR = IMPLEMENTATION / "scripts/validate-current-runtime-successor.py"
 CONFORMANCE = IMPLEMENTATION / "standard-conformance"
 GENERATED_SOURCE = STANDARD_RUNTIME / "src/domainspec/rust/auth-exact-permission/authorize.rs"
 INSTANTIATION_RECEIPT = STANDARD_RUNTIME / ".domainspec/instantiations/auth-exact-permission.authorize.json"
@@ -35,6 +38,12 @@ BEHAVIOR = CONFORMANCE / "behavior.rs"
 ORACLE = CONFORMANCE / "oracle.rs"
 RUNTIME_CONTRACT = IMPLEMENTATION / "runtime-contract.json"
 RUNTIME_ADAPTER = IMPLEMENTATION / "runtime-adapter"
+STATE_MODEL = IMPLEMENTATION / "authorization-state-model"
+STATE_READER = IMPLEMENTATION / "authorization-state-reader"
+TRUSTED_INPUT_READER = IMPLEMENTATION / "trusted-input-reader"
+READY_AUTHORITY = IMPLEMENTATION / "authorization-ready-authority"
+READY_DECISION = IMPLEMENTATION / "authorization-ready-decision"
+ADMISSION_SERVICE = IMPLEMENTATION / "authorization-admission-service"
 RUNTIME_CONSTRUCTION_BINDING = IMPLEMENTATION / "runtime-construction-binding.json"
 PROVIDER_CONTRACT = IMPLEMENTATION / "provider-contract.json"
 PROVIDER_CONSTRUCTION_BINDING = IMPLEMENTATION / "provider-construction-binding.json"
@@ -52,6 +61,9 @@ COMMAND_BOUNDARY_ADMISSION = IMPLEMENTATION / "decisions/command-boundary-produc
 COMMAND_BOUNDARY_SFOL = AUTH_ROOT / "formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001"
 COMMAND_BOUNDARY_SFOL_CLAIM = COMMAND_BOUNDARY_SFOL / "FORMAL-CLAIM-SFOL.v1.json"
 COMMAND_BOUNDARY_SFOL_ADMISSION = AUTH_ROOT / "formalization/decisions/AF-ADMIT-AUTHORIZATION-COMMAND-001/sfol-formal-claim-admission-001.json"
+COMMAND_BOUNDARY_ACCEPTED_MEANING = COMMAND_BOUNDARY_SFOL / "BUSINESS-MEANING.v1-clarified-accepted.json"
+COMMAND_BOUNDARY_ACCEPTANCE = AUTH_ROOT / "formalization/decisions/AF-ADMIT-AUTHORIZATION-COMMAND-001/business-meaning-v1-clarified-acceptance.json"
+COMMAND_BOUNDARY_OWNER_SCOPE = COMMAND_BOUNDARY_SFOL / "AUTH-DOWNSTREAM-ENDPOINT-SCOPE.v1-owner-decision.md"
 COMMAND_BOUNDARY_EVF_V1 = COMMAND_BOUNDARY_SFOL / "EVF-OBLIGATION.v1.json"
 COMMAND_BOUNDARY_TDE_V1 = COMMAND_BOUNDARY_SFOL / "TDE-EVIDENCE.v1.json"
 COMMAND_BOUNDARY_EVF = COMMAND_BOUNDARY_SFOL / "EVF-OBLIGATION.v2.json"
@@ -63,7 +75,7 @@ COMMAND_BOUNDARY_TDE_EVALUATIONS = COMMAND_BOUNDARY_SFOL / "TDE-EVALUATIONS.v2.j
 COMMAND_BOUNDARY_TDE_PROOF = COMMAND_BOUNDARY_SFOL / "TDE-PROOF-RECEIPT.v2.json"
 COMMAND_BOUNDARY_TDE_MUTATIONS = COMMAND_BOUNDARY_SFOL / "TDE-MUTATION-EVIDENCE.v2.json"
 COMMAND_BOUNDARY_TDE_PREIMAGES = COMMAND_BOUNDARY_SFOL / "W7-PREIMAGE-MANIFEST.v2.json"
-COMMAND_BOUNDARY_TDE_SCRIPT = COMMAND_BOUNDARY_SFOL / "derive-tests.ts"
+COMMAND_BOUNDARY_TDE_REPLAY = COMMAND_BOUNDARY_SFOL / "replay-historical-v2.mjs"
 COMMAND_BOUNDARY_SFOL_CONFORMANCE = IMPLEMENTATION / "sfol-conformance"
 TRUSTED_BOUNDARY = IMPLEMENTATION / "trusted-boundary"
 TRUSTED_INPUT_VALIDATOR = IMPLEMENTATION / "scripts/validate-trusted-input.py"
@@ -113,9 +125,32 @@ def encoded(value: object) -> str:
     return json.dumps(value, indent=2) + "\n"
 
 
+def local_repository_path(logical: str) -> Path:
+    """Resolve only known pre-standalone logical IDs to physical local files."""
+    parts = logical.split("/")
+    if any(part in ("", ".", "..") for part in parts) or Path(logical).is_absolute():
+        raise ValueError(f"unsafe historical path: {logical}")
+    if parts[:2] == ["projects", "domainspec-v2"]:
+        path = REPOSITORY / "craft" / logical
+    elif parts[:2] == ["projects", "auth-foundation"]:
+        path = REPOSITORY.joinpath(*parts[1:])
+    else:
+        raise ValueError(f"unknown historical path: {logical}")
+    if not path.resolve().is_relative_to(REPOSITORY):
+        raise ValueError(f"escaping historical path: {logical}")
+    return path
+
+
+def temporary_root() -> Path:
+    for candidate in (os.environ.get("TMPDIR"), "/tmp", "/var/tmp"):
+        if candidate and Path(candidate).is_dir() and shutil.disk_usage(candidate).free >= 256 * 1024 * 1024:
+            return Path(candidate)
+    raise RuntimeError("no temporary filesystem has 256 MiB free")
+
+
 def command(args: list[str], cwd: Path = REPOSITORY) -> subprocess.CompletedProcess[str]:
     environment = dict(os.environ)
-    environment["TMPDIR"] = "/tmp"
+    environment["TMPDIR"] = str(temporary_root())
     return subprocess.run(args, cwd=cwd, env=environment, text=True, capture_output=True, check=False)
 
 
@@ -297,14 +332,14 @@ def validate_semantic_closure(receipt: dict, checks: list[dict]) -> tuple[dict, 
 def validate_standard(write: bool, checks: list[dict]) -> tuple[dict, dict]:
     receipt = load(INSTANTIATION_RECEIPT)
     binding = load(CONSTRUCTION_BINDING)
-    observation = command([str(NODE), str(TSX), str(CLI), "receipt", str(STANDARD_RUNTIME)])
-    require(observation.returncode == 0 and json.loads(observation.stdout)["observation"]["result"] == "pass", "committed-target-observation", checks)
+    observation = command([str(NODE), str(TSX), str(CLI), "receipt", str(CURRENT_RUNTIME_SUCCESSOR / "standard")])
+    require(observation.returncode == 0 and json.loads(observation.stdout)["observation"]["result"] == "pass", "current-successor-standard-target-observation", checks)
     require(receipt["generator_id"] == binding["implementation_method"]["generator_id"], "generator-binding", checks)
     require(receipt["input"]["source_manifest_sha256"] == binding["authored_source"]["source_manifest_sha256"], "source-manifest-binding", checks)
     closure, properties, variants, rules = validate_semantic_closure(receipt, checks)
 
     runs = []
-    with tempfile.TemporaryDirectory(prefix="domainspec-auth-l3-") as parent:
+    with tempfile.TemporaryDirectory(prefix="domainspec-auth-l3-", dir=temporary_root()) as parent:
         parent_path = Path(parent)
         for name in ("left", "right"):
             target = parent_path / name
@@ -328,7 +363,8 @@ def validate_standard(write: bool, checks: list[dict]) -> tuple[dict, dict]:
             })
         require(runs[0] == runs[1], "two-run-determinism", checks)
         require(runs[0]["artifact_sha256"] == digest(GENERATED_SOURCE), "committed-source-current", checks)
-        require(runs[0]["receipt_sha256"] == receipt["receipt_sha256"], "committed-receipt-current", checks)
+        current_receipt = load(CURRENT_RUNTIME_SUCCESSOR / "standard/.domainspec/instantiations/auth-exact-permission.authorize.json")
+        require(runs[0]["receipt_sha256"] == current_receipt["receipt_sha256"], "current-successor-standard-receipt", checks)
 
         behavior_binary = parent_path / "behavior"
         require(command(["rustc", "--edition", "2024", "-Awarnings", "--test", str(BEHAVIOR), "-o", str(behavior_binary)]).returncode == 0, "behavior-compiles", checks)
@@ -407,7 +443,7 @@ def validate_standard(write: bool, checks: list[dict]) -> tuple[dict, dict]:
 
 def validate_retirement(write: bool, receipt: dict, system: dict, checks: list[dict]) -> None:
     for path in RETIRED_ARTIFACTS:
-        require(not (REPOSITORY / path).exists(), f"retired-absent:{path}", checks)
+        require(not local_repository_path(path).exists(), f"retired-absent:{path}", checks)
     require(ORACLE.is_file(), "frozen-oracle-present", checks)
     require(
         digest(ORACLE) == RETIRED_ARTIFACTS["projects/auth-foundation/implementation/runtime/src/lib.rs"],
@@ -415,8 +451,8 @@ def validate_retirement(write: bool, receipt: dict, system: dict, checks: list[d
         checks,
     )
 
-    provider = REPOSITORY / receipt["selected_realization"]["provider"]["path"]
-    realization = REPOSITORY / receipt["selected_realization"]["binding"]["path"]
+    provider = local_repository_path(receipt["selected_realization"]["provider"]["path"])
+    realization = local_repository_path(receipt["selected_realization"]["binding"]["path"])
     implementation_binding_path = CONFORMANCE / "implementation-binding.json"
     implementation_binding = {
         "schema_version": "auth-foundation.standard-operation-implementation-binding/v1-candidate",
@@ -815,6 +851,78 @@ def validate_retirement(write: bool, receipt: dict, system: dict, checks: list[d
         require(provider_clippy.returncode == 0, "sqlite-provider-clippy", checks)
 
     provider_source = (SQLITE_PROVIDER / "src/lib.rs").read_text(encoding="utf-8")
+    state_model_manifest = (STATE_MODEL / "Cargo.toml").read_text(encoding="utf-8")
+    state_reader_manifest = (STATE_READER / "Cargo.toml").read_text(encoding="utf-8")
+    state_reader_source = (STATE_READER / "src/lib.rs").read_text(encoding="utf-8")
+    service_manifest = (IMPLEMENTATION / "authorization-service/Cargo.toml").read_text(encoding="utf-8")
+    admission_service_manifest = (ADMISSION_SERVICE / "Cargo.toml").read_text(encoding="utf-8")
+    ready_authority_manifest = (READY_AUTHORITY / "Cargo.toml").read_text(encoding="utf-8")
+    ready_decision_manifest = (READY_DECISION / "Cargo.toml").read_text(encoding="utf-8")
+    trusted_reader_manifest = (TRUSTED_INPUT_READER / "Cargo.toml").read_text(encoding="utf-8")
+    trusted_reader_source = (TRUSTED_INPUT_READER / "src/lib.rs").read_text(encoding="utf-8")
+    require("[dependencies]" not in state_model_manifest, "state-model-kernel-free", checks)
+    require(
+        'auth-foundation-authorization-state-model = { path = "../authorization-state-model" }'
+        in state_reader_manifest
+        and "rusqlite =" in state_reader_manifest
+        and "auth-foundation-runtime-adapter" not in state_reader_manifest
+        and "auth-foundation-sqlite-provider" not in state_reader_manifest,
+        "state-reader-read-only-dependencies",
+        checks,
+    )
+    require(
+        "pub fn resolve_authorization_state_in_transaction" in state_reader_source
+        and "pub fn into_state" in state_reader_source
+        and "pub fn authorize(" not in state_reader_source
+        and "authorize_resolved(" not in state_reader_source,
+        "state-reader-no-policy-entrypoint",
+        checks,
+    )
+    require(
+        'auth-foundation-authorization-state-reader = { path = "../authorization-state-reader" }'
+        in ready_authority_manifest
+        and 'auth-foundation-authorization-ready-authority = { path = "../authorization-ready-authority" }' in admission_service_manifest
+        and 'auth-foundation-authorization-admission-service = { path = "../authorization-admission-service" }' in service_manifest
+        and "auth-foundation-sqlite-provider =" not in service_manifest,
+        "authorization-service-through-ready-authority-read-only-state-dependency",
+        checks,
+    )
+    require(
+        'auth-foundation-trusted-input-reader = { path = "../trusted-input-reader" }'
+        in ready_authority_manifest
+        and 'auth-foundation-authorization-ready-decision = { path = "../authorization-ready-decision" }' in service_manifest
+        and 'auth-foundation-authorization-ready-authority = { path = "../authorization-ready-authority" }' in ready_decision_manifest
+        and 'auth-foundation-authorization-ready-authority = { path = "../authorization-ready-authority" }' in admission_service_manifest
+        and "auth-foundation-trusted-input-provider =" not in service_manifest,
+        "authorization-service-through-ready-authority-read-only-trusted-input-dependency",
+        checks,
+    )
+    require(
+        "auth-foundation-authorization-state-model" in trusted_reader_manifest
+        and "auth-foundation-trusted-input-runtime" in trusted_reader_manifest
+        and "rusqlite =" in trusted_reader_manifest
+        and "auth-foundation-runtime-adapter" not in trusted_reader_manifest
+        and "auth-foundation-trusted-boundary" not in trusted_reader_manifest
+        and "auth-foundation-trusted-input-provider" not in trusted_reader_manifest
+        and "pub fn resolve_in_transaction" in trusted_reader_source
+        and "authorize_resolved(" not in trusted_reader_source,
+        "trusted-input-reader-no-authorization-dependency",
+        checks,
+    )
+    require(
+        command(
+            [NODE, "--test", str(TRUSTED_INPUT_READER / "tests/dependency-isolation.test.mjs")]
+        ).returncode == 0,
+        "trusted-input-reader-compiled-dependency-isolation",
+        checks,
+    )
+    require(
+        command(
+            [NODE, "--test", str(STATE_READER / "tests/dependency-isolation.test.mjs")]
+        ).returncode == 0,
+        "state-reader-compiled-dependency-isolation",
+        checks,
+    )
     migration_source = (SQLITE_PROVIDER / "migrations/0001_auth_state.sql").read_text(encoding="utf-8")
     require(
         ".transaction_with_behavior(TransactionBehavior::Deferred)" in provider_source,
@@ -1015,16 +1123,23 @@ def validate_command_boundary(write: bool, checks: list[dict]) -> dict:
         "command-boundary-generator-binding",
         checks,
     )
-    observation = command([str(NODE), str(TSX), str(CLI), "receipt", str(COMMAND_BOUNDARY_RUNTIME)])
+    observation = command([str(NODE), str(TSX), str(CLI), "receipt", str(CURRENT_RUNTIME_SUCCESSOR / "command-boundary")])
     require(
         observation.returncode == 0
         and json.loads(observation.stdout)["observation"]["result"] == "pass",
-        "command-boundary-committed-target-observation",
+        "command-boundary-current-successor-target-observation",
         checks,
     )
 
-    tde = command([str(NODE), str(TSX), str(COMMAND_BOUNDARY_TDE_SCRIPT), "--check"])
-    require(tde.returncode == 0, "command-boundary-sfol-tde-derivation-current", checks)
+    tde = command([str(NODE), str(COMMAND_BOUNDARY_TDE_REPLAY)])
+    require(
+        tde.returncode == 0
+        and json.loads(tde.stdout)["result"] == "pass"
+        and json.loads(tde.stdout)["historical_v2_bytes"] == "unchanged"
+        and json.loads(tde.stdout)["evidence_sha256"] == digest(COMMAND_BOUNDARY_TDE),
+        "command-boundary-sfol-tde-archival-replay",
+        checks,
+    )
     tde_evidence = load(COMMAND_BOUNDARY_TDE)
     require(tde_evidence["result"] == "PASS", "command-boundary-sfol-tde-evidence", checks)
     sfol_admission = load(COMMAND_BOUNDARY_SFOL_ADMISSION)
@@ -1118,7 +1233,7 @@ def validate_command_boundary(write: bool, checks: list[dict]) -> dict:
         coverage_rules.append({"ontology_selector": rule_id, "rust_symbol": symbol, "status": "PASS"})
 
     runs = []
-    with tempfile.TemporaryDirectory(prefix="domainspec-auth-command-boundary-") as parent:
+    with tempfile.TemporaryDirectory(prefix="domainspec-auth-command-boundary-", dir=temporary_root()) as parent:
         parent_path = Path(parent)
         for name in ("left", "right"):
             target = parent_path / name
@@ -1155,7 +1270,8 @@ def validate_command_boundary(write: bool, checks: list[dict]) -> dict:
             })
         require(runs[0] == runs[1], "command-boundary-two-run-determinism", checks)
         require(runs[0]["artifact_sha256"] == digest(COMMAND_BOUNDARY_GENERATED), "command-boundary-generated-current", checks)
-        require(runs[0]["receipt_sha256"] == receipt["receipt_sha256"], "command-boundary-receipt-current", checks)
+        current_receipt = load(CURRENT_RUNTIME_SUCCESSOR / "command-boundary/.domainspec/instantiations/auth-command-boundary.admit-authorization-command.json")
+        require(runs[0]["receipt_sha256"] == current_receipt["receipt_sha256"], "command-boundary-current-successor-receipt", checks)
 
     graph_path = CONFORMANCE / "command-boundary-compiled-operation-graph.json"
     graph = {
@@ -1168,7 +1284,9 @@ def validate_command_boundary(write: bool, checks: list[dict]) -> dict:
     }
     materialize(graph_path, graph, write, "command-boundary-compiled-graph", checks)
 
-    system_path = CONFORMANCE / "command-boundary-system-ontology.json"
+    # Historical V2 replay pins the original ontology bytes. Bind the current
+    # provider successor in a separate candidate instead of rewriting its preimage.
+    system_path = CONFORMANCE / "command-boundary-system-ontology.current-candidate.json"
     system = {
         "schema_version": "auth-foundation.command-boundary-system-ontology/v1-candidate",
         "ontology_id": "auth-foundation.system.authorization-command-boundary",
@@ -1369,21 +1487,33 @@ def validate_command_boundary(write: bool, checks: list[dict]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--write-receipt", action="store_true")
+    parser.add_argument("--write-receipt", action="store_true",
+                        help="retired: historical Auth receipt paths are frozen")
     args = parser.parse_args()
+    if args.write_receipt:
+        raise AssertionError(
+            "historical Auth receipts are frozen; use versioned current successors")
     checks: list[dict] = []
 
     for path in sorted(IMPLEMENTATION.rglob("*.json")):
         if "target" not in path.parts:
             load(path)
-    capability_schema = load(REPOSITORY / "cyberAlchemy-v2/capability/schemas/capability.schema.json")
-    capability_schema["$ref"] = "#/$defs/productCapability"
-    require(not list(jsonschema.Draft202012Validator(capability_schema).iter_errors(load(IMPLEMENTATION / "product-capability.json"))), "product-capability-schema", checks)
+    capability_schema_path = REPOSITORY / "capability/schemas/capability.schema.json"
     require(
-        not list(jsonschema.Draft202012Validator(capability_schema).iter_errors(load(COMMAND_BOUNDARY_CAPABILITY))),
-        "command-boundary-product-capability-schema",
+        inspect_legacy_capability(IMPLEMENTATION / "product-capability.json", capability_schema_path)
+        == {"legacy_structural_compatibility": True, "current_schema_conformance": False},
+        "product-capability-exact-legacy-structure-not-current-schema",
         checks,
     )
+    require(
+        inspect_legacy_capability(COMMAND_BOUNDARY_CAPABILITY, capability_schema_path)
+        == {"legacy_structural_compatibility": True, "current_schema_conformance": False},
+        "command-boundary-product-capability-exact-legacy-structure-not-current-schema",
+        checks,
+    )
+    successor = command(["python3", str(CURRENT_RUNTIME_SUCCESSOR_VALIDATOR)])
+    require(successor.returncode == 0 and json.loads(successor.stdout)["status"] == "pass",
+            "current-runtime-successor-three-target-replay", checks)
     validate_construction(checks)
     receipt, system = validate_standard(args.write_receipt, checks)
     validate_retirement(args.write_receipt, receipt, system, checks)
@@ -1395,6 +1525,69 @@ def main() -> int:
     ])
     require(trusted_input_result.returncode == 0, "trusted-input-successor-validation", checks)
     trusted_input_evidence = load(CONFORMANCE / "trusted-input-evidence.json")
+    current_service_binding = load(CONFORMANCE / "authorization-service-binding.json")
+    require(current_service_binding["schema_version"] == "auth-foundation.authorization-service-binding/v3-candidate",
+            "authorization-service-binding-ready-path-schema", checks)
+    for field, path in (
+        ("accepted_command_boundary_meaning", COMMAND_BOUNDARY_ACCEPTED_MEANING),
+        ("accepted_meaning_owner_decision", COMMAND_BOUNDARY_ACCEPTANCE),
+        ("owner_downstream_endpoint_scope", COMMAND_BOUNDARY_OWNER_SCOPE),
+    ):
+        ref = current_service_binding[field]
+        require(ref["path"] == str(path.relative_to(AUTH_ROOT)) and ref["sha256"] == digest(path),
+                f"authorization-service-semantic-lineage:{field}", checks)
+    historical = current_service_binding["historical_sfol_relation"]
+    require(
+        historical == {
+            "claim_path": str(COMMAND_BOUNDARY_SFOL_CLAIM.relative_to(AUTH_ROOT)),
+            "claim_sha256": digest(COMMAND_BOUNDARY_SFOL_CLAIM),
+            "admission_path": str(COMMAND_BOUNDARY_SFOL_ADMISSION.relative_to(AUTH_ROOT)),
+            "admission_sha256": digest(COMMAND_BOUNDARY_SFOL_ADMISSION),
+            "relation": "historical-formal-admission-does-not-prove-current-accepted-meaning",
+        } and current_service_binding["runtime_guarantees_observed"] is False,
+        "authorization-service-historical-formal-claim-distinct-from-current-meaning", checks,
+    )
+    current_chain = load(IMPLEMENTATION / "d65-chain.json")
+    chain_stages = {row["stage"]: row for row in current_chain["stages"]}
+    for stage, path, state in (
+        ("accepted_command_boundary_meaning", COMMAND_BOUNDARY_ACCEPTED_MEANING, "owner-accepted-not-formal-claim-admission"),
+        ("accepted_command_boundary_meaning_decision", COMMAND_BOUNDARY_ACCEPTANCE, "owner-decision"),
+        ("owner_downstream_endpoint_scope", COMMAND_BOUNDARY_OWNER_SCOPE, "owner-selected-open-inventory-not-runtime-proof"),
+        ("command_boundary_sfol_formal_claim", COMMAND_BOUNDARY_SFOL_CLAIM, "admitted-sibling-claim"),
+        ("command_boundary_sfol_formal_claim_admission", COMMAND_BOUNDARY_SFOL_ADMISSION, "owner-decision"),
+    ):
+        require(chain_stages.get(stage) == {"stage": stage, "state": state,
+                "path": str(path.relative_to(AUTH_ROOT)), "sha256": digest(path)},
+                f"d65-semantic-lineage:{stage}", checks)
+    require(current_chain["runtime_guarantees_observed"] is False,
+            "d65-runtime-guarantee-remains-unobserved", checks)
+    for field, path in (
+        ("selected_public_api", IMPLEMENTATION / "authorization-api/src/lib.rs"),
+        ("selected_admission_service", IMPLEMENTATION / "authorization-admission-service/src/lib.rs"),
+        ("selected_ready_authority", READY_AUTHORITY / "src/lib.rs"),
+        ("selected_admission_kernel", IMPLEMENTATION / "command-boundary-runtime-v2/src/domainspec/rust/auth-command-boundary/admit-authorization-command.rs"),
+        ("selected_ready_decision", READY_DECISION / "src/lib.rs"),
+        ("selected_generated_policy", GENERATED_SOURCE),
+        ("selected_authorization_state_reader", STATE_READER / "src/lib.rs"),
+        ("selected_authorization_metadata_reader", IMPLEMENTATION / "authorization-metadata-reader/src/lib.rs"),
+    ):
+        selected = current_service_binding[field]
+        require(selected["path"] == str(path.relative_to(AUTH_ROOT))
+                and selected["sha256"] == digest(path),
+                f"authorization-service-selected-component:{field}", checks)
+    require("selected_trusted_boundary_v2" not in current_service_binding
+            and "selected_pre_resolved_boundary" not in current_service_binding
+            and "legacy_trusted_boundary_predecessor" in current_service_binding,
+            "authorization-service-legacy-wrappers-not-selected", checks)
+    require(
+        current_service_binding["selected_call_path"][0].startswith("authorization_runtime_from_database ->")
+        and "with_ready_in_transaction(actual epoch transaction/request)" in current_service_binding["selected_call_path"][2]
+        and "READY-only function continuation" in current_service_binding["selected_call_path"][-1]
+        and "auth-foundation-authorization-admission-service" in current_service_binding["selected_dependency_closure"]
+        and "auth-foundation-authorization-service" not in current_service_binding["selected_dependency_closure"]
+        and "auth-foundation-runtime-adapter" not in current_service_binding["selected_dependency_closure"],
+        "authorization-service-selected-call-path", checks,
+    )
 
     print(json.dumps({
         "status": "pass",
@@ -1403,6 +1596,10 @@ def main() -> int:
         "retired_artifacts": len(RETIRED_ARTIFACTS),
         "behavior_cases": 24,
         "behavior_runs": 2,
+        "current_runtime_successor": "three-local-targets-observed",
+        "historical_runtime_receipts": "preserved-not-current-cli-targets",
+        "auth_product_capability_current_schema_conformance": False,
+        "auth_product_capability_legacy_structure": "exact-historical-bytes-only",
         "migration_receipt_sha256": digest(CONFORMANCE / "migration-receipt.json"),
         "runtime_evidence": {
             "status": "local-binary-runtime-adapter-candidate-pass",
@@ -1425,6 +1622,7 @@ def main() -> int:
             "status": trusted_input_evidence["result"],
             "sha256": digest(CONFORMANCE / "trusted-input-evidence.json"),
             "provider_test_count": trusted_input_evidence["verification"]["provider_test_count"],
+            "admission_service_test_count": trusted_input_evidence["verification"]["admission_service_test_count"],
             "service_test_count": trusted_input_evidence["verification"]["service_test_count"],
             "semantic_conformance": trusted_input_evidence["semantic_conformance"]["status"],
             "generated_rust": trusted_input_evidence["verification"]["generated_rust"],

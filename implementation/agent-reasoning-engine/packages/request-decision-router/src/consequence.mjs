@@ -1,5 +1,7 @@
 import {canonicalJson, canonicalizeJson, deepFreeze, sha256HexText} from "../../intent-route-resolver/index.mjs";
 import {isVerifiedDecisionProfile} from "./verified-profile.mjs";
+import {isG03R3EffectScope} from "./g03-r3-effect-scope.mjs";
+import {isG03R4EffectScope} from "./g03-r4-effect-scope.mjs";
 
 function finalize(material) {
   const normalized = canonicalizeJson(material);
@@ -27,10 +29,20 @@ function optionTrace(option, profile) {
   if (candidate.structurally_admissible === false) rejectionReasons.push("option.structurally-inadmissible");
   if (protectedEffects.length > 0 && requiredOwnerGates.length === 0) rejectionReasons.push("option.protected-owner-gate-missing");
   const route = profile.routes.find((routeCandidate) => routeCandidate.route_id === candidate.route_id);
+  const exactG03R3Scope = isG03R3EffectScope(candidate.route_id, effectClasses, candidate.proposal);
+  const exactG03R4Scope = isG03R4EffectScope(candidate.route_id, effectClasses, candidate.proposal);
   if (!route) rejectionReasons.push("option.route-unknown");
-  else if (route.lifecycle_state === "blocked") rejectionReasons.push("option.route-blocked");
+  else {
+    if (route.lifecycle_state === "blocked") rejectionReasons.push("option.route-blocked");
+    const disallowedEffects = effectClasses.filter((effect) => knownEffects.has(effect) && !route.effect_classes.includes(effect)
+      && !((exactG03R3Scope || exactG03R4Scope) && ["external-effect", "spend"].includes(effect)));
+    if (disallowedEffects.length > 0) rejectionReasons.push(...disallowedEffects.map((effect) => `option.route-effect-class-not-allowed:${effect}`));
+    const noWriteCeiling = /^none(?:;|$)/iu.test(route.write_ceiling ?? "");
+    if (noWriteCeiling && effectClasses.some((effect) => !profile.consequence.safe_effects.includes(effect))) rejectionReasons.push("option.route-write-ceiling-exceeded");
+    if (route.requires_user_authorization === true && requiredOwnerGates.length === 0) requiredOwnerGates.push(`Route owner approval:${route.route_id}`);
+  }
   const consequential = candidate.reversible !== true || protectedEffects.length > 0 || consequentialEffects.length > 0 || unknownEffects.length > 0 || requiredOwnerGates.length > 0;
-  return canonicalizeJson({option_id: candidate.option_id ?? null, route_id: candidate.route_id ?? null, effect_classes: effectClasses, reversible: candidate.reversible === true, protected_effects: protectedEffects, consequential_effects: consequentialEffects, unknown_effects: unknownEffects, required_owner_gate_refs: requiredOwnerGates, consequential, posture: rejectionReasons.length === 0 ? "admissible" : "rejected", rejection_reasons: [...new Set(rejectionReasons)].sort()});
+  return canonicalizeJson({option_id: candidate.option_id ?? null, route_id: candidate.route_id ?? null, effect_classes: effectClasses, reversible: candidate.reversible === true, protected_effects: protectedEffects, consequential_effects: consequentialEffects, unknown_effects: unknownEffects, required_owner_gate_refs: [...new Set(requiredOwnerGates)].sort(), route_constraints: route ? {requires_user_authorization: route.requires_user_authorization, allowed_effect_classes: route.effect_classes, exact_scope_exception: exactG03R4Scope ? "g03-product-replication-r4" : exactG03R3Scope ? "g03-product-replication-r3" : null, write_ceiling: route.write_ceiling, blockers: route.blockers} : null, consequential, posture: rejectionReasons.length === 0 ? "admissible" : "rejected", rejection_reasons: [...new Set(rejectionReasons)].sort()});
 }
 
 export function evaluateContinuation(input, profile) {

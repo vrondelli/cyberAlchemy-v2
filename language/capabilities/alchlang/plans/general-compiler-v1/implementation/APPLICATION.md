@@ -11,8 +11,9 @@ to the same backend used by the native DomainSpec application-build command.
 Build requires the output path authored by the application and an absent target.
 Missing backend exports require rebuilding the explicitly selected package.
 
-Backend contract: [DomainSpec APPLICATION.md](../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/APPLICATION.md).
-Reference consumer: [Body War v2](../../../../../../../domainspec-core/projects/body-war-v2/README.md).
+Backend contract: [DomainSpec APPLICATION.md](../../../../../../craft/projects/domainspec-v2/impl/cli/APPLICATION.md).
+The historical Body War v2 reference consumer is not part of the selected Craft
+source and is therefore not a current checkout dependency.
 The consumer tests byte-equivalent output and runtime effects of route, permission,
 response and lifecycle changes, and records its current assurance limits.
 

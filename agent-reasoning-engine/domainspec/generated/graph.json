@@ -3,11 +3,11 @@
   "authority": "generated-semantic-read-model",
   "project_id": "agent-reasoning-engine",
   "language": {
-    "profile_digest": "30b5304274d7e025964b9e325bc08b742b794824639b129f9e11aebf1eab18d0",
+    "profile_digest": "db6dc85ecf7b3a203d4e5cf7c4e546a644b97fe4666e4e91617c0b080ce97f5b",
     "kinds_digest": "bc800afdca36fa701a13ec611e7ee0ef928a4c8d259d48dfac2880a3cc8cbbc4",
-    "relationships_digest": "82c55ea1ad031d3135c5b8a85162e44b4e85f296b54057fda0dc38131ab376a1"
+    "relationships_digest": "19790f73c6d1a401a37a1eeb90f1477fd53d388d2116102c414d9172893cb81f"
   },
-  "source_set_digest": "c756b563881d897f7f8837978d61f33126d74233e7da8cf47e553cfe68a1abb9",
+  "source_set_digest": "5ef0abc61aed5581f14ff6b3f0e8968697d02a5ffe7693c0328fc9bab1434a37",
   "nodes": [
     {
       "node_id": "agent-reasoning-engine.ApplyUpgradeDecision",
@@ -191,6 +191,34 @@
         "authority_effect": "none",
         "creation_targets": [
           "agent-reasoning-engine.ReasoningStateCheckpoint"
+        ]
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.CommitEvolutionCommand",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Operation",
+      "intent": "Commit one validated command, its exact objects, ordered events and deterministic receipt through one immutable visibility marker.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-WORKFLOW-EVOLUTION-DURABLE-KERNEL",
+          "CA2-ARE-RULE-EVOLUTION-COMMIT-IS-VISIBILITY",
+          "CA2-ARE-RULE-EVOLUTION-SECRETS-REJECTED"
+        ],
+        "required_conditions": [
+          "exclusive writer lock",
+          "exact command and definition binding",
+          "idempotency check",
+          "current expected revision",
+          "recognized secret rejection",
+          "fsynced objects and ledger entries before commit marker",
+          "transactional disposable-index refresh after commit"
+        ],
+        "authority_effect": "none",
+        "creation_targets": [
+          "agent-reasoning-engine.EvolutionKernelCommit"
         ]
       }
     },
@@ -687,6 +715,26 @@
       }
     },
     {
+      "node_id": "agent-reasoning-engine.CycleDefinitionAdmissionBoundary",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Rule",
+      "intent": "Keep structural validity and registry scope separate from the user's sole authority to admit, enable, replace or remove a cycle definition.",
+      "body": {
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-RULE-EVOLUTION-DEFINITION-USER-ADMISSION"
+        ],
+        "required_conditions": [
+          "validators cannot approve",
+          "candidate registry entries remain disabled",
+          "breaking successors require a new user decision",
+          "registry presence grants no execution permission"
+        ],
+        "violation_behavior": "block admission and preserve candidate evidence",
+        "authority_effect": "none"
+      }
+    },
+    {
       "node_id": "agent-reasoning-engine.DecisionGateProfile",
       "feature_id": "agent-reasoning-engine",
       "kind": "Entity",
@@ -831,6 +879,41 @@
       }
     },
     {
+      "node_id": "agent-reasoning-engine.DiagnoseEvolutionKernel",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Operation",
+      "intent": "Materialize a diagnostic report for corruption, index drift, writer-lock presence and interrupted pre-commit residue without mutating authoritative state.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-WORKFLOW-EVOLUTION-KERNEL-RECOVERY"
+        ],
+        "required_conditions": [
+          "only a non-authoritative diagnostic record is materialized",
+          "durable bytes are verified independently of SQLite",
+          "orphan objects events and receipts remain visible",
+          "diagnosis grants no repair or execution authority"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.DurableEvolutionKernel",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Workflow",
+      "intent": "Own durable multi-cycle evolution state behind a closed JSON command boundary while leaving cycle admission and external execution disabled.",
+      "body": {
+        "scope": "intra-feature",
+        "semantic_refs": [
+          "CA2-ARE-WORKFLOW-EVOLUTION-DURABLE-KERNEL",
+          "CA2-ARE-WORKFLOW-EVOLUTION-KERNEL-RECOVERY",
+          "CA2-CAP-REASON-AND-MANAGE-CONTEXT"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
       "node_id": "agent-reasoning-engine.EngineVariant",
       "feature_id": "agent-reasoning-engine",
       "kind": "Entity",
@@ -896,6 +979,173 @@
       }
     },
     {
+      "node_id": "agent-reasoning-engine.EvolutionArtifactIdentity",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Separate immutable byte identity from cycle-specific semantic role, provenance, applicability and claim ceiling.",
+      "body": {
+        "fields": [
+          {
+            "name": "artifact_id",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "sha256",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "byte_length",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "media_type",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "semantic_binding",
+            "type": "object",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-ARTIFACT-IDENTITY"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionCommand",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Bind one closed JSON transition proposal to stable command and idempotency identities, expected revision, attributed actor, cycle definition, target and payload digest without a direct state field.",
+      "body": {
+        "fields": [
+          {
+            "name": "command_id",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "idempotency_key",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "expected_event_revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "actor",
+            "type": "object",
+            "identity": false
+          },
+          {
+            "name": "cycle_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "cycle_definition_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "operation",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "payload_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-COMMAND"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionCommandReceipt",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Bind an accepted or rejected command to exact definition and command bytes, revision outcome, event references and reason codes without granting authority.",
+      "body": {
+        "fields": [
+          {
+            "name": "receipt_id",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "receipt_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "command_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "cycle_definition_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "disposition",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "previous_event_revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "next_event_revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "event_refs",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "reason_codes",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-COMMAND-RECEIPT"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
       "node_id": "agent-reasoning-engine.EvolutionCycle",
       "feature_id": "agent-reasoning-engine",
       "kind": "Workflow",
@@ -906,6 +1156,439 @@
           "CA2-ARE-WORKFLOW-ENGINE-EVOLUTION",
           "CA2-ARE-WORKFLOW-CONTROLLED-UPGRADE"
         ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionCycleDefinition",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Describe one versioned cycle kind through closed command, event and derived-disposition vocabularies, typed policy extension and exact validator bindings while keeping candidacy separate from user admission.",
+      "body": {
+        "fields": [
+          {
+            "name": "definition_ref",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "definition_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "cycle_kind",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "version",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "predecessor",
+            "type": "object",
+            "identity": false
+          },
+          {
+            "name": "policy_extension",
+            "type": "object",
+            "identity": false
+          },
+          {
+            "name": "validator_bindings",
+            "type": "object[]",
+            "identity": false
+          },
+          {
+            "name": "admission",
+            "type": "object",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-CYCLE-DEFINITION"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionEffectEnvelope",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Freeze user-authorized effect classes, resource limits and expiry for one cycle without allowing a runtime or agent to widen them.",
+      "body": {
+        "fields": [
+          {
+            "name": "envelope_ref",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "cycle_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "cycle_definition_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "authorization_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "allowed_effect_classes",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "resource_limits",
+            "type": "object",
+            "identity": false
+          },
+          {
+            "name": "expires_at",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-EFFECT-ENVELOPE"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionEvent",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Preserve one immutable accepted evolution fact at a monotonic cycle revision, attributable to an exact command and payload digest.",
+      "body": {
+        "fields": [
+          {
+            "name": "event_id",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "cycle_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "command_id",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "event_type",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "payload_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-EVENT"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionHandoff",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Bind a typed source-cycle offer and receiving-cycle acceptance to exact artifacts and claims without transferring state, budget, credentials or authority.",
+      "body": {
+        "fields": [
+          {
+            "name": "handoff_ref",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "handoff_type",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "source_cycle_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "receiving_cycle_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "artifact_refs",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "claim_refs",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "receipt_refs",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-HANDOFF"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionKernelCommit",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Represent the immutable atomic visibility point for one durable evolution command unit.",
+      "body": {
+        "fields": [
+          {
+            "name": "commit_digest",
+            "type": "sha256",
+            "identity": true
+          },
+          {
+            "name": "sequence",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "previous_commit_digest",
+            "type": "sha256|null",
+            "identity": false
+          },
+          {
+            "name": "command_object",
+            "type": "object-identity",
+            "identity": false
+          },
+          {
+            "name": "event_entries",
+            "type": "array",
+            "identity": false
+          },
+          {
+            "name": "receipt_entry",
+            "type": "receipt-identity",
+            "identity": false
+          },
+          {
+            "name": "previous_event_revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "next_event_revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-KERNEL-COMMIT"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionKernelProjection",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Expose byte-deterministic aggregate-cycle, subordinate-record and executable-work projections at one verified commit head.",
+      "body": {
+        "fields": [
+          {
+            "name": "projection_digest",
+            "type": "sha256",
+            "identity": true
+          },
+          {
+            "name": "head_commit_digest",
+            "type": "sha256|null",
+            "identity": false
+          },
+          {
+            "name": "aggregate_cycles",
+            "type": "array",
+            "identity": false
+          },
+          {
+            "name": "subordinate_records",
+            "type": "array",
+            "identity": false
+          },
+          {
+            "name": "executable_work",
+            "type": "array",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-PROJECTION",
+          "CA2-ARE-RULE-EVOLUTION-STATE-IS-DERIVED"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionObjectStore",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Preserve exact create-only SHA-256 objects used by durable evolution commits and artifact identities.",
+      "body": {
+        "fields": [
+          {
+            "name": "object_digest",
+            "type": "sha256",
+            "identity": true
+          },
+          {
+            "name": "byte_length",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "bytes",
+            "type": "opaque",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-OBJECT-STORE"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionPhaseAdmission",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Entity",
+      "intent": "Record whether one named phase fits its exact revision, bounded envelope and prerequisite receipts while remaining distinct from execution settlement.",
+      "body": {
+        "fields": [
+          {
+            "name": "admission_ref",
+            "type": "string",
+            "identity": true
+          },
+          {
+            "name": "cycle_ref",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "phase",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "expected_event_revision",
+            "type": "integer",
+            "identity": false
+          },
+          {
+            "name": "envelope_digest",
+            "type": "sha256",
+            "identity": false
+          },
+          {
+            "name": "prerequisite_receipt_refs",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "disposition",
+            "type": "string",
+            "identity": false
+          },
+          {
+            "name": "reason_codes",
+            "type": "string[]",
+            "identity": false
+          },
+          {
+            "name": "authority_effect",
+            "type": "none",
+            "identity": false
+          }
+        ],
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-PHASE-ADMISSION"
+        ],
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.EvolutionStateDerivedBoundary",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Rule",
+      "intent": "Reject direct cycle or record-state assignment and permit projections only from exact definition bytes plus accepted ordered events.",
+      "body": {
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-RULE-EVOLUTION-STATE-IS-DERIVED"
+        ],
+        "required_conditions": [
+          "commands contain no state field",
+          "accepted events are monotonic",
+          "projection inputs bind one definition digest",
+          "status files are non-authoritative"
+        ],
+        "violation_behavior": "reject command and emit reason-bound receipt",
         "authority_effect": "none"
       }
     },
@@ -1254,6 +1937,20 @@
         "creation_targets": [
           "agent-reasoning-engine.CacheAffinityProjection"
         ]
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.MultiCycleEvolutionProtocol",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Workflow",
+      "intent": "Provide one versioned JSON boundary for independently defined evolution cycles while keeping structural validation, definition admission, phase admission and effects distinct.",
+      "body": {
+        "scope": "intra-feature",
+        "semantic_refs": [
+          "CA2-ARE-WORKFLOW-EVOLUTION-PROTOCOL",
+          "CA2-CAP-REASON-AND-MANAGE-CONTEXT"
+        ],
+        "authority_effect": "none"
       }
     },
     {
@@ -2520,6 +3217,56 @@
       }
     },
     {
+      "node_id": "agent-reasoning-engine.RecordEvolutionEvent",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Operation",
+      "intent": "Materialize one immutable candidate event from an accepted exact command at the next monotonic revision without persisting it or directly assigning projection state.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-EVENT"
+        ],
+        "required_conditions": [
+          "command validation passed",
+          "event type is declared by exact cycle definition",
+          "revision is the immediate successor",
+          "payload bytes are digest-bound"
+        ],
+        "result_posture": "P1 deterministic event materialization only; durable append is P2",
+        "authority_effect": "none",
+        "creation_targets": [
+          "agent-reasoning-engine.EvolutionEvent"
+        ]
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.RecoverEvolutionKernel",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Operation",
+      "intent": "Reconstruct exact evolution state and a disposable SQLite index from the verified durable commit chain.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-WORKFLOW-EVOLUTION-KERNEL-RECOVERY",
+          "CA2-ARE-RULE-EVOLUTION-INDEX-IS-DISPOSABLE"
+        ],
+        "required_conditions": [
+          "stale lock owner is proven absent before removal",
+          "all commit predecessors and sequences verify",
+          "all referenced objects events and receipts verify",
+          "cycle revisions are contiguous",
+          "all three projection layers derive at one head",
+          "recovery performs no external calls"
+        ],
+        "authority_effect": "none",
+        "creation_targets": [
+          "agent-reasoning-engine.EvolutionKernelProjection"
+        ]
+      }
+    },
+    {
       "node_id": "agent-reasoning-engine.RecoverGatewayReasoningState",
       "feature_id": "agent-reasoning-engine",
       "kind": "Operation",
@@ -2867,6 +3614,56 @@
       }
     },
     {
+      "node_id": "agent-reasoning-engine.ValidateCycleDefinition",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Operation",
+      "intent": "Verify definition structure, exact digest, policy and validator bindings, version lineage, additive compatibility and candidate-only admission posture without approving a definition.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-CONCEPT-EVOLUTION-CYCLE-DEFINITION"
+        ],
+        "required_conditions": [
+          "closed schema",
+          "content-addressed identity",
+          "typed policy binding",
+          "validator currentness",
+          "successor lineage",
+          "candidate definitions disabled"
+        ],
+        "result_posture": "validation produces a non-authorizing assessment; it may reject but cannot admit",
+        "authority_effect": "none"
+      }
+    },
+    {
+      "node_id": "agent-reasoning-engine.ValidateEvolutionCommand",
+      "feature_id": "agent-reasoning-engine",
+      "kind": "Operation",
+      "intent": "Fail closed on malformed, stale, conflicting, definition-substituted or undeclared commands and deterministically produce rejection evidence or an acceptance assessment plus a receipt.",
+      "body": {
+        "state_change": "yes",
+        "formal_return_type": "boolean",
+        "semantic_refs": [
+          "CA2-ARE-WORKFLOW-EVOLUTION-PROTOCOL"
+        ],
+        "required_conditions": [
+          "closed schema",
+          "exact definition digest",
+          "expected event revision",
+          "payload digest",
+          "declared operation",
+          "idempotency conflict check",
+          "no direct state assignment"
+        ],
+        "result_posture": "P1 structural validation evidence only; produced records are candidate evidence and not durable runtime state",
+        "authority_effect": "none",
+        "creation_targets": [
+          "agent-reasoning-engine.EvolutionCommandReceipt"
+        ]
+      }
+    },
+    {
       "node_id": "agent-reasoning-engine.VariantComparison",
       "feature_id": "agent-reasoning-engine",
       "kind": "Entity",
@@ -3025,6 +3822,18 @@
       "to": "agent-reasoning-engine.ReasoningStateEpoch"
     },
     {
+      "edge_id": "agent-reasoning-engine.edge.commit-evolution-command-creates-commit",
+      "type": "creates",
+      "from": "agent-reasoning-engine.CommitEvolutionCommand",
+      "to": "agent-reasoning-engine.EvolutionKernelCommit"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.commit-evolution-command-reads-command",
+      "type": "reads",
+      "from": "agent-reasoning-engine.CommitEvolutionCommand",
+      "to": "agent-reasoning-engine.EvolutionCommand"
+    },
+    {
       "edge_id": "agent-reasoning-engine.edge.completion-frontier-boundary-enforces-sealing",
       "type": "enforces",
       "from": "agent-reasoning-engine.CompletionFrontierBoundary",
@@ -3109,6 +3918,12 @@
       "to": "agent-reasoning-engine.ReasoningStateEpoch"
     },
     {
+      "edge_id": "agent-reasoning-engine.edge.cycle-definition-admission-boundary-enforces-definition-validation",
+      "type": "enforces",
+      "from": "agent-reasoning-engine.CycleDefinitionAdmissionBoundary",
+      "to": "agent-reasoning-engine.ValidateCycleDefinition"
+    },
+    {
       "edge_id": "agent-reasoning-engine.edge.definition-closure-creates-definition-closure",
       "type": "creates",
       "from": "agent-reasoning-engine.DefinitionClosureResolution",
@@ -3127,6 +3942,18 @@
       "to": "agent-reasoning-engine.RequestContext"
     },
     {
+      "edge_id": "agent-reasoning-engine.edge.diagnose-evolution-kernel-reads-commit",
+      "type": "reads",
+      "from": "agent-reasoning-engine.DiagnoseEvolutionKernel",
+      "to": "agent-reasoning-engine.EvolutionKernelCommit"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.diagnose-evolution-kernel-reads-objects",
+      "type": "reads",
+      "from": "agent-reasoning-engine.DiagnoseEvolutionKernel",
+      "to": "agent-reasoning-engine.EvolutionObjectStore"
+    },
+    {
       "edge_id": "agent-reasoning-engine.edge.dispatch-preparation-creates-dispatch",
       "type": "creates",
       "from": "agent-reasoning-engine.ExactDispatchPreparation",
@@ -3137,6 +3964,24 @@
       "type": "reads",
       "from": "agent-reasoning-engine.ExactDispatchPreparation",
       "to": "agent-reasoning-engine.ReasoningStateEpoch"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.durable-evolution-kernel-orchestrates-commit",
+      "type": "orchestrates",
+      "from": "agent-reasoning-engine.DurableEvolutionKernel",
+      "to": "agent-reasoning-engine.CommitEvolutionCommand"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.durable-evolution-kernel-orchestrates-diagnosis",
+      "type": "orchestrates",
+      "from": "agent-reasoning-engine.DurableEvolutionKernel",
+      "to": "agent-reasoning-engine.DiagnoseEvolutionKernel"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.durable-evolution-kernel-orchestrates-recovery",
+      "type": "orchestrates",
+      "from": "agent-reasoning-engine.DurableEvolutionKernel",
+      "to": "agent-reasoning-engine.RecoverEvolutionKernel"
     },
     {
       "edge_id": "agent-reasoning-engine.edge.evaluate-variant-creates-comparison",
@@ -3173,6 +4018,18 @@
       "type": "orchestrates",
       "from": "agent-reasoning-engine.EvolutionCycle",
       "to": "agent-reasoning-engine.ApplyUpgradeDecision"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.evolution-state-derived-boundary-enforces-command-validation",
+      "type": "enforces",
+      "from": "agent-reasoning-engine.EvolutionStateDerivedBoundary",
+      "to": "agent-reasoning-engine.ValidateEvolutionCommand"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.evolution-state-derived-boundary-enforces-event-recording",
+      "type": "enforces",
+      "from": "agent-reasoning-engine.EvolutionStateDerivedBoundary",
+      "to": "agent-reasoning-engine.RecordEvolutionEvent"
     },
     {
       "edge_id": "agent-reasoning-engine.edge.frontier-sealing-creates-frontier",
@@ -3349,6 +4206,24 @@
       "to": "agent-reasoning-engine.ReasoningStateEpoch"
     },
     {
+      "edge_id": "agent-reasoning-engine.edge.multi-cycle-protocol-orchestrates-command-validation",
+      "type": "orchestrates",
+      "from": "agent-reasoning-engine.MultiCycleEvolutionProtocol",
+      "to": "agent-reasoning-engine.ValidateEvolutionCommand"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.multi-cycle-protocol-orchestrates-definition-validation",
+      "type": "orchestrates",
+      "from": "agent-reasoning-engine.MultiCycleEvolutionProtocol",
+      "to": "agent-reasoning-engine.ValidateCycleDefinition"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.multi-cycle-protocol-orchestrates-event-recording",
+      "type": "orchestrates",
+      "from": "agent-reasoning-engine.MultiCycleEvolutionProtocol",
+      "to": "agent-reasoning-engine.RecordEvolutionEvent"
+    },
+    {
       "edge_id": "agent-reasoning-engine.edge.reasoning-state-boundary-enforces-checkpoint",
       "type": "enforces",
       "from": "agent-reasoning-engine.ReasoningStateBoundary",
@@ -3395,6 +4270,36 @@
       "type": "reads",
       "from": "agent-reasoning-engine.RebuildReasoningStateIndex",
       "to": "agent-reasoning-engine.ReasoningStateLedger"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.record-evolution-event-creates-event",
+      "type": "creates",
+      "from": "agent-reasoning-engine.RecordEvolutionEvent",
+      "to": "agent-reasoning-engine.EvolutionEvent"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.record-evolution-event-reads-command",
+      "type": "reads",
+      "from": "agent-reasoning-engine.RecordEvolutionEvent",
+      "to": "agent-reasoning-engine.EvolutionCommand"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.recover-evolution-kernel-creates-projection",
+      "type": "creates",
+      "from": "agent-reasoning-engine.RecoverEvolutionKernel",
+      "to": "agent-reasoning-engine.EvolutionKernelProjection"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.recover-evolution-kernel-reads-commit",
+      "type": "reads",
+      "from": "agent-reasoning-engine.RecoverEvolutionKernel",
+      "to": "agent-reasoning-engine.EvolutionKernelCommit"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.recover-evolution-kernel-reads-objects",
+      "type": "reads",
+      "from": "agent-reasoning-engine.RecoverEvolutionKernel",
+      "to": "agent-reasoning-engine.EvolutionObjectStore"
     },
     {
       "edge_id": "agent-reasoning-engine.edge.recover-reasoning-state-creates-assessment",
@@ -3521,6 +4426,30 @@
       "type": "enforces",
       "from": "agent-reasoning-engine.ReasoningAndContextManagement",
       "to": "agent-reasoning-engine.ContextViewBinding"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.validate-cycle-definition-reads-definition",
+      "type": "reads",
+      "from": "agent-reasoning-engine.ValidateCycleDefinition",
+      "to": "agent-reasoning-engine.EvolutionCycleDefinition"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.validate-evolution-command-creates-receipt",
+      "type": "creates",
+      "from": "agent-reasoning-engine.ValidateEvolutionCommand",
+      "to": "agent-reasoning-engine.EvolutionCommandReceipt"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.validate-evolution-command-reads-command",
+      "type": "reads",
+      "from": "agent-reasoning-engine.ValidateEvolutionCommand",
+      "to": "agent-reasoning-engine.EvolutionCommand"
+    },
+    {
+      "edge_id": "agent-reasoning-engine.edge.validate-evolution-command-reads-definition",
+      "type": "reads",
+      "from": "agent-reasoning-engine.ValidateEvolutionCommand",
+      "to": "agent-reasoning-engine.EvolutionCycleDefinition"
     },
     {
       "edge_id": "agent-reasoning-engine.edge.verify-product-stability-reads-surface",

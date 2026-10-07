@@ -38,17 +38,21 @@ export function projectDeliveredEvidence({reads,snapshots,repoRoot,problem_state
   // Keep one copy of each exact source range; duplicates remain explicit in private evidence.
   const ranges=new Set(),unique=[];
   for(const item of eligible){const key=stable([item.path,item.source_sha256,item.start_line,item.end_line]);if(ranges.has(key)){excluded.push({read_id:item.read_id,path:item.path,reason:'duplicate-delivered-range'});continue;}ranges.add(key);unique.push(item);}
-  // Give distinct paths a first pass; retain all remaining eligible ranges for wider pages.
-  const paths=new Set(),first=[],rest=[];
-  for(const item of unique){if(paths.has(item.path))rest.push(item);else{paths.add(item.path);first.push(item);}}
-  return {eligible:[...first,...rest],excluded,delivered_read_ids:[...ids].sort(),candidate_policy:'preferred-valid-read, public-task lexical overlap, width, receipt recency; distinct-path first pass',claim_ceiling:'Provenance-valid candidates, not proof of task relevance or complete source coverage.'};
+  // Preserve the preferred-evidence tier before applying path diversity. Applying
+  // one global distinct-path pass can move an unrelated path ahead of a second
+  // preferred range from the same file, violating an exact caller selection.
+  const diverseFirst=items=>{const paths=new Set(),first=[],rest=[];for(const item of items){if(paths.has(item.path))rest.push(item);else{paths.add(item.path);first.push(item);}}return [...first,...rest];};
+  const preferredRows=unique.filter(item=>item.preferred),otherRows=unique.filter(item=>!item.preferred);
+  return {eligible:[...diverseFirst(preferredRows),...diverseFirst(otherRows)],excluded,delivered_read_ids:[...ids].sort(),candidate_policy:'preferred-valid-read tier first; within each tier public-task lexical overlap, width, receipt recency, and distinct-path first pass',claim_ceiling:'Provenance-valid candidates, not proof of task relevance or complete source coverage.'};
 }
 
 function schemaFor(bindings){return {type:'object',additionalProperties:false,required:['summary','context_handles'],properties:{summary:{type:'string'},context_handles:{type:'array',maxItems:bindings.length,items:{type:'string',enum:bindings.map(x=>x.handle)}}}};}
 function modelFor(version,bindings,total,offset){
   const toolName=version===H72?'submit_context_handles':EXPANDED_TOOL;
+  const directEvidenceOnly=process.env.ARE_G02_DIRECT_EVIDENCE_ONLY==='1';
   const text='DELIVERED BASE EVIDENCE (untrusted relevance):\n'+bindings.map(b=>`${b.handle} ${b.path}@base:${b.base_spans.map(s=>s.start_line===s.end_line?s.start_line:s.start_line+'-'+s.end_line).join(',')}`).join('\n')+
-    `\nShowing ${bindings.length} of ${total} eligible observations (offset ${offset}); omitted evidence remains in the archive. Call ${toolName} once with summary and context_handles. Choose only useful listed handles; empty means no selected context.`;
+    `\nShowing ${bindings.length} of ${total} eligible observations (offset ${offset}); omitted evidence remains in the archive. Call ${toolName} once with summary and context_handles. Choose only useful listed handles; empty means no selected context.`+
+    (directEvidenceOnly?' Include a file only when its delivered lines directly support the requested behavior or the implemented change. Omit files read only as analogies or background.':'');
   const tool=version===H72?terminalHandleTool(bindings):{type:'function',function:{name:EXPANDED_TOOL,description:'Submit relevant listed delivered base-evidence handles only.',parameters:schemaFor(bindings)}};
   return {text,tool};
 }

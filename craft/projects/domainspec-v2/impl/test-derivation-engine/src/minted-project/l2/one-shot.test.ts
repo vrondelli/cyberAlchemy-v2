@@ -13,6 +13,7 @@ import {
   validateRouteScopes,
   verifyPackagePostimage,
 } from "./one-shot.js";
+import { PACKAGE_POSTIMAGE_V2, verifyPackagePostimageV2 } from "./package-postimage-v2.js";
 
 const EVIDENCE =
   "projects/domainspec-v2/development/evolvable-validation-framework/evidence/SWU-X/attempt-001/Violation.csv";
@@ -102,13 +103,43 @@ describe("EVF L2 inventory-driven scanner", () => {
     expect(loaded.executionEntry).toEqual(input.execution);
   });
 
-  it("admits only the exact five-script package semantic delta", () => {
+  it("keeps the historical five-script package verifier fail-closed on current bytes", () => {
     const packagePath = fileURLToPath(new URL("../../../../package.json", import.meta.url));
     const postimage = JSON.parse(readFileSync(packagePath, "utf8")) as Record<string, unknown>;
-    expect(() => verifyPackagePostimage(postimage)).not.toThrow();
+    expect(() => verifyPackagePostimage(postimage))
+      .toThrowError(expect.objectContaining({ code: "TARGET_BASELINE_DRIFT" }));
+    for (const script of [
+      "verify:evf-l2",
+      "test:evf-l2",
+      "verify:evf-l2:c0",
+      "verify:evf-l2:c1",
+      "verify:evf-l2:c2",
+    ]) {
+      const drifted = structuredClone(postimage);
+      (drifted.scripts as Record<string, unknown>)[script] = "tsx drifted-command.ts";
+      expect(() => verifyPackagePostimage(drifted))
+        .toThrowError(`package script drifted: ${script}`);
+    }
+  });
+
+  it("admits only the separately versioned current package semantic delta", () => {
+    const packagePath = fileURLToPath(new URL("../../../../package.json", import.meta.url));
+    const postimage = JSON.parse(readFileSync(packagePath, "utf8")) as Record<string, unknown>;
+    expect(PACKAGE_POSTIMAGE_V2.schema_version).toBe("evf.l2.package-postimage/v2-candidate");
+    expect(PACKAGE_POSTIMAGE_V2.scripts).toEqual({
+      "verify:evf-l2": "tsx test-derivation-engine/src/minted-project/l2/verify-l2-one-shot.ts",
+      "test:evf-l2": "vitest run test-derivation-engine/src/minted-project/l2 --maxWorkers=1 --minWorkers=1",
+      "verify:evf-l2:c0": "tsx test-derivation-engine/src/minted-project/l2/verify-c0.ts",
+      "verify:evf-l2:c1": "tsx test-derivation-engine/src/minted-project/l2/verify-c1.ts",
+      "verify:evf-l2:c2": "tsx test-derivation-engine/src/minted-project/l2/verify-c2.ts",
+      "verify:bte:financial-settlement:current": "tsx test-derivation-engine/src/bte/current-financial-settlement-terminal.ts",
+      "verify:bte:financial-settlement:fixture-v2": "tsx test-derivation-engine/src/bte/financial-settlement-current-fixture.ts",
+      "verify:sfol:financial-settlement:current-structural": "tsx tools/current-financial-settlement-sfol-join.ts",
+    });
+    expect(() => verifyPackagePostimageV2(postimage)).not.toThrow();
 
     const expectBaselineDrift = (candidate: Record<string, unknown>): void => {
-      expect(() => verifyPackagePostimage(candidate))
+      expect(() => verifyPackagePostimageV2(candidate))
         .toThrowError(expect.objectContaining({ code: "TARGET_BASELINE_DRIFT" }));
     };
     const scriptsOf = (candidate: Record<string, unknown>): Record<string, unknown> =>
@@ -118,9 +149,11 @@ describe("EVF L2 inventory-driven scanner", () => {
     packageFieldDrift.description = `${String(packageFieldDrift.description)}\\u2014`;
     expectBaselineDrift(packageFieldDrift);
 
-    const l2CommandDrift = structuredClone(postimage);
-    scriptsOf(l2CommandDrift)["verify:evf-l2"] = "tsx drifted-l2-command.ts";
-    expectBaselineDrift(l2CommandDrift);
+    for (const selectedScript of Object.keys(PACKAGE_POSTIMAGE_V2.scripts)) {
+      const selectedCommandDrift = structuredClone(postimage);
+      scriptsOf(selectedCommandDrift)[selectedScript] = "tsx drifted-command.ts";
+      expectBaselineDrift(selectedCommandDrift);
+    }
 
     const nonL2CommandDrift = structuredClone(postimage);
     scriptsOf(nonL2CommandDrift)["validate:docs"] = "tsx tools/drifted-doc-validator.ts";
@@ -132,8 +165,7 @@ describe("EVF L2 inventory-driven scanner", () => {
 
     const extraScript = structuredClone(postimage);
     scriptsOf(extraScript)["verify:evf-l2:extra"] = "tsx undeclared-l2-command.ts";
-    expect(() => verifyPackagePostimage(extraScript))
-      .toThrowError(expect.objectContaining({ code: "TARGET_BASELINE_DRIFT" }));
+    expectBaselineDrift(extraScript);
   });
 
   it("accepts exactly the authored creates and update while runtime evidence is absent", () => {

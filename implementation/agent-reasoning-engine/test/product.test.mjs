@@ -3,7 +3,8 @@ import {readFileSync} from "node:fs";
 import {resolve} from "node:path";
 import test from "node:test";
 
-import {inspectProduct, materializeProductClosure, PRODUCT_CLOSURE_LIMITS} from "../src/product.mjs";
+import {inspectProduct, materializeProductClosure, normalizeProductProfile, packagedProductPath, PRODUCT_CLOSURE_LIMITS, productRoot, projectRoot, resolveProductSourcePath, validateProductProfile} from "../src/product.mjs";
+import {materializeCapabilityMatrix} from "../src/capability-matrix.mjs";
 import {materializeProductTestPlan} from "../src/product-test-plan.mjs";
 import {
   materializeFailureLearningCanaryEvidence,
@@ -15,13 +16,23 @@ import {
   verifyProductTestReceipt,
 } from "../src/product-candidate.mjs";
 
-test("integrated ARE product has an exact runtime, verified profile, and complete component closure", () => {
+test("logical product paths remain stable when the checkout has a different physical folder name", () => {
+  assert.equal(packagedProductPath(productRoot), "cyberAlchemy-v2/implementation/agent-reasoning-engine");
+  assert.equal(resolveProductSourcePath("cyberAlchemy-v2/implementation/agent-reasoning-engine/product.json"),
+    resolve(productRoot, "product.json"));
+  assert.equal(resolveProductSourcePath("implementation/agent-reasoning-engine/product.json"),
+    resolve(productRoot, "product.json"));
+  assert.throws(() => resolveProductSourcePath("../outside.json"), /product\.source-path-outside-project/u);
+  assert.throws(() => packagedProductPath(resolve(projectRoot, "..")), /product\.source-path-outside-project/u);
+});
+
+test("minimum ARE Core has an exact runtime and excludes optional layers", () => {
   const health = inspectProduct({require_exact_runtime: true});
   assert.equal(health.status, "PASS", health.reason_codes.join(","));
   assert.equal(health.node.exact_match, true);
-  assert.equal(health.repository_profile.verified, true);
-  assert.equal(health.components.length, 17);
-  assert.equal(health.components.every((component) => component.present && component.package_name), true);
+  assert.equal(health.repository_profile.verification, "owned-by-selected-component");
+  assert.equal(health.components.length, 19);
+  assert.equal(health.components.filter((component) => component.selected).every((component) => component.present && component.package_name), true);
   assert.equal(health.integrations.every((integration) => integration.present), true);
   assert.equal(health.authority_effect, "none");
   const replay = materializeProductClosure();
@@ -37,6 +48,7 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   assert.equal(replay.files.some((entry) => entry.path.includes("/runs/")), false);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-reasoning-engine/product.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-routing/capabilities/are-cli/request.schema.json"), true);
+  assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/implementation/agent-reasoning-engine/schemas/cli-request.schema.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/agent-reasoning-engine/product-capability.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/ontology/product/nodes.json"), true);
   assert.equal(replay.files.some((entry) => entry.path === "cyberAlchemy-v2/capability/capability-references.json"), true);
@@ -44,7 +56,17 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   assert.equal(replay.files.some((entry) => entry.path.includes("/benchmarks/contextbench-v1/")), false);
   assert.equal(replay.files.some((entry) => entry.path.includes("/benchmarks/glm-episodes-v1/")), false);
   assert.equal(replay.files.some((entry) => entry.path.includes("/packages/evolution-runtime/research/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/packages/evolution-runtime/research-records/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/are-mcp-server/src/server.mjs")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/dsh-gateway-backend-adapter/index.mjs")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/evolution-runtime/index.mjs")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/coding-agent-runtime/bin/live-demo.mjs")), false);
+  assert.equal(replay.files.some((entry) => entry.path.includes("/implementation/cyberalchemy-tui/")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/request-decision-router/profiles/cyberalchemy-route-pack-v1.json")), true);
   assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/index.mjs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/alch-semantic-adapter.mjs")), true);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/test/alch-semantic-adapter.test.mjs")), false);
+  assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/test/alch-semantic-adapter-boundary.test.mjs")), true);
   assert.equal(replay.files.some((entry) => entry.path.endsWith("/packages/module-port/native-semantic-adapter.mjs")), true);
   assert.equal(replay.files.some((entry) => entry.path.startsWith("domainspec-core/") || entry.path.includes("/language/capabilities/alchlang/")), false);
   for (const required of [
@@ -66,14 +88,56 @@ test("integrated ARE product has an exact runtime, verified profile, and complet
   assert.equal(replay.files.reduce((sum, entry) => sum + entry.bytes, 0) < PRODUCT_CLOSURE_LIMITS.maximum_bytes, true, "release closure exceeds byte limit");
 });
 
-test("product test plan covers every in-closure nested and native suite", () => {
+test("product profile v2 classifies every item and retains a bounded v1 compatibility parser", () => {
+  const profile = JSON.parse(readFileSync(new URL("../product.json", import.meta.url), "utf8"));
+  assert.equal(validateProductProfile(profile).status, "PASS");
+  const ids = [...profile.components, ...profile.integrations].map((item) => item.component_id ?? item.integration_id);
+  assert.equal(ids.length, new Set(ids).size);
+  assert.equal(profile.components.filter((item) => item.layer === "core").every((item) => item.required && item.default_enabled && item.install_posture === "required"), true);
+  const legacy = normalizeProductProfile({...profile, schema_version: "are.product-profile/v1", components: profile.components.map(({layer, maturity, default_enabled, install_posture, ...item}) => item), integrations: profile.integrations.map(({layer, maturity, default_enabled, install_posture, ...item}) => item)});
+  assert.equal(legacy.compatibility_source_schema, "are.product-profile/v1");
+  assert.equal(legacy.components.every((item) => item.layer === (item.required ? "core" : "extension")), true);
+});
+
+test("optional DSH closure is explicit and does not enter Core transitively", () => {
+  const core = materializeProductClosure();
+  const dsh = materializeProductClosure({include: ["dsh-gateway-backend-adapter", "codex-app-server-wrapper"]});
+  assert.equal(core.selection.includes("dsh-gateway-backend-adapter"), false);
+  assert.equal(dsh.selection.includes("dsh-gateway-backend-adapter"), true);
+  assert.equal(dsh.files.some((entry) => entry.path.endsWith("/packages/dsh-gateway-backend-adapter/index.mjs")), true);
+  assert.equal(dsh.files.some((entry) => entry.path.endsWith("/packages/dsh-gateway-backend-adapter/package-lock.json")), true);
+  assert.deepEqual(dsh.install_contracts.map((contract) => contract.component_id), ["dsh-gateway-backend-adapter"]);
+  assert.equal(dsh.install_contracts[0].network_policy, "operator-controlled-no-implicit-download");
+});
+
+test("Companion Evolution observer is packaged only in an explicit development closure", () => {
+  const core = materializeProductClosure();
+  const companion = materializeProductClosure({include: ["evolution-runtime"], development: true});
+  const observer = "/packages/evolution-runtime/bin/observe.mjs";
+  assert.equal(core.files.some((entry) => entry.path.endsWith(observer)), false);
+  assert.equal(companion.files.some((entry) => entry.path.endsWith(observer)), true);
+  assert.equal(companion.selection.includes("evolution-runtime"), true);
+  assert.equal(companion.mode, "development");
+});
+
+test("capability matrix is derived only from the validated product profile", () => {
+  const matrix = materializeCapabilityMatrix();
+  assert.equal(matrix.rows.length, 21);
+  assert.equal(matrix.rows.find((row) => row.id === "dsh-gateway-backend-adapter").layer, "extension");
+  assert.equal(matrix.rows.find((row) => row.id === "evolution-runtime").install_posture, "development-only");
+  assert.equal(matrix.authority_effect, "none");
+});
+
+test("Core product test plan covers every selected in-closure suite", () => {
   const plan = materializeProductTestPlan();
   assert.deepEqual(plan.unowned_test_files, []);
-  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/glm-flash-v1/test.mjs"))), true);
-  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/continuous-construction-task-loop/test/continuous-construction-adapter.test.mjs"))), true);
+  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/glm-flash-v1/test.mjs"))), false);
+  assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.endsWith("/continuous-construction-task-loop/test/continuous-construction-adapter.test.mjs"))), false);
   assert.equal(plan.suites.some((suite) => suite.runner === "cargo-test"), false);
   assert.equal(plan.suites.some((suite) => suite.target_id === "integration:are-product-package" && suite.runner === "python-unittest" && suite.test_refs.some((path) => path.endsWith("/agent-reasoning-engine/tests/test_negative_mutations.py"))), true);
   assert.equal(plan.suites.some((suite) => suite.target_id === "component:conversation-runtime" && suite.test_refs.length === 4), true);
+  assert.equal(plan.suites.some((suite) => suite.target_id === "component:are-mcp-server"), false);
+  assert.equal(plan.suites.some((suite) => suite.target_id === "component:dsh-gateway-backend-adapter"), false);
   assert.equal(plan.suites.some((suite) => suite.test_refs.some((path) => path.includes("/evolution-runtime/research/"))), false);
 });
 
@@ -83,6 +147,14 @@ test("package and product versions identify the same release candidate", () => {
   const productProfile = JSON.parse(readFileSync(resolve(root, "product.json"), "utf8"));
   assert.equal(packageManifest.version, productProfile.version);
   assert.equal(packageManifest.private, true);
+});
+
+test("selected wrapper test evidence remains packaged while runtime and research evidence stay excluded", () => {
+  const closure = materializeProductClosure({include: ["codex-app-server-wrapper"]});
+  assert.ok(closure.files.some(file => file.path.includes("/test/evidence/requirement-change-001.manifest.json")));
+  assert.equal(closure.files.some(file => file.path.includes("/packages/evolution-runtime/evidence/")), false);
+  assert.equal(closure.files.some(file => file.path.includes("/packages/evolution-runtime/research-records/")), false);
+  assert.equal(closure.files.some(file => file.path.endsWith("/packages/evolution-runtime/test/benchmark-research-v1.test.mjs")), false);
 });
 
 test("integrated product candidate is deterministic, current, and non-authorizing", () => {

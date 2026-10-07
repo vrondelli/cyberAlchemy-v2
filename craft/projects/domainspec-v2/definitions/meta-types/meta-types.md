@@ -43,7 +43,8 @@ This state is independent of DS-D1 maturity. The 13 backend labels remain active
 implementation baseline separately records one owner-admitted TypeScript, Python, and Rust realization for
 each type. The 11 UI rows are frozen as supporting context but remain at their existing candidate/deferred
 maturity and are not part of the first CLI instantiation surface. Generated-target conformance is a third
-axis and remains unimplemented.
+axis. An exact static generated-target observer exists for the current selected
+baseline; this does not establish runtime behavior or universal target conformance.
 
 ---
 

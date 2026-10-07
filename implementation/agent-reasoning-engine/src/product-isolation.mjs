@@ -4,11 +4,11 @@ import {chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync
 import {tmpdir} from "node:os";
 import {dirname, resolve} from "node:path";
 
-import {materializeProductClosure, productRoot, repositoryRoot} from "./product.mjs";
+import {materializeProductClosure, packagedProductPath, productRoot, resolveProductSourcePath} from "./product.mjs";
 
 function copyClosure(closure, destination) {
   for (const entry of closure.files) {
-    const source = resolve(repositoryRoot, entry.path);
+    const source = resolveProductSourcePath(entry.path);
     const target = resolve(destination, entry.path);
     mkdirSync(dirname(target), {recursive: true});
     if (entry.kind === "symlink") symlinkSync(entry.link_target, target);
@@ -23,7 +23,7 @@ export function runIsolatedProductTests(options = {}) {
   const closure = options.closure ?? materializeProductClosure();
   const directory = mkdtempSync(resolve(options.temporary_root ?? tmpdir(), "are-product-closure-"));
   copyClosure(closure, directory);
-  const isolatedProductRoot = resolve(directory, productRoot.slice(repositoryRoot.length + 1));
+  const isolatedProductRoot = resolve(directory, packagedProductPath(productRoot));
   const command = resolve(isolatedProductRoot, "bin/are.mjs");
   const run = spawnSync(process.execPath, [command, "test"], {
     cwd: isolatedProductRoot,

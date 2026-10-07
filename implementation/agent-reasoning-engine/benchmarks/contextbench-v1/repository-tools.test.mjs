@@ -1,12 +1,13 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';import {join} from 'node:path';import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {createRepositoryTools} from './repository-tools.mjs';
 async function fixture(fn){
  const root=mkdtempSync(join(tmpdir(),'are-cb-repo-'));
  const git=args=>execFileSync('git',args,{cwd:root,stdio:['ignore','pipe','pipe']}).toString().trim();
  try{git(['init']);git(['config','user.name','fixture']);git(['config','user.email','fixture@example.invalid']);
-  writeFileSync(join(root,'a.py'),'alpha\nbeta\nalpha\n');writeFileSync(join(root,'b.py'),'gamma\n');git(['add','.']);git(['commit','-m','fixture']);
+  writeFileSync(join(root,'a.py'),'alpha\nbeta\nalpha\n');writeFileSync(join(root,'b.py'),'gamma\n');writeFileSync(join(root,'bom.py'),'\uFEFFfirst\nsecond\n');git(['add','.']);git(['commit','-m','fixture']);
   const base_commit=git(['rev-parse','HEAD']);await fn(createRepositoryTools({root,base_commit}),root);
  }finally{rmSync(root,{recursive:true,force:true});}
 }
@@ -38,4 +39,20 @@ test('literal search reads only git-matched candidates before exact observation 
 }));
 test('untracked and traversal paths produce corrective feedback',()=>fixture(async tool=>{
  for(const path of ['../escape','missing.py'])assert.equal((await tool('read_file',{path,start_line:1,line_count:1,revision:'current'})).ok,false);
+}));
+test('UTF-8 BOM remains in source snapshots and survives exact edits',()=>fixture(async(tool,root)=>{
+ const snapshots=[];
+ const base_commit=execFileSync('git',['rev-parse','HEAD'],{cwd:root}).toString().trim();
+ const observed=createRepositoryTools({root,base_commit,record_source:s=>snapshots.push(s)});
+ const args={path:'bom.py',start_line:1,line_count:2,revision:'base'};
+ const before=(await observed('read_file',args)).output;
+ const hash=x=>createHash('sha256').update(x).digest('hex');
+ assert.equal(before.utf8,'\uFEFFfirst\nsecond');
+ assert.equal(hash(snapshots[0].utf8),before.source_sha256);
+ assert.equal(hash(readFileSync(join(root,'bom.py'))),before.source_sha256);
+ const edit=await observed('apply_edits',{edits:[{path:'bom.py',source_sha256:before.source_sha256,old_text:'second',new_text:'third'}]});
+ assert.equal(edit.ok,true);
+ assert.equal(readFileSync(join(root,'bom.py'),'utf8'),'\uFEFFfirst\nthird\n');
+ const current=(await observed('read_file',{...args,revision:'current'})).output;
+ assert.equal(hash(snapshots.at(-1).utf8),current.source_sha256);
 }));

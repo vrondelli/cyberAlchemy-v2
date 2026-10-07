@@ -74,7 +74,7 @@ with sync_playwright() as p:
  q.locator('#bag-price').fill('125.25');q.locator('#review-checkout').click()
  ck('Bag lower-price commit opens checkout in one click',q.locator('#shop-checkout-dialog').is_visible())
  ck('Checkout carries exact discovered cents',q.locator('.checkout-summary-total [data-bag-price]').inner_text()=='$125.25')
- ck('Checkout retains the same Apache license',q.locator('.checkout-summary [data-bag-license]').inner_text()=='Apache License 2.0')
+ ck('Checkout states pending license terms',q.locator('.checkout-summary [data-bag-license]').inner_text()=='Terms pending')
  q.screenshot(path=str(PRE/'shop-secret-checkout.png'));q.close()
  for width in [320,375,390,428,768,1024,1440,1920]:
   q=page(width,1000)

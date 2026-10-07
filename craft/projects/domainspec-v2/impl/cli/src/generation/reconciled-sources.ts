@@ -2,7 +2,7 @@ import {RECONCILED_SOURCE_SNAPSHOT} from './reconciled-sources.generated.js';
 import {canonicalJson,sha256} from '../input/source-manifest.js';
 import {assertInterfaceData} from '../typed-backend/interface.js';
 
-export const RECONCILED_SOURCE_CAPSULE_SHA256='7e4003a6c640bdb3235318f65129cc6dcc5da88f41f8df96a1813db72f3d56cb';
+export const RECONCILED_SOURCE_CAPSULE_SHA256='39ac2a9238417e27091a41a0e0a587806f7338927ce82abe229803fad0a62c00';
 export const MINIMAL_VALUE_CONTEXT_SHA256='187e86508003eab90669ebe31a7f6268d394cd4ba5182fb8a6687ca11e4213dc';
 export type ReconciledSourceId=typeof RECONCILED_SOURCE_SNAPSHOT.sources[number]['id'];
 const fail=(m:string):never=>{throw new TypeError('DS_RECONCILED_SOURCES:'+m);};

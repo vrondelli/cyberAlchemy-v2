@@ -1,0 +1,17 @@
+# G01 r6 — fresh 8K cross-branch protocol candidate
+
+Status: **frozen; two-worker private campaign active**, 2026-09-29. The [source-only r6 evidence](G01-R6-SOURCE-ONLY-CANDIDATE.md) owns supply, eligibility, cache, no-model preflight, definition, freeze, and service identities. R5 is a stopped, failed attempt; neither its tasks nor its scores are pooled into r6. This document authorizes no publication.
+
+The prespecified r6 cohort has 24 unique tasks, six each in C, Go, JavaScript, and Rust, across nine repositories. C comes only from PonyC; the source mix includes Multi and Poly. Both arms use GLM-5.3-flash, the same 8K request window, task, base commit, endpoint, tokenizer and transport, 96,000-token and 96-call per-arm caps, 2,048 output cap, 120-second request timeout, zero automatic retries, and no task replacement. The control stays `intent-anchor-convergence-r3`; the ARE candidate stays `intent-anchor-terminal-shortlist-distinctive-reasoning-fallback-r1` plus its candidate-only source-only selected-span refinement. The r8 source snapshot and native scorer are hash-bound in the campaign freeze. The prospective hypothesis is better native context-selection quality **and** lower known model-token and summed arm-time cost.
+
+The pair is the analysis unit. Preserve all 24 attempts and every timeout, refusal, source/index failure, and native-score failure. Seal each arm's prediction and known usage before evaluator-only scoring. Report native Span-F1 and File-F1, known model-token totals, summed per-task arm time, per-repository breakdowns, and all-attempt reliability. A directional branch superiority headline requires **24/24 natively scored pairs**, no unresolved label or score-integrity issue, repository-stratified paired 20,000-resample 95% intervals wholly above zero for both ARE-minus-control quality differences, and wholly below one for both ARE/control token and summed-arm-time ratios. Use the paired resampling seed/method in the [replication plan](PRODUCT-PAGE-REPLICATION-PLAN.md). A single passing metric supports only a qualified metric-specific statement. Do not top up, replace, or pool tasks after scores.
+
+The nine new cache repositories together occupy about 98 MB by file-size sum. Weighting each cache by its selected task count gives about **302 MB per one-copy task set**, or **1.21 GB for four copies** before logs, temporary files, scoring, and archival. VPS free space was approximately **2.38 GB** after cache and runner/index preflight. Recheck headroom before freeze and throughout a two-worker dispatch. This estimate is not a capacity guarantee. Stop safely if storage or transport safety fails; retain receipts and prior raw roots.
+
+At terminal state reconcile the 24 pair receipts, independently audit source/score/seal hashes and native metrics, compute the frozen paired intervals, and create a readable private archive if space permits. The claim ceiling is the exact GLM/8K/24-task/nine-repository comparison, not all ContextBench or general ARE superiority. Vlad and Dave must review the exact sanitized evidence card and receipt package before any product-page publication.
+
+## Open Questions
+
+- Will the actual four-checkout peak and archive fit without deleting prior evidence?
+- Will the 17 partial indexes omit task-relevant material or cause invalid scores?
+- Will quality, reliability, and cost all pass their prospectively frozen gates?

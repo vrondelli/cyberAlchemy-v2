@@ -37,7 +37,7 @@ export function createOutbound(contract:any,modules:Record<string,any>,dependenc
      if(beforeAttempt)await beforeAttempt({id:binding.id,version:binding.version,model:binding.model,policyVersion:policies.get(s.binding)});
      check();
      notify({type:'attempt_started',binding_id:binding.id,binding_version:binding.version,policy_version:policies.get(s.binding)});
-     attempt=http.sendOnce({id:binding.id,version:binding.version},body,{deadline,signal:controller.signal});
+     attempt=http.sendOnce({id:binding.id,version:binding.version,model:binding.model},body,{deadline,signal:controller.signal});
      let exchange;try{exchange=await attempt.response;}catch{check();fail('PROVIDER_TRANSPORT_FAILED');}
      check();if(!Number.isInteger(exchange.status)||exchange.status<200||exchange.status>299){await attempt.cancel('invalid-response');fail('PROVIDER_STATUS');}
      if(at(scope,s.stream)){

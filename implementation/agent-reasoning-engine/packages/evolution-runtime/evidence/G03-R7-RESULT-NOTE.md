@@ -1,0 +1,17 @@
+# G03 r7 four-type accuracy confirmation — terminal failed
+
+Status: terminal private generation failure on 2026-10-02. This is neither an r6 repair nor a scored r7 result. The frozen [protocol](G03-R7-PROTOCOL.md) required all 28 matched questions to terminate with accounted usage before native scoring.
+
+The score-blind source-only selection excluded 364 earlier exposed/assigned LongMemEval-S IDs and chose seven untouched questions each from knowledge-update, multi-session, single-session-user, and temporal-reasoning. Selection SHA-256: `c41fa8179cb31ca14260a1229c26e4e2671922ba80b254f450d418ff5bd7f806`; source-manifest SHA-256: `f977fd1aa042c9312cfce642c9a88e8d16464f32073ebb9067be283cfacdb360`; pre-dispatch freeze SHA-256: `c4d4b762a9a541d11ae7d57aaf6ed6f601dad38b9d0165357a50455d38b97924`. A same-gateway readiness probe returned tokenizer and tiny-generation HTTP 200/200 before launch.
+
+Generation stopped after **4/28 assigned**: three paired answers completed, one task failed, and 24 were unattempted. The failed task's twentieth model call, during control note ingestion, returned provider HTTP **500**, code **`1234`**, with a response digest but **no usage**. It had dispatched; 19 earlier control ingestion calls for that task were accounted. The campaign sealed **137 model calls and 500,924 known tokens**, with unknown usage on the failed request. This is an external provider failure under the frozen accounting rule, not evidence of ARE or control answer quality. No r7 references were projected, no native judge was run, and no accuracy estimate or r7 directional gate exists. The waiting finalizer exited when its required 28/28 terminal check failed. Do not retry, top up, rescore, or merge these three answers into another cohort.
+
+The full failed VPS cohort, tools, code root, and raw generation were copied to `/home/vlad_/are-benchmark-archive/g03-r7-terminal-failure-20261002/`. Four separate whole-tree `rsync --checksum --dry-run` comparisons against the unchanged VPS originals returned no differences. A separate [terminal auditor](../research/g03-product-r7/audit-terminal-r7.py) checked the frozen hashes, source bindings, task receipts, provider failure event, and complete 3/1/24 accounting without reading reference answers. Its private `TERMINAL-AUDIT.json` SHA-256 is `6573fe5c3d1f6ebc52e99f2daf22b5dbe02eae6acb0412e40458de5750a26035`. No raw evidence was removed from the VPS.
+
+R7's 28 IDs are now conservatively exposed despite the early stop. In the same pinned LongMemEval-S source, this exhausts untouched single-session-user questions as well as the already depleted single-session-assistant and preference types; a new four-/five-/six-type S confirmation cannot be presented as independent under that rule. The next G03 benchmark needs a genuinely distinct question population and a prospective treatment of provider HTTP 500/unknown-usage failures that preserves honest accuracy and cost accounting. This failure does not change r6's bounded five-type accuracy result or justify a broad superiority claim.
+
+## Open Questions
+
+- Which independent dataset and comparator can test a broader memory/workflow claim without reusing LongMemEval-S questions?
+- Can a future accuracy-only protocol conservatively count an accountable provider failure as both arms incorrect while keeping token/time claims explicitly unavailable when usage is unknown?
+- Is code `1234` transient under the same gateway, or associated with a specific request shape? This failed run alone does not establish a cause.

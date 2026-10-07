@@ -11,7 +11,7 @@ import {planConfiguredRustRules, RUST_RULE_CONTRACT_SHA256, RUST_RULE_PROTOCOL, 
 import {rustSelectorModule} from '../../src/generation/configured-rust-values.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const contractPath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation/rust-rule-generation-contract.json');
 
 function fixture(t: any) {
@@ -48,4 +48,3 @@ test('Rust Rule planner rejects non-Rule, stale and active selections', t => {
   for (const selection of [active, {...f.selection, language: 'python'}, {...f.selection, roots: ['alpha:order']}, {...f.selection, roots: []}, {...f.selection, roots: [f.selection.roots[0], f.selection.roots[0]]}, {...f.selection, field_compilation_sha256: null}]) assert.throws(() => planConfiguredRustRules(f.graph, f.fields, selection as any, f.contract));
   assert.equal(reads, 0); assert.throws(() => planConfiguredRustRules(f.graph, f.fields, f.selection, f.contract + '\n'));
 });
-

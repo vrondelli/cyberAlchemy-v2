@@ -35,9 +35,38 @@ to February 28 in a non-leap year. Repeat purchases and duplicate events never
 extend the period or allocate another customer slot.
 
 Late payments on expired reservations are persisted as `paid-review`; they do not
-silently receive a replacement slot or download entitlement. Resolving such orders
-requires the future provider/refund policy. Refunds never automatically recycle
-slots because that policy has not been selected.
+silently receive a replacement slot or download entitlement. The owner selected
+automatic refund for verified late payments, but no provider refund command or
+worker is connected here. A newly verified payment that enters `paid-review`
+after local expiry atomically creates a durable `late_refund_intents` row. Local
+privileged `refund-claim` and `refund-finish` operations provide a
+generation-fenced lease, bounded **pre-command read** retry, and review path.
+`refund-command-start` durably marks the may-send boundary and only then
+returns the stable idempotency key. After that marker, no automatic retry can
+claim the intent; an expired lease becomes review for provider reconciliation.
+These operations never call a provider, and no scheduler invokes them. Existing
+historical reviews are not silently backfilled. Reversals do not recycle
+first-100 slots.
+The privileged local `refund-inspect` operation reports queue/review counts,
+due/deferred work, and expired leases,
+and separately flags recorded full-refund evidence; a later dispute can move
+an intent back to review without erasing the earlier refund record. It is not
+exposed on a buyer HTTP route.
+Unlike the mutating bridge operations, `refund-inspect` opens an existing
+SQLite database in read-only mode before ledger initialization and rejects a
+missing or legacy schema. It never performs migration/backfill; the local
+operator CLI is `npm run inspect-refunds -- <config.json>` from `integrations/`.
+
+`record_verified_reversal` is a local trusted-core candidate, not a buyer API or
+provider verifier. Its caller must independently verify the exact provider
+payment, full-versus-partial amount, and refund/dispute outcome before passing
+the normalized receipt. The core binds that receipt to the recorded payment and
+owner, rejects cross-payment reuse of a provider reversal reference, audits
+replay by provider event ID, revokes future access after a verified
+full refund or lost dispute, and sends partial refunds to review. Revocation
+blocks new download grants and redemption of unused grants, and suppresses the
+revoked first-100 benefit on a later purchase. Already downloaded bytes cannot
+be recalled. There is no connected provider event path or staging activation.
 
 `entitlement` requires a paid order belonging to the authenticated customer. It
 returns the exact purchased release digest and whether updates/support are still

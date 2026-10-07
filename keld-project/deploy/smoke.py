@@ -13,7 +13,7 @@ from test_prepare import synthetic_store,settings
 HERE=Path(__file__).resolve().parent
 project='keld-smoke-'+uuid.uuid4().hex[:10]
 env={**os.environ,
-     'KELD_DOMAIN':'shop.example.test','AUTH_DOMAIN':'auth.example.test','ACME_EMAIL':'test@example.test',
+     'KELD_DOMAIN':'shop.example.test','AUTH_DOMAIN':'auth.example.test','ARE_DOMAIN':'are.example.test','ACME_EMAIL':'test@example.test',
      # Digest-shaped values exercise the production preflight. The smoke overlay
      # separately selects already-built local images for the disposable runtime.
      'ARE_EDGE_IMAGE':'registry.example/are-edge@sha256:'+'1'*64,
@@ -38,16 +38,26 @@ http://shop.example.test:8080 {
  handle @private {
   respond 404
  }
- @are path /are /are/*
- handle @are {
-  reverse_proxy are-edge:8080 {
-   header_up Host shop.example.test
-  }
- }
  handle {
   reverse_proxy web:8080 {
    header_up Host shop.example.test
   }
+ }
+}
+http://are.example.test:8080 {
+ @legacyPage path /are /are/
+ redir @legacyPage / 308
+ @root path /
+ handle @root {
+  rewrite * /are/
+  reverse_proxy are-edge:8080
+ }
+ @areRuntime path /are/*
+ handle @areRuntime {
+  reverse_proxy are-edge:8080
+ }
+ handle {
+  respond "Not found" 404
  }
 }
 ''')
@@ -91,7 +101,7 @@ services:
         else:raise RuntimeError('issuer readiness timed out')
         tls_probe="const {connect}=await import('node:tls');const s=connect({host:'keycloak',port:8080,rejectUnauthorized:false});const done=ok=>{s.destroy();process.exit(ok?0:1)};const timer=setTimeout(()=>done(true),2000);s.once('secureConnect',()=>{clearTimeout(timer);done(false)});s.once('error',()=>{clearTimeout(timer);done(true)});"
         run(['docker','exec',service('web'),'node','--input-type=module','-e',tls_probe])
-        probe="import http from 'node:http';const get=(host,path,publicHost)=>new Promise((resolve,reject)=>{const q=http.get({host,port:8080,path,headers:{host:publicHost}},r=>{const chunks=[];r.on('data',x=>chunks.push(x));r.on('end',()=>resolve({status:r.statusCode,type:r.headers['content-type'],body:Buffer.concat(chunks).toString()}))});q.on('error',reject)});const fail=x=>{throw new Error(x)};const shop=await get('edge','/','shop.example.test');if(shop.status!==200||!shop.body.includes('KELD'))fail('keld-caddy-route');const privateRoute=await get('edge','/readyz','shop.example.test');if(privateRoute.status!==404)fail('public-readiness-route');const are=await get('edge','/are/','shop.example.test');if(are.status!==200||!are.body.includes('A.R.E. — Agent Reasoning Engine'))fail('are-page-route-'+are.status+'-'+are.type+'-'+are.body.length);const status=await get('edge','/are/api/are/status','shop.example.test');const state=JSON.parse(status.body);if(status.status!==200||state.mode!=='live'||state.idle_retention_seconds!==300)fail('are-status-route');const old=await get('edge','/api/are/status','shop.example.test');if(old.body.includes('\\\"scope\\\":\\\"conversation-only\\\"'))fail('legacy-api-route');const sibling=await get('edge','/area','shop.example.test');if(sibling.body.includes('A.R.E. — Agent Reasoning Engine'))fail('are-sibling-route');const bad=await get('web','/','evil.example');if(bad.status!==400)fail('keld-host-rejection');"
+        probe="import http from 'node:http';const get=(host,path,publicHost)=>new Promise((resolve,reject)=>{const q=http.get({host,port:8080,path,headers:{host:publicHost}},r=>{const chunks=[];r.on('data',x=>chunks.push(x));r.on('end',()=>resolve({status:r.statusCode,type:r.headers['content-type'],location:r.headers.location,body:Buffer.concat(chunks).toString()}))});q.on('error',reject)});const fail=x=>{throw new Error(x)};const shop=await get('edge','/','shop.example.test');if(shop.status!==200||!shop.body.includes('KELD'))fail('keld-caddy-route');const privateRoute=await get('edge','/readyz','shop.example.test');if(privateRoute.status!==404)fail('public-readiness-route');const shopLegacy=await get('edge','/are/','shop.example.test');if(shopLegacy.body.includes('A.R.E. — Agent Reasoning Engine'))fail('storefront-are-route-leak');const are=await get('edge','/','are.example.test');if(are.status!==200||!are.body.includes('A.R.E. — Agent Reasoning Engine'))fail('are-page-route-'+are.status+'-'+are.type+'-'+are.body.length);const legacy=await get('edge','/are/','are.example.test');if(legacy.status!==308||legacy.location!=='/')fail('are-legacy-redirect');const status=await get('edge','/are/api/are/status','are.example.test');const state=JSON.parse(status.body);if(status.status!==200||state.mode!=='live'||state.idle_retention_seconds!==300)fail('are-status-route');const old=await get('edge','/api/are/status','are.example.test');if(old.body.includes('\\\"scope\\\":\\\"conversation-only\\\"'))fail('legacy-api-route');const sibling=await get('edge','/area','are.example.test');if(sibling.body.includes('A.R.E. — Agent Reasoning Engine'))fail('are-sibling-route');const bad=await get('web','/','evil.example');if(bad.status!==400)fail('keld-host-rejection');"
         try:run(['docker','exec',service('web'),'node','--input-type=module','-e',probe])
         except subprocess.CalledProcessError as error:
             labels=[line for line in error.stderr.splitlines() if 'Error:' in line]
@@ -133,7 +143,7 @@ services:
             actual={network.removeprefix(project+'_') for network in container['NetworkSettings']['Networks']}
             assert actual==expected,(name,actual,expected)
             assert all('synthetic-model-api-key' not in value for value in container['Config']['Env'])
-        print(json.dumps({'ok':True,'checks':['postgres migrations','Keycloak realm discovery','Keycloak backend TLS absent','web readiness','public readiness denial','exact /are/ Caddy routing','legacy /api/are rejection','/area route separation','Host rejection','worker without auth secrets','enforced production-input gate','ARE network segmentation','ARE hardened runtime controls','no backend published ports'],'scope':'loopback HTTP proxy; synthetic credentials and policy values; no model, merchant, public TLS, browser OIDC or deployment proof'}))
+        print(json.dumps({'ok':True,'checks':['postgres migrations','Keycloak realm discovery','Keycloak backend TLS absent','web readiness','public readiness denial','separate ARE host routing','legacy ARE redirect','storefront/ARE route separation','legacy /api/are rejection','/area route separation','Host rejection','worker without auth secrets','enforced production-input gate','ARE network segmentation','ARE hardened runtime controls','no backend published ports'],'scope':'loopback HTTP proxy; synthetic credentials and policy values; no model, merchant, public TLS, browser OIDC or deployment proof'}))
     except Exception:
         # Synthetic-only stack, but emit just status names, not arbitrary logs.
         status=subprocess.run(compose+['ps','--format','json'],env=env,text=True,capture_output=True)

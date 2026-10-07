@@ -15,8 +15,8 @@ spec.loader.exec_module(validator)
 
 
 class LayoutTests(unittest.TestCase):
-    def test_both_layouts_and_fail_closed_paths(self):
-        for mode in ['umbrella', 'sibling']:
+    def test_supported_layouts_and_fail_closed_paths(self):
+        for mode in ['umbrella', 'craft']:
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 base = Path(tmp)
                 core = base / 'domainspec-core'
@@ -24,11 +24,14 @@ class LayoutTests(unittest.TestCase):
                 package = local / 'agent-routing'
                 package.mkdir(parents=True)
                 core.mkdir(exist_ok=True)
+                source = core if mode == 'umbrella' else local / 'craft'
+                (source / 'projects/domainspec-v2/impl').mkdir(parents=True, exist_ok=True)
+                (source / 'projects/domainspec-v2/impl/package.json').write_text('{}')
                 layout = module.Layout(package)
                 self.assertEqual(layout.mode, mode)
                 self.assertEqual(layout.resolve_ref('cyberAlchemy-v2/AGENTS.md'), local / 'AGENTS.md')
                 self.assertEqual(layout.resolve_ref('AGENTS.md'), (core if mode == 'umbrella' else local) / 'AGENTS.md')
-                self.assertEqual(layout.resolve_ref('projects/domainspec-v2/impl/package.json'), core / 'projects/domainspec-v2/impl/package.json')
+                self.assertEqual(layout.resolve_ref('projects/domainspec-v2/impl/package.json'), source / 'projects/domainspec-v2/impl/package.json')
                 for bad in ['../secret', '/etc/passwd', 'other/README.md', 'cyberAlchemy-v2/../secret',
                             'cyberAlchemy-v2//AGENTS.md', 'cyberAlchemy-v2/.git/config',
                             'cyberAlchemy-v2/arcanum/README.md', 'cyberAlchemy-v2/a\\b',
@@ -43,32 +46,32 @@ class LayoutTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     layout.resolve_ref('cyberAlchemy-v2/alias/package.json')
 
-    def test_missing_sibling_does_not_fall_back_to_parent(self):
+    def test_missing_craft_source_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             package = base / 'cyberAlchemy-v2/agent-routing'
             package.mkdir(parents=True)
             (base / 'AGENTS.md').write_text('unrelated parent')
-            layout = module.Layout(package)
-            self.assertFalse(layout.resolve_ref('AGENTS.md').exists())
-            self.assertFalse(layout.resolve_ref('projects/domainspec-v2/impl/package.json').exists())
+            with self.assertRaisesRegex(ValueError, 'requires craft'):
+                module.Layout(package)
 
-    def test_redirected_core_mount_rejected(self):
+    def test_redirected_craft_mount_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             package = base / 'cyberAlchemy-v2/agent-routing'
             package.mkdir(parents=True)
-            (base / 'domainspec-core').symlink_to(base / 'elsewhere')
+            (base / 'cyberAlchemy-v2/craft').symlink_to(base / 'elsewhere')
             with self.assertRaises(ValueError):
                 module.Layout(package)
 
     def test_instruction_contracts_keep_hostile_directives_blocked(self):
         local_text = (PACKAGE.parent / 'AGENTS.md').read_text()
-        for mode in ['sibling', 'umbrella']:
-            text = local_text if mode == 'sibling' else local_text.replace(
+        for mode in ['craft', 'umbrella']:
+            text = local_text if mode == 'craft' else local_text.replace(
                 '# CyberAlchemy v2 Agent Instructions', '# CyberAlchemy-v2 Agent Entry Router'
             ).replace('](agent-routing/', '](cyberAlchemy-v2/agent-routing/').replace(
-                '[../.arcanum/ontology-vault/](../.arcanum/ontology-vault/)', 'read-model-link'
+                'Legacy umbrella inventory and ontology read models retained under `craft/support/core` are\n'
+                'provenance only, not active routing or authority dependencies.', 'read-model declaration'
             )
             errors = []
             validator.validate_root_agents(text, errors, mode)

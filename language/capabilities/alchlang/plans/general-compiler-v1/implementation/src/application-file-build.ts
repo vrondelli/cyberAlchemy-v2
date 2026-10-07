@@ -24,11 +24,19 @@ async function bundle(sourcePath: string, options: ApplicationFileOptions) {
   add(".alch/check.json", json(plan.report));
   add(".alch/inputs.json", json(plan.loaded.inputs));
   add(".alch/executable-trace.json", json(plan.executable.trace));
+  if (plan.loaded.entry_manifest) add(".alch/entry-manifest.json", json(plan.loaded.entry_manifest));
   validateApplicationOutput(files);
   const ordered = Object.fromEntries(Object.entries(files).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
   const manifest = { schema_version: "alchlang.application-build/v1-candidate", profile: "application-v1", scope: plan.report.scope,
-    inputs_sha256: plan.report.inputs_sha256, executable_trace_sha256: plan.report.executable_trace_sha256,
-    ...(plan.whole ? { application_plan_sha256: plan.whole.application.plan_sha256 } : {}),
+    source_sha256: plan.report.source_sha256, inputs_sha256: plan.report.inputs_sha256,
+    domain_manifest_sha256: plan.report.domain_manifest_sha256,
+    executable_trace_sha256: plan.report.executable_trace_sha256,
+    currentness_receipt_sha256: plan.report.currentness_receipt_sha256,
+    unsupported_residue: plan.report.unsupported_residue,
+    ...(plan.loaded.entry_manifest ? { entry_manifest_sha256: digest(json(plan.loaded.entry_manifest)),
+      selected_entry: plan.loaded.entry_manifest.selected_entry } : {}),
+    ...(plan.whole ? { whole_application_plan_sha256: plan.whole.wholeApplication.plan_sha256,
+      provider_application_plan_sha256: plan.whole.application.plan_sha256 } : {}),
     files: Object.fromEntries(Object.entries(ordered).map(([name, bytes]) => [name, { sha256: digest(bytes), size_bytes: Buffer.byteLength(bytes) }])),
     runtime_guarantees_observed: false, authority_effect: "none" };
   return { ...plan, files: Object.freeze({ ...ordered, [APPLICATION_MANIFEST]: json(manifest) }), manifest };

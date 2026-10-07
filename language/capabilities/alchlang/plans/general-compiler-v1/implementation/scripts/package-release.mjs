@@ -1,84 +1,71 @@
 #!/usr/bin/env node
-import {cpSync,existsSync,mkdtempSync,mkdirSync,readFileSync,rmSync,unlinkSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {copyFileSync,existsSync,mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {checkPackageBoundaries} from './materialize-package-boundaries.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const sourcePackage=JSON.parse(readFileSync(path.join(root,'package.json'),'utf8'));
 const version=sourcePackage.version;
-const rustModules=['conformance','event-execution','rust-function-builder','rust-toolchain','semantic-host'];
-const localHostModules=['local-host','ontology-host','state-migration'];
+const descriptions={
+  core:'AlchLang parser, exact authoring compiler and Node/TypeScript application build surface.',
+  rust:'Optional native Rust generation and conformance layer for AlchLang.',
+  'local-host':'Experimental repository-bound local host layer for AlchLang.'
+};
+const usage={
+  core:'Use `alchlang check <application.alch>` and `alchlang build <application.alch> --out <new-directory>`. The installed DomainSpec bridge requires the exact optional peer package or `ALCHLANG_DOMAINSPEC_PACKAGE_ROOT`.',
+  rust:'Use `alchlang-rust check <file.alch>` for Rust profiles. Cargo and the locked native toolchain are required only for native build or conformance operations.',
+  'local-host':'Use `alchlang-local-host check <file.alch>` for the experimental local-host profiles. This package is repository-bound and is not a portable or production deployment surface.'
+};
 
-export const releasePackages=[
-  {
-    id:'core',name:'@cyberalchemy/alchlang',bin:{alchlang:'dist/core-cli.js'},
-    description:'AlchLang parser, ontology compiler and Node/TypeScript build surface.',
-    omit:[...rustModules,...localHostModules,'rust-cli','local-host-cli'],omitTemplates:true,
-    status:'candidate'
-  },
-  {
-    id:'rust',name:'@cyberalchemy/alchlang-rust',bin:{'alchlang-rust':'dist/rust-cli.js'},
-    description:'Optional native Rust backend for AlchLang.',
-    omit:[...localHostModules,'core-cli','local-host-cli'],omitTemplates:false,
-    status:'candidate'
-  },
-  {
-    id:'local-host',name:'@cyberalchemy/alchlang-local-host',bin:{'alchlang-local-host':'dist/local-host-cli.js'},
-    description:'Experimental repository-bound local deployment host for AlchLang.',
-    omit:['core-cli','rust-cli'],omitTemplates:false,
-    status:'experimental-repository-bound'
+const sha256=value=>createHash('sha256').update(value).digest('hex');
+const sorted=value=>[...value].sort();
+const copyAllowed=(stage,boundary)=>{
+  for(const relative of boundary.files){
+    if(relative==='package.json'||relative==='README.md')continue;
+    const source=path.join(root,relative),destination=path.join(stage,relative);
+    if(!existsSync(source))throw Error(`ALCHLANG_PACKAGE_ALLOWLIST_SOURCE_MISSING:${boundary.id}:${relative}`);
+    mkdirSync(path.dirname(destination),{recursive:true});copyFileSync(source,destination);
   }
-];
-
-function removeModule(dist,name){
-  for(const suffix of ['.js','.d.ts']){
-    const target=path.join(dist,`${name}${suffix}`);
-    if(existsSync(target))unlinkSync(target);
-  }
-}
-
-function packageReadme(spec){
-  const dependency=spec.id==='core'
-    ? 'This package does not contain Cargo templates, Rust compilation, local-host, Ansible, or Bubblewrap integration.'
-    : spec.id==='rust'
-      ? 'This package is optional. Building native targets requires the repository-locked Rust toolchain and Cargo cache.'
-      : 'This experimental package requires the CyberAlchemy checkout provisioning runtime. It is not a portable public host or production deployment surface.';
-  return `# ${spec.name}\n\n${spec.description}\n\n${dependency}\n\nStatus: ${spec.status}. Packaging is local candidate evidence and grants no release, publication, deployment, or authority effect.\n\n## Open Questions\n\n- What owner decision will admit a version for publication?\n- Which portability evidence is required before the experimental local-host package can leave the repository?\n`;
-}
-
-function manifest(spec){
-  return {
-    name:spec.name,version,description:spec.description,type:'module',engines:sourcePackage.engines,
-    bin:spec.bin,files:['dist','README.md'],exports:spec.id==='core'?{'.':'./dist/index.js'}:undefined,
-    peerDependencies:sourcePackage.peerDependencies,peerDependenciesMeta:sourcePackage.peerDependenciesMeta,
-    keywords:['alchlang',spec.id],license:'UNLICENSED'
-  };
-}
+};
+const packageReadme=boundary=>`# ${boundary.name}\n\n${descriptions[boundary.id]}\n\n${usage[boundary.id]}\n\nThe exact candidate file allowlist and export map are recorded in the source package's \`package-boundaries.json\`. Packaging is local construction evidence only and grants no publication, release, deployment, product approval, production claim, or authority effect.\n\n## Open Questions\n\n- P02 owns installation and execution from these archives in clean consumers.\n- What owner decision will admit one frozen candidate for product validation?\n`;
+const manifest=boundary=>({
+  name:boundary.name,version,description:descriptions[boundary.id],type:'module',engines:sourcePackage.engines,
+  bin:boundary.bin,exports:boundary.exports,files:boundary.files.filter(file=>file!=='package.json'),
+  peerDependencies:sourcePackage.peerDependencies,peerDependenciesMeta:sourcePackage.peerDependenciesMeta,
+  keywords:['alchlang',boundary.id],license:'UNLICENSED'
+});
 
 export function releasePlan(){
-  return releasePackages.map(spec=>({id:spec.id,name:spec.name,bin:spec.bin,status:spec.status,omitted_modules:spec.omit,omits_cargo_templates:spec.omitTemplates}));
+  const boundary=checkPackageBoundaries();
+  return boundary.packages.map(item=>({id:item.id,name:item.name,bin:item.bin,exports:item.exports,status:item.status,
+    file_count:item.files.length,allowlist_sha256:item.allowlist_sha256,omitted_modules:item.omitted_modules,
+    omits_cargo_templates:!item.includes_cargo_templates,checkout_only_imports_allowed:item.checkout_only_imports_allowed}));
 }
 
 export function packRelease(output=path.join(root,'package-artifacts',version,'split-release')){
-  if(!existsSync(path.join(root,'dist','cli.js')))throw Error('ALCHLANG_BUILD_REQUIRED: run npm run build first');
+  const boundary=checkPackageBoundaries();
   mkdirSync(output,{recursive:true});
   const work=mkdtempSync(path.join(tmpdir(),'alchlang-release-'));
   const artifacts=[];
   try{
-    for(const spec of releasePackages){
-      const stage=path.join(work,spec.id);mkdirSync(stage);
-      const dist=path.join(stage,'dist');cpSync(path.join(root,'dist'),dist,{recursive:true});
-      for(const name of spec.omit)removeModule(dist,name);
-      if(spec.omitTemplates)rmSync(path.join(dist,'event-templates'),{recursive:true,force:true});
+    for(const spec of boundary.packages){
+      const stage=path.join(work,spec.id);mkdirSync(stage);copyAllowed(stage,spec);
       writeFileSync(path.join(stage,'package.json'),JSON.stringify(manifest(spec),null,2)+'\n');
       writeFileSync(path.join(stage,'README.md'),packageReadme(spec));
       const packed=spawnSync('npm',['pack',stage,'--pack-destination',output,'--json'],{cwd:root,encoding:'utf8'});
       if(packed.status!==0)throw Error(`ALCHLANG_PACK_FAILED:${spec.id}:${packed.stderr||packed.stdout}`);
-      const result=JSON.parse(packed.stdout)[0];artifacts.push({id:spec.id,name:spec.name,file:path.resolve(output,result.filename),size:result.size,integrity:result.integrity});
+      const result=JSON.parse(packed.stdout)[0];
+      const actual=sorted(result.files.map(item=>item.path)),expected=sorted(spec.files);
+      if(JSON.stringify(actual)!==JSON.stringify(expected))throw Error(`ALCHLANG_PACKAGE_INVENTORY_MISMATCH:${spec.id}`);
+      artifacts.push({id:spec.id,name:spec.name,file:path.resolve(output,result.filename),size:result.size,integrity:result.integrity,
+        shasum:result.shasum,file_count:actual.length,allowlist_sha256:sha256(JSON.stringify(actual)),exports:spec.exports});
     }
-    return {schema_version:'alchlang.split-release/v1-candidate',version,artifacts,authority_effect:'none'};
+    return {schema_version:'alchlang.split-release/v2-candidate',version,package_boundary_sha256:sha256(readFileSync(path.join(root,'package-boundaries.json'))),
+      artifacts,publication_performed:false,installation_performed:false,authority_effect:'none'};
   }finally{rmSync(work,{recursive:true,force:true});}
 }
 

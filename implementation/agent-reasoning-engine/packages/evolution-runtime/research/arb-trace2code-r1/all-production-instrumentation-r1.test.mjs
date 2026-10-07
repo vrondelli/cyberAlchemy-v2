@@ -1,0 +1,7 @@
+// Open Questions: evidence/G01-RUNTIME-COVERAGE-FEASIBILITY-R1.json.
+import test from'node:test';import assert from'node:assert/strict';import{createHash}from'node:crypto';import{productionInstrumentation}from'./all-production-instrumentation-r1.mjs';
+const s=(path,text)=>{const bytes=Buffer.from(text);return{path,bytes,sha256:createHash('sha256').update(bytes).digest('hex')};};
+test('includes every production type, excludes tests, handles sibling and inner types',()=>{const r=productionInstrumentation([s('src/java/p/A.java','package p; class A {class Inner{}} class Sibling {}'),s('src/test/p/Test.java','package p; class Test{}')],'src/java');assert.deepEqual(r.classes,['p.A','p.Sibling']);});
+test('comments and strings cannot introduce declarations',()=>assert.deepEqual(productionInstrumentation([s('src/java/p/A.java','package p; /* class False{} */ class A {String x="class False2{}";}')],'src/java').classes,['p.A']));
+test('rejects hash and package/path disagreement',()=>{assert.throws(()=>productionInstrumentation([{...s('src/java/p/A.java','package p; class A{}'),sha256:'bad'}],'src/java'));assert.throws(()=>productionInstrumentation([s('src/java/p/A.java','package q; class A{}')],'src/java'));});
+test('rejects no-type and duplicate-type incomplete admission',()=>{assert.throws(()=>productionInstrumentation([s('src/java/p/A.java','package p;')],'src/java'));assert.throws(()=>productionInstrumentation([s('src/java/p/A.java','package p; class A{}'),s('src/java/p/B.java','package p; class A{}')],'src/java'));});

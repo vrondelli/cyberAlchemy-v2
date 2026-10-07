@@ -7,7 +7,9 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { runCli } from "../../src/cli/main.ts";
-import { CERTIFY_LEAN_TOOLCHAIN, certifyProject } from "../../src/assurance/certify.ts";
+import { CERTIFY_LEAN_TOOLCHAIN, CERTIFY_STAGING_REVIEW_AFTER_MS, CertificationError, certifyProject,
+  inspectRetainedCertificationStage, publishStagedCertificationForTest, withCertificationCheckTemporaryForTest,
+  withCertificationStagingForTest } from "../../src/assurance/certify.ts";
 import { createCheckedInterchange, validateCheckedInterchange } from "../../src/assurance/checked-interchange.ts";
 import { FORMALIZATION_LEAN_MODULE_FILENAMES } from "../../src/formalization/kernel.ts";
 import { canonicalJson, sha256 } from "../../src/input/source-manifest.ts";
@@ -17,6 +19,202 @@ import { createCompleteL1Project } from "../helpers/l1-project.ts";
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(testDir, "../..");
 const fixtureRoot = path.resolve(cliRoot, "fixtures/input-roots/canonical-project");
+
+test("certification publication preserves an empty target created after staging", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-race-"));
+  const stage = path.join(parent, ".certificate.certify-stage");
+  const target = path.join(parent, "certificate");
+  try {
+    fs.mkdirSync(stage);
+    fs.writeFileSync(path.join(stage, "assurance-certificate.json"), "staged");
+    let competingInode: number | undefined;
+    assert.throws(() => publishStagedCertificationForTest(stage, target, () => {
+      fs.mkdirSync(target);
+      competingInode = fs.lstatSync(target).ino;
+    }), { code: "MTCLI_CERTIFY_TARGET_EXISTS" });
+    assert.equal(fs.lstatSync(target).ino, competingInode);
+    assert.deepEqual(fs.readdirSync(target), []);
+    assert.equal(fs.readFileSync(path.join(stage, "assurance-certificate.json"), "utf8"), "staged");
+  } finally { fs.rmSync(parent, { recursive: true, force: true }); }
+});
+
+test("certification publication atomically moves its staging tree when target is absent", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-publish-"));
+  const stage = path.join(parent, ".certificate.certify-stage");
+  const target = path.join(parent, "certificate");
+  try {
+    fs.mkdirSync(stage);
+    fs.writeFileSync(path.join(stage, "assurance-certificate.json"), "staged");
+    const stagedInode = fs.lstatSync(stage).ino;
+    publishStagedCertificationForTest(stage, target);
+    assert.equal(fs.existsSync(stage), false);
+    assert.equal(fs.lstatSync(target).ino, stagedInode);
+    assert.equal(fs.readFileSync(path.join(target, "assurance-certificate.json"), "utf8"), "staged");
+  } finally { fs.rmSync(parent, { recursive: true, force: true }); }
+});
+
+test("post-rename target replacement is reported as indeterminate without deleting either tree", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-post-race-"));
+  const stage = path.join(parent, ".certificate.certify-stage");
+  const target = path.join(parent, "certificate");
+  const moved = path.join(parent, "moved-certificate");
+  try {
+    fs.mkdirSync(stage);
+    fs.writeFileSync(path.join(stage, "assurance-certificate.json"), "staged");
+    assert.throws(() => publishStagedCertificationForTest(stage, target, undefined, () => {
+      fs.renameSync(target, moved);
+      fs.mkdirSync(target);
+    }), { code: "MTCLI_CERTIFY_PUBLICATION_INDETERMINATE" });
+    assert.equal(fs.readFileSync(path.join(moved, "assurance-certificate.json"), "utf8"), "staged");
+    assert.deepEqual(fs.readdirSync(target), []);
+  } finally { fs.rmSync(parent, { recursive: true, force: true }); }
+});
+
+test("failed certification leaves staging residue and never deletes a swapped foreign path", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-cleanup-race-"));
+  const target = path.join(parent, "certificate");
+  let moved = "", replacement = "";
+  try {
+    let reported: unknown;
+    try { withCertificationStagingForTest(target, (staging) => {
+      moved = `${staging}-owned`;
+      replacement = staging;
+      fs.writeFileSync(path.join(staging, "owned"), "proof residue");
+      fs.renameSync(staging, moved);
+      fs.mkdirSync(staging);
+      fs.writeFileSync(path.join(staging, "foreign"), "do not delete");
+      throw new Error("injected proof failure");
+    }); } catch (error) { reported = error; }
+    assert.match((reported as Error).message, /injected proof failure/);
+    assert.match((reported as Error).message, /named status=changed-or-replaced-at-check/);
+    assert.match((reported as Error).message, /do not delete by pathname/);
+    assert.equal(fs.readFileSync(path.join(moved, "owned"), "utf8"), "proof residue");
+    assert.equal(fs.readFileSync(path.join(replacement, "foreign"), "utf8"), "do not delete");
+    assert.equal(fs.existsSync(target), false);
+  } finally { fs.rmSync(parent, { recursive: true, force: true }); }
+});
+
+test("failed certification reports the retained owned stage and preserves the original error code", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-diagnostic-"));
+  const target = path.join(parent, "certificate");
+  let stage = "";
+  try {
+    let reported: unknown;
+    try { withCertificationStagingForTest(target, (staging) => {
+      stage = staging;
+      fs.writeFileSync(path.join(staging, "proof.log"), "inspect me");
+      throw new CertificationError("MTCLI_CERTIFY_LEAN_PROOF", "/formalization/Current.lean", "proof failed");
+    }); } catch (error) { reported = error; }
+    assert.equal((reported as CertificationError).code, "MTCLI_CERTIFY_LEAN_PROOF");
+    assert.equal((reported as CertificationError).pointer, "/formalization/Current.lean");
+    assert.match((reported as Error).message, /named status=same-inode-at-check/);
+    assert.match((reported as Error).message, /created dev=[0-9]+ ino=[0-9]+/);
+    const observation = (reported as CertificationError).retained_stage!;
+    assert.equal(observation.schema_version, "domainspec.retained-certification-stage/v1");
+    assert.equal(observation.staging_path, stage);
+    assert.equal(observation.named_status, "same-inode-at-check");
+    assert.equal(observation.review_after_ms, CERTIFY_STAGING_REVIEW_AFTER_MS);
+    assert.equal(observation.cleanup_authorized, false);
+    const schemaPath = path.resolve(cliRoot, "contracts/retained-certification-stage.v1.schema.json");
+    const schemaValidation = spawnSync("python3", ["-c", "import json,sys,jsonschema; jsonschema.Draft202012Validator(json.load(open(sys.argv[1]))).validate(json.load(sys.stdin))", schemaPath],
+      { input: JSON.stringify(observation), encoding: "utf8", timeout: 20000 });
+    assert.equal(schemaValidation.status, 0, schemaValidation.stderr || String(schemaValidation.error));
+    const inspection = inspectRetainedCertificationStage(observation);
+    assert.equal(inspection.status, "same-inode-snapshot");
+    assert.equal(inspection.direct_entry_count, 1);
+    assert.equal(inspection.quiescence, "unverified");
+    assert.equal(inspection.ownership, "unverified");
+    assert.equal(inspection.cleanup_authorized, false);
+    assert.equal(inspectRetainedCertificationStage(observation, 1).bounded_entry_count, true);
+    assert.equal(fs.readFileSync(path.join(stage, "proof.log"), "utf8"), "inspect me");
+    assert.equal(fs.existsSync(target), false);
+  } finally { fs.rmSync(parent, { recursive: true, force: true }); }
+});
+
+test("retained-stage inspection rejects moved, replaced and symlink names without cleanup", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-inspect-"));
+  const target = path.join(parent, "certificate");
+  let stage = "", moved = "";
+  try {
+    let reported: CertificationError | undefined;
+    try { withCertificationStagingForTest(target, (staging) => {
+      stage = staging; moved = `${staging}-owned`;
+      fs.writeFileSync(path.join(staging, "owned"), "retained");
+      throw new CertificationError("MTCLI_CERTIFY_TEST", "/target", "injected");
+    }); } catch (error) { reported = error as CertificationError; }
+    const observation = reported!.retained_stage!;
+    assert.equal(inspectRetainedCertificationStage(observation).status, "same-inode-snapshot");
+    fs.writeFileSync(path.join(stage, "second"), "bounded count");
+    const bounded = inspectRetainedCertificationStage(observation, 1);
+    assert.equal(bounded.status, "same-inode-snapshot");
+    assert.equal(bounded.direct_entry_count, null);
+    assert.equal(bounded.bounded_entry_count, false);
+    fs.renameSync(stage, moved);
+    assert.equal(inspectRetainedCertificationStage(observation).status, "missing");
+    fs.mkdirSync(stage);
+    fs.writeFileSync(path.join(stage, "foreign"), "preserve");
+    assert.equal(inspectRetainedCertificationStage(observation).status, "changed-or-replaced");
+    assert.equal(fs.readFileSync(path.join(stage, "foreign"), "utf8"), "preserve");
+    fs.unlinkSync(path.join(stage, "foreign"));
+    fs.rmdirSync(stage);
+    fs.symlinkSync(moved, stage, "dir");
+    assert.equal(inspectRetainedCertificationStage(observation).status, "changed-or-replaced");
+    assert.equal(fs.readFileSync(path.join(moved, "owned"), "utf8"), "retained");
+  } finally {
+    if (stage && fs.existsSync(stage)) fs.rmSync(stage, { recursive: true, force: true });
+    if (moved && fs.existsSync(moved)) fs.rmSync(moved, { recursive: true, force: true });
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("certify-check retains its temporary proof tree after a swapped-name failure", () => {
+  let parent = "", moved = "";
+  try {
+    let reported: Error | undefined;
+    try { withCertificationCheckTemporaryForTest((temporaryParent) => {
+      parent = temporaryParent; moved = `${temporaryParent}-owned`;
+      fs.writeFileSync(path.join(temporaryParent, "owned"), "proof residue");
+      fs.renameSync(temporaryParent, moved);
+      fs.mkdirSync(temporaryParent);
+      fs.writeFileSync(path.join(temporaryParent, "foreign"), "do not delete");
+      throw new CertificationError("MTCLI_CERTIFY_TEST", "/target", "injected check failure");
+    }); } catch (error) { reported = error as Error; }
+    assert.match(reported!.message, /check evidence parent .* retained for separate inspection/);
+    assert.equal((reported as CertificationError).code, "MTCLI_CERTIFY_TEST");
+    assert.equal((reported as CertificationError).retained_evidence_directory, parent);
+    assert.equal(fs.readFileSync(path.join(moved, "owned"), "utf8"), "proof residue");
+    assert.equal(fs.readFileSync(path.join(parent, "foreign"), "utf8"), "do not delete");
+  } finally {
+    if (parent) fs.rmSync(parent, { recursive: true, force: true });
+    if (moved) fs.rmSync(moved, { recursive: true, force: true });
+  }
+});
+
+test("retained-stage inspection rejects a replaced parent before opening the stage name", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "domainspec-certify-parent-"));
+  const moved = `${parent}-owned`;
+  const target = path.join(parent, "certificate");
+  try {
+    let reported: CertificationError | undefined;
+    try { withCertificationStagingForTest(target, (staging) => {
+      fs.writeFileSync(path.join(staging, "owned"), "retained");
+      throw new CertificationError("MTCLI_CERTIFY_TEST", "/target", "injected");
+    }); } catch (error) { reported = error as CertificationError; }
+    const observation = reported!.retained_stage!;
+    fs.renameSync(parent, moved);
+    fs.mkdirSync(parent);
+    fs.mkdirSync(observation.staging_path);
+    fs.writeFileSync(path.join(observation.staging_path, "foreign"), "do not inspect through replacement parent");
+    const inspected = inspectRetainedCertificationStage(observation);
+    assert.equal(inspected.status, "changed-or-replaced");
+    assert.equal(inspected.direct_entry_count, null);
+    assert.equal(inspected.cleanup_authorized, false);
+    assert.equal(fs.readFileSync(path.join(moved, observation.attempt_id, "owned"), "utf8"), "retained");
+  } finally {
+    if (fs.existsSync(parent)) fs.rmSync(parent, { recursive: true, force: true });
+    if (fs.existsSync(moved)) fs.rmSync(moved, { recursive: true, force: true });
+  }
+});
 
 function reseal(value: Record<string, unknown>): void {
   const { interchange_sha256: ignored, ...body } = value;

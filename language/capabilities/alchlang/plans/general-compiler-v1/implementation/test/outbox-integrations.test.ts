@@ -9,7 +9,7 @@ import {
   HttpOutboxTransport,
   SqliteIdempotentInbox,
 } from "../src/index.js";
-const message={messageId:"m-1",aggregateType:"Order",aggregateId:"o-1",eventType:"done",payload:{id:"o-1"},occurredAt:"2026-09-03T00:00:00.000Z",status:"leased",attempts:1,maxAttempts:5,availableAt:"2026-09-03T00:00:00.000Z",leaseOwner:"w",leaseUntil:"2026-09-03T00:01:00.000Z",lastError:null,publishedAt:null}as const;
+const message={messageId:"m-1",aggregateType:"Order",aggregateId:"o-1",eventType:"done",payload:{id:"o-1"},occurredAt:"2026-09-03T00:00:00.000Z",status:"leased",attempts:1,maxAttempts:5,availableAt:"2026-09-03T00:00:00.000Z",leaseOwner:"w",leaseUntil:"2026-09-03T00:01:00.000Z",leaseGeneration:0,lastError:null,publishedAt:null}as const;
 test("HTTP transport carries stable idempotency key and rejects non-2xx",async()=>{const calls:any[]=[];const ok=new HttpOutboxTransport("https://allowed.test/events",{async send(input){calls.push(input);return{status:202}}});await ok.publish(message);assert.equal(calls[0].headers["idempotency-key"],"m-1");await assert.rejects(()=>new HttpOutboxTransport("https://allowed.test/events",{async send(){return{status:503}}}).publish(message),/HTTP_FAILED:503/)});
 test("fetch client permits only an exact allowlisted loopback origin", async () => {
   const received: { idempotencyKey?: string; body?: string } = {};

@@ -76,11 +76,13 @@ not inferred from TypeScript.
 
 ## Next construction work
 
-Continue I07: public CLI/loading, optional Query verification and the runnable
-whole-application scenario. The fixture's backend companion data is explicit test
-input; it does not satisfy I07's requirement to derive internal contracts for users.
+I07 now derives the internal persistence, messaging and external-API contracts
+from authored inputs plus the exact selected reference pack. Its public witness
+covers optional-Query zero/one/multiple behavior and kills a strict-compiling
+cardinality mutant. `L1-COMPLETION.md` joins the resulting L1 evidence.
 
-The full 37-node goal remains unchanged. No new product decision is required.
+Continue with C01, the shared profile architecture. The full 37-node goal
+remains unchanged. No new product decision is required.
 Operational O01 remains separate and affects P02, not this construction step.
 Remaining decisions and obligations are owned by CURRENT-REVIEW-AND-PLAN.md and
 EXECUTION-DAG.json.

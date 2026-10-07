@@ -23,14 +23,33 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
-def run_mutation(name: str, mutate) -> None:
+def copy_validator_inputs(target: Path) -> None:
+    """Snapshot the validator's local inputs, not the unrelated compiler tree."""
+    selected = (*MODULE.MATERIAL_FILES,
+                "define/initial-language-terms/ALCHLANG-INITIAL-LANGUAGE-DEFINITION-PACK.v1-candidate.json")
+    for relative in selected:
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PACKAGE_ROOT / relative, destination)
+    # The validator resolves the accepted reference artifacts, implementation
+    # outputs, campaign, and authorization beneath this small closed campaign.
+    campaign = Path("plans/three-vertical-compilation-campaign")
+    shutil.copytree(PACKAGE_ROOT / campaign, target / campaign)
+
+
+def run_mutation(name: str, mutate, expected_error: str) -> None:
     with tempfile.TemporaryDirectory(prefix="alchlang-negative-") as temporary:
         target = Path(temporary) / "alchlang"
-        shutil.copytree(PACKAGE_ROOT, target)
+        copy_validator_inputs(target)
+        baseline = MODULE.validate(package_root=target, repository_root=MODULE.REPOSITORY_ROOT)
+        if baseline["status"] != "PASS":
+            raise AssertionError(f"{name} baseline is not valid: {baseline['errors']}")
         mutate(target)
         result = MODULE.validate(package_root=target, repository_root=MODULE.REPOSITORY_ROOT)
         if result["status"] != "BLOCK":
             raise AssertionError(f"{name} unexpectedly passed")
+        if not any(expected_error in error for error in result["errors"]):
+            raise AssertionError(f"{name} blocked for the wrong reason: {result['errors']}")
 
 
 def remove_ontology_edge(target: Path) -> None:
@@ -75,14 +94,14 @@ def inflate_reference_authority(target: Path) -> None:
     write_json(path, value)
 
 
-for case_name, mutation in (
-    ("missing ontology term", remove_ontology_edge),
-    ("missing required ontology edge", remove_required_edge_relation),
-    ("authority inflation", inflate_authority),
-    ("missing accepted reference example", remove_reference_example),
-    ("accepted binding drift", drift_accepted_binding),
-    ("reference authority inflation", inflate_reference_authority),
+for case_name, mutation, expected_error in (
+    ("missing ontology term", remove_ontology_edge, "dangling endpoint"),
+    ("missing required ontology edge", remove_required_edge_relation, "required AlchLang relations are missing"),
+    ("authority inflation", inflate_authority, "Product Capability exceeds authority ceiling"),
+    ("missing accepted reference example", remove_reference_example, "reference registry must contain exactly"),
+    ("accepted binding drift", drift_accepted_binding, "accepted binding digest drift"),
+    ("reference authority inflation", inflate_reference_authority, "reference example customer-credit-release exceeds authority ceiling"),
 ):
-    run_mutation(case_name, mutation)
+    run_mutation(case_name, mutation, expected_error)
 
 print(json.dumps({"status": "PASS", "negative_mutations": 6}, indent=2))

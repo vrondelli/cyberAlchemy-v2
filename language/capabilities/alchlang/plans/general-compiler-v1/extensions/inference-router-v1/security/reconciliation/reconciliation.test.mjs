@@ -7,7 +7,7 @@ import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
-import {openSqliteRequestCustody} from '../../../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/runtime/sqlite-request-custody.js';
+import {openSqliteRequestCustody} from '../../../../../../../../../craft/projects/domainspec-v2/impl/cli/dist/runtime/sqlite-request-custody.js';
 // Real database, injected trusted authorization/evidence ports. Open Questions: PLAN.md.
 const request={requestId:'r1',scope:'tenant:principal',key:'private-key',fingerprintVersion:'v1',fingerprint:'fingerprint',stream:false};
 const binding={id:'provider',version:'v1',model:'model',policyVersion:'policy1'};

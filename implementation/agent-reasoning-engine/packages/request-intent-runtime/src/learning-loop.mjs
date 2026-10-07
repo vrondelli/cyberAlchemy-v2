@@ -10,6 +10,21 @@ const rec = (kind, fields) => sealed(`are.${kind}/v1`, fields, 'record_digest');
 const clone = value => JSON.parse(canonicalJson(value));
 export const verifyLearningRecord = (value, kind) => isRecord(value) && value.schema_version === `are.${kind}/v1`
   && value.authority_effect === 'none' && verifyDigest(value, 'record_digest');
+export function assessInteractionLearningProgress(state, policy) {
+  assert(verifyLearningRecord(state, 'interaction-state') && verifyLearningRecord(policy, 'interaction-learning-policy'), 'progress-input-invalid');
+  const turns = Object.values(state.turns).filter(turn => turn.outcome).slice(-policy.episode_window);
+  const eligible = turns.filter(turn => turn.outcome.disposition !== 'inconclusive');
+  const failed = new Set(turns.filter(turn => turn.outcome.disposition === 'contradicted').map(turn => turn.request_ref));
+  for (const lesson of Object.values(state.lessons)) if (lesson.reflection.improvement_eligible && turns.some(turn => turn.request_ref === lesson.episode_ref)) failed.add(lesson.episode_ref);
+  for (const application of state.applications) if (application.disposition === 'contradicted' && turns.some(turn => turn.request_ref === application.request_ref)) failed.add(application.request_ref);
+  const triggerId = `interaction-target:${digest([state.participant_ref, state.product_ref, 'attributed-interaction-failure'])}`;
+  const prior = state.evolution[triggerId];
+  return rec('interaction-learning-progress', {participant_ref: state.participant_ref, product_ref: state.product_ref,
+    cohort_refs: turns.map(turn => turn.request_ref), evaluated_count: eligible.length, inconclusive_count: turns.length - eligible.length,
+    supported_count: eligible.filter(turn => turn.outcome.disposition === 'supported').length, failure_refs: [...failed].sort(),
+    metric: 'episode_success_rate', evaluator_id: 'are.literal-output-checks/v1', baseline_ref: 'V0', policy_digest: policy.record_digest,
+    trigger_id: triggerId, disposition: prior ? prior.disposition : failed.size >= policy.recurrence_limit ? 'research-required' : 'observe'});
+}
 export function materializeLearningPolicy(input = {}) {
   assert(LEARNING_MODES.includes(input.mode ?? 'observe'), 'mode-invalid');
   assert(['quiet', 'explain', 'inspect', 'control'].includes(input.visibility ?? 'quiet'), 'visibility-invalid');
@@ -94,7 +109,15 @@ export function projectInteractionContext(state, request, policy) {
   assert(verifyLearningRecord(state, 'interaction-state'), 'state-invalid');
   assert(request.participant_ref === state.participant_ref && request.product_ref === state.product_ref, 'request-scope-invalid');
   validateOutcomeChecks(request.checks ?? []);
+  // The state record canonicalizes object keys, so lesson IDs are not a
+  // chronology. Use the reducer's append-only feedback sequence instead;
+  // generated host IDs must not reorder model instructions after a restart.
+  const feedbackOrder = new Map(state.feedback_refs.map((ref, index) => [ref, index]));
   const latest = Object.values(state.lessons);
+  assert(latest.every(lesson => feedbackOrder.has(lesson.preference.grounding.source.request_ref)),
+    'lesson-order-unverifiable');
+  latest.sort((a, b) => feedbackOrder.get(a.preference.grounding.source.request_ref)
+    - feedbackOrder.get(b.preference.grounding.source.request_ref));
   const assessments = latest.map(lesson => assessPreferenceApplication(lesson, request, policy, state.disabled));
   const applicable = assessments.filter(a => a.disposition === 'applicable');
   assert(applicable.length <= policy.max_active_records, 'active-record-budget-exceeded');
@@ -157,8 +180,12 @@ export function reduceInteractionState(previous, event) {
   } else if (event.kind === 'outcome') {
     const turn = state.turns[event.request_ref]; assert(turn && !turn.outcome, 'completion-missing-or-duplicate');
     assert(hash(event.completion_digest), 'completion-digest-required');
+    assert(event.completion_status === undefined || ['completed', 'noncompleted'].includes(event.completion_status), 'completion-status-invalid');
+    assert(event.response_present === undefined || typeof event.response_present === 'boolean', 'response-presence-invalid');
     turn.outcome = assessInteractionOutcome(turn, event.observation);
     turn.completion_digest = event.completion_digest;
+    if (event.completion_status !== undefined) turn.completion_status = event.completion_status;
+    if (event.response_present !== undefined) turn.response_present = event.response_present;
     for (const item of turn.view.items) {
       const lesson = event.lessons?.find(l => l.record_digest === item.lesson_digest) ?? state.lessons[item.lesson_id];
       assert(lesson?.record_digest === item.lesson_digest, 'outcome-lesson-revision-missing');

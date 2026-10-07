@@ -21,13 +21,13 @@ export function accountReceipts(receipts=[]){
 }
 export function validateConfig(config){
  need(config&&Array.isArray(config.tasks)&&config.tasks.length>0,'explicit-config-required');
- need(config.context_limit===8000&&config.total_tokens_per_arm===96000,'fixed-budget');
+ need(config.context_limit===8000&&[96000,160000].includes(config.total_tokens_per_arm),'fixed-budget');
  for(const key of ['credential_path','python','scorer','upstream','source_manifest','scoring_cache'])need(typeof config[key]==='string'&&config[key].length>0,'config-'+key);
  need(new Set(config.tasks.map(t=>t.id)).size===config.tasks.length,'duplicate-task');
  for(const t of config.tasks){
   need(typeof t.id==='string'&&/^[a-zA-Z0-9_-]+$/.test(t.id)&&typeof t.instance_id==='string'&&typeof t.task_path==='string'&&typeof t.repository_cache==='string'&&/^[a-f0-9]{64}$/.test(t.task_sha256),'task-shape');
   const c=t.cell_template;need(c&&c.instance_id===t.instance_id&&c.limits&&c.provider_profile,'cell-shape');
-  need(c.context_limit===8000&&c.limits.total_tokens===96000&&c.limits.output_cap===2048&&c.limits.maximum_calls===96&&c.limits.finalization_reserve_tokens===14000&&c.limits.output_deferral===true,'cell-call-budget');
+  need(c.context_limit===8000&&c.limits.total_tokens===config.total_tokens_per_arm&&c.limits.output_cap===2048&&c.limits.maximum_calls===96&&c.limits.finalization_reserve_tokens===14000&&c.limits.output_deferral===true,'cell-call-budget');
  }
  return true;
 }
@@ -38,7 +38,7 @@ function validate(config,task_id){
 }
 export function buildCell({config,task_id,arm,repetition=1}){
  const {task}=validate(config,task_id);need(['control','treatment'].includes(arm)&&uint(repetition)&&repetition>0,'cell-arguments');
- const cell=structuredClone(task.cell_template);cell.cell_id=task_id+'-r'+repetition+'-'+arm;cell.context_limit=8000;cell.limits={...cell.limits,total_tokens:96000,compact_representation:true,terminal_evidence_review:true,terminal_evidence_version:EXPANDED,terminal_evidence_max_handles:32,terminal_evidence_max_state_bytes:8192,terminal_evidence_max_state_tokens:2048,discovery_retention:true,recovery_visibility:arm==='treatment'?'demand':'eager'};
+ const cell=structuredClone(task.cell_template);cell.cell_id=task_id+'-r'+repetition+'-'+arm;cell.context_limit=8000;cell.limits={...cell.limits,total_tokens:config.total_tokens_per_arm,compact_representation:true,terminal_evidence_review:true,terminal_evidence_version:EXPANDED,terminal_evidence_max_handles:32,terminal_evidence_max_state_bytes:8192,terminal_evidence_max_state_tokens:2048,discovery_retention:true,recovery_visibility:arm==='treatment'?'demand':'eager'};
  cell.provider_profile={...cell.provider_profile,index_tokenizer_transport_attempts:1,request_tokenizer_transport_attempts:1};return cell;
 }
 // Max multiplicity preserves repeated identical attempts within a ledger, while

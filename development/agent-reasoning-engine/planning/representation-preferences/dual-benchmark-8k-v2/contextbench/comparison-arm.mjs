@@ -9,7 +9,7 @@ export function buildComparisonCell({config,task_id,arm}){
  need(COMPARISON_ARMS.includes(arm),'unknown-arm');need(config?.model==='glm-5.3-flash','model');
  const base=buildCell({config,task_id,arm:'control',repetition:1});
  return {...base,cell_id:task_id+'-r1-'+arm,comparison_arm:arm,
-  ...(arm==='current-are'?{}:{limits:{total_tokens:96000,maximum_calls:96,output_cap:base.limits.output_cap,finalization_reserve_tokens:arm==='minimal-history'?8000:20000},provider_profile:{...base.provider_profile,request_budget:'contextbench-budget-v1'}})};
+  ...(arm==='current-are'?{}:{limits:{total_tokens:config.total_tokens_per_arm,maximum_calls:96,output_cap:base.limits.output_cap,finalization_reserve_tokens:arm==='minimal-history'?8000:20000},provider_profile:{...base.provider_profile,request_budget:'contextbench-budget-v1'}})};
 }
 /** Executor injection is a programmatic test seam, never a manifest field. */
 export async function runComparisonArm({config,task_id,arm,create_client,signal,before_model_dispatch=async()=>true,...runtime},{execute_current=runPreparedTask,execute_candidate=runPreparedComparisonTask}={}){

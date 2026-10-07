@@ -22,6 +22,7 @@ import {
   buildPositiveReceipt,
   receiptDigest,
   verifyReceipt,
+  verifyReceiptCurrent,
   type EvolvableValidationReceipt,
   type NegativeControlReceipt,
 } from "./evolvable-validation-receipt.js";
@@ -38,6 +39,7 @@ import {
   type KeyDoorOutput,
   type RuntimeObservation,
 } from "./types.js";
+import { findDomainSpecSourceRoot } from "./repository-root.js";
 
 type MutantContract = {
   mutant_id: string;
@@ -51,6 +53,18 @@ type ValidationContract = {
   contract_id: "evf.SWU-GCP-001.validation.v1";
   required_test_targets: string[];
   mutants: MutantContract[];
+};
+
+type ValidationOverlay = {
+  schema_version: "evf.s1-validation-contract-overlay/v3";
+  contract_id: "evf.SWU-GCP-001.validation.v3";
+  base_contract_ref: ExactRef;
+  binding_ref: ExactRef;
+  ospec_ref: ExactRef;
+  receipt_schema_ref: ExactRef;
+  generated_test_target: string;
+  required_test_targets: string[];
+  claim_ceiling: "candidate-local-SWU-GCP-001-causal-proof-only";
 };
 
 export interface EvfS1VerificationResult {
@@ -69,7 +83,7 @@ export interface EvfS1VerificationResult {
 
 const DEFAULT_EVIDENCE_ROOT =
   "projects/domainspec-v2/development/evolvable-validation-framework/" +
-  "evidence/SWU-GCP-001/attempt-001";
+  "evidence/SWU-GCP-001/attempt-003";
 
 const IMPLEMENTATION_TEST_TARGETS = [
   "projects/domainspec-v2/impl/test-derivation-engine/src/formal/key-door-predicate.test.ts",
@@ -93,20 +107,9 @@ function stableBytes(value: unknown): string {
 }
 
 function findRepositoryRoot(start: string): string {
-  let cursor = resolve(start);
-  for (;;) {
-    if (
-      existsSync(resolve(cursor, "AGENTS.md")) &&
-      existsSync(resolve(cursor, "projects/domainspec-v2"))
-    ) {
-      return cursor;
-    }
-    const parent = dirname(cursor);
-    if (parent === cursor) {
-      fail("RUNTIME_TARGET_UNADMITTED", "cannot resolve repository root");
-    }
-    cursor = parent;
-  }
+  const sourceRoot = findDomainSpecSourceRoot(start);
+  if (sourceRoot !== null) return sourceRoot;
+  fail("RUNTIME_TARGET_UNADMITTED", "cannot resolve repository root");
 }
 
 function moduleSpecifier(fromFile: string, targetFile: string): string {
@@ -434,6 +437,32 @@ function validateReceiptFiles(repoRoot: string, paths: readonly string[]): void 
   }
 }
 
+function validateCurrentContractFiles(repoRoot: string): void {
+  const code = [
+    "from pathlib import Path",
+    "import json,sys",
+    "from jsonschema.validators import validator_for",
+    "pairs=zip(sys.argv[1::2],sys.argv[2::2])",
+    "[(lambda schema,document: validator_for(schema)(schema).validate(document))(json.loads(Path(s).read_text(encoding='utf-8')),json.loads(Path(d).read_text(encoding='utf-8'))) for s,d in pairs]",
+  ].join("; ");
+  const child = spawnSync("python3", [
+    "-c",
+    code,
+    resolve(repoRoot, EVF_PATHS.bindingSchema),
+    resolve(repoRoot, EVF_PATHS.binding),
+    resolve(repoRoot, EVF_PATHS.ospecSchema),
+    resolve(repoRoot, EVF_PATHS.ospec),
+  ], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    timeout: 120_000,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  if (child.error || child.status !== 0) {
+    fail("BINDING_STALE", `current S1 contract schema validation failed: ${child.stderr || child.stdout}`);
+  }
+}
+
 function evidencePaths(root: string, negativePaths: readonly string[]): string[] {
   return [
     resolve(root, "executor-receipt.json"),
@@ -445,8 +474,7 @@ function evidencePaths(root: string, negativePaths: readonly string[]): string[]
   ];
 }
 
-function receiptPath(repoRoot: string, outputRoot: string, contractPath: string): string {
-  if (outputRoot === resolve(repoRoot, DEFAULT_EVIDENCE_ROOT)) return resolve(repoRoot, contractPath);
+function receiptPath(outputRoot: string, contractPath: string): string {
   return resolve(outputRoot, "negative", contractPath.split("/").at(-1)!);
 }
 
@@ -461,16 +489,46 @@ export function runEvfS1Verification(options: {
   const created: string[] = [];
   try {
     const contractPath = resolve(repoRoot, EVF_PATHS.validationContract);
-    const contract = json<ValidationContract>(contractPath);
+    const overlay = json<ValidationOverlay>(contractPath);
     if (
-      contract.schema_version !== "evf.s1-validation-contract/v1" ||
-      contract.contract_id !== "evf.SWU-GCP-001.validation.v1"
+      overlay.schema_version !== "evf.s1-validation-contract-overlay/v3" ||
+      overlay.contract_id !== "evf.SWU-GCP-001.validation.v3" ||
+      overlay.claim_ceiling !== "candidate-local-SWU-GCP-001-causal-proof-only" ||
+      overlay.binding_ref?.path !== EVF_PATHS.binding ||
+      overlay.ospec_ref?.path !== EVF_PATHS.ospec ||
+      overlay.receipt_schema_ref?.path !== EVF_PATHS.receiptSchema ||
+      overlay.generated_test_target !== GENERATED_TEST_TARGET
     ) {
       fail("TARGET_BASELINE_DRIFT", "validation contract identity is invalid");
     }
+    for (const ref of [
+      overlay.base_contract_ref,
+      overlay.binding_ref,
+      overlay.ospec_ref,
+      overlay.receipt_schema_ref,
+    ]) {
+      if (!ref?.path) fail("TARGET_BASELINE_DRIFT", "validation contract exact ref is absent");
+      assertExactRef(repoRoot, ref, "BINDING_STALE");
+    }
+    const base = json<ValidationContract>(resolve(repoRoot, overlay.base_contract_ref.path));
+    if (
+      base.schema_version !== "evf.s1-validation-contract/v1" ||
+      base.contract_id !== "evf.SWU-GCP-001.validation.v1" ||
+      base.required_test_targets.length !== IMPLEMENTATION_TEST_TARGETS.length + 1 ||
+      IMPLEMENTATION_TEST_TARGETS.some(
+        (target, index) => base.required_test_targets[index] !== target,
+      )
+    ) {
+      fail("TARGET_BASELINE_DRIFT", "historical validation contract does not supply the selected mutant baseline");
+    }
+    const contract: ValidationContract = {
+      ...base,
+      required_test_targets: overlay.required_test_targets,
+    };
     const requiredTargets = [...IMPLEMENTATION_TEST_TARGETS, GENERATED_TEST_TARGET];
     assertRequiredTestTargets(requiredTargets, contract.required_test_targets);
 
+    validateCurrentContractFiles(repoRoot);
     const bundle = loadEvfS1Bundle(repoRoot);
     const obligations = deriveEnforcesObligations(repoRoot, bundle);
     let binding;
@@ -478,7 +536,7 @@ export function runEvfS1Verification(options: {
       binding = resolveExactBinding(
         obligations[0]!.obligation_id,
         [bundle.binding],
-        "evf.key-door.binding.v1",
+        "evf.key-door.binding.v2",
       );
     } catch (error) {
       if (error instanceof ExactBindingResolutionError) fail(error.code, error.message);
@@ -544,27 +602,37 @@ export function runEvfS1Verification(options: {
     });
     const negativePaths: string[] = [];
     for (const kill of kills) {
-      const path = receiptPath(repoRoot, outputRoot, kill.contract.receipt_path);
+      const path = receiptPath(outputRoot, kill.contract.receipt_path);
       writeStableJson(path, kill.receipt, created);
+      verifyReceiptCurrent(kill.receipt, repoRoot, [validationRef], undefined, outputRoot);
       negativePaths.push(path);
     }
 
     const positivePath = resolve(outputRoot, "positive/evolvable-validation-receipt.json");
-    const positive = buildPositiveReceipt({
-      exactRefs: [
+    const positiveRefs = [
+        validationRef,
+        overlay.base_contract_ref,
+        overlay.receipt_schema_ref,
         exactRef(repoRoot, EVF_PATHS.predicate),
         exactRef(repoRoot, EVF_PATHS.fixture),
         exactRef(repoRoot, EVF_PATHS.binding),
         exactRef(repoRoot, EVF_PATHS.runtimeContract),
         exactRef(repoRoot, EVF_PATHS.ospec),
+        bundle.binding.lineage_refs.relationship_registry,
+        bundle.binding.lineage_refs.rule_source,
+        bundle.binding.lineage_refs.generated_graph,
+        bundle.binding.lineage_refs.generated_source_manifest,
         runtimeRef,
         exactRef(repoRoot, relative(repoRoot, generatedPath)),
         exactRef(repoRoot, relative(repoRoot, executorPath)),
-      ],
+      ];
+    const positive = buildPositiveReceipt({
+      exactRefs: positiveRefs,
       observations,
     });
     verifyReceipt(positive);
     writeStableJson(positivePath, positive, created);
+    verifyReceiptCurrent(positive, repoRoot, positiveRefs, observations, outputRoot);
     validateReceiptFiles(repoRoot, [...negativePaths, positivePath]);
 
     const validationPath = resolve(outputRoot, "validation-receipt.json");

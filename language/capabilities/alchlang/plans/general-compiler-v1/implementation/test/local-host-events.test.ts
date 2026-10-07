@@ -4,6 +4,7 @@ import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildLocalHost, compileLocalHost } from '../src/local-host.js';
 
@@ -11,10 +12,10 @@ const dir = fileURLToPath(new URL('../../extensions/local-host-events-v1/',impor
 const source = path.join(dir,'orders.alch');
 const policy = JSON.parse(readFileSync(path.join(dir,'operator-policy.json'),'utf8'));
 const fixture = JSON.parse(readFileSync(new URL('../../extensions/event-execution-v1/place-order.request.json',import.meta.url),'utf8'));
-const temp = mkdtempSync('/tmp/alch-events-build-'); const bundle = path.join(temp,'bundle');
+const temp = mkdtempSync(path.join(tmpdir(), 'alch-events-build-')); const bundle = path.join(temp,'bundle');
 const roots: string[] = []; const processes = new Set<ChildProcess>();
 const token = 'event_fixture_token_'.repeat(3);
-const root = () => {const r=mkdtempSync('/tmp/alch-provision-');roots.push(r);return r;};
+const root = () => {const r=mkdtempSync(path.join(tmpdir(), 'alch-provision-'));roots.push(r);return r;};
 const delay = (ms:number) => new Promise(r=>setTimeout(r,ms));
 before(async()=>{await buildLocalHost(source,bundle);});
 async function stop(p:ChildProcess){if(p.exitCode===null&&p.signalCode===null){const exit=once(p,'exit');p.kill('SIGTERM');await exit;}processes.delete(p);}
@@ -50,7 +51,7 @@ test('compiler binds local delivery and bubblewrap while refusing public and unk
 });
 
 test('isolated producer delivers through outbox to consumer with one durable inbox receipt',async()=>{
- const r=root();const s=await start(r);assert.equal(s.status,'listening');
+ const r=root();const s=await start(r);assert.equal(s.status,'listening',s.error ?? 'HOST_NOT_LISTENING');
  const response=await post(s);assert.equal(response.status,200);assert.equal((await response.json()).status,'committed');
  const state=await published(r);assert.deepEqual(state.inbox,[['record-order','m1']]);
  assert.deepEqual(state.states.sort(),[['place-order',1],['record-order',1]]);
@@ -82,7 +83,7 @@ test('two host instances keep credentials and state separate',async()=>{
 });
 
 test('sandbox hides sibling data and host secrets and has no external network',()=>{
- const data=mkdtempSync('/tmp/alch-sandbox-data-');const sibling=mkdtempSync('/tmp/alch-sandbox-other-');
+ const data=mkdtempSync(path.join(tmpdir(), 'alch-sandbox-data-'));const sibling=mkdtempSync(path.join(tmpdir(), 'alch-sandbox-other-'));
  try{
   writeFileSync(path.join(sibling,'secret'),'private');
   const code=`import importlib.util,subprocess,json,sys

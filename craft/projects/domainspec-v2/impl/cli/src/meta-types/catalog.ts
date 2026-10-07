@@ -12,10 +12,11 @@ export class CatalogError extends Error {
   }
 }
 
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+function deepFreeze<T>(value: T, visited = new WeakSet<object>()): T {
+  if (value !== null && typeof value === "object" && !visited.has(value)) {
+    visited.add(value);
     Object.freeze(value);
-    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child, visited);
   }
   return value;
 }
@@ -30,10 +31,12 @@ export function validateFrozenCatalog(value: FrozenCatalogV2 = FROZEN_CATALOG_V2
   if (value.baseline_digest !== FROZEN_CATALOG_V2.baseline_digest) fail("MTCLI_CATALOG_BASELINE", "baseline digest drift");
   if (value.manifest_sha256 !== FROZEN_CATALOG_V2.manifest_sha256) fail("MTCLI_CATALOG_BASELINE", "baseline manifest digest drift");
   if (value.backend_meta_types.length !== 13 || value.realization_rows.length !== 39) fail("MTCLI_CATALOG_COVERAGE", "catalog denominator drift");
+  const canonicalLabels = new Map(FROZEN_CATALOG_V2.backend_meta_types.map((type) => [type.id, type.label]));
   const typeIds = new Set<string>();
   const labels = new Set<string>();
   for (const type of value.backend_meta_types) {
     if (typeIds.has(type.id) || labels.has(type.label)) fail("MTCLI_CATALOG_DUPLICATE", "duplicate meta-type identity");
+    if (canonicalLabels.get(type.id) !== type.label) fail("MTCLI_CATALOG_SCHEMA", `noncanonical meta-type:${type.id}/${type.label}`);
     typeIds.add(type.id);
     labels.add(type.label);
   }
@@ -42,7 +45,9 @@ export function validateFrozenCatalog(value: FrozenCatalogV2 = FROZEN_CATALOG_V2
     const key = `${row.meta_type_id}/${row.language}`;
     if (rows.has(key)) fail("MTCLI_CATALOG_DUPLICATE", `duplicate realization row:${key}`);
     rows.add(key);
-    if (!typeIds.has(row.meta_type_id) || !labels.has(row.meta_type_label)) fail("MTCLI_CATALOG_SCHEMA", `unknown realization type:${key}`);
+    if (!typeIds.has(row.meta_type_id) || canonicalLabels.get(row.meta_type_id) !== row.meta_type_label) {
+      fail("MTCLI_CATALOG_SCHEMA", `noncanonical realization type:${key}`);
+    }
     if (!SUPPORTED_LANGUAGES.includes(row.language)) fail("MTCLI_CATALOG_LANGUAGE", `unknown realization language:${key}`);
     for (const ref of [row.source, row.provider, row.binding]) {
       if (!ref.path.startsWith("projects/domainspec-v2/") || !SHA256_PATTERN.test(ref.sha256)) fail("MTCLI_CATALOG_DIGEST", `invalid realization reference:${key}`);

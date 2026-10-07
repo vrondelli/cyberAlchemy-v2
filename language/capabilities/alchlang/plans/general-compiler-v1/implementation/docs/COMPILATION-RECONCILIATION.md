@@ -34,9 +34,9 @@ remain explicit compatibility scope or separately implemented specialized profil
 ## Checkout binding and tests
 
 `ALCHLANG_DOMAINSPEC_PACKAGE_ROOT` is the exact override. Without it, the adapter
-recognizes the historical umbrella layout and the sibling
-`domainspec-core/projects/domainspec-v2/impl/cli` layout. Missing or ambiguous
-packages reject. Package and built API version checks still apply.
+selects `craft/projects/domainspec-v2/impl/cli` in this checkout. It does not
+search for a sibling `domainspec-core` checkout. A missing Craft package rejects;
+package and built API version checks still apply.
 
 The focused reconciliation/parity tests accept `ALCHLANG_TEST_TSX` and
 `ALCHLANG_TEST_TYPESCRIPT` for isolated host tools. These are test-only overrides;

@@ -12,6 +12,10 @@ const canonical = (value: unknown): string => {
 };
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
+/** The decision subject excludes the whole acceptance envelope to avoid a circular digest. */
+export function businessAcceptanceSubjectDigest(meaning: JsonObject): string {
+  return sha(canonical(Object.fromEntries(Object.entries(meaning).filter(([key]) => key !== "acceptance"))));
+}
 // Exact selected record from DomainSpec formalization/profiles/formal-language-profiles.json.
 // Changing that semantic record requires reviewing this parser/profile binding.
 export const FOL_CORE_PROFILE_SHA256 = "bc6b15bbe27641b6e5dd7a88774f8c587a52d64359e24a9d2a1bf198c706f856";
@@ -23,6 +27,34 @@ export const FORMAL_IDENTITY_ALGORITHM_BYTES = json({
   signature: "Sort declaration arrays by symbol name; preserve callable parameter order",
   definition_closure: "SHA-256 of key-sorted JSON array of exact definition bodies sorted by definition_id",
   excluded_inputs: ["provider", "runtime", "interpretation_model", "execution_bound", "observed_result", "source_whitespace"],
+  authority_effect: "none",
+});
+
+// BusinessMeaning/v2 carries an InterpretationModel reference for lineage even
+// though FormalClaim/v4 assigns that model to an external EvaluationContext.
+// Version the algorithm rather than silently changing v1 claim identities.
+export const FORMAL_IDENTITY_ALGORITHM_V2_BYTES = json({
+  schema_version: "alchlang.formal-identity-algorithm/v2",
+  proposition: "SHA-256 of key-sorted JSON typed fol-core AST; no logical-equivalence or alpha-equivalence claim",
+  claim: "SHA-256 of key-sorted JSON {business_meaning_semantic_sha256,definition_binding_sha256,formal_profile_sha256,signature,proposition_semantic_identity,claim_ceiling}",
+  business_meaning_semantic_sha256: "SHA-256 of key-sorted BusinessMeaning/v2 JSON excluding only interpretation_model_ref",
+  signature: "Sort declaration arrays by symbol name; preserve callable parameter order",
+  definition_closure: "SHA-256 of key-sorted JSON array of exact definition bodies sorted by definition_id",
+  excluded_inputs: ["provider", "runtime", "interpretation_model_ref", "execution_bound", "observed_result", "source_whitespace"],
+  authority_effect: "none",
+});
+
+// Acceptance decisions bind exact subjects, but their changing envelopes do
+// not redefine a FormalClaim proposition. V3 is explicit so persisted V2
+// identities are never silently reinterpreted.
+export const FORMAL_IDENTITY_ALGORITHM_V3_BYTES = json({
+  schema_version: "alchlang.formal-identity-algorithm/v3",
+  proposition: "SHA-256 of key-sorted JSON typed fol-core AST; no logical-equivalence or alpha-equivalence claim",
+  claim: "SHA-256 of key-sorted JSON {business_meaning_semantic_sha256,definition_binding_sha256,formal_profile_sha256,signature,proposition_semantic_identity,claim_ceiling}",
+  business_meaning_semantic_sha256: "SHA-256 of key-sorted BusinessMeaning/v2 JSON excluding acceptance and interpretation_model_ref",
+  signature: "Sort declaration arrays by symbol name; preserve callable parameter order",
+  definition_closure: "SHA-256 of key-sorted JSON array of exact definition bodies sorted by definition_id",
+  excluded_inputs: ["provider", "runtime", "acceptance", "interpretation_model_ref", "execution_bound", "observed_result", "source_whitespace"],
   authority_effect: "none",
 });
 
@@ -131,7 +163,7 @@ function validateDefinition(definition: JsonObject, path: string): void {
   }
 }
 
-function definitionClosure(binding: JsonObject, claimId: string, version: string, sources: ReadonlyMap<string, Buffer>, path: string): void {
+function definitionClosure(binding: JsonObject, claimId: string, version: string, sources: ReadonlyMap<string, Buffer>, path: string, inlineDefinitions?: unknown[]): void {
   exact(binding, ["schema_version", "binding_id", "claim_identity", "definition_authority_ref", "definition_nodes", "relations", "definition_closure", "resolution_policy", "authority_effect", "claim_ceiling"], path);
   if (binding.schema_version !== "domainspec-v2.formal-claim-definition-binding/v1-candidate" || binding.authority_effect !== "none") fail("FORMAL_DEFINITION_BINDING", path, "invalid definition binding kind");
   const identity = exact(binding.claim_identity, ["claim_id", "claim_version"], path);
@@ -140,6 +172,10 @@ function definitionClosure(binding: JsonObject, claimId: string, version: string
   if (canonical(binding.resolution_policy) !== canonical(policy)) fail("FORMAL_DEFINITION_BINDING", path, "definition resolution policy differs");
   const authority = resolveExactFormalSource(binding.definition_authority_ref, sources, `${path}/authority`);
   const document = decode(authority.bytes, path);
+  // A v2 meaning owns its definitions inline. A separate source may be used
+  // as an exact projection, but it cannot introduce different canonical bodies.
+  if (inlineDefinitions && canonical(document.definitions) !== canonical(inlineDefinitions))
+    fail("FORMAL_DEFINITION_AUTHORITY", path, "definition authority differs from accepted inline definitions");
   const definitions = list(document.definitions, `${path}/definitions`).map((d, i) => object(d, `${path}/definitions/${i}`));
   unique(definitions.map(d => text(d.definition_id, path)), path);
   const nodes = list(binding.definition_nodes, path).map(n => exact(n, ["definition_id", "definition_pointer", "status", "definition_digest"], path));
@@ -194,10 +230,28 @@ export function lowerApplicationFormalClaims(source: string, input: unknown, sou
     const definitions = resolveExactFormalSource(b.definition_binding_ref, sources, `${path}/definition_binding_ref`);
     const profile = resolveExactFormalSource(b.formal_language_profile_ref, sources, `${path}/formal_language_profile_ref`);
     const algorithm = resolveExactFormalSource(b.identity_algorithm_ref, sources, `${path}/identity_algorithm_ref`);
-    if (algorithm.bytes.toString("utf8") !== FORMAL_IDENTITY_ALGORITHM_BYTES) fail("FORMAL_IDENTITY_ALGORITHM", path, "unsupported identity algorithm bytes");
     const business = decode(meaning.bytes, path); validateMeaning(business, path); const decision = object(business.acceptance, path);
+    const v2Meaning = business.schema_version === "domainspec-v2.business-meaning/v2-candidate";
+    const expectedAlgorithm = v2Meaning ? FORMAL_IDENTITY_ALGORITHM_V3_BYTES : FORMAL_IDENTITY_ALGORITHM_BYTES;
+    if (algorithm.bytes.toString("utf8") !== expectedAlgorithm) fail("FORMAL_IDENTITY_ALGORITHM", path, "unsupported identity algorithm bytes for BusinessMeaning version");
     if (!["domainspec-v2.business-meaning/v1-candidate", "domainspec-v2.business-meaning/v2-candidate"].includes(String(business.schema_version)) || business.status !== "accepted" || business.authority_effect !== "none" || decision.status !== "accepted" || decision.acceptance_ref !== acceptance.ref.path || decision.acceptance_digest !== acceptance.ref.sha256 || decision.owner_ref !== business.owner) fail("FORMAL_MEANING_ACCEPTANCE", path, "meaning does not bind the selected acceptance bytes and owner");
-    definitionClosure(decode(definitions.bytes, path), claimId, version, sources, `${path}/definitions`);
+    const selectedDecision = decode(acceptance.bytes, `${path}/business_acceptance_ref`);
+    exact(selectedDecision, ["schema_version", "decision_id", "owner", "outcome", "subject", "authority_effect"], `${path}/business_acceptance_ref`);
+    text(selectedDecision.decision_id, `${path}/business_acceptance_ref/decision_id`);
+    text(selectedDecision.owner, `${path}/business_acceptance_ref/owner`);
+    const subject = exact(selectedDecision.subject, ["meaning_id", "version", "canonicalization", "digest_algorithm", "digest"], `${path}/business_acceptance_ref/subject`);
+    text(subject.meaning_id, `${path}/business_acceptance_ref/subject/meaning_id`);
+    text(subject.version, `${path}/business_acceptance_ref/subject/version`);
+    digest(subject.digest, `${path}/business_acceptance_ref/subject/digest`);
+    if (selectedDecision.schema_version !== "domainspec-v2.business-acceptance-decision/v1-candidate"
+      || selectedDecision.owner !== business.owner || selectedDecision.owner !== decision.owner_ref
+      || selectedDecision.outcome !== "accepted" || selectedDecision.authority_effect !== "none"
+      || subject.meaning_id !== business.meaning_id || subject.version !== business.version
+      || subject.canonicalization !== "domainspec-json-keysort-excluding-acceptance-v1"
+      || subject.digest_algorithm !== "sha256" || subject.digest !== businessAcceptanceSubjectDigest(business))
+      fail("FORMAL_MEANING_ACCEPTANCE", `${path}/business_acceptance_ref`, "selected owner decision does not accept this exact BusinessMeaning subject");
+    definitionClosure(decode(definitions.bytes, path), claimId, version, sources,
+      `${path}/definitions`, v2Meaning ? list(business.definitions, path) : undefined);
     const profileDocument = decode(profile.bytes, path);
     const profiles = Array.isArray(profileDocument.profiles) ? profileDocument.profiles.map(p => object(p, path)) : [profileDocument];
     const selectedProfiles = profiles.filter(p => `${p.profile_id}/${p.version}` === declaration.profile);
@@ -206,7 +260,8 @@ export function lowerApplicationFormalClaims(source: string, input: unknown, sou
     const sorted = <T extends { name: string }>(items: T[]): T[] => [...items].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
     const signature = { sorts: sorted(declaration.signature.sorts), functions: sorted(declaration.signature.functions), predicates: sorted(declaration.signature.predicates), constants: sorted(declaration.signature.constants) };
     const semanticIdentity = canonical(declaration.proposition);
-    const identityInputs = { business_meaning_sha256: meaning.ref.sha256, definition_binding_sha256: definitions.ref.sha256,
+    const meaningIdentity = v2Meaning ? sha(canonical(Object.fromEntries(Object.entries(business).filter(([key]) => key !== "acceptance" && key !== "interpretation_model_ref")))) : meaning.ref.sha256;
+    const identityInputs = { ...(v2Meaning ? { business_meaning_semantic_sha256: meaningIdentity } : { business_meaning_sha256: meaningIdentity }), definition_binding_sha256: definitions.ref.sha256,
       formal_profile_sha256: sha(canonical(selectedProfiles[0])), signature, proposition_semantic_identity: semanticIdentity, claim_ceiling: declaration.ceiling };
     const claim = { schema_version: "domainspec-v2.formal-claim-source/v4-candidate",
       claim: { claim_id: claimId, claim_version: version, owner: model.owner, currentness: "current", supersedes: b.supersedes,

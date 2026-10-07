@@ -48,42 +48,6 @@ export type WorkspaceResult = {
   output: string;
 };
 
-type SourceFacts = {
-  domainId: string;
-  ownerId: string;
-  entityCount: number;
-  ruleIds: string[];
-  actionIds: string[];
-};
-
-function inspectSource(source: string): SourceFacts | { error: string } {
-  const domains = [...source.matchAll(/^domain\s+([A-Za-z_][\w.-]*)\s+"[^"]+"\s*$/gm)];
-  const owners = [...source.matchAll(/^owner\s+([A-Za-z_][\w.-]*)\s*$/gm)];
-  const profiles = [...source.matchAll(/^logic\s+(\S+)\s*$/gm)];
-  const entities = [...source.matchAll(/^entity\s+([A-Za-z_][\w.-]*):\s*$/gm)];
-  const rules = [...source.matchAll(/^rule\s+([A-Za-z_][\w.-]*):\s*\n\s{2,}(.+)$/gm)];
-  const actions = [...source.matchAll(/^action\s+([A-Za-z_][\w.-]*):\s*$/gm)];
-
-  if (domains.length !== 1) return { error: "SOURCE_DOMAIN: declare exactly one domain header" };
-  if (owners.length !== 1) return { error: "SOURCE_OWNER: declare exactly one owner header" };
-  if (profiles.length !== 1 || profiles[0][1] !== "sfol-v1") return { error: "SFOL_PROFILE: declare logic sfol-v1" };
-  if (entities.length === 0) return { error: "SOURCE_ENTITY: declare at least one entity" };
-  if (rules.length === 0) return { error: "SFOL_RULE: declare at least one indented rule formula" };
-  for (const [, ruleId, formula] of rules) {
-    if (!/(==|!=|<=|>=|<|>|exists\(|absent\()/.test(formula)) {
-      return { error: `SFOL_FORMULA_TYPE: rule ${ruleId} must produce a Boolean result` };
-    }
-  }
-
-  return {
-    domainId: domains[0][1],
-    ownerId: owners[0][1],
-    entityCount: entities.length,
-    ruleIds: rules.map((match) => match[1]),
-    actionIds: actions.map((match) => match[1]),
-  };
-}
-
 async function digest(source: string): Promise<string> {
   const bytes = new TextEncoder().encode(source.replace(/\r\n/g, "\n"));
   const hash = await crypto.subtle.digest("SHA-256", bytes);
@@ -101,41 +65,41 @@ export async function runWorkspaceCommand(command: string, source: string): Prom
     return {
       command,
       status: "info",
-      output: ["Browser sandbox commands:", workspaceCommands.check, workspaceCommands.build, workspaceCommands.patterns, workspaceCommands.run, "clear"].join("\n"),
+      output: ["Fixed-example browser simulation; no compiler or action executes:", workspaceCommands.check, workspaceCommands.build, workspaceCommands.patterns, workspaceCommands.run, "clear"].join("\n"),
     };
   }
 
   if (normalized === workspaceCommands.patterns) {
     return {
       command,
-      status: "success",
+      status: "info",
       output: json({
-        patterns: [
+        illustrated_patterns: [
           { pattern_id: "operation-port", availability: "available", generated_artifacts: ["domain.tools.ts"] },
           { pattern_id: "transactional-outbox", availability: "available", generated_artifacts: ["domain.outbox.port.ts", "domain.outbox.sqlite.ts", "domain.outbox.migration.sql", "domain.outbox.worker.ts", "domain.outbox.provider.ts", "domain.outbox.test.ts", "domain.generation-manifest.json"] },
         ],
         authority_effect: "none",
-        execution_surface: "browser-sandbox",
+        execution_surface: "browser-fixed-simulation",
+        claim_ceiling: "fixed-example-only-no-compiler-or-runtime",
       }),
     };
   }
 
-  const facts = inspectSource(source);
-  if ("error" in facts) return { command, status: "error", output: facts.error };
+  if (source !== defaultWorkspaceSource) return { command, status: "error", output: "FIXED_EXAMPLE_ONLY: this browser simulation cannot validate edited source; use the installed CLI" };
   const sourceDigest = await digest(source);
 
   if (normalized === workspaceCommands.check) {
     return {
       command,
-      status: "success",
+      status: "info",
       output: json({
-        status: "valid",
+        simulation_status: "illustrated-check",
         source: "workspace.alch",
-        file_format: "canonical-alch",
-        domain_id: facts.domainId,
+        domain_id: "customer-approval",
         source_digest: sourceDigest,
         authority_effect: "none",
-        execution_surface: "browser-sandbox",
+        execution_surface: "browser-fixed-simulation",
+        claim_ceiling: "fixed-example-only-no-compiler-or-runtime",
       }),
     };
   }
@@ -143,51 +107,38 @@ export async function runWorkspaceCommand(command: string, source: string): Prom
   if (normalized === workspaceCommands.build) {
     return {
       command,
-      status: "success",
+      status: "info",
       output: json({
-        status: "built",
-        domain_id: facts.domainId,
-        output: "virtual://generated",
-        files: ["domain.carrier.json", "domain.types.ts", "domain.schema.ts", "domain.machine.ts", "domain.events.ts", "domain.operations.ts", "domain.workflows.ts", "domain.interfaces.ts", "domain.tools.ts", "domain.graph.json", "domain.test-obligations.json", "traceability.json", "unsupported-residue.json", "manifest.json"],
+        simulation_status: "illustrated-build",
+        domain_id: "customer-approval",
+        illustrated_files: ["domain.carrier.json", "domain.types.ts", "domain.schema.ts", "domain.machine.ts", "domain.events.ts", "domain.operations.ts", "domain.workflows.ts", "domain.interfaces.ts", "domain.tools.ts", "domain.graph.json", "domain.test-obligations.json", "traceability.json", "unsupported-residue.json", "manifest.json"],
         source_digest: sourceDigest,
         authority_effect: "none",
-        execution_surface: "browser-sandbox",
+        execution_surface: "browser-fixed-simulation",
+        claim_ceiling: "fixed-example-only-no-compiler-or-runtime",
       }),
     };
   }
 
-  if (normalized.startsWith("domainspec run workspace.alch ")) {
-    const actionId = normalized.split(" ")[3];
-    const actor = normalized.match(/--actor\s+(\S+)/)?.[1];
-    const grant = normalized.match(/--grant\s+(\S+)/)?.[1];
-    const rawFacts = command.match(/--facts\s+'([^']+)'/)?.[1];
-    if (!facts.actionIds.includes(actionId)) return { command, status: "error", output: `UNRESOLVED_REFERENCE: action ${actionId}` };
-    if (actor !== "CreditOperator") return { command, status: "error", output: "ACTOR_DENIED: expected CreditOperator" };
-    if (grant !== "credit-release-authority") return { command, status: "error", output: "AUTHORITY_DENIED: expected credit-release-authority" };
-    if (!rawFacts) return { command, status: "error", output: "FACTS_REQUIRED: provide --facts as single-quoted JSON" };
-    let supplied: Record<string, unknown>;
-    try {
-      supplied = JSON.parse(rawFacts) as Record<string, unknown>;
-    } catch {
-      return { command, status: "error", output: "FACTS_JSON: facts must be valid JSON" };
-    }
-    if (supplied.status !== "approved") {
-      return { command, status: "error", output: "RULE_DENIED: approved-release evaluated to false" };
-    }
+  if (command.trim() === workspaceCommands.run || command.trim() === workspaceCommands.run.replace('"approved"', '"pending"')) {
+    const illustratedApproval = command.trim() === workspaceCommands.run;
     return {
       command,
-      status: "success",
+      status: "info",
       output: json({
-        status: "executed",
-        action_id: actionId,
-        outcome: "completed",
-        emitted_events: ["credit-released"],
-        rule_results: { "approved-release": true },
+        simulation_status: illustratedApproval ? "illustrated-approval" : "illustrated-denial",
+        action_id: "ReleaseCredit",
+        illustrated_outcome: illustratedApproval ? "would-complete" : "would-deny",
+        illustrated_events: illustratedApproval ? ["credit-released"] : [],
+        illustrated_rule_results: { "approved-release": illustratedApproval },
         authority_effect: "none",
-        execution_surface: "browser-sandbox",
+        execution_surface: "browser-fixed-simulation",
+        claim_ceiling: "fixed-example-only-no-compiler-or-runtime",
       }),
     };
   }
+
+  if (normalized.startsWith("domainspec run workspace.alch ")) return { command, status: "error", output: "FIXED_COMMAND_ONLY: this browser simulation supports only the two illustrated action inputs; use the installed CLI" };
 
   return { command, status: "error", output: `COMMAND_UNSUPPORTED: ${normalized}\nType help for available commands.` };
 }

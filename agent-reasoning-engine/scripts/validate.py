@@ -471,9 +471,9 @@ def validate_generated(errors: list[str], sources: dict[str, Any], bridge: dict[
 
 def verify_materialized_build(errors: list[str]) -> None:
     command = [
-        str(REPOSITORY_ROOT / "toolchains/node-typescript/bin/node-env"),
-        "run", "--project", "projects/domainspec-v2/impl", "--", "node", "--import", "tsx",
-        "../../../cyberAlchemy-v2/agent-reasoning-engine/scripts/build.ts", "--emit-json",
+        str(REPOSITORY_ROOT / "cyberAlchemy-v2/craft/toolchains/node-typescript/bin/node-env"),
+        "run", "--project", "craft/projects/domainspec-v2/impl", "--", "node", "--import", "tsx",
+        "../../../../agent-reasoning-engine/scripts/build.ts", "--emit-json",
     ]
     first = subprocess.run(command, cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=False)
     second = subprocess.run(command, cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=False)

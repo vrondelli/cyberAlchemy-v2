@@ -71,12 +71,12 @@ planes. Local validation does not grant those effects.
    usage bundles/contact-sales pricing rather than an exact GLM-5.3-Flash
    input/output token rate. Do not derive the enforcement rate from promotional
    token bundles; obtain it from the billing contract/account actually used.
-2. Product/operator owner selected the root-relative `/are/` route. Generated
-   prototype HTML, the ARE static base, API paths, hardened edge allowlist, and
-   local browser/runtime evidence now agree on that prefix. The KELD Caddy and
-   Compose candidate is integrated and passes its synthetic full-stack smoke;
-   exact registry digests and owner values must pass the local preflight; target-host acceptance and deployment
-   still require the operator.
+2. Product/operator owner subsequently selected `https://are.keld.studio/` as
+   the canonical public route. Generated assets and APIs retain `/are/*`
+   internally, and public `/are/` redirects to `/` on the ARE host. The KELD
+   storefront does not route ARE. The reusable Caddy/Compose candidate now
+   requires a distinct `ARE_DOMAIN` and its focused topology regression passes;
+   exact registry digests and owner values must still pass the local preflight.
 3. Security owner accepts the exact-digest
    [Keycloak OpenVEX assessment](KEYCLOAK-26.7.4-VEX-ASSESSMENT.md) or selects a
    clean supported replacement.

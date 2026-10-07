@@ -170,13 +170,13 @@ function executePythonVerification(graph: CompiledProjectGraph, plan: Reconciled
           const factoryRunner = getReconciledSource('python_factory_semantics');
           if (sha256(factoryRunner) !== '340ae55383c1e59f0fe926abaff293b3ed45f805df86d7fd1509925e486dc30e') fail('factory semantics drift');
           const eventObserver = getReconciledSource('python_event_observer'), eventRunner = getReconciledSource('python_event_semantics');
-          if (sha256(eventObserver) !== '4918a820ad5b6fe16f8ba6e8ecf8e4161e8af8ab74689082975cff9349ef2ad1' || sha256(eventRunner) !== 'be0e1a724158e19c67284a93daa9b82cca4feae932666508674569a615c4584b') fail('Event verifier drift');
+          if (sha256(eventObserver) !== '6c8f1db9dc4629fa89aab1e4a7d8f64a828a56d150a6416dbc97b6f1c8ec17bb' || sha256(eventRunner) !== 'dc96099dd0465a99e4ca815d2612115ebe8592b61943c43387f8b9b62e60780f') fail('Event verifier drift');
           const stateMachineObserver = getReconciledSource('python_state_machine_observer'), stateMachineRunner = getReconciledSource('python_state_machine_semantics');
           if (sha256(stateMachineObserver) !== 'f33a24e929a19cfb78f20eafd85e68849f800e27d5a6028efd2bc3412d0470de' || sha256(stateMachineRunner) !== '7ff57e8ca7fdac79b06c3f915f7ea5bc59549c7ee92fffc17793442e55c72a9f') fail('State Machine verifier drift');
           const operationRunner = getReconciledSource('python_operation_semantics');
           if (sha256(operationRunner) !== 'e38224d2c4ae102227d66afa859d47657d46efe95624d9f4c60950363cf63a0e') fail('Operation verifier drift');
           const workflowObserver = getReconciledSource('python_workflow_observer'), materialObserver = getReconciledSource('python_workflow_materialization_observer'), workflowRunner = getReconciledSource('python_workflow_semantics');
-          if (sha256(workflowObserver) !== 'c3c469ee45d3db75570f604a54b7956ea1cd1c3f53e53b9dfeb00c5ecdba91a7' || sha256(materialObserver) !== '28200cad42d70783d54061ee433c6b9064b7a90ccde37f49327e135605d23939' || sha256(workflowRunner) !== '25b82b12a17e887edb0d2211a17cc3fa214254c87ff9ae5eb3c4490eddd811d9') fail('Workflow verifier drift');
+          if (sha256(workflowObserver) !== 'c3c469ee45d3db75570f604a54b7956ea1cd1c3f53e53b9dfeb00c5ecdba91a7' || sha256(materialObserver) !== 'a52a21df5a9766b60c4c30e0ac62502a9bfdfbc558be6cc37007ea9e57ed5360' || sha256(workflowRunner) !== '1bee9cf6b9a6a461c43936e8869fc0d039eda9d99f2746d8b6380aee8a950717') fail('Workflow verifier drift:' + [sha256(workflowObserver), sha256(materialObserver), sha256(workflowRunner)].join(','));
           const load = (name: string, source: string, bindings = '') => name + " = {'__name__': 'observer'" + bindings + "}\nexec(" + JSON.stringify(source) + ', ' + name + ')\n';
           const interfaceObserver = getReconciledSource('python_interface_observer'), interfaceRunner = getReconciledSource('python_interface_semantics');
           const publicMappingObserver = getReconciledSource('python_public_mapping_observer'), publicMappingRunner = getReconciledSource('python_public_mapping_semantics');

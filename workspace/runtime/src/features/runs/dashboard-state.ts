@@ -1,6 +1,6 @@
 import type {RunProjection, RunView} from './run-contract.ts';
 // Open questions: README.md#open-questions.
-export function resultHash(viewId: string): string { return '#/runs/'+encodeURIComponent(viewId); }
+export function resultHash(viewId: string): string { return '#/dashboard/result/'+encodeURIComponent(viewId); }
 export function resultFromHash(hash: string): string | null {
   const prefix=hash.startsWith('#/runs/')?'#/runs/':hash.startsWith('#/dashboard/result/')?'#/dashboard/result/':null;
   if(!prefix)return null;

@@ -1,8 +1,20 @@
 # Candidate-only research plan
 
+Status: historical transition plan. It remains evidence for the decision to stop
+fresh controls, but its construction queue is superseded by
+[`../BENCHMARK-EVOLUTION-WORKFLOW.md`](../BENCHMARK-EVOLUTION-WORKFLOW.md).
+
+The transition and H-L production work described below completed. H-L produced
+four valid outcomes but regressed native quality. The current restart point is
+the rejected H-EN construction review: repair pinned Git-byte integrity and
+supervised descendant-process settlement before any qualification or live run.
+H-MC remains a separate post-hoc hypothesis requiring a prospective leakage-safe
+protocol. No benchmark run is currently active.
+
 Owner direction: “we should stop the branch of control, and focusing in only improving results and radicals”.
-This prospective plan supersedes the next-run instructions requiring fresh controls
-in NEXT-DAG.md, COMPACT-RETRIEVAL-FIRST-SCREEN-DRAFT.md and the historical R3 work DAG.
+At the time it was written, this plan superseded next-run instructions requiring
+fresh controls in the then-current NEXT-DAG.md,
+COMPACT-RETRIEVAL-FIRST-SCREEN-DRAFT.md and the historical R3 work DAG.
 Frozen experiments, scores and registered records remain historical evidence.
 No new control-arm runs are to be scheduled in this research track.
 

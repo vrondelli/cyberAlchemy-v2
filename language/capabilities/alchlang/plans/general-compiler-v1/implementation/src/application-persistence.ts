@@ -37,6 +37,7 @@ export function lowerApplicationPersistence(source: string, input: unknown, comp
   const shape = (type: ApplicationType): string => {
     if (type.kind === "scalar") return "scalar";
     if (type.kind === "reference") return "entity-reference";
+    if (type.kind === "sum") return "sum";
     if (type.kind === "optional" || type.kind === "list" || type.kind === "set") return type.kind;
     if (type.kind === "declaration") {
       const kind = byId.get(type.ref)?.kind;

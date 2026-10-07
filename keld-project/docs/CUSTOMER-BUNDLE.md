@@ -64,9 +64,11 @@ admission or arbitrary-effect claim.
 ## Open Questions
 
 The owner superseded the starter's Apache-2.0 direction with candidate custom
-source-available terms. Selling a redistributed copy requires an added function
-or integration; cosmetic edits, renaming and bug fixes alone do not qualify,
-while hosted access and paid support are outside the resale rule. Exact legal
-wording, distribution ownership and third-party notices still require review.
+source-available terms. Paid resale of an ARE-derived copy requires substantive
+new functionality or material functional improvement. The reseller must offer
+that version's source code without charge to verified ARE purchasers; no binaries,
+future upgrades or human support are required by this rule. [Candidate license
+clauses](ARE-LICENSE-CANDIDATE.md), distribution ownership and third-party
+notices still require legal and rights review.
 Commercial policies, authenticated delivery, interrupted-task recovery and update
 migration remain in [the delivery plan](DELIVERY-PLAN.md).

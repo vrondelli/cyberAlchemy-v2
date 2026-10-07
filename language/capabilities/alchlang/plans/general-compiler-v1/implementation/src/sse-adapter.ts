@@ -1,4 +1,4 @@
-import type {StreamFrameSink} from '../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/runtime/response-stream.js';
+import type {StreamFrameSink} from './integration-runtime-types.js';
 // Byte parsing and bounded downstream capacity only. Open Questions: ../STREAMS.md.
 export const streamFault=(code:string)=>Object.assign(new Error(code),{code});
 export async function streamBounded<T>(promise:Promise<T>,signal:AbortSignal):Promise<T>{

@@ -1,85 +1,29 @@
-"""Local Chromium UI checks for the illustrated legend; never submits a payment.
-Uses set_content because this runtime blocks local/network navigation.
+"""Static regression checks for the retired Legend experience.
+
+The legacy filenames remain compatibility entry points, but they must render the
+current Synvora storefront without restoring Legend navigation or assets.
 """
 from pathlib import Path
-from playwright.sync_api import sync_playwright
-import json
-ROOT=Path(__file__).resolve().parent
-HTML=(ROOT/'keld-legend-standalone.html').read_text()
-PRE=ROOT/'previews';PRE.mkdir(exist_ok=True)
-checks=[];errors=[]
-def ck(test,passed):
- checks.append({'test':test,'passed':bool(passed)})
- print(('PASS ' if passed else 'FAIL ')+test,flush=True)
-with sync_playwright() as p:
- b=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
- def fresh(width=1440,height=1050,**options):
-  q=b.new_page(viewport={'width':width,'height':height},**options);q.set_default_timeout(6000)
-  q.on('pageerror',lambda e:errors.append(str(e)))
-  q.set_content(HTML,wait_until='load');q.wait_for_timeout(130)
-  return q
- q=fresh()
- ck('Legend entry opens the studio at the legend',q.locator('#studio-view').is_visible() and '#legend' in q.url and not q.locator('#shop-view').is_visible())
- ck('Six named chapter tabs',q.locator('[data-legend-chapter]').count()==6)
- ck('Only the first scene is initially visible',q.locator('.legend-scene:visible').count()==1 and q.locator('#legend-scene-0').is_visible())
- ck('First scene previous disabled; next enabled',q.locator('#legend-prev').is_disabled() and q.locator('#legend-next').is_enabled())
- sources=q.locator('.legend-image').evaluate_all('(imgs)=>imgs.map(i=>i.getAttribute("src"))')
- ck('Six distinct images embedded for offline use',len(set(sources))==6 and all(s.startswith('data:image/webp;base64,') for s in sources))
- ck('No duplicate HTML element IDs',q.evaluate('(()=>{const ids=[...document.querySelectorAll("[id]")].map(e=>e.id);return new Set(ids).size===ids.length})()'))
- for i in range(6):
-  q.locator(f'#legend-chapter-{i}').click()
-  image=q.locator(f'#legend-scene-{i} .legend-image')
-  image.evaluate('(e)=>e.decode()')
-  ck('Chapter '+str(i+1)+' image, panel and counter synchronized',image.evaluate('e=>e.naturalWidth===1672') and q.locator(f'#legend-chapter-{i}').get_attribute('aria-selected')=='true' and q.locator('#legend-counter').inner_text()==f'SCENE {i+1:02d} / 06' and q.locator('.legend-scene:visible').count()==1)
- ck('Last scene ends rather than auto-looping',q.locator('#legend-next').is_disabled())
- q.locator('#legend-chapter-5').press('Home');ck('Home returns focus to the first tab',q.locator('#legend-chapter-0').evaluate('e=>document.activeElement===e'))
- q.locator('#legend-chapter-0').press('ArrowRight');ck('ArrowRight selects and focuses next tab',q.locator('#legend-chapter-1').get_attribute('aria-selected')=='true' and q.locator('#legend-chapter-1').evaluate('e=>document.activeElement===e'))
- q.locator('#legend-chapter-1').press('End');ck('End selects the last scene',q.locator('#legend-scene-5').is_visible())
- q.locator('#legend-chapter-2').click();q.locator('#legend-expand').click()
- ck('Native full-screen viewer opens current scene',q.locator('#legend-cinema').evaluate('e=>e.open') and q.locator('#cinema-title').inner_text()=='Cyber Blacksmith')
- ck('Viewer image has a descriptive alternative',len(q.locator('#cinema-image').get_attribute('alt'))>40)
- q.locator('#cinema-next').click();ck('Full-screen next updates both views',q.locator('#cinema-title').inner_text()=='Keeper of the Unmade' and q.locator('#legend-chapter-3').get_attribute('aria-selected')=='true')
- q.keyboard.press('ArrowLeft');ck('Full-screen keyboard navigation',q.locator('#cinema-title').inner_text()=='Cyber Blacksmith')
- q.keyboard.press('Escape');ck('Escape closes and restores trigger focus',not q.locator('#legend-cinema').is_visible() and q.locator('#legend-expand').evaluate('e=>document.activeElement===e'))
- q.locator('[data-open="full-legend"]').first.click()
- ck('Complete reader opens with all six plates',q.locator('#full-legend').evaluate('e=>e.open') and q.locator('#full-legend .story-plate').count()==6)
- for im in q.locator('#full-legend .story-plate img').all():
-  im.scroll_into_view_if_needed();im.evaluate('e=>e.decode()')
- ck('All reader images decode',q.locator('#full-legend .story-plate img').evaluate_all('es=>es.every(e=>e.complete&&e.naturalWidth===1672)'))
- story=q.locator('#full-legend').inner_text()
- ck('Original story and closing retained',all(s in story for s in ['Hoarder of Secrets','Cyber Blacksmith','Keeper of the Unmade','Keld did not offer to think in their place.','The workshop still carries his name.']))
- q.keyboard.press('Escape');ck('Reader close unlocks body scrolling',not q.locator('#full-legend').is_visible() and not q.locator('body').evaluate('e=>e.classList.contains("dialog-open")'))
- q.locator('.shop-link').click();ck('Shop remains reachable',q.locator('#shop-view').is_visible() and not q.locator('#studio-view').is_visible())
- ck('Shop still starts at $200 with secret hidden',q.locator('#custom-price').input_value()=='200' and not q.locator('#hidden-shelf').is_visible())
- q.locator('#price-decrease').click();ck('Lower-price discovery preserved',q.locator('#hidden-shelf').is_visible())
- q.locator('#custom-price').fill('125.25');q.locator('#custom-price').press('Tab');q.locator('#add-to-bag').click()
- ck('Cart receives exact selected amount',q.locator('.bag-total [data-bag-price]').inner_text()=='$125.25')
- q.locator('#review-checkout').click()
- ck('Checkout retains chosen price and Apache 2.0',q.locator('.checkout-summary-total [data-bag-price]').inner_text()=='$125.25' and q.locator('.checkout-summary [data-bag-license]').inner_text()=='Apache License 2.0')
- q.close()
- for width in [320,375,390,428,768,1024,1440,1920]:
-  q=fresh(width,900)
-  q.locator('#legend-chapter-3').click()
-  ck(f'Legend has no horizontal overflow at {width}px',q.evaluate('document.documentElement.scrollWidth<=innerWidth+1'))
-  q.locator('#legend-expand').click()
-  ck(f'Full-screen viewer fits {width}px',q.locator('#legend-cinema').evaluate('e=>e.scrollWidth<=innerWidth+1'))
-  q.keyboard.press('Escape')
-  q.locator('[data-open="full-legend"]').first.click()
-  ck(f'Illustrated reader fits {width}px',q.locator('#full-legend').evaluate('e=>e.scrollWidth<=e.clientWidth+1'))
-  q.close()
- q=fresh(390,844,is_mobile=True,has_touch=True)
- q.locator('#legend-chapter-0').tap()
- q.locator('#legend-scene-0 [data-legend-swipe]').evaluate('''e=>{const start=new Event('touchstart');Object.defineProperty(start,'touches',{value:[{clientX:260,clientY:170}]});e.dispatchEvent(start);const end=new Event('touchend');Object.defineProperty(end,'changedTouches',{value:[{clientX:110,clientY:174}]});e.dispatchEvent(end);}''')
- ck('Horizontal touch gesture advances scene',q.locator('#legend-scene-1').is_visible())
- q.locator('#legend-scene-1 [data-legend-swipe]').evaluate('''e=>{const start=new Event('touchstart');Object.defineProperty(start,'touches',{value:[{clientX:200,clientY:270}]});e.dispatchEvent(start);const end=new Event('touchend');Object.defineProperty(end,'changedTouches',{value:[{clientX:205,clientY:130}]});e.dispatchEvent(end);}''')
- ck('Vertical touch gesture leaves chapter unchanged',q.locator('#legend-scene-1').is_visible())
- q.close()
- q=fresh(reduced_motion='reduce');q.locator('#legend-chapter-1').click()
- ck('Reduced-motion mode preserves readable scene',q.locator('#legend-scene-1 img').is_visible() and q.locator('#legend-scene-1 img').evaluate('e=>getComputedStyle(e).animationName')=='none')
- q.close()
- ck('No browser JavaScript exceptions',not errors)
- b.close()
-(ROOT/'QA-legend.json').write_text(json.dumps({'checks':checks,'errors':errors,'scope':'Local Chromium set_content, desktop/mobile emulation, keyboard and synthetic touch events. No external hosting, payment or download delivery.'},indent=2))
-failed=[c['test'] for c in checks if not c['passed']]
-if failed:raise SystemExit('Failed: '+', '.join(failed))
-print('All '+str(len(checks))+' illustrated-legend checks passed.')
+
+ROOT = Path(__file__).resolve().parent
+FILES = [
+    ROOT / "index.template.html",
+    ROOT / "index.html",
+    ROOT / "legend.html",
+    ROOT / "keld-legend-standalone.html",
+]
+
+for path in FILES:
+    source = path.read_text()
+    assert "Synvora" in source, f"{path.name} is missing Synvora branding"
+    for retired in (
+        'id="legend"',
+        'href="#legend"',
+        'id="full-legend"',
+        'id="legend-cinema"',
+        'assets/legend.css',
+        'assets/legend.js',
+    ):
+        assert retired not in source, f"{path.name} still contains {retired}"
+
+print("Legend removal checks passed for template and compatibility outputs.")

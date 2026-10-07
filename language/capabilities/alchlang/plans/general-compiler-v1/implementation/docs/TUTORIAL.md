@@ -63,7 +63,7 @@ its `v2` package name is not its release version. AlchLang retains its independe
 Build the bound compiler from the repository root first:
 
 ```bash
-npm --prefix projects/domainspec-v2/impl/cli run build
+npm --prefix craft/projects/domainspec-v2/impl/cli run build
 ```
 
 Then, from the AlchLang `implementation` directory:

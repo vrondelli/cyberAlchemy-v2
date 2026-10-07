@@ -1,9 +1,18 @@
 # Perfect-score successor campaign
 
-Status: authorized candidate implementation; live successor runs require a frozen,
-reviewed experiment. The active user goal is: “continue until we have reach perfect
-score,”. This goal remains active; neither implementation tests nor the prior pilot
-prove achievement.
+Status: historical perfect-score construction plan with a current candidate-only
+overlay. Current as of 2026-09-22.
+
+The current continuation is [NEXT-DAG.md](NEXT-DAG.md). The hash-pinned
+[BENCHMARK-EVOLUTION-WORKFLOW.md](BENCHMARK-EVOLUTION-WORKFLOW.md) remains the
+predecessor cycle contract, not the live queue. Fresh controls are suspended.
+H-L completed and produced counterevidence; H-EN has passed HEN-09 tokenizer
+qualification. The next work is HEN-10 registration, exact run freeze, and
+independent launch review. The paired-control DAG and frontier below are
+preserved to explain earlier decisions and must not be executed as current instructions.
+
+The active user goal remains perfect native quality. Neither implementation tests
+nor any prior pilot prove achievement.
 
 ## Objective and evidence contract
 
@@ -64,7 +73,7 @@ three-handle limit; this cannot become a ceiling on the objective. Any wider sch
 is a separately versioned candidate with strict validation and 8K admission.
 Never create a read ID for evidence that was not delivered to the model.
 
-## Work DAG
+## Historical paired-control work DAG (superseded)
 
 ```mermaid
 flowchart TD
@@ -92,7 +101,7 @@ flowchart TD
   H --> Q[Scope-matched completion audit]
 ```
 
-## Current frontier and operational lane
+## Historical frontier and operational lane (superseded)
 
 | Lane | Owner | Work | Gate / close condition |
 | --- | --- | --- | --- |
@@ -143,7 +152,7 @@ A local replay or policy-only ablation cannot satisfy the full-task efficiency
 contract. Do not equate an aggregate average, exposed cohort or infrastructure
 pass with full-benchmark qualification.
 
-## Updated frontier after offline implementation
+## Historical frontier after offline implementation (superseded)
 
 All 106 offline tests pass, including receipt-bound terminal review through real
 recycling and independent native export. Five archived failures replay correctly.

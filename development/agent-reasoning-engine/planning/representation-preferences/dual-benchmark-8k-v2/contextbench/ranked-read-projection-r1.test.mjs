@@ -44,3 +44,21 @@ test('aggregate admission measures each exact view and archives raw before proje
 test('no prefix fit denies without extra execution or retries',async()=>{
  const f=await two();const r=await admitToolBatch({messages:[{role:'system',content:'Test source acquisition.'}],tools:[],assistant:f.wire.messages[0],results:[f.result],ranked_evidence:f.ranked_evidence,archive:async()=>{},measure:async()=>8100,limit:7998});assert.equal(r.status,'denied');assert.deepEqual(r.attempts.map(x=>x.kept_units),[[2],[1],[0]]);
 });
+test('compact archived-read recovery binds origin without nonexistent path arguments',async()=>{
+ const f=await two(),args={archive_sha256:'d'.repeat(64),observation_index:0};
+ const call={id:'recovered',type:'function',function:{name:'recover_archived_read',arguments:stable(args)}};
+ const assistant={role:'assistant',tool_calls:[call]};
+ const result={ok:true,output:structuredClone(f.result.output.observations[0]),archive_origin:args};
+ const input={messages:[{role:'system',content:'Test recovered source.'}],tools:[],assistant,results:[result],archive:async()=>{},limit:7998};
+ const admitted=await admitToolBatch({...input,measure:async()=>7900});
+ assert.equal(admitted.status,'admitted');assert.equal(admitted.outputs[0].output.path,result.output.path);
+ await assert.rejects(admitToolBatch({...input,results:[{...result,archive_origin:{...args,archive_sha256:'e'.repeat(64)}}],measure:async()=>7900}),/recovery-origin-binding/);
+ let projectedCalls=0;
+ const projected=await admitToolBatch({...input,measure:async(_prompt)=>projectedCalls++===0?8100:7900});
+ assert.equal(projected.status,'admitted');assert.equal(projected.outputs[0].output.end_line,result.output.start_line);
+ assert.deepEqual(projected.outputs[0].deferred.resume.arguments,{...args,path:result.output.path,revision:result.output.source_revision,start_line:result.output.start_line+1,line_count:1});
+ const full={...args,path:result.output.path,revision:result.output.source_revision,start_line:result.output.start_line,line_count:2};
+ const fullCall={...call,function:{...call.function,arguments:stable(full)}};
+ assert.equal((await admitToolBatch({...input,assistant:{role:'assistant',tool_calls:[fullCall]},measure:async()=>7900})).status,'admitted');
+ await assert.rejects(admitToolBatch({...input,assistant:{role:'assistant',tool_calls:[{...fullCall,function:{...fullCall.function,arguments:stable({...full,path:'wrong.txt'})}}]},measure:async()=>7900}),/read-binding/);
+});

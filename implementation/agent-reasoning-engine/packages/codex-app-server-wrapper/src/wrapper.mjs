@@ -1,20 +1,29 @@
 import {digestValue, fail, freezeResult, isRecord, nonEmptyString} from "./canonical.mjs";
 import {evaluateDualLaneContinuation, normalizeContinuationProposals, projectObjectiveFrontierForTurnStart} from "./continuation.mjs";
 import {bindApprovalResponse, evaluateEffectRequest} from "./effect-boundary.mjs";
+import {prepareHostedCommandExecution} from "./hosted-effect-execution.mjs";
 import {createEvidenceLedger} from "./evidence-ledger.mjs";
 import {evaluateTurnPreflight} from "./preflight.mjs";
+import {createCodexModelEntryReceipt} from "./model-entry-receipt.mjs";
+import {sharedWrapperServerRequestPosture, ungovernedHostMethod} from "./host-method-policy.mjs";
 import {evaluateSemanticCompletion} from "./semantic-completion.mjs";
 import {emitCompletionImprovementSignals} from "./evolution-signals.mjs";
 import {addIntentLifecycleContext, prepareCodexIntentLifecycle, INTENT_CONTEXT_KEY} from "./intent-lifecycle.mjs";
 import {addObjectiveContext, createCodexObjectiveLifecycle, OBJECTIVE_CONTEXT_KEY} from "./objective-lifecycle.mjs";
-import {createInteractionLearningLifecycle, addInteractionLearningContext, LEARNING_CONTEXT_KEY} from "./interaction-learning-lifecycle.mjs";
+import {createInteractionLearningLifecycle, addInteractionLearningContext, LEARNING_CONTEXT_KEY,
+  LEARNING_PRECEDENCE_CONTEXT_KEY} from "./interaction-learning-lifecycle.mjs";
 import {INTERACTION_HOST_CONTEXT_KEY} from "./interaction-host.mjs";
+import {hostedRequirementSeed} from "./request-context.mjs";
+import {addContinuityContext, CONTINUITY_CONTEXT_KEY, materializeContinuityProjection} from "./continuity-renderer.mjs";
 import {deriveReasoningReceiptConstraints} from "./reasoning-receipt-constraints.mjs";
 import {
   acquireReasoningStateWriterLock,
+  appendReasoningPlanContext,
   bindCacheTelemetryObservation,
   createReasoningStateLedger,
   createRequestSeriesHeader,
+  getLatestReasoningPlanContext,
+  materializeReasoningPlanContext,
   materializeContextBoundCacheAffinityProjection,
   materializeReasoningDispatch,
   recoverReasoningStateLedger,
@@ -23,6 +32,9 @@ import {
 import {composeReasoningEvolution} from "../../reasoning-policy-runtime/index.mjs";
 import {extractProviderCacheUsage} from "./cache-telemetry.mjs";
 import {createCodexContextWindowTracker} from "./context-window-telemetry.mjs";
+import {projectWrapperReasoningThreads} from "./thread-observation.mjs";
+import {observeMarkedTurnInHostHistory, verifyAcceptedTurnInHostHistory} from "./host-turn-reconciliation.mjs";
+import {projectWrapperDecisionTrace} from "./decision-observation.mjs";
 import {applyIntentControl, assessIntentRealization, materializeUserControlProfile, projectIntentInspection} from "../../request-intent-runtime/index.mjs";
 import {createNativeSemanticModulePort} from "../../module-port/native-semantic-adapter.mjs";
 import {
@@ -30,9 +42,12 @@ import {
   addContextFragment,
   denyApprovalResult,
   directiveNotification,
+  continuityNotification,
   EFFECT_METHODS,
   EVIDENCE_METHODS,
   extractTurnIdentity,
+  HOSTED_EFFECT_ASSESS,
+  HOSTED_EFFECT_EXECUTE,
   jsonRpcError,
   PROTOCOL_VERSION,
   semanticNotification,
@@ -47,6 +62,18 @@ const REGISTER_INTERACTION = "cyberalchemy/continuation/registerInteraction";
 const INTENT_GET = "cyberalchemy/intent/get";
 const INTENT_PROJECT = "cyberalchemy/intent/project";
 const INTENT_CONTROL = "cyberalchemy/intent/control";
+const FEEDBACK_SUBMIT = "cyberalchemy/learning/submitFeedback";
+const FEEDBACK_APPLY = "cyberalchemy/learning/applyPendingFeedback";
+const FEEDBACK_DISMISS = "cyberalchemy/learning/dismissPendingFeedback";
+const FEEDBACK_PENDING_LIST = "cyberalchemy/learning/pendingFeedback/list";
+const LEARNING_LESSONS_LIST = "cyberalchemy/learning/lessons/list";
+const LEARNING_STATUS = "cyberalchemy/learning/status";
+const TURN_STEER = "turn/steer";
+const codexWrapperInstances = new WeakSet();
+
+export function isCodexAppServerWrapper(value) {
+  return value !== null && typeof value === "object" && codexWrapperInstances.has(value);
+}
 
 function response(id, result) {
   return freezeResult({jsonrpc: PROTOCOL_VERSION, id, result});
@@ -61,6 +88,10 @@ export function createCodexAppServerWrapper(options) {
     || !isRecord(options.loaded_profile)
     || !isRecord(options.decision_profile)) {
     throw new TypeError("A loaded repository profile and verified decision profile are required.");
+  }
+  if (options.allow_hosted_effect_tool !== undefined
+    && typeof options.allow_hosted_effect_tool !== "boolean") {
+    throw new TypeError("allow_hosted_effect_tool must be a boolean.");
   }
   const ledger = options.ledger ?? createEvidenceLedger({profile: options.loaded_profile.runtime_journal});
   const modulePort = Object.hasOwn(options, "module_port") ? options.module_port : createNativeSemanticModulePort();
@@ -107,12 +138,69 @@ export function createCodexAppServerWrapper(options) {
     });
   }
   const pendingApprovals = new Map();
+  // The gateway gives each consumer its own Reasoning State ledger. Recover only
+  // the bounded, content-free observation facts; the public projection still
+  // hashes the backend thread and never exposes a question or transcript.
+  const recentDecisionEvents = reasoningLedger.snapshot()
+    .filter((event) => event.event_kind === "decision-observation-recorded")
+    .map((event) => event.content)
+    .filter((content) => projectWrapperDecisionTrace([content]).length === 1)
+    .slice(-128);
+  let decisionObservationPersistenceFailure = null;
+  function rememberDecision(decisionType, threadId, directive, event) {
+    if (!nonEmptyString(threadId) || !Number.isSafeInteger(event?.sequence) || !nonEmptyString(event?.event_digest)) return;
+    const observation = projectWrapperDecisionTrace([{
+      decision_type: decisionType,
+      thread_id: threadId,
+      outcome: directive?.directive_kind ?? "unknown",
+      decision_digest: directive?.decision_digest ?? digestValue(directive),
+      evidence_event_digest: event.event_digest,
+      event_sequence: event.sequence,
+      observed_at_unix_ms: Date.now(),
+      reason_codes: directive?.reason_codes ?? [],
+    }])[0];
+    if (!observation) return;
+    const saved = checkpointBoundary({
+      checkpoint_kind: "manual",
+      event_kind: "decision-observation-recorded",
+      content: observation,
+      subject_digest: observation.decision_digest,
+      consumer_ref: options.loaded_profile.turn_bindings.default.consumer_ref,
+      request_ref: `decision-observation:${event.event_digest}`,
+    });
+    if (!saved.ok) decisionObservationPersistenceFailure = saved.reason_codes;
+    recentDecisionEvents.push(observation);
+    if (recentDecisionEvents.length > 128) recentDecisionEvents.shift();
+  }
   const currentViews = new Map();
   const proposalsByThread = new Map();
   const completionByThread = new Map();
   const completionByTurn = new Map();
   const pendingTurnStates = new Map();
   const activeTurnStates = new Map();
+  const hostedEffectAssessments = new Map();
+  const pendingHostedCommands = new Map();
+  const dispatchedHostedEffects = new Set();
+  const boundRequestDigests = new Map();
+  const recoveredActiveTurnKeys = new Set();
+  const bindingStateDigests = new Map();
+  const recoveredTerminalTurns = new Map();
+  const pendingSteers = new Map();
+  const degradedSteerThreads = new Set();
+  const unresolvedSteerAdmissions = new Map();
+  for (const event of reasoningLedger.snapshot()) {
+    const content = event.content;
+    if (!nonEmptyString(content?.request_digest) || !nonEmptyString(content?.thread_id)) continue;
+    if (event.event_kind === "steer-admission-recorded") {
+      unresolvedSteerAdmissions.set(content.request_digest, content.thread_id);
+    } else if (["steer-accepted-recorded", "steer-rejected-recorded"].includes(event.event_kind)) {
+      unresolvedSteerAdmissions.delete(content.request_digest);
+    } else if (event.event_kind === "steer-continuity-degraded") {
+      degradedSteerThreads.add(content.thread_id);
+      unresolvedSteerAdmissions.delete(content.request_digest);
+    }
+  }
+  for (const threadId of unresolvedSteerAdmissions.values()) degradedSteerThreads.add(threadId);
   const semanticCompletions = new Map();
   const evolutionSignalEmissions = new Map();
   const intentContractsByThread = new Map();
@@ -192,15 +280,114 @@ export function createCodexAppServerWrapper(options) {
     completionByThread.set(persisted.thread_id, {completion: persisted.completion, directive: persisted.continuation_result});
   }
 
-  function rememberTurnStart(message, result, reasoning, intentLifecycle = null) {
+  // The dispatch checkpoint alone cannot reconstruct the semantic inputs of a
+  // host turn. Replay only separately checkpointed, explicit turn state; a
+  // malformed binding is a recovery failure, not an invitation to re-dispatch.
+  try {
+    const recoveredBindings = new Map();
+    for (const event of reasoningLedger.snapshot()) {
+      const content = event.content;
+      if (event.event_kind === "semantic-turn-state-prepared") {
+        const state = content?.state;
+        if (state?.schema_version !== "are.codex-semantic-turn-state/v1"
+          || !Object.hasOwn(state, "rpc_id") || !nonEmptyString(state.thread_id)
+          || !nonEmptyString(state.consumer_ref) || digestValue(state) !== content.state_digest) {
+          throw new TypeError("semantic.turn-state-recovery-invalid");
+        }
+        pendingTurnStates.set(String(state.rpc_id), freezeResult(state));
+      } else if (event.event_kind === "semantic-turn-state-bound") {
+        const pending = pendingTurnStates.get(String(content?.rpc_id));
+        if (!pending || pending.thread_id !== content.thread_id
+          || !nonEmptyString(content.turn_id) || digestValue(pending) !== content.state_digest) {
+          throw new TypeError("semantic.turn-binding-recovery-invalid");
+        }
+        pendingTurnStates.delete(String(content.rpc_id));
+        const key = turnKey(content.thread_id, content.turn_id);
+        activeTurnStates.set(key, freezeResult({...pending, turn_id: content.turn_id}));
+        if (typeof pending.request_binding_digest === "string") {
+          boundRequestDigests.set(key, pending.request_binding_digest);
+        }
+        recoveredBindings.set(key, event.event_digest);
+        bindingStateDigests.set(key, content.state_digest);
+      } else if (event.event_kind === "semantic-turn-start-rejected") {
+        const pending = pendingTurnStates.get(String(content?.rpc_id));
+        if (!pending || digestValue(pending) !== content.state_digest) {
+          throw new TypeError("semantic.turn-rejection-recovery-invalid");
+        }
+        pendingTurnStates.delete(String(content.rpc_id));
+      } else if (event.event_kind === "semantic-turn-recovery-terminal") {
+        const key = turnKey(content?.thread_id, content?.turn_id);
+        const state = activeTurnStates.get(key);
+        if (!state || completionFrontiers.has(key)
+          || !["completed", "interrupted", "failed"].includes(content?.host_status)
+          || content.state_digest !== bindingStateDigests.get(key)
+          || content.thread_ref !== `backend-thread:${digestValue(content.thread_id)}`
+          || content.turn_ref !== digestValue(content.turn_id)
+          || !/^[0-9a-f]{64}$/.test(content.host_observation_digest ?? "")
+          || (content.host_observation_kind !== undefined
+            && content.host_observation_kind !== "turn-marker-observed")
+          || (content.host_observation_kind === "turn-marker-observed"
+            && !/^[0-9a-f]{64}$/.test(state.request_binding_digest ?? ""))) {
+          throw new TypeError("semantic.turn-terminal-recovery-invalid");
+        }
+        recoveredTerminalTurns.set(key, freezeResult({...state,
+          recovery_terminal_status: content.host_status,
+          recovery_host_observation_digest: content.host_observation_digest,
+          recovery_semantic_receipt_digest: event.event_digest,
+          recovery_terminal_event_sequence: event.sequence}));
+        activeTurnStates.delete(key);
+      }
+    }
+    for (const key of completionFrontiers.keys()) activeTurnStates.delete(key);
+    for (const key of activeTurnStates.keys()) recoveredActiveTurnKeys.add(key);
+    // The runtime journal is process-local. Rebuild its context-binding cut
+    // from the verified Reasoning State binding, explicitly as a recovery
+    // projection rather than a fresh observation of the host.
+    for (const [key, state] of activeTurnStates) {
+      const recorded = ledger.record({
+        event_kind: "turn-state-bound", direction: "reasoning-state-recovery", method: TURN_START,
+        rpc_id: state.rpc_id, thread_id: state.thread_id, turn_id: state.turn_id,
+        context_epoch_id: state.context_epoch_id,
+        context_envelope_digest: state.context_envelope_digest,
+        decision_digest: state.preflight_decision_digest,
+        binding_digest: recoveredBindings.get(key),
+      });
+      if (recorded.ok === false) throw new TypeError(`semantic.turn-binding-journal-recovery-failed:${recorded.reason_codes.join(",")}`);
+      if (state.intent_contract) intentContractsByThread.set(state.thread_id, state.intent_contract);
+    }
+  } catch (error) {
+    reasoningLedger.close();
+    reasoningWriterLock?.release();
+    throw error;
+  }
+
+  function rememberTurnStart(message, result, reasoning, intentLifecycle = null, originalMessage = message,
+    gatewayRequestBindingDigest = null) {
     const threadId = message.params?.threadId;
-    if (!nonEmptyString(threadId) || !Object.hasOwn(message, "id")) return;
+    if (!nonEmptyString(threadId) || !Object.hasOwn(message, "id")) return fail("semantic-turn-state", ["semantic.turn-identity-missing"]);
     const routeDecision = result.composition?.value?.route_decision;
-    if (!isRecord(result.request_context) || !isRecord(routeDecision) || !isRecord(result.context_envelope)) return;
-    pendingTurnStates.set(String(message.id), freezeResult({
+    if (!isRecord(result.request_context) || !isRecord(routeDecision) || !isRecord(result.context_envelope)) return fail("semantic-turn-state", ["semantic.turn-input-missing"]);
+    let requestBindingDigest = digestValue({method: originalMessage.method,
+      params: Object.hasOwn(originalMessage, "params") ? originalMessage.params : null});
+    if (gatewayRequestBindingDigest !== null) {
+      const marker = originalMessage.params?.clientUserMessageId;
+      if (!/^are-gateway-client:[0-9a-f]{32}$/u.test(marker ?? "")
+        || !/^[0-9a-f]{64}$/u.test(gatewayRequestBindingDigest)) {
+        return fail("semantic-turn-state", ["semantic.gateway-request-binding-invalid"]);
+      }
+      const originalParams = {...originalMessage.params};
+      delete originalParams.clientUserMessageId;
+      const verifiedDigest = digestValue({method: originalMessage.method, params: originalParams});
+      if (verifiedDigest !== gatewayRequestBindingDigest) {
+        return fail("semantic-turn-state", ["semantic.gateway-request-binding-mismatch"]);
+      }
+      requestBindingDigest = verifiedDigest;
+    }
+    const state = freezeResult({
       schema_version: "are.codex-semantic-turn-state/v1",
       rpc_id: message.id,
       thread_id: threadId,
+      request_binding_digest: requestBindingDigest,
       request_context: result.request_context,
       route_decision: routeDecision,
       context_envelope: result.context_envelope,
@@ -215,18 +402,26 @@ export function createCodexAppServerWrapper(options) {
       consumer_ref: reasoning.epoch.consumer_ref,
       reasoning_dispatch_digest: reasoning.dispatch.dispatch_digest,
       reasoning_checkpoint_digest: reasoning.checkpoint.checkpoint_digest,
+      plan_context_digest: reasoning.plan_context_digest,
       intent_contract: intentLifecycle?.intent_contract ?? null,
       intent_contract_digest: intentLifecycle?.intent_contract?.intent_contract_digest ?? null,
       intent_reflection_digest: intentLifecycle?.reflection?.reflection_digest ?? null,
       authority_effect: "none",
-    }));
+    });
+    const stateDigest = digestValue(state);
+    const saved = checkpointBoundary({checkpoint_kind: "before-model-request", event_kind: "semantic-turn-state-prepared",
+      content: {state, state_digest: stateDigest}, subject_digest: stateDigest,
+      consumer_ref: state.consumer_ref, request_ref: `semantic-turn:${String(state.rpc_id)}`});
+    if (!saved.ok) return saved;
+    pendingTurnStates.set(String(message.id), state);
+    return freezeResult({ok: true, state_digest: stateDigest, checkpoint_digest: saved.checkpoint.checkpoint_digest, authority_effect: "none"});
   }
 
-  function checkpointBoundary({checkpoint_kind, event_kind, content, subject_digest, consumer_ref, request_ref}) {
+  function checkpointBoundary({checkpoint_kind, event_kind, content, subject_digest, consumer_ref, request_ref, related_event_digests = []}) {
     const appended = reasoningLedger.append({event_kind, content});
     if (!appended.ok) return fail("reasoning-state", appended.reason_codes, appended.residue);
     const sealed = reasoningLedger.seal({
-      event_digests: [appended.event.event_digest],
+      event_digests: [...related_event_digests, appended.event.event_digest],
       consumer_ref,
       request_ref,
       frontier: {checkpoint_kind},
@@ -234,13 +429,122 @@ export function createCodexAppServerWrapper(options) {
     if (!sealed.ok) return fail("reasoning-state", sealed.reason_codes, sealed.residue);
     const checkpoint = reasoningLedger.checkpoint({checkpoint_kind, epoch: sealed.value, subject_digest});
     if (!checkpoint.ok) return fail("reasoning-state", checkpoint.reason_codes, checkpoint.residue);
-    return freezeResult({ok: true, epoch: sealed.value, checkpoint: checkpoint.value, authority_effect: "none"});
+    return freezeResult({ok: true, event: appended.event, epoch: sealed.value,
+      checkpoint: checkpoint.value, authority_effect: "none"});
+  }
+
+  function reconcileRecoveredTerminalTurn({request, acceptance, marker_observation, response, thread_id, turn_id} = {}) {
+    if (closed) return fail("recovery-terminal", ["reasoning.wrapper-closed"]);
+    const marked = marker_observation !== undefined;
+    const verified = marked ? observeMarkedTurnInHostHistory({request, response})
+      : verifyAcceptedTurnInHostHistory({request, acceptance, response});
+    if (!verified.ok) return fail("recovery-terminal", verified.reason_codes);
+    const markerMaterial = isRecord(marker_observation) ? {...marker_observation} : null;
+    if (markerMaterial) delete markerMaterial.observation_digest;
+    if (marked && (!markerMaterial || marker_observation.kind !== "turn-marker-observed"
+      || marker_observation.observation_digest !== digestValue(markerMaterial)
+      || !/^[0-9a-f]{64}$/.test(marker_observation.history_response_digest ?? "")
+      || ["thread_ref", "turn_ref", "request_key_digest", "request_digest",
+        "client_message_id_digest", "turn_status"].some((field) =>
+        marker_observation[field] !== verified.observation[field]))) {
+      return fail("recovery-terminal", ["reasoning.recovery-marker-receipt-mismatch"]);
+    }
+    if ((!marked && request.status !== "complete")
+      || !["completed", "interrupted", "failed"].includes(verified.observation.turn_status)) {
+      return fail("recovery-terminal", ["reasoning.recovery-terminal-ineligible"]);
+    }
+    if (!nonEmptyString(thread_id) || !nonEmptyString(turn_id)
+      || verified.observation.thread_ref !== `backend-thread:${digestValue(thread_id)}`
+      || verified.observation.turn_ref !== digestValue(turn_id)) {
+      return fail("recovery-terminal", ["reasoning.recovery-terminal-identity-mismatch"]);
+    }
+    const key = turnKey(thread_id, turn_id);
+    if (marked && completionFrontiers.has(key)) {
+      return boundRequestDigests.get(key) === request.binding_digest
+        && completionFrontiers.get(key)?.frontier?.state?.completion?.status === verified.observation.turn_status
+        ? freezeResult({ok: true, disposition: "already-completed",
+          semantic_receipt_digest: completionFrontiers.get(key).frontier.frontier_digest,
+          authority_effect: "none"})
+        : fail("recovery-terminal", ["reasoning.recovery-marker-state-unbound"]);
+    }
+    const prior = recoveredTerminalTurns.get(key);
+    if (prior) return prior.recovery_terminal_status === verified.observation.turn_status
+      && (!marked || prior.request_binding_digest === request.binding_digest)
+      ? freezeResult({ok: true, disposition: "already-reconciled",
+        semantic_receipt_digest: prior.recovery_semantic_receipt_digest, authority_effect: "none"})
+      : fail("recovery-terminal", ["reasoning.recovery-terminal-status-conflict"]);
+    let state = activeTurnStates.get(key);
+    if (marked) {
+      if (state && state.request_binding_digest !== request.binding_digest) {
+        return fail("recovery-terminal", ["reasoning.recovery-marker-state-mismatch"]);
+      }
+      if (!state) {
+        const matches = [...pendingTurnStates.values()].filter((pending) =>
+          pending.thread_id === thread_id && pending.request_binding_digest === request.binding_digest);
+        if (matches.length !== 1) return fail("recovery-terminal", ["reasoning.recovery-marker-state-unbound"]);
+        state = bindPendingTurn(matches[0].rpc_id, turn_id);
+        if (!state) return fail("recovery-terminal", ["reasoning.recovery-marker-state-unbound"]);
+        recoveredActiveTurnKeys.add(key);
+      }
+    }
+    if (!state || !recoveredActiveTurnKeys.has(key)) return marked
+      ? fail("recovery-terminal", ["reasoning.recovery-marker-state-unbound"])
+      : freezeResult({ok: true, disposition: "not-recovered", authority_effect: "none"});
+    if (!bindingStateDigests.has(key)) return fail("recovery-terminal", ["reasoning.recovered-turn-unbound"]);
+    const content = {thread_id, turn_id, thread_ref: verified.observation.thread_ref,
+      turn_ref: verified.observation.turn_ref, state_digest: bindingStateDigests.get(key),
+      host_status: verified.observation.turn_status,
+      host_observation_digest: marked ? marker_observation.observation_digest
+        : verified.observation.observation_digest, authority_effect: "none"};
+    if (marked) content.host_observation_kind = "turn-marker-observed";
+    const saved = checkpointBoundary({checkpoint_kind: "manual", event_kind: "semantic-turn-recovery-terminal",
+      content, subject_digest: digestValue(content), consumer_ref: state.consumer_ref,
+      request_ref: `recovery-terminal:${verified.observation.turn_ref}`});
+    if (!saved.ok) return saved;
+    recoveredTerminalTurns.set(key, freezeResult({...state,
+      recovery_terminal_status: content.host_status,
+      recovery_host_observation_digest: content.host_observation_digest,
+      recovery_semantic_receipt_digest: saved.event.event_digest,
+      recovery_terminal_event_sequence: saved.event.sequence}));
+    activeTurnStates.delete(key);
+    recoveredActiveTurnKeys.delete(key);
+    ledger.record({event_kind: "recovered-turn-terminal-reconciled", direction: "gateway-host-history",
+      method: "thread/read", thread_id, turn_id, host_status: content.host_status,
+      host_observation_digest: content.host_observation_digest, authority_effect: "none"});
+    return freezeResult({ok: true, disposition: "reconciled-terminal", host_status: content.host_status,
+      checkpoint_digest: saved.checkpoint.checkpoint_digest,
+      semantic_receipt_digest: saved.event.event_digest, authority_effect: "none"});
   }
 
   function prepareModelDispatch(message, result, binding, intentLifecycle = null) {
     const requestContext = result.request_context;
     const routeDecision = result.composition?.value?.route_decision;
     const envelope = result.context_envelope?.value;
+    let planContextEvent = null;
+    if (typeof options.plan_context_provider === "function") {
+      const threadRef = message.params?.threadId;
+      const previous = getLatestReasoningPlanContext(reasoningLedger, threadRef);
+      let supplied;
+      try {
+        supplied = options.plan_context_provider({thread_ref: threadRef, previous_plan_context_digest: previous?.content.plan_context_digest ?? null, request_ref: requestContext?.request_id ?? String(message.id)});
+      } catch {
+        return fail("reasoning-dispatch", ["reasoning.plan-context-provider-failed"]);
+      }
+      if (!isRecord(supplied) || !isRecord(supplied.input) || !isRecord(supplied.source_digests)) {
+        return fail("reasoning-dispatch", ["reasoning.plan-context-provider-invalid"]);
+      }
+      const validated = materializeReasoningPlanContext(supplied.input, {expected_thread_ref: threadRef, source_digests: supplied.source_digests});
+      if (!validated.ok) return fail("reasoning-dispatch", validated.reason_codes);
+      const planBudget = Math.min(options.loaded_profile.context_projection?.max_inline_bytes ?? 32768, 32768);
+      if (result.context_envelope.value.inline_bytes + Buffer.byteLength(JSON.stringify(validated.value), "utf8") > planBudget) {
+        return fail("reasoning-dispatch", ["requirements.shared-context-budget-exceeded"]);
+      }
+      planContextEvent = appendReasoningPlanContext(reasoningLedger, supplied.input, {
+        expected_thread_ref: threadRef,
+        source_digests: supplied.source_digests,
+      });
+      if (!planContextEvent.ok) return fail("reasoning-dispatch", planContextEvent.reason_codes, planContextEvent.residue);
+    }
     const requestEvent = reasoningLedger.append({
       event_kind: "request-interpreted",
       content: {
@@ -286,6 +590,7 @@ export function createCodexAppServerWrapper(options) {
       ...(currentReasoningEpoch?.event_digests ?? []),
       requestEvent.event.event_digest,
       contextEvent.event.event_digest,
+      ...(planContextEvent ? [planContextEvent.event.event_digest] : []),
       ...(result.objective_lifecycle?.event_digest ? [result.objective_lifecycle.event_digest] : []),
       ...(intentEvent ? [intentEvent.event.event_digest] : []),
     ])];
@@ -322,6 +627,7 @@ export function createCodexAppServerWrapper(options) {
         route_id: routeDecision?.selected?.route_id ?? null,
         capability_ref: routeDecision?.selected?.capability_ref ?? null,
         selected_dependencies_digest: selectedDependenciesDigest,
+        plan_context: planContextEvent?.value ?? null,
         selected_dependencies: (envelope?.selected_dependencies ?? []).filter((dependency) => !["request", "selection", "route"].includes(dependency.dependency_kind)),
         included_items: reusableItems,
         exclusions: envelope?.exclusions ?? [],
@@ -348,13 +654,15 @@ export function createCodexAppServerWrapper(options) {
     });
     if (!cacheAffinity.ok) return fail("reasoning-dispatch", cacheAffinity.reason_codes, cacheAffinity.residue);
     const forwardedMessage = addIntentLifecycleContext(addContextFragment(result.forwarded_message, result.fragment, cacheAffinity), intentLifecycle);
-    if (result.objective_lifecycle?.requirement_continuity || result.interaction_learning?.view || forwardedMessage.params.additionalContext?.[INTERACTION_HOST_CONTEXT_KEY]) {
+    if (planContextEvent || result.objective_lifecycle?.requirement_continuity || result.interaction_learning?.view || result.continuity_renderer?.projection || forwardedMessage.params.additionalContext?.[INTERACTION_HOST_CONTEXT_KEY]) {
       const budget = Math.min(options.loaded_profile.context_projection?.max_inline_bytes ?? 32768, 32768);
       // Charge additional semantic input against the existing selected-content
       // budget. Cache projections and envelope metadata repeat that content on
       // the wire and are not what max_inline_bytes measures.
-      const extraBytes = [OBJECTIVE_CONTEXT_KEY, INTENT_CONTEXT_KEY, LEARNING_CONTEXT_KEY, INTERACTION_HOST_CONTEXT_KEY].reduce((sum, key) =>
-        sum + Buffer.byteLength(forwardedMessage.params.additionalContext[key]?.value ?? '', "utf8"), 0);
+      const extraBytes = [OBJECTIVE_CONTEXT_KEY, INTENT_CONTEXT_KEY, LEARNING_CONTEXT_KEY,
+        LEARNING_PRECEDENCE_CONTEXT_KEY, INTERACTION_HOST_CONTEXT_KEY, CONTINUITY_CONTEXT_KEY].reduce((sum, key) =>
+        sum + Buffer.byteLength(forwardedMessage.params.additionalContext[key]?.value ?? '', "utf8"), 0)
+        + (planContextEvent ? Buffer.byteLength(JSON.stringify(planContextEvent.value), "utf8") : 0);
       const bytes = result.context_envelope.value.inline_bytes + extraBytes;
       if (!Number.isSafeInteger(budget) || budget < 1 || !Number.isSafeInteger(bytes) || bytes > budget) return fail("reasoning-dispatch", ["requirements.shared-context-budget-exceeded"]);
     }
@@ -407,6 +715,7 @@ export function createCodexAppServerWrapper(options) {
       dispatch: dispatch.value,
       verification: verified.value,
       checkpoint: checkpoint.value,
+      plan_context_digest: planContextEvent?.value.plan_context_digest ?? null,
       cache_affinity: cacheAffinity,
       forwarded_message: forwardedMessage,
       authority_effect: "none",
@@ -416,11 +725,21 @@ export function createCodexAppServerWrapper(options) {
   function bindPendingTurn(rpcId, turnId) {
     const pending = pendingTurnStates.get(String(rpcId));
     if (!pending || !nonEmptyString(turnId)) return null;
+    const binding = {rpc_id: pending.rpc_id, thread_id: pending.thread_id, turn_id: turnId, state_digest: digestValue(pending)};
+    const saved = checkpointBoundary({checkpoint_kind: "manual", event_kind: "semantic-turn-state-bound",
+      content: binding, subject_digest: digestValue(binding), consumer_ref: pending.consumer_ref,
+      request_ref: `semantic-turn-binding:${String(rpcId)}`});
+    if (!saved.ok) throw new Error(`semantic.turn-binding-not-durable:${saved.reason_codes.join(",")}`);
     pendingTurnStates.delete(String(rpcId));
     const state = freezeResult({...pending, turn_id: turnId});
     const learningBinding = learning.bind(pending.rpc_id ?? rpcId, state.thread_id, turnId);
     if (!learningBinding.ok) ledger.record({event_kind: "interaction-learning-blocked", direction: "wrapper", reason_codes: learningBinding.reason_codes});
-    activeTurnStates.set(turnKey(state.thread_id, turnId), state);
+    const key = turnKey(state.thread_id, turnId);
+    activeTurnStates.set(key, state);
+    bindingStateDigests.set(key, binding.state_digest);
+    if (typeof state.request_binding_digest === "string") {
+      boundRequestDigests.set(key, state.request_binding_digest);
+    }
     ledger.record({
       event_kind: "turn-state-bound",
       direction: "wrapper",
@@ -477,6 +796,8 @@ export function createCodexAppServerWrapper(options) {
     if (pendingApprovals.size > 0) blockers.push("session.pending-approval");
     if (pendingTurnStates.size > 0) blockers.push("session.pending-turn-start");
     if (activeTurnStates.size > 0) blockers.push("session.active-turn");
+    if (pendingSteers.size > 0) blockers.push("session.pending-steer");
+    if (degradedSteerThreads.size > 0) blockers.push("session.steer-continuity-degraded");
     if (internalRequests.size > 0) blockers.push("session.pending-internal-request");
     if (blockers.length > 0) return fail("session-eviction", blockers);
     const reason = nonEmptyString(input.reason) ? input.reason.trim() : "session-lifecycle-expiry";
@@ -495,6 +816,18 @@ export function createCodexAppServerWrapper(options) {
 
   function bindTurnResponse(message) {
     const turnId = message.result?.turn?.id;
+    const pending = pendingTurnStates.get(String(message.id));
+    if (!pending) return null;
+    if (!nonEmptyString(turnId) && Object.hasOwn(message, "error")) {
+      const rejection = {rpc_id: pending.rpc_id, state_digest: digestValue(pending), response_digest: digestValue(message)};
+      const saved = checkpointBoundary({checkpoint_kind: "manual", event_kind: "semantic-turn-start-rejected",
+        content: rejection, subject_digest: digestValue(rejection), consumer_ref: pending.consumer_ref,
+        request_ref: `semantic-turn-rejection:${String(message.id)}`});
+      if (!saved.ok) throw new Error(`semantic.turn-rejection-not-durable:${saved.reason_codes.join(",")}`);
+      pendingTurnStates.delete(String(message.id));
+      return null;
+    }
+    if (!nonEmptyString(turnId)) throw new Error("semantic.turn-response-unbound");
     return bindPendingTurn(message.id, turnId);
   }
 
@@ -538,30 +871,53 @@ export function createCodexAppServerWrapper(options) {
     return current;
   }
 
-  async function preflight(message, bindingOverride = null) {
+  async function preflight(message, bindingOverride = null, requestContext = {}) {
     const binding = resolveTurnBinding(message, bindingOverride);
     if (!binding) return fail("preflight", ["preflight.turn-binding-unresolved"]);
     let selectedSources = null;
-    const interaction = learning.prepare(message);
+    const interaction = learning.prepare(message, {allow_feedback:
+      options.require_hosted_input_attestation !== true || requestContext.hosted_input_verified === true});
     if (!interaction.ok) return fail("interaction-learning", interaction.reason_codes);
     const hostReferenceContext = message.params?.additionalContext?.[INTERACTION_HOST_CONTEXT_KEY];
     const selectedInteractionContext = [
       ...(interaction.view ? [{source_ref: `interaction-view:${interaction.view.record_digest}`, content: JSON.stringify(interaction.view)}] : []),
       ...(typeof hostReferenceContext?.value === 'string' ? [{source_ref: `host-reference-data:${digestValue(hostReferenceContext.value)}`, content: hostReferenceContext.value}] : []),
     ];
+    const requirementSeed = hostedRequirementSeed(message, requestContext.hosted_input_verified === true);
+    if (!requirementSeed.ok) return requirementSeed;
+    if (requirementSeed.value !== null
+      && options.loaded_profile.objective_resolution?.requirement_tracking !== true) {
+      return fail("objective-resolution", ["requirements.tracking-not-configured"]);
+    }
     const objective = await objectiveLifecycle.prepare(message, binding, async () => {
       selectedSources = await loadCurrentSources();
       return selectedSources;
-    }, selectedInteractionContext);
+    }, selectedInteractionContext, requirementSeed.value);
     if (!objective.ok) return freezeResult({ok: false, stage: "objective-resolution", ...objective, authority_effect: "none"});
+    let continuity = freezeResult({ok: true, disposition: "disabled", projection: null, authority_effect: "none"});
+    if (options.loaded_profile.continuity_renderer?.enabled === true) {
+      if (typeof options.continuity_binding_provider !== "function") return fail("continuity-renderer", ["continuity.engine-binding-provider-required"]);
+      let engineBinding;
+      try {
+        engineBinding = await options.continuity_binding_provider(freezeResult({message, turn_binding: binding, objective_resolution: objective.resolution, authority_effect: "none"}));
+      } catch {
+        return fail("continuity-renderer", ["continuity.engine-binding-provider-failed"]);
+      }
+      continuity = materializeContinuityProjection({configuration: options.loaded_profile.continuity_renderer, resolution: objective.resolution, engine_binding: engineBinding});
+      if (!continuity.ok) return continuity;
+    }
     if (objective.resolution) ledger.record({event_kind: "objective-transition-resolved", direction: "wrapper", method: TURN_START,
       rpc_id: message.id, thread_id: message.params.threadId, objective_resolution_digest: objective.resolution.resolution_digest,
       objective_state_digest: objective.resolution.next_state.state_digest, objective_transition: objective.resolution.transition});
+    if (continuity.projection) ledger.record({event_kind: "continuity-rendered", direction: "wrapper", method: TURN_START,
+      rpc_id: message.id, thread_id: message.params.threadId, projection_digest: continuity.projection.projection_digest,
+      objective_resolution_digest: continuity.projection.objective_resolution_digest, objective_transition: continuity.projection.transition,
+      renderer: continuity.projection.renderer, authority_effect: "none"});
     const previousState = currentViews.get(binding.view_key) ?? null;
     const current = selectedSources ?? await loadCurrentSources();
     if (!current?.ok) return fail("context-source-refresh", current?.reason_codes ?? ["context.source-refresh-failed"], current?.residue ?? []);
     const result = {...evaluateTurnPreflight({
-      message: addInteractionLearningContext(addObjectiveContext(message, objective), interaction),
+      message: addContinuityContext(addInteractionLearningContext(addObjectiveContext(message, objective), interaction), continuity),
       objective_resolution: objective.resolution,
       turn_binding: binding,
       decision_profile: current.decision_profile,
@@ -574,7 +930,7 @@ export function createCodexAppServerWrapper(options) {
       previous_envelope: previousState?.envelope ?? null,
       current_sources: current.source_snapshot ?? [],
       projection_policy: options.loaded_profile.context_projection,
-    }, {module_port: modulePort, context_module_port: contextModulePort}), objective_lifecycle: objective, interaction_learning: interaction};
+    }, {module_port: modulePort, context_module_port: contextModulePort}), objective_lifecycle: objective, interaction_learning: interaction, continuity_renderer: continuity};
     if (result.ok && result.action === "forward") {
       const view = result.composition.value.context_window_view.value;
       const envelope = result.context_envelope.value;
@@ -615,8 +971,87 @@ export function createCodexAppServerWrapper(options) {
   }
 
   async function effectMetadata(message) {
-    if (typeof options.effect_metadata_provider === "function") return await options.effect_metadata_provider(message);
-    return options.loaded_profile.effect_defaults?.[message.method] ?? null;
+    const supplied = typeof options.effect_metadata_provider === "function"
+      ? await options.effect_metadata_provider(message)
+      : options.loaded_profile.effect_defaults?.[message.method] ?? null;
+    const metadata = isRecord(supplied) ? supplied : {};
+    const identity = extractTurnIdentity(message);
+    const boundRoute = activeTurnStates.get(turnKey(identity.thread_id, identity.turn_id))
+      ?.route_decision?.selected?.route_id;
+    if (nonEmptyString(boundRoute)) return {...metadata, route_id: boundRoute};
+    if (options.require_bound_effect_route === true) return {...metadata, structurally_admissible: false,
+      rejection_reasons: [...new Set([...(Array.isArray(metadata.rejection_reasons) ? metadata.rejection_reasons : []),
+        "effect.turn-route-unbound"])]};
+    return supplied;
+  }
+
+  async function prepareSteer(message) {
+    const threadId = message.params?.threadId;
+    const turnId = message.params?.expectedTurnId;
+    if (!nonEmptyString(threadId) || !nonEmptyString(turnId) || !Array.isArray(message.params?.input)
+      || message.params.input.length === 0 || !Object.hasOwn(message, "id")) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32078, "ARE steer identity or input missing", {reason_codes: ["steer.identity-or-input-required"]})]};
+    }
+    if (degradedSteerThreads.has(threadId)) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32078, "ARE steer continuity degraded", {reason_codes: ["steer.continuity-degraded"]})]};
+    }
+    if (recoveredActiveTurnKeys.has(turnKey(threadId, turnId))) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32082, "ARE recovered turn is not reconciled", {reason_codes: ["reasoning.recovery-unverified"]})]};
+    }
+    const active = activeTurnStates.get(turnKey(threadId, turnId));
+    const binding = resolveTurnBinding(message);
+    if (!active || !binding || active.consumer_ref !== binding.view_key) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32078, "ARE active turn not bound", {reason_codes: ["steer.active-turn-unbound"]})]};
+    }
+    if ([...pendingSteers.values()].some((pending) => pending.thread_id === threadId && pending.turn_id === turnId)) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32078, "ARE steer already pending for turn", {reason_codes: ["steer.pending-for-turn"]})]};
+    }
+    const current = await loadCurrentSources();
+    if (!current?.ok) return {...emptyActions(), to_client: [jsonRpcError(message.id, -32079, "ARE steer source refresh failed", {reason_codes: current?.reason_codes ?? ["steer.source-refresh-failed"]})]};
+    const synthetic = freezeResult({...message, method: TURN_START});
+    const previousState = currentViews.get(binding.view_key) ?? null;
+    const evaluated = evaluateTurnPreflight({
+      message: synthetic, turn_binding: binding, decision_profile: current.decision_profile,
+      definition_catalog: current.definition_catalog, ontology_snapshot: current.ontology_snapshot,
+      instructions: current.instructions ?? [], supplemental_context_items: current.supplemental_context_items ?? [],
+      context: options.loaded_profile.context,
+      context_dependencies: binding.context_dependencies ?? options.loaded_profile.context?.dependencies,
+      previous_envelope: previousState?.envelope ?? null, current_sources: current.source_snapshot ?? [],
+      projection_policy: options.loaded_profile.context_projection,
+    }, {module_port: modulePort, context_module_port: contextModulePort});
+    if (!evaluated.ok || evaluated.action !== "forward") {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32079, "ARE steer preflight did not admit dispatch", evaluated.directive ?? evaluated)]};
+    }
+    let planCandidate = null;
+    if (typeof options.plan_context_provider === "function") {
+      const previous = getLatestReasoningPlanContext(reasoningLedger, threadId);
+      let supplied;
+      try {
+        supplied = options.plan_context_provider({thread_ref: threadId, previous_plan_context_digest: previous?.content.plan_context_digest ?? null,
+          request_ref: evaluated.request_context.request_id, operation: TURN_STEER, input: message.params.input, turn_ref: turnId});
+      } catch {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32079, "ARE steer plan provider failed", {reason_codes: ["steer.plan-provider-failed"]})]};
+      }
+      if (!isRecord(supplied) || !isRecord(supplied.input) || !isRecord(supplied.source_digests)) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32079, "ARE steer plan provider invalid", {reason_codes: ["steer.plan-provider-invalid"]})]};
+      }
+      const validated = materializeReasoningPlanContext(supplied.input, {expected_thread_ref: threadId, source_digests: supplied.source_digests});
+      if (!validated.ok || validated.value.previous_plan_context_digest !== (previous?.content.plan_context_digest ?? null)) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32079, "ARE steer plan candidate invalid", {reason_codes: validated.reason_codes ?? ["steer.plan-predecessor-invalid"]})]};
+      }
+      planCandidate = {...supplied, digest: validated.digest};
+    }
+    const requestDigest = digestValue(message);
+    const admission = checkpointBoundary({checkpoint_kind: "manual", event_kind: "steer-admission-recorded",
+      content: {thread_id: threadId, turn_id: turnId, request_digest: requestDigest, decision_digest: evaluated.directive.decision_digest,
+        candidate_plan_digest: planCandidate?.digest ?? null},
+      subject_digest: requestDigest, consumer_ref: binding.view_key, request_ref: evaluated.request_context.request_id});
+    if (!admission.ok) return {...emptyActions(), to_client: [jsonRpcError(message.id, -32079, "ARE steer admission not durable", admission)]};
+    pendingSteers.set(String(message.id), {thread_id: threadId, turn_id: turnId, binding, evaluated, plan_candidate: planCandidate, request_digest: requestDigest});
+    ledger.record({event_kind: "steer-admission-recorded", direction: "wrapper", method: TURN_STEER,
+      rpc_id: message.id, thread_id: threadId, turn_id: turnId, request_digest: requestDigest,
+      decision_digest: evaluated.directive.decision_digest, checkpoint_digest: admission.checkpoint.checkpoint_digest});
+    return {...emptyActions(), to_server: [message]};
   }
 
   function registerProposal(message, lane) {
@@ -637,9 +1072,136 @@ export function createCodexAppServerWrapper(options) {
     return {response: response(message.id, {registered: true, lane, event_digest: event.event_digest, authority_effect: "none"})};
   }
 
-  async function processClientMessage(message) {
+  async function processClientMessage(message, requestContext = {}) {
     const admitted = admitJsonRpcMessage(message);
     if (!admitted.ok) return {...emptyActions(), to_client: [jsonRpcError(message?.id, -32600, "Invalid JSON-RPC message", admitted)]};
+
+    if (message.method === HOSTED_EFFECT_ASSESS) {
+      if (options.allow_hosted_effect_tool !== true) return {...emptyActions(),
+        to_client: [jsonRpcError(message.id, -32601, "Hosted effect assessment is disabled",
+          {reason_codes: ["hosted-effect.disabled"], authority_effect: "none"})]};
+      const params = message.params;
+      let proposalBytes;
+      try { proposalBytes = Buffer.byteLength(JSON.stringify(params?.proposal), "utf8"); }
+      catch { proposalBytes = Infinity; }
+      const bounded = value => typeof value === "string" && value.length > 0
+        && value === value.trim() && Buffer.byteLength(value, "utf8") <= 256;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).sort().join(",") !== "effectId,kind,proposal,threadId,turnId"
+        || !bounded(params.threadId) || !bounded(params.turnId)
+        || !/^hosted-effect:[0-9a-f]{64}$/.test(params.effectId ?? "")
+        || !["command", "file-change"].includes(params.kind)
+        || !isRecord(params.proposal) || proposalBytes <= 2 || proposalBytes > 65536) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602,
+          "Hosted effect assessment request is invalid",
+          {reason_codes: ["hosted-effect.assessment-request-invalid"], authority_effect: "none"})]};
+      }
+      const key = turnKey(params.threadId, params.turnId);
+      if (!activeTurnStates.has(key) || recoveredActiveTurnKeys.has(key)) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32082,
+          "Hosted effect turn is not verified active",
+          {reason_codes: ["hosted-effect.turn-not-active"], authority_effect: "none"})]};
+      }
+      const method = params.kind === "command"
+        ? "item/commandExecution/requestApproval" : "item/fileChange/requestApproval";
+      const effectMessage = {jsonrpc: PROTOCOL_VERSION, id: params.effectId, method,
+        params: {threadId: params.threadId, turnId: params.turnId,
+          itemId: params.effectId, startedAtMs: 0, proposal: params.proposal}};
+      const metadata = await effectMetadata(effectMessage);
+      const assessed = evaluateEffectRequest({message: effectMessage,
+        effect_metadata: metadata, decision_profile: activeDecisionProfile});
+      if (!assessed.ok) return {...emptyActions(), to_client: [jsonRpcError(message.id, -32083,
+        "ARE hosted effect assessment failed", assessed)]};
+      const directive = assessed.value;
+      if (params.kind === "command" && directive.directive_kind !== "block") {
+        const requestDigest = digestValue({thread_id: params.threadId,
+          turn_id: params.turnId, effect_id: params.effectId, kind: params.kind,
+          proposal: params.proposal});
+        const prior = hostedEffectAssessments.get(params.effectId);
+        if (prior && prior.request_digest !== requestDigest) return {...emptyActions(),
+          to_client: [jsonRpcError(message.id, -32083, "Hosted effect identity changed",
+            {reason_codes: ["hosted-effect.assessment-identity-conflict"], authority_effect: "none"})]};
+        if (hostedEffectAssessments.size >= 256 && !prior) return {...emptyActions(),
+          to_client: [jsonRpcError(message.id, -32083, "Hosted effect assessment capacity reached",
+            {reason_codes: ["hosted-effect.assessment-capacity"], authority_effect: "none"})]};
+        hostedEffectAssessments.set(params.effectId, {request_digest: requestDigest, directive});
+      }
+      const event = ledger.record({event_kind: "effect-decision", direction: "wrapper",
+        method, rpc_id: params.effectId, thread_id: directive.thread_id,
+        turn_id: directive.turn_id, item_id: directive.item_id,
+        message_digest: digestValue(effectMessage), decision_digest: directive.decision_digest,
+        effect_digest: directive.effect_digest});
+      rememberDecision("effect-evaluation", directive.thread_id, directive, event);
+      return {...emptyActions(), to_client: [response(message.id, {
+        schema_version: "are.hosted-effect-assessment/v1", ok: true,
+        value: directive, request_digest: digestValue({thread_id: params.threadId,
+          turn_id: params.turnId, effect_id: params.effectId, kind: params.kind,
+          proposal: params.proposal}), authority_effect: "none"})]};
+    }
+
+    if (message.method === HOSTED_EFFECT_EXECUTE) {
+      if (options.allow_hosted_effect_tool !== true || !options.hosted_effect_repository_root) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32601,
+          "Hosted effect execution is disabled", {reason_codes: ["hosted-effect.disabled"], authority_effect: "none"})]};
+      }
+      const params = message.params;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).sort().join(",") !== "approval_binding,intent,request") {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602,
+          "Hosted effect execution request is invalid",
+          {reason_codes: ["hosted-effect.execution-request-invalid"], authority_effect: "none"})]};
+      }
+      const assessed = hostedEffectAssessments.get(params.request?.effect_id);
+      const prepared = prepareHostedCommandExecution({...params,
+        directive: assessed?.directive,
+        repository_root: options.hosted_effect_repository_root,
+        windows_backend_sandbox_attested: requestContext.windows_backend_sandbox_attested,
+        windows_backend_sandbox_root: requestContext.windows_backend_sandbox_root});
+      if (prepared.ok !== true || assessed?.request_digest !== prepared.proposal_digest
+        || dispatchedHostedEffects.has(prepared.effect_id)
+        || !activeTurnStates.has(turnKey(params.request?.thread_id, params.request?.turn_id))
+        || recoveredActiveTurnKeys.has(turnKey(params.request?.thread_id, params.request?.turn_id))) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32084,
+          "Hosted effect execution boundary rejected",
+          {reason_codes: prepared.ok !== true ? prepared.reason_codes
+            : ["hosted-effect.execution-not-active-or-dispatched"], authority_effect: "none"})]};
+      }
+      dispatchedHostedEffects.add(prepared.effect_id);
+      pendingHostedCommands.set(String(message.id), prepared.effect_id);
+      return {...emptyActions(), to_server: [{jsonrpc: PROTOCOL_VERSION,
+        id: message.id, method: prepared.host_method, params: prepared.params}]};
+    }
+
+    if (options.require_hosted_input_attestation === true
+      && [FEEDBACK_SUBMIT, FEEDBACK_APPLY, FEEDBACK_DISMISS].includes(message.method)
+      && requestContext.hosted_input_verified !== true) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32083,
+        "Hosted feedback input was not verified", {reason_codes: ["learning.hosted-input-unverified"], authority_effect: "none"})]};
+    }
+
+    if (options.require_hosted_input_attestation === true && message.method === TURN_STEER
+      && requestContext.hosted_input_verified !== true) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32083,
+        "Hosted steering input was not verified",
+        {reason_codes: ["steer.hosted-input-unverified"], authority_effect: "none"})]};
+    }
+
+    if (ungovernedHostMethod(message.method)) {
+      ledger.record({event_kind: "ungoverned-host-method-rejected", direction: "client-to-wrapper",
+        method: message.method, rpc_id: message.id, thread_id: message.params?.threadId ?? null,
+        message_digest: digestValue(message)});
+      return {...emptyActions(), to_client: Object.hasOwn(message, "id")
+        ? [jsonRpcError(message.id, -32081, "ARE host method is not governed", {reason_codes: ["host.method-ungoverned"]})]
+        : []};
+    }
+
+    if (message.method === TURN_START && degradedSteerThreads.has(message.params?.threadId)) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32080, "ARE steer continuity degraded", {reason_codes: ["steer.continuity-degraded"]})]};
+    }
+    if (message.method === TURN_START && [...pendingSteers.values()].some((pending) => pending.thread_id === message.params?.threadId)) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32078, "ARE steer outcome pending", {reason_codes: ["steer.outcome-pending"]})]};
+    }
+    if (message.method === TURN_STEER) return prepareSteer(message);
 
     if (message.method === REGISTER_PLAN) {
       const registered = registerProposal(message, "plan_bound");
@@ -648,6 +1210,83 @@ export function createCodexAppServerWrapper(options) {
     if (message.method === REGISTER_INTERACTION) {
       const registered = registerProposal(message, "interaction_bound");
       return {...emptyActions(), to_client: [registered.response ?? registered.error]};
+    }
+    if (message.method === LEARNING_STATUS) {
+      const available = learningEnabled && typeof options.interaction_input_provider === "function"
+        && learning.inspect().mode !== "off";
+      return {...emptyActions(), to_client: [response(message.id, {available, authority_effect: "none"})]};
+    }
+    if (message.method === FEEDBACK_PENDING_LIST) {
+      const params = message.params;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).some((key) => key !== "threadId")) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602, "Invalid pending feedback query",
+          {reason_codes: ["learning.feedback-params-invalid"], authority_effect: "none"})]};
+      }
+      const listed = learning.listPendingFeedback({thread_id: params.threadId});
+      return {...emptyActions(), to_client: [listed.ok ? response(message.id, listed)
+        : jsonRpcError(message.id, -32083, "ARE pending feedback query blocked", listed)]};
+    }
+    if (message.method === LEARNING_LESSONS_LIST) {
+      const params = message.params;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).some((key) => key !== "threadId")) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602, "Invalid current lessons query",
+          {reason_codes: ["learning.feedback-params-invalid"], authority_effect: "none"})]};
+      }
+      const listed = learning.listCurrentLessons({thread_id: params.threadId});
+      return {...emptyActions(), to_client: [listed.ok ? response(message.id, listed)
+        : jsonRpcError(message.id, -32083, "ARE current lessons query blocked", listed)]};
+    }
+    if (message.method === FEEDBACK_SUBMIT) {
+      const params = message.params;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).some((key) => !["threadId", "feedbackId", "text"].includes(key))) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602, "Invalid feedback submission",
+          {reason_codes: ["learning.feedback-params-invalid"], authority_effect: "none"})]};
+      }
+      const submitted = learning.submitFeedback({thread_id: params.threadId, feedback_id: params.feedbackId, text: params.text});
+      ledger.record({event_kind: "interaction-feedback-submitted", direction: "client-to-wrapper", method: FEEDBACK_SUBMIT,
+        rpc_id: message.id, thread_id: params.threadId, message_digest: digestValue(message),
+        disposition: submitted.disposition ?? "blocked", feedback_ref: submitted.feedback_ref ?? null,
+        lesson_digest: submitted.lesson_digest ?? null, reason_codes: submitted.reason_codes ?? []});
+      return {...emptyActions(), to_client: [submitted.ok ? response(message.id, submitted)
+        : jsonRpcError(message.id, -32083, "ARE feedback submission blocked", submitted)]};
+    }
+    if (message.method === FEEDBACK_DISMISS) {
+      const params = message.params;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).some((key) => !["threadId", "feedbackId", "text"].includes(key))) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602, "Invalid pending feedback dismissal",
+          {reason_codes: ["learning.feedback-params-invalid"], authority_effect: "none"})]};
+      }
+      const dismissed = learning.dismissPendingFeedback({thread_id: params.threadId,
+        feedback_id: params.feedbackId, text: params.text});
+      ledger.record({event_kind: "interaction-feedback-reviewed", direction: "client-to-wrapper", method: FEEDBACK_DISMISS,
+        rpc_id: message.id, thread_id: params.threadId, message_digest: digestValue(message),
+        disposition: dismissed.disposition ?? "blocked", feedback_ref: dismissed.feedback_ref ?? null,
+        reason_codes: dismissed.reason_codes ?? []});
+      return {...emptyActions(), to_client: [dismissed.ok ? response(message.id, dismissed)
+        : jsonRpcError(message.id, -32083, "ARE pending feedback dismissal blocked", dismissed)]};
+    }
+    if (message.method === FEEDBACK_APPLY) {
+      const params = message.params;
+      if (!Object.hasOwn(message, "id") || !isRecord(params)
+        || Object.keys(params).some((key) => !["threadId", "feedbackId", "text", "episodeRef", "quote", "instruction",
+          "revisesLessonId", "expectedLessonDigest"].includes(key))) {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32602, "Invalid pending feedback application",
+          {reason_codes: ["learning.feedback-params-invalid"], authority_effect: "none"})]};
+      }
+      const applied = learning.applyPendingFeedback({thread_id: params.threadId,
+        feedback_id: params.feedbackId, text: params.text, episode_ref: params.episodeRef,
+        quote: params.quote, instruction: params.instruction,
+        revises_lesson_id: params.revisesLessonId, expected_lesson_digest: params.expectedLessonDigest});
+      ledger.record({event_kind: "interaction-feedback-reviewed", direction: "client-to-wrapper", method: FEEDBACK_APPLY,
+        rpc_id: message.id, thread_id: params.threadId, message_digest: digestValue(message),
+        disposition: applied.disposition ?? "blocked", feedback_ref: applied.feedback_ref ?? null,
+        lesson_digest: applied.lesson_digest ?? null, reason_codes: applied.reason_codes ?? []});
+      return {...emptyActions(), to_client: [applied.ok ? response(message.id, applied)
+        : jsonRpcError(message.id, -32083, "ARE pending feedback application blocked", applied)]};
     }
     if ([INTENT_GET, INTENT_PROJECT, INTENT_CONTROL].includes(message.method)) {
       const threadId = message.params?.threadId;
@@ -673,7 +1312,12 @@ export function createCodexAppServerWrapper(options) {
       const pending = pendingApprovals.get(String(message.id));
       const bound = bindApprovalResponse({pending, response: message});
       if (!bound.ok) {
-        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32073, "Approval binding failed", bound)]};
+        pendingApprovals.delete(String(message.id));
+        const denial = {jsonrpc: PROTOCOL_VERSION, id: message.id, result: denyApprovalResult(pending.method)};
+        ledger.record({event_kind: "approval-response-rejected", direction: "wrapper-to-server", method: pending.method,
+          rpc_id: message.id, thread_id: pending.thread_id, turn_id: pending.turn_id, item_id: pending.item_id,
+          effect_digest: pending.effect_digest, reason_codes: bound.reason_codes, message_digest: digestValue(denial)});
+        return {...emptyActions(), to_server: [denial], to_client: [jsonRpcError(message.id, -32073, "Approval binding failed", bound)]};
       }
       if (bound.accepted) {
         const barrier = checkpointBoundary({
@@ -726,12 +1370,18 @@ export function createCodexAppServerWrapper(options) {
 
     if (message.method !== TURN_START) return {...emptyActions(), to_server: [message]};
     const threadId = message.params?.threadId;
+    if ([...activeTurnStates.values()].some((state) => state.thread_id === threadId
+      && recoveredActiveTurnKeys.has(turnKey(state.thread_id, state.turn_id)))) {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32082, "ARE prior turn is not settled", {
+        reason_codes: ["reasoning.prior-turn-unsettled"], authority_effect: "none",
+      })]};
+    }
     const effectiveMessage = projectObjectiveFrontierForTurnStart(message, completionByThread.get(threadId)?.directive ?? null);
-    const result = await preflight(effectiveMessage);
+    const result = await preflight(effectiveMessage, null, requestContext);
     if (!result.ok) {
       return {...emptyActions(), to_client: [jsonRpcError(message.id, -32070, "ARE preflight failed", result)]};
     }
-    ledger.record({
+    const preflightEvent = ledger.record({
       event_kind: "preflight-decision",
       direction: "wrapper",
       method: TURN_START,
@@ -740,6 +1390,7 @@ export function createCodexAppServerWrapper(options) {
       message_digest: digestValue(effectiveMessage),
       decision_digest: result.directive.decision_digest,
     });
+    rememberDecision("turn-preflight", threadId, result.directive, preflightEvent);
     if (result.action !== "forward") {
       return {...emptyActions(), to_client: [jsonRpcError(message.id, result.action === "gate" ? -32071 : -32072, `ARE preflight ${result.action}`, result.directive)]};
     }
@@ -775,6 +1426,7 @@ export function createCodexAppServerWrapper(options) {
       reasoning_epoch_digest: reasoning.epoch.epoch_digest,
       checkpoint_digest: reasoning.checkpoint.checkpoint_digest,
       checkpoint_kind: "before-model-request",
+      plan_context_digest: reasoning.plan_context_digest,
       dispatch_digest: reasoning.dispatch.dispatch_digest,
       dispatch_verification_digest: reasoning.verification.verification_digest,
       request_header_digest: reasoning.dispatch.request_header_digest,
@@ -806,6 +1458,23 @@ export function createCodexAppServerWrapper(options) {
         inspection_projection_digest: intentLifecycle.inspection?.projection_digest ?? null,
       });
     }
+    const remembered = rememberTurnStart(effectiveMessage, result, reasoning, intentLifecycle, message,
+      requestContext.gateway_request_binding_digest ?? null);
+    if (!remembered.ok) return {...emptyActions(), to_client: [jsonRpcError(message.id, -32075, "Semantic turn state is not durable", remembered)]};
+    let modelEntryReceipt;
+    try {
+      modelEntryReceipt = createCodexModelEntryReceipt({source: "direct",
+        forwarded_message: reasoning.forwarded_message,
+        semantic_state: pendingTurnStates.get(String(effectiveMessage.id)),
+        semantic_state_digest: remembered.state_digest,
+        reasoning_checkpoint_digest: remembered.checkpoint_digest,
+        objective_lifecycle: result.objective_lifecycle});
+    } catch {
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32075,
+        "ARE model-entry receipt could not be verified", {
+          reason_codes: ["model-entry.receipt-invalid"], authority_effect: "none",
+        })]};
+    }
     ledger.record({
       event_kind: "turn-start-forwarded",
       direction: "client-to-server",
@@ -815,8 +1484,9 @@ export function createCodexAppServerWrapper(options) {
       message_digest: digestValue(reasoning.forwarded_message),
       decision_digest: result.directive.decision_digest,
     });
-    rememberTurnStart(effectiveMessage, result, reasoning, intentLifecycle);
-    return {...emptyActions(), to_server: [reasoning.forwarded_message]};
+    return {...emptyActions(), to_server: [reasoning.forwarded_message],
+      to_client: result.continuity_renderer?.projection ? [continuityNotification(result.continuity_renderer.projection)] : [],
+      ...(modelEntryReceipt ? {model_entry_receipts: [modelEntryReceipt]} : {})};
   }
 
   async function assessSemanticCompletion(message) {
@@ -836,6 +1506,7 @@ export function createCodexAppServerWrapper(options) {
     });
     semanticCompletions.set(key, result);
     activeTurnStates.delete(key);
+    recoveredActiveTurnKeys.delete(key);
     return result;
   }
 
@@ -852,6 +1523,7 @@ export function createCodexAppServerWrapper(options) {
       continuation_result: continuation,
       signal_provider: options.evolution_signal_provider,
       signal_sink: options.evolution_signal_sink,
+      signal_factory: options.evolution_signal_factory,
     });
     evolutionSignalEmissions.set(key, result);
     return result;
@@ -931,9 +1603,95 @@ export function createCodexAppServerWrapper(options) {
     };
   }
 
+  function settleSteer(message) {
+    const pending = pendingSteers.get(String(message.id));
+    pendingSteers.delete(String(message.id));
+    if (Object.hasOwn(message, "error")) {
+      const rejected = checkpointBoundary({checkpoint_kind: "manual", event_kind: "steer-rejected-recorded",
+        content: {thread_id: pending.thread_id, turn_id: pending.turn_id, request_digest: pending.request_digest,
+          response_digest: digestValue(message)}, subject_digest: digestValue(message),
+        consumer_ref: pending.binding.view_key, request_ref: pending.evaluated.request_context.request_id});
+      if (!rejected.ok) {
+        degradedSteerThreads.add(pending.thread_id);
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32080, "ARE rejected steer outcome not durable", rejected)]};
+      }
+      ledger.record({event_kind: "steer-host-rejected", direction: "server-to-client", method: TURN_STEER,
+        rpc_id: message.id, thread_id: pending.thread_id, turn_id: pending.turn_id, response_digest: digestValue(message)});
+      return {...emptyActions(), to_client: [message]};
+    }
+    if (message.result?.turnId !== pending.turn_id) {
+      degradedSteerThreads.add(pending.thread_id);
+      checkpointBoundary({checkpoint_kind: "manual", event_kind: "steer-continuity-degraded",
+        content: {thread_id: pending.thread_id, turn_id: pending.turn_id, request_digest: pending.request_digest,
+          response_digest: digestValue(message), reason_code: "steer.host-turn-mismatch"},
+        subject_digest: digestValue(message), consumer_ref: pending.binding.view_key,
+        request_ref: pending.evaluated.request_context.request_id});
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32080, "ARE steer host turn mismatch", {reason_codes: ["steer.host-turn-mismatch"]})]};
+    }
+    let planEvent = null;
+    if (pending.plan_candidate) {
+      planEvent = appendReasoningPlanContext(reasoningLedger, pending.plan_candidate.input, {
+        expected_thread_ref: pending.thread_id, source_digests: pending.plan_candidate.source_digests,
+      });
+      if (!planEvent.ok) {
+        degradedSteerThreads.add(pending.thread_id);
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32080, "ARE accepted steer plan not durable", planEvent)]};
+      }
+    }
+    const accepted = checkpointBoundary({checkpoint_kind: "manual", event_kind: "steer-accepted-recorded",
+      content: {thread_id: pending.thread_id, turn_id: pending.turn_id, request_digest: pending.request_digest,
+        response_digest: digestValue(message), decision_digest: pending.evaluated.directive.decision_digest,
+        plan_context_digest: planEvent?.value?.plan_context_digest ?? null},
+      subject_digest: digestValue(message), consumer_ref: pending.binding.view_key,
+      request_ref: pending.evaluated.request_context.request_id,
+      related_event_digests: planEvent ? [planEvent.event.event_digest] : []});
+    if (!accepted.ok) {
+      degradedSteerThreads.add(pending.thread_id);
+      return {...emptyActions(), to_client: [jsonRpcError(message.id, -32080, "ARE accepted steer checkpoint failed", accepted)]};
+    }
+    ledger.record({event_kind: "steer-accepted-recorded", direction: "server-to-client", method: TURN_STEER,
+      rpc_id: message.id, thread_id: pending.thread_id, turn_id: pending.turn_id, response_digest: digestValue(message),
+      decision_digest: pending.evaluated.directive.decision_digest, plan_context_digest: planEvent?.value?.plan_context_digest ?? null,
+      checkpoint_digest: accepted.checkpoint.checkpoint_digest});
+    return {...emptyActions(), to_client: [message]};
+  }
+
   async function processServerMessage(message) {
     const admitted = admitJsonRpcMessage(message);
     if (!admitted.ok) return {...emptyActions(), to_client: [jsonRpcError(message?.id, -32600, "Invalid app-server JSON-RPC message", admitted)]};
+
+    if (admitted.kind === "response" && pendingHostedCommands.has(String(message.id))) {
+      const effectId = pendingHostedCommands.get(String(message.id));
+      pendingHostedCommands.delete(String(message.id));
+      const value = message.result;
+      if (isRecord(message.error) || !isRecord(value)
+        || !Number.isSafeInteger(value.exitCode)
+        || typeof value.stdout !== "string" || typeof value.stderr !== "string") {
+        return {...emptyActions(), to_client: [jsonRpcError(message.id, -32085,
+          "Hosted command outcome is unknown",
+          {reason_codes: ["hosted-effect.host-outcome-unknown"], effect_id: effectId,
+            authority_effect: "none"})]};
+      }
+      const bounded = text => Buffer.from(text, "utf8").subarray(0, 8192).toString("utf8");
+      return {...emptyActions(), to_client: [response(message.id, {
+        ok: value.exitCode === 0, effect_id: effectId, exit_code: value.exitCode,
+        stdout: bounded(value.stdout), stderr: bounded(value.stderr),
+        output_truncated: Buffer.byteLength(value.stdout, "utf8") > 8192
+          || Buffer.byteLength(value.stderr, "utf8") > 8192,
+        authority_effect: "none"})]};
+    }
+
+    const serverRequestPosture = sharedWrapperServerRequestPosture(message,
+      {allow_hosted_effect_tool: options.allow_hosted_effect_tool === true});
+    if (serverRequestPosture.kind === "unsupported") {
+      ledger.record({event_kind: "unsupported-host-request-rejected", direction: "server-to-wrapper",
+        method: message.method, rpc_id: message.id, thread_id: message.params?.threadId ?? null,
+        message_digest: admitted.message_digest, reason_codes: [serverRequestPosture.reason_code], authority_effect: "none"});
+      return {...emptyActions(), to_server: [jsonRpcError(message.id, -32601,
+        "Host server request is not supported by ARE", {reason_codes: [serverRequestPosture.reason_code], authority_effect: "none"})]};
+    }
+
+    if (admitted.kind === "response" && pendingSteers.has(String(message.id))) return settleSteer(message);
 
     learning.observe(message);
     const contextWindowObservation = contextWindowTracker.observe(message);
@@ -969,12 +1727,22 @@ export function createCodexAppServerWrapper(options) {
       return {...emptyActions(), to_client: [successorNotification({kind: "turn-start-response", rpc_id: message.id, response: message, authority_effect: "none"})]};
     }
 
+    if (options.allow_hosted_effect_tool === true && admitted.kind === "request"
+      && EFFECT_METHODS.includes(message.method)) {
+      ledger.record({event_kind: "native-effect-path-denied", direction: "wrapper-to-server",
+        method: message.method, rpc_id: message.id,
+        thread_id: message.params?.threadId ?? null,
+        message_digest: digestValue(message), authority_effect: "none"});
+      return {...emptyActions(), to_server: [{jsonrpc: PROTOCOL_VERSION,
+        id: message.id, result: denyApprovalResult(message.method)}]};
+    }
+
     if (admitted.kind === "request" && EFFECT_METHODS.includes(message.method)) {
       const metadata = await effectMetadata(message);
       const evaluated = evaluateEffectRequest({message, effect_metadata: metadata, decision_profile: activeDecisionProfile});
       if (!evaluated.ok) return {...emptyActions(), to_server: [{jsonrpc: PROTOCOL_VERSION, id: message.id, result: denyApprovalResult(message.method)}], to_client: [directiveNotification(evaluated)]};
       const directive = evaluated.value;
-      ledger.record({
+      const effectEvent = ledger.record({
         event_kind: "effect-decision",
         direction: "wrapper",
         method: message.method,
@@ -986,6 +1754,7 @@ export function createCodexAppServerWrapper(options) {
         decision_digest: directive.decision_digest,
         effect_digest: directive.effect_digest,
       });
+      rememberDecision("effect-evaluation", directive.thread_id, directive, effectEvent);
       if (directive.directive_kind === "block") {
         const denial = {jsonrpc: PROTOCOL_VERSION, id: message.id, result: evaluated.deny_result};
         ledger.record({event_kind: "approval-response-forwarded", direction: "wrapper-to-server", method: message.method, rpc_id: message.id, thread_id: directive.thread_id, turn_id: directive.turn_id, item_id: directive.item_id, message_digest: digestValue(denial), decision_digest: directive.decision_digest, effect_digest: directive.effect_digest});
@@ -1008,6 +1777,13 @@ export function createCodexAppServerWrapper(options) {
         message_digest: admitted.message_digest,
       });
       if (message.method === TURN_COMPLETED) {
+        const recoveredTerminal = recoveredTerminalTurns.get(turnKey(identity.thread_id, identity.turn_id));
+        if (recoveredTerminal) {
+          ledger.record({event_kind: "recovered-terminal-notification-observed", direction: "server-to-client",
+            method: TURN_COMPLETED, thread_id: identity.thread_id, turn_id: identity.turn_id,
+            message_digest: admitted.message_digest, authority_effect: "none"});
+          return {...emptyActions(), to_client: [message]};
+        }
         const learningCompletion = learning.complete(message);
         if (!learningCompletion.ok) ledger.record({event_kind: "interaction-learning-rejected", direction: "wrapper", method: TURN_COMPLETED, reason_codes: learningCompletion.reason_codes});
         const completionKey = turnKey(identity.thread_id, identity.turn_id);
@@ -1065,7 +1841,8 @@ export function createCodexAppServerWrapper(options) {
         }
         const continuation = await assessCompletion(message, semantic);
         const directive = continuation.ok ? continuation.value : continuation;
-        ledger.record({event_kind: "continuation-decision", direction: "wrapper", method: TURN_COMPLETED, thread_id: identity.thread_id, turn_id: identity.turn_id, message_digest: admitted.message_digest, decision_digest: directive.decision_digest ?? digestValue(directive)});
+        const continuationEvent = ledger.record({event_kind: "continuation-decision", direction: "wrapper", method: TURN_COMPLETED, thread_id: identity.thread_id, turn_id: identity.turn_id, message_digest: admitted.message_digest, decision_digest: directive.decision_digest ?? digestValue(directive)});
+        rememberDecision("turn-continuation", identity.thread_id, directive, continuationEvent);
         const evolutionSignalEmission = await emitEvolutionSignals(message, completionTurnState, semantic, continuation, admitted.message_digest);
         if (evolutionSignalEmission.disposition !== "disabled" && evolutionSignalEmission.disposition !== "no-signals") {
           ledger.record({
@@ -1199,12 +1976,38 @@ export function createCodexAppServerWrapper(options) {
               ledger.evict();
               return actions;
             }
-            rememberTurnStart(nextMessage, preflightResult, successorReasoning, successorIntent);
+            const rememberedSuccessor = rememberTurnStart(nextMessage, preflightResult, successorReasoning, successorIntent);
+            if (!rememberedSuccessor.ok) {
+              actions.to_client.push(successorNotification({kind: "stopped", proposal_id: proposal.proposal_id, semantic_state: rememberedSuccessor, authority_effect: "none"}));
+              ledger.record({event_kind: "successor-stopped", direction: "wrapper", method: TURN_COMPLETED, thread_id: identity.thread_id, turn_id: identity.turn_id, decision_digest: directive.decision_digest, successor_proposal_id: proposal.proposal_id});
+              ledger.record({event_kind: "turn-closed", direction: "wrapper", method: TURN_COMPLETED, thread_id: identity.thread_id, turn_id: identity.turn_id, decision_digest: directive.decision_digest ?? digestValue(directive)});
+              ledger.evict();
+              return actions;
+            }
+            let successorReceipt;
+            try {
+              successorReceipt = createCodexModelEntryReceipt({source: "generated",
+                forwarded_message: successorReasoning.forwarded_message,
+                semantic_state: pendingTurnStates.get(String(nextMessage.id)),
+                semantic_state_digest: rememberedSuccessor.state_digest,
+                reasoning_checkpoint_digest: rememberedSuccessor.checkpoint_digest,
+                objective_lifecycle: preflightResult.objective_lifecycle});
+            } catch {
+              actions.to_client.push(successorNotification({kind: "stopped", proposal_id: proposal.proposal_id,
+                reason_codes: ["model-entry.receipt-invalid"], authority_effect: "none"}));
+              ledger.record({event_kind: "successor-stopped", direction: "wrapper", method: TURN_COMPLETED,
+                thread_id: identity.thread_id, turn_id: identity.turn_id, decision_digest: directive.decision_digest,
+                successor_proposal_id: proposal.proposal_id});
+              ledger.evict();
+              return actions;
+            }
             internalRequests.add(String(nextMessage.id));
             ledger.record({event_kind: "preflight-decision", direction: "wrapper", method: TURN_START, rpc_id: nextMessage.id, thread_id: nextMessage.params.threadId, message_digest: digestValue(nextMessage), decision_digest: preflightResult.directive.decision_digest});
             ledger.record({event_kind: "reasoning-dispatch-verified", direction: "wrapper", method: TURN_START, rpc_id: nextMessage.id, thread_id: nextMessage.params.threadId, message_digest: successorReasoning.dispatch.message_digest, reasoning_epoch_id: successorReasoning.epoch.epoch_id, reasoning_epoch_digest: successorReasoning.epoch.epoch_digest, checkpoint_digest: successorReasoning.checkpoint.checkpoint_digest, checkpoint_kind: "before-model-request", dispatch_digest: successorReasoning.dispatch.dispatch_digest, dispatch_verification_digest: successorReasoning.verification.verification_digest, request_header_digest: successorReasoning.dispatch.request_header_digest});
             ledger.record({event_kind: "turn-start-forwarded", direction: "wrapper-to-server", method: TURN_START, rpc_id: nextMessage.id, thread_id: nextMessage.params.threadId, message_digest: digestValue(preflightResult.forwarded_message), decision_digest: preflightResult.directive.decision_digest});
             actions.to_server.push(successorReasoning.forwarded_message);
+            if (successorReceipt) (actions.model_entry_receipts ??= []).push(successorReceipt);
+            if (preflightResult.continuity_renderer?.projection) actions.to_client.push(continuityNotification(preflightResult.continuity_renderer.projection));
             actions.to_client.push(successorNotification({kind: "started", proposal_id: proposal.proposal_id, proposal_digest: proposal.proposal_digest, preflight_decision_digest: preflightResult.directive.decision_digest, authority_effect: "none"}));
             ledger.record({event_kind: "successor-started", direction: "wrapper", method: TURN_COMPLETED, thread_id: identity.thread_id, turn_id: identity.turn_id, decision_digest: directive.decision_digest, successor_proposal_id: proposal.proposal_id});
           } else {
@@ -1224,22 +2027,49 @@ export function createCodexAppServerWrapper(options) {
     return {...emptyActions(), to_client: [message]};
   }
 
-  return Object.freeze({
-    processClientMessage: async (message) => {
-      if ((!learningEnabled && options.loaded_profile.objective_resolution?.enabled !== true) || message?.method !== TURN_START) return processClientMessage(message);
+  const api = Object.freeze({
+    processClientMessage: async (message, requestContext = {}) => {
+      if ((!learningEnabled && options.loaded_profile.objective_resolution?.enabled !== true) || message?.method !== TURN_START) return processClientMessage(message, requestContext);
       const key = learningEnabled ? "learning-product" : message.params?.threadId;
       if (objectiveTurnsInFlight.has(key)) return {...emptyActions(), to_client: [jsonRpcError(message.id, -32078, "Objective turn is already in progress", {reason_codes: ["objective.concurrent-turn-in-progress"]})]};
       objectiveTurnsInFlight.add(key);
-      try { return await processClientMessage(message); }
+      try { return await processClientMessage(message, requestContext); }
       finally { objectiveTurnsInFlight.delete(key); }
     },
     processServerMessage,
+    reconcileRecoveredTerminalTurn,
     runLearningEvolution: learning.runEvolution,
     inspectLearningState: learning.inspect,
+    observeLearningFeedback: learning.observeFeedback,
     controlLearning: learning.control,
     prepareForEviction,
     recordCacheTelemetry,
     ledger,
+    observeReasoningThreads: () => projectWrapperReasoningThreads({
+      learning_observer: thread_id => learning.observeFeedback({thread_id}),
+      pending: [...pendingTurnStates.values()],
+      active: [...activeTurnStates.values()].map((state) => ({...state,
+        recovery_unverified: recoveredActiveTurnKeys.has(turnKey(state.thread_id, state.turn_id))})),
+      recovered_terminal: [...recoveredTerminalTurns.values()],
+      frontiers: reasoningLedger.frontiers(),
+      plan_contexts: reasoningLedger.snapshot().filter((event) => event.event_kind === "plan-context-recorded"),
+    }),
+    completedTurnProof: (threadId, turnRef) => {
+      if (!nonEmptyString(threadId) || !/^[0-9a-f]{64}$/.test(turnRef ?? "")) return null;
+      const matches = [...completionFrontiers.values()].filter((entry) =>
+        entry?.frontier?.state?.thread_id === threadId
+        && digestValue(entry.frontier.state.turn_id) === turnRef);
+      if (matches.length !== 1) return null;
+      const entry = matches[0];
+      const status = entry.frontier.state.completion?.status;
+      if (!["completed", "failed", "interrupted"].includes(status)
+        || !/^[0-9a-f]{64}$/.test(entry.frontier.frontier_digest ?? "")
+        || !/^[0-9a-f]{64}$/.test(entry.checkpoint?.checkpoint_digest ?? "")) return null;
+      return freezeResult({thread_ref: `backend-thread:${digestValue(threadId)}`, turn_ref: turnRef,
+        turn_status: status, frontier_digest: entry.frontier.frontier_digest,
+        checkpoint_digest: entry.checkpoint.checkpoint_digest, authority_effect: "none"});
+    },
+    observeDecisions: () => projectWrapperDecisionTrace(recentDecisionEvents),
     close: () => {
       if (closed) return freezeResult({ok: true, disposition: "already-closed", authority_effect: "none"});
       const ledgerResult = reasoningLedger.close();
@@ -1257,11 +2087,14 @@ export function createCodexAppServerWrapper(options) {
           : contextModulePort?.capability_ids?.includes("context.ontology-snapshot/v1") ? "available-module" : "unavailable",
       },
       pending_approval_ids: [...pendingApprovals.keys()].sort(),
+      decision_observation_persistence_failure: decisionObservationPersistenceFailure,
       proposal_thread_ids: [...proposalsByThread.keys()].sort(),
       current_view_consumers: [...currentViews.keys()].sort(),
       current_context_epochs: [...currentViews.entries()].map(([consumer, state]) => ({consumer, view_id: state.view.view_id, view_lane: state.view.lane, context_epoch_id: state.envelope.context_epoch_id, freshness_state: state.envelope.freshness_state, content_projection_digest: state.envelope.content_projection_digest, projection_reused: state.envelope.projection_reuse_receipt !== null, projection_reuse_receipt_digest: state.envelope.projection_reuse_receipt?.receipt_digest ?? null})).sort((a, b) => a.consumer.localeCompare(b.consumer)),
       completion_thread_ids: [...completionByThread.keys()].sort(),
       pending_semantic_rpc_ids: [...pendingTurnStates.keys()].sort(),
+      pending_steer_rpc_ids: [...pendingSteers.keys()].sort(),
+      degraded_steer_threads: [...degradedSteerThreads].sort(),
       active_semantic_turn_ids: [...activeTurnStates.values()].map((state) => state.turn_id).sort(),
       semantic_completion_turn_ids: [...semanticCompletions.keys()].sort(),
       evolution_signal_turn_ids: [...evolutionSignalEmissions.keys()].sort(),
@@ -1279,4 +2112,6 @@ export function createCodexAppServerWrapper(options) {
       authority_effect: "none",
     }),
   });
+  codexWrapperInstances.add(api);
+  return api;
 }

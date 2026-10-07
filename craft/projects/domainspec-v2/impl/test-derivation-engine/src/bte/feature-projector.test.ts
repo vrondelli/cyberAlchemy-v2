@@ -12,11 +12,11 @@ import {
 
 const featureRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../../../../../validation/poker-team/docs/features/financial-settlement",
+  "../../__fixtures__/financial-settlement",
 );
 
 describe("Financial Settlement feature projector", () => {
-  it("projects the exact contained source census and preserves the known mapping red", () => {
+  it("projects the exact contained source census with the now-valid Value Object mapping", () => {
     const projection = projectFeatureDirectory(featureRoot);
     expect(projection.census).toEqual({
       nodes: 10,
@@ -35,17 +35,24 @@ describe("Financial Settlement feature projector", () => {
         source_anchor?.includes(".md#"),
       ),
     ).toBe(true);
-    expect(
-      projection.conformance_diagnostics.map(({ code, subject }) => ({
-        code,
-        subject,
-      })),
-    ).toEqual([
-      {
-        code: "BTE_DEV_EDGE_ENDPOINT_KIND",
-        subject: "financial-settlement.edge.007.maps",
-      },
-    ]);
+    expect(projection.conformance_diagnostics).toEqual([]);
+  });
+
+  it("still rejects a Mapping to an Event endpoint", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "fstg-projector-map-event-"));
+    copyFeatureFixture(featureRoot, root);
+    const specPath = resolve(root, "SPEC.md");
+    const source = readFileSync(specPath, "utf8");
+    const mutated = source.replace(
+      /(\|\s*financial-settlement\.SettlementRequestToInput\s*\|\s*maps\s*\|\s*)financial-settlement\.SettlementResult/u,
+      "$1financial-settlement.PayoutCreated",
+    );
+    expect(mutated).not.toBe(source);
+    writeFileSync(specPath, mutated);
+    const projection = projectFeatureDirectory(root);
+    expect(projection.diagnostics).toEqual([]);
+    expect(projection.conformance_diagnostics.map(({ code, subject }) => ({ code, subject })))
+      .toEqual([{ code: "BTE_DEV_EDGE_ENDPOINT_KIND", subject: "financial-settlement.edge.007.maps" }]);
   });
 
   it("keeps sibling graph rows when one evidence anchor is missing", () => {

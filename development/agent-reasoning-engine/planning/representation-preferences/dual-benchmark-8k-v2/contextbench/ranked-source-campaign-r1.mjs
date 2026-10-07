@@ -25,7 +25,7 @@ function pinRun(root,arm){
  }
  return files;
 }
-export async function runComparisonCampaign({schedule,sources,outcome_root,runs_root,metadata_root,source_root,outcome_persistence,run_persistence,metadata_persistence,credential_path,signal,admit_campaign,admit_source,before_model_dispatch}, {execute_arm=runComparisonArm,create_factory=comparisonLiveClientFactory}={}){
+export async function runComparisonCampaign({schedule,sources,outcome_root,runs_root,metadata_root,source_root,outcome_persistence,run_persistence,metadata_persistence,credential_path,client_factory_options={},candidate_views,signal,admit_campaign,admit_source,before_model_dispatch}, {execute_arm=runComparisonArm,create_factory=comparisonLiveClientFactory}={}){
  need(signal instanceof AbortSignal&&typeof admit_campaign==='function'&&typeof admit_source==='function'&&typeof before_model_dispatch==='function','callbacks');
  verifyComparisonSchedule({schedule,...sources});
  const roots=[outcome_root,runs_root,metadata_root,source_root].map(path=>resolve(path));
@@ -42,8 +42,8 @@ export async function runComparisonCampaign({schedule,sources,outcome_root,runs_
  try{terminal=await runComparisonQueue({schedule,sources,signal,persist:store.persist,execute:async({slot,signal:sharedSignal})=>{
   const run=join(runs_root,String(slot.sequence).padStart(2,'0'));let client,result,failure;
   try{
-   const factory=create_factory({credential_path,signal:sharedSignal,persistence:run_persistence,before_dispatch:before_model_dispatch});
-   result=await execute_arm({config,task_id:slot.task_id,arm:slot.arm,signal:sharedSignal,out:run,evidence_root:runs_root,source_out:join(source_root,String(slot.sequence).padStart(2,'0')),persistence:run_persistence,admit_source,before_model_dispatch,
+   const factory=create_factory({credential_path,signal:sharedSignal,persistence:run_persistence,before_dispatch:before_model_dispatch,...client_factory_options});
+   result=await execute_arm({config,task_id:slot.task_id,arm:slot.arm,candidate_view:candidate_views?.get(slot.task_id),signal:sharedSignal,out:run,evidence_root:runs_root,source_out:join(source_root,String(slot.sequence).padStart(2,'0')),persistence:run_persistence,admit_source,before_model_dispatch,
     create_client:async args=>{client=await factory.create_client(args);return client;},measure_index_tokens:factory.measure_index_tokens});
   }catch(error){failure=error;result=error.result;}
   if(client){try{need(/^[a-f0-9]{64}$/.test(client.identity),'client-identity');entries[slot.sequence]={slot_id:slot.slot_id,transport_identity:client.identity,files:pinRun(run,slot.arm)};}

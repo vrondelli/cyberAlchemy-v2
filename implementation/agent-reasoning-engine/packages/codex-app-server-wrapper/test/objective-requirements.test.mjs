@@ -6,7 +6,9 @@ import {resolve} from 'node:path';
 import {createCodexAppServerWrapper, createReasoningStateLedger, loadRepositoryProfile} from '../index.mjs';
 import {materializeRequirementSnapshot, digestIntentMaterial} from '../../request-intent-runtime/index.mjs';
 import {createCodexObjectiveLifecycle, OBJECTIVE_CONTEXT_KEY} from '../src/objective-lifecycle.mjs';
+import {REQUEST_CONTEXT_KEY} from '../src/request-context.mjs';
 import {verifyRequirementContinuityReplay} from '../src/objective-requirements.mjs';
+import {verifyCodexModelEntryReceipt} from '../src/model-entry-receipt.mjs';
 import {semanticModulePort} from './semantic-module-fixture.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -42,7 +44,23 @@ test('actual outgoing requests preserve exact requirements through local operati
   const ledger = createReasoningStateLedger();
   const w = create({reasoning_ledger: ledger, objective_provider: () => {modelCalls++; throw Error('unexpected');},
     requirement_seed_provider: input => {seedCalls++; return seed(input);}});
-  const first = forward(await w.processClientMessage(request(1, initial)));
+  const firstAction = await w.processClientMessage(request(1, initial));
+  const first = forward(firstAction);
+  assert.equal(firstAction.model_entry_receipts?.length, 1);
+  const receipt = firstAction.model_entry_receipts[0];
+  assert.equal(verifyCodexModelEntryReceipt(receipt,
+    {forwarded_message: firstAction.to_server[0]}), true);
+  assert.equal(receipt.objective_resolution_digest, first.resolution_digest);
+  assert.equal(receipt.requirement_continuity_digest, first.requirement_continuity_digest);
+  assert.equal(receipt.objective_state_digest, first.state_digest);
+  assert.equal(receipt.source, 'direct');
+  assert.equal(verifyCodexModelEntryReceipt({...receipt, route_id: 'forged'},
+    {forwarded_message: firstAction.to_server[0]}), false);
+  assert.equal(verifyCodexModelEntryReceipt(receipt,
+    {forwarded_message: request(99, 'Different request')}), false);
+  assert.equal(verifyCodexModelEntryReceipt(receipt,
+    {forwarded_message: firstAction.to_server[0], request_binding_digest: 'a'.repeat(64)}), false);
+  assert.doesNotMatch(JSON.stringify(receipt), /Research context management approaches|citations/u);
   assert.equal(first.schema_version, 'are.codex-objective-fragment/v2');
   assert.deepEqual(first.requirement_snapshot.requirements, ['citations']);
   for (const [id, text, expected, transition] of [
@@ -60,11 +78,50 @@ test('actual outgoing requests preserve exact requirements through local operati
     assert.equal(current.active_objective.objective_id, first.active_objective.objective_id);
     assert.equal(current.requirement_snapshot.authority_effect, 'none');
     assert.equal(action.to_server[0].params.input[0].text, text);
+    assert.equal(action.model_entry_receipts?.length, 1);
+    assert.equal(verifyCodexModelEntryReceipt(action.model_entry_receipts[0],
+      {forwarded_message: action.to_server[0]}), true);
+    assert.equal(action.model_entry_receipts[0].objective_state_digest, current.state_digest);
   }
   assert.equal(seedCalls, 1); assert.equal(modelCalls, 0);
   assert.equal(continuityEvents(ledger).length, 6);
   assert.ok(!JSON.stringify(w.inspectState().objective_states).includes('citations'));
   w.close();
+});
+
+test('receipt remains absent when objective resolution is disabled', async () => {
+  const w = create({}, {objective_resolution: {enabled: false}});
+  try {
+    const action = await w.processClientMessage(request(1, initial));
+    assert.equal(action.to_server.length, 1);
+    assert.equal(Object.hasOwn(action, 'model_entry_receipts'), false);
+  } finally {w.close();}
+});
+
+test('automatic successor carries a receipt for its own forwarded request', async () => {
+  const w = create({objective_provider: input => input.request === 'Validate the bounded result.'
+    ? {transition: 'new', objective: {description: input.request},
+      evidence_span: {start: 0, end: input.request.length}} : null});
+  try {
+    const started = await w.processClientMessage(request(1, initial));
+    assert.equal(started.to_server.length, 1);
+    await w.processServerMessage({jsonrpc: '2.0', id: 1, result: {turn: {id: 'turn-1'}}});
+    const proposal = {proposal_id: 'P1', declared_plan_digest: 'plan:P1', action_ref: 'validate',
+      route_id: 'CA2-ROUTE-VALIDATE', objective_kind: 'validate', effect_classes: ['non-effectful-validate'],
+      reversible: true, evidence_refs: ['plan:P1'], next_turn: {params: {threadId: 'requirements-thread',
+        input: [{type: 'text', text: 'Validate the bounded result.'}]}}};
+    const registration = await w.processClientMessage({jsonrpc: '2.0', id: 2,
+      method: 'cyberalchemy/continuation/registerPlan', params: {threadId: 'requirements-thread', proposal}});
+    assert.equal(registration.to_client[0].result.registered, true);
+    const completed = await w.processServerMessage({jsonrpc: '2.0', method: 'turn/completed',
+      params: {threadId: 'requirements-thread', turn: {id: 'turn-1', items: [], status: 'completed'}}});
+    assert.equal(completed.to_server.length, 1, JSON.stringify(completed.to_client));
+    assert.equal(completed.model_entry_receipts?.length, 1);
+    const receipt = completed.model_entry_receipts[0];
+    assert.equal(receipt.source, 'generated');
+    assert.equal(verifyCodexModelEntryReceipt(receipt, {forwarded_message: completed.to_server[0]}), true);
+    assert.notEqual(receipt.forwarded_message_digest, started.model_entry_receipts[0].forwarded_message_digest);
+  } finally {w.close();}
 });
 
 test('interruption and restart restore the suspended objective requirement set without reseeding', async () => {
@@ -110,6 +167,54 @@ test('explicit empty seed is distinct from missing seed', async () => {
   const empty = create({requirement_seed_provider: input => seed(input, [])});
   assert.deepEqual(forward(await empty.processClientMessage(request(1, initial))).requirement_snapshot.requirements, []);
   missing.close(); empty.close();
+});
+
+test('an exact attested hosted hint seeds requirements; missing or unverified hints cannot', async () => {
+  const w = create({requirement_seed_provider: undefined});
+  const hosted = request(1, initial);
+  hosted.params.additionalContext = {[REQUEST_CONTEXT_KEY]: {kind: 'application', value: JSON.stringify({
+    schema_version: 'are.request-context-hint/v1', raw_request: initial,
+    requirement_seed: ['citations'],
+  })}};
+  assert.deepEqual(reason(await w.processClientMessage(hosted)), ['requirements.seed-unverified']);
+  const first = forward(await w.processClientMessage(hosted, {hosted_input_verified: true}));
+  assert.deepEqual(first.requirement_snapshot.requirements, ['citations']);
+  const continued = forward(await w.processClientMessage(request(2, 'do next')));
+  assert.deepEqual(continued.requirement_snapshot.requirements, ['citations']);
+  const other = request(3, 'New task: Research another topic');
+  assert.deepEqual(reason(await w.processClientMessage(other, {hosted_input_verified: true})),
+    ['requirements.explicit-seed-required']);
+  w.close();
+});
+
+test('hosted requirement hint must bind exact user text and a bounded unique list', async () => {
+  const w = create({requirement_seed_provider: undefined});
+  const hinted = (seed, raw = initial) => {
+    const message = request(1, initial);
+    message.params.additionalContext = {[REQUEST_CONTEXT_KEY]: {kind: 'application', value: JSON.stringify({
+      schema_version: 'are.request-context-hint/v1', raw_request: raw, requirement_seed: seed,
+    })}};
+    return message;
+  };
+  assert.deepEqual(reason(await w.processClientMessage(hinted(['citations'], 'Different request'),
+    {hosted_input_verified: true})), ['requirements.seed-request-mismatch']);
+  assert.deepEqual(reason(await w.processClientMessage(hinted(['citations', 'citations']),
+    {hosted_input_verified: true})), ['requirements.seed-invalid']);
+  assert.deepEqual(forward(await w.processClientMessage(hinted([]),
+    {hosted_input_verified: true})).requirement_snapshot.requirements, []);
+  w.close();
+});
+
+test('a signed hosted seed cannot be accepted without tracking', async () => {
+  const w = create({}, {objective_resolution: {enabled: true, requirement_tracking: false}});
+  const message = request(1, initial);
+  message.params.additionalContext = {[REQUEST_CONTEXT_KEY]: {kind: 'application', value: JSON.stringify({
+    schema_version: 'are.request-context-hint/v1', raw_request: initial,
+    requirement_seed: ['citations'],
+  })}};
+  assert.deepEqual(reason(await w.processClientMessage(message, {hosted_input_verified: true})),
+    ['requirements.tracking-not-configured']);
+  w.close();
 });
 
 test('host seed must bind the request, consumer, scope, objective and next state exactly', async () => {

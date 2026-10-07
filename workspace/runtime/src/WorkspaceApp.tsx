@@ -9,7 +9,9 @@ import type { EssaysSavedDraftObservation, EssaysStagedBuffer } from "@cyberalch
 import type { EssayWorkspace } from "@cyberalchemy/essays-runtime/model";
 import "@cyberalchemy/essays-runtime/styles.css";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { WorkspaceRuntime } from "./domain/runtime";
+import { CURRENT_SOURCE_VIEW } from "./domain/current-source-view.generated";
+import { CURRENT_PRODUCT_PROJECT_HIERARCHY } from "./domain/current-hierarchy.generated";
+import { ProductProjectHierarchy } from "./domain/ProductProjectHierarchy";
 import { filterWorkspaceRecords, toWorkspaceViewModel, WORKSPACE_COLLECTIONS, type WorkspaceCollection, type WorkspaceRecord } from "./domain/workspace";
 import { AgentDock } from "./features/agents/AgentDock";
 import { markNextPaint } from "./performance";
@@ -43,11 +45,16 @@ function projectFromHash(hash: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function collectionFromHash(hash:string):WorkspaceCollection|null {
+  const match=/^#\/collections\/(definitions|products|projects|ontologies)$/.exec(hash);
+  return match?match[1] as WorkspaceCollection:null;
+}
+
 function surfaceFromHash(hash: string): Surface {
   hash=hash.split('?')[0];
   const registered=frontendRoute(hash);
   if(registered)return `frontend:${registered.app.id}`;
-  if (!hash || hash === "#/dashboard") return "dashboard";
+  if (!hash || hash === "#/dashboard" || hash.startsWith("#/dashboard/result/")) return "dashboard";
   if (hash === "#/foundation") return "foundation";
   if (hash === "#/ontology") return "ontology";
   if (hash === "#/chat") return "chat";
@@ -97,13 +104,13 @@ function RecordDetail({ record, onOpenEssays, snapshotId }: { record: WorkspaceR
 }
 
 const ExploreSurface = memo(function ExploreSurface({ onOpenEssays, hash }: { onOpenEssays: () => void; hash:string }) {
-  const runtime = useMemo(() => new WorkspaceRuntime(), []);
-  const snapshot = useMemo(() => runtime.inspectWorkspace(), [runtime]);
+  const snapshot = CURRENT_SOURCE_VIEW;
   const view = useMemo(() => toWorkspaceViewModel(snapshot), [snapshot]);
-  const [collection, setCollection] = useState<WorkspaceCollection>("projects");
+  const [collection, setCollection] = useState<WorkspaceCollection>(()=>collectionFromHash(hash)??"projects");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("CA2-PROJECT-ESSAYS");
   const target=useMemo(()=>{const value=sourceTarget(hash);return value?.source.kind==='project'?value:null;},[hash]);
+  useEffect(()=>{const selected=collectionFromHash(hash);if(selected){setCollection(selected);setQuery('');setSelectedId('');}},[hash]);
   useEffect(()=>{if(target?.source.kind==='project'){setCollection('projects');setQuery('');setSelectedId(target.source.id);}},[target]);
   const records = filterWorkspaceRecords(view.collections[collection], query);
   const selected = view.collections[collection].find((item) => item.recordId === selectedId) ?? (target?undefined:records[0] ?? view.collections[collection][0]);
@@ -119,12 +126,13 @@ const ExploreSurface = memo(function ExploreSurface({ onOpenEssays, hash }: { on
     <main className="workspace-main">
       <header className="surface-header">
         <div><p className="eyebrow">Semantic read plane</p><h1>Explore the system.</h1></div>
-        <div className="epoch-card" aria-label="Workspace source epoch"><span>Source epoch</span><code>{snapshot.sourceEpoch.slice(0, 12)}</code><small>generated · read-only</small></div>
+        <div className="epoch-card" aria-label="Workspace source epoch"><span>Working-tree source epoch</span><code>{snapshot.sourceEpoch.slice(0, 12)}</code><small>generated · read-only · not admission</small></div>
       </header>
       <SourceReturn target={target} selected={selected?{kind:"project",id:selected.recordId,revision:snapshot.snapshotId,selector:"meaning"}:null} text={selected?.meaning??null}/>
       <div className="collection-tabs" role="tablist" aria-label="Workspace collections">
         {WORKSPACE_COLLECTIONS.map((item) => <button key={item} role="tab" aria-selected={collection === item} className={collection === item ? "active" : ""} onClick={() => chooseCollection(item)}>{COLLECTION_LABELS[item]} <span>{view.collections[item].length}</span></button>)}
       </div>
+      {(collection==='products'||collection==='projects')&&<ProductProjectHierarchy hierarchy={CURRENT_PRODUCT_PROJECT_HIERARCHY} projects={view.collections.projects} focus={collection} selectedId={selectedId} onSelectProject={(recordId)=>{setCollection('projects');setSelectedId(recordId);setQuery('');window.history.replaceState(null,'','#/collections/projects');}}/>}
       <section className="explorer" aria-label={`${COLLECTION_LABELS[collection]} explorer`}>
         <div className="record-browser">
           <div className="browser-heading"><div><p className="section-number">{String(WORKSPACE_COLLECTIONS.indexOf(collection) + 1).padStart(2, "0")}</p><h2>{COLLECTION_LABELS[collection]}</h2></div><span>{view.collections[collection].length} records</span></div>
@@ -136,7 +144,7 @@ const ExploreSurface = memo(function ExploreSurface({ onOpenEssays, hash }: { on
         </div>
         {selected && <RecordDetail record={selected} onOpenEssays={onOpenEssays} snapshotId={snapshot.snapshotId}/>}
       </section>
-      <footer className="workspace-footer"><p><strong>Projection, not authority.</strong> Visibility does not prove admission, conformance, correctness, or product value.</p><p>Bundled reference snapshot <code>{snapshot.snapshotId.slice(0, 16)}</code></p></footer>
+      <footer className="workspace-footer"><p><strong>Projection, not authority.</strong> Current working-tree records may include drafts and candidates; visibility does not prove admission, conformance, correctness, or product value.</p><p>Working-tree source view <code>{snapshot.snapshotId.slice(0, 16)}</code></p></footer>
     </main>
   );
 });
@@ -266,7 +274,7 @@ export default function WorkspaceApp() {
         <div className="control-center-decisions-slot" ref={setDecisionsSlot} />
         {controlCenter && <LunaWorkers />}
         {frontends.map(app=>{const id:Surface=`frontend:${app.id}`,route=frontendRoute(frontendHash);return mountedSurfaces.has(id)&&<div key={app.id} className="surface-view" hidden={!visible(id)}><FrontendHost app={app} active={surface===id && visible(id)} path={route?.app.id===app.id?route.path:"/runs"}/></div>;})}
-        {mountedSurfaces.has("dashboard") && <div ref={dashboardFocusRoot} className="surface-view" hidden={!visible("dashboard")}><Suspense fallback={<p className="surface-loading">Loading dashboard…</p>}><Dashboard /></Suspense></div>}
+        {mountedSurfaces.has("dashboard") && <div ref={dashboardFocusRoot} className="surface-view" hidden={!visible("dashboard")}><Suspense fallback={<p className="surface-loading">Loading dashboard…</p>}><Dashboard hash={frontendHash}/></Suspense></div>}
         {mountedSurfaces.has("explore") && <div className="surface-view" hidden={!visible("explore")}><ExploreSurface onOpenEssays={openEssays} hash={frontendHash}/></div>}
         {mountedSurfaces.has("foundation") && <div className="surface-view" hidden={!visible("foundation")}><Suspense fallback={<p className="surface-loading">Loading Foundation snapshot…</p>}><FoundationSurface /></Suspense></div>}
         {mountedSurfaces.has("ontology") && <div className="surface-view" hidden={!visible("ontology")}><Suspense fallback={<p className="surface-loading">Preparing ontology…</p>}><OntologyCanvas /></Suspense></div>}

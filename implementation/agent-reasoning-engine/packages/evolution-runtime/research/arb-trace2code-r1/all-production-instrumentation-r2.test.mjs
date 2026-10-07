@@ -1,0 +1,7 @@
+// Open Questions: evidence/G01-RUNTIME-COVERAGE-PROJECT-CAPACITY-R2.json.
+import test from'node:test';import assert from'node:assert/strict';import{createHash}from'node:crypto';import{productionInstrumentation}from'./all-production-instrumentation-r2.mjs';
+const s=(path,text)=>{const bytes=Buffer.from(text);return{path,bytes,sha256:createHash('sha256').update(bytes).digest('hex')};};
+test('source-root driven packages, siblings and inners',()=>assert.deepEqual(productionInstrumentation([s('src/main/java/p/A.java','package p; class A {class Inner{}} class B {}')],'src/main/java').classes,['p.A','p.B']));
+test('default package and explicit non-executable metadata exclusions',()=>{const r=productionInstrumentation([s('src/A.java','class A{}'),s('src/p/package-info.java','/** docs */ package p;')],'src');assert.deepEqual(r.classes,['A']);assert.equal(r.excluded_metadata.length,1);});
+test('class declarations in comments/strings are not instrumentation',()=>assert.deepEqual(productionInstrumentation([s('src/p/A.java','package p; // class False{}\nclass A{String x="class False2{}";}')],'src').classes,['p.A']));
+test('unsafe roots, mismatched packages and missing declarations fail',()=>{assert.throws(()=>productionInstrumentation([],'../src'));assert.throws(()=>productionInstrumentation([s('src/p/A.java','package q;class A{}')],'src'));assert.throws(()=>productionInstrumentation([s('src/p/A.java','package p;')],'src'));});

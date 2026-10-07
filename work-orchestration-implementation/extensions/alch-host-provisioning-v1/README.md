@@ -90,6 +90,97 @@ and `history.sqlite`. Repeating the command resumes the same exact run.
 Completed runs return historical evidence; they do not continuously monitor
 current readiness. Choose a new root for a new provisioning run.
 
+If the host lacks `/usr/bin/ansible-playbook`, run the provisioning test suite
+in the test-only container. From the repository root, build the Rust bridge
+first, then build the image and run the tests as your UID. The checkout is
+read-only inside the container, its network is disabled during the test, and
+the tests create and remove only their private container-local temporary roots:
+
+```bash
+tools/toolchain/run cargo build --offline --locked --manifest-path work-orchestration-implementation/extensions/alch-host-provisioning-v1/bridge/Cargo.toml
+docker build -f work-orchestration-implementation/extensions/alch-host-provisioning-v1/Dockerfile.test -t alch-provision-test:local work-orchestration-implementation/extensions/alch-host-provisioning-v1
+docker run --rm --network none --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD,dst=$PWD,readonly" \
+  --workdir "$PWD/work-orchestration-implementation/extensions/alch-host-provisioning-v1" \
+  -e TMPDIR=/tmp -e PYTHONDONTWRITEBYTECODE=1 \
+  alch-provision-test:local python3 -m unittest discover -s tests -v
+```
+
+This exercises the Python provisioner, its real Ansible adapter, and the Rust
+bridge. It does not run the separate AlchLang local-host Node tests, which
+also require bubblewrap and the locked Node/Rust build toolchains. Do not use
+privileged Docker or a weaker isolation mode to make those tests pass.
+
+The same test-only Dockerfile now also carries Node 26.8.1, bubblewrap, and
+the C compiler's Ubuntu runtime libraries for a bounded local-host integration
+attempt. Before the Node tests, probe the container's default unprivileged
+namespace support; failure is an environment block, not permission to add
+`--privileged`, disable seccomp, or switch the authored bubblewrap profile to
+`trusted-process`:
+
+```bash
+docker build -f work-orchestration-implementation/extensions/alch-host-provisioning-v1/Dockerfile.test -t alch-local-host-test:node26 work-orchestration-implementation/extensions/alch-host-provisioning-v1
+docker run --rm --read-only --network none --user "$(id -u):$(id -g)" \
+  --tmpfs /tmp:rw,nosuid,nodev,mode=1777 alch-local-host-test:node26 \
+  /usr/bin/bwrap --unshare-all --new-session --ro-bind / / \
+  --proc /proc --dev /dev /usr/bin/true
+```
+
+If the probe succeeds, the following keeps the checkout and locked toolchain
+assets read-only. Cargo writes only to an anonymous container-local `/var/tmp`
+volume; `AR` selects the image's Ubuntu binutils 2.46 archive tool, because
+the host toolchain's `ar` needs host-private linker libraries. Run from the
+repository root after building the bridge above:
+
+```bash
+ca2_test_toolchain="$HOME/.local/share/cyberalchemy/toolchains/ubuntu-26.04-amd64-4664d1766b60"
+docker run --rm --read-only --network none --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD,dst=$PWD,readonly" \
+  --mount "type=bind,src=$HOME/.rustup,dst=$HOME/.rustup,readonly" \
+  --mount "type=bind,src=$HOME/.cargo/bin,dst=/var/tmp/bin,readonly" \
+  --mount "type=bind,src=$HOME/.cargo/registry,dst=/var/tmp/registry,readonly" \
+  --mount "type=bind,src=$ca2_test_toolchain,dst=$ca2_test_toolchain,readonly" \
+  --mount type=volume,dst=/var/tmp \
+  --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
+  --workdir "$PWD/language/capabilities/alchlang/plans/general-compiler-v1/implementation" \
+  -e HOME="$HOME" -e XDG_DATA_HOME="$HOME/.local/share" \
+  -e CARGO_HOME=/var/tmp -e RUSTUP_HOME="$HOME/.rustup" \
+  -e TMPDIR=/var/tmp -e PYTHONDONTWRITEBYTECODE=1 -e AR=/usr/bin/ar \
+  alch-local-host-test:node26 \
+  node scripts/run-toolchain.mjs tsx --test test/local-host.test.ts test/local-host-events.test.ts
+```
+
+On the current host the default-security bubblewrap probe returns "No
+permissions to create a new namespace," so the isolated Node tests are not
+qualified by this container path. The separately declared trusted-process
+slice can be run without that probe: use the same command with only
+`test/local-host.test.ts` as the final test argument. On the current host that
+slice passes 8/8, including real Ansible provisioning, loopback invocation,
+restart, authorization and tamper rejection. It does not qualify the eight
+event/bubblewrap tests or assert a general runtime guarantee.
+
+The host itself supports unprivileged nested bubblewrap namespaces. For a
+test-only run that combines that host capability with the existing Ansible
+image, first build the bridge and `alch-local-host-test:node26` as above, then
+run from the checkout root:
+
+```bash
+bash work-orchestration-implementation/extensions/alch-host-provisioning-v1/run-local-host-tests.sh
+```
+
+The script pins the local image ID, exports its filesystem from a never-started
+temporary container, and runs both local-host test files under host bubblewrap.
+The image root, checkout, and locked toolchains are read-only; `/var/tmp` is
+private, the process environment is allowlisted, and the outer namespace has
+no network. It attempts to delete only its own private temporary root and
+container, and reports cleanup failures.
+This requires the trusted local image, Docker access, host unprivileged user
+namespaces/bubblewrap, and the already-installed locked toolchains. It does
+not install Ansible on the host or loosen Docker seccomp. The observed local
+run passed 16/16 tests on 2026-10-03. That is integration-test evidence for
+this environment, not admission, deployment readiness, or a general runtime
+guarantee. A different host must run the script and inspect its own result.
+
 `--crash-after configure` exits 75 after the real effect and before accepting
 its result. Run again without that flag to observe recovery. `--fail-node`
 is a local test hook. Tests use and clean only their own temporary directories.

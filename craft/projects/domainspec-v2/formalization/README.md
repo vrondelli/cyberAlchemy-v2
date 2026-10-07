@@ -71,13 +71,40 @@ the first definition-bound FormalClaim draft and derived consumer envelope.
   malformed, timeout, and claim-ceiling schema cases.
 - [`docs/WORKING-METHOD.md`](docs/WORKING-METHOD.md),
   [`docs/FORMALCLAIM-AND-PROFILES.md`](docs/FORMALCLAIM-AND-PROFILES.md),
+  [`docs/UNDERSTANDING-PROJECTION.md`](docs/UNDERSTANDING-PROJECTION.md),
   [`docs/TDE-EVF-INTEGRATION.md`](docs/TDE-EVF-INTEGRATION.md), and
   [`docs/DEFINE-WIZARD.md`](docs/DEFINE-WIZARD.md) — derived human views.
+- [`schemas/formal-claim-understanding-projection.schema.json`](schemas/formal-claim-understanding-projection.schema.json)
+  — candidate contract for clause- and expression-bound understanding nodes,
+  linked definition identities, and a serial human-reading projection. It is
+  explanatory only and is not yet emitted by the stable compiler.
 - [`validate.mjs`](validate.mjs) — deterministic package, schema-instance,
   source-currentness, graph-closure, and boundary validation.
 - [`receipts/`](receipts/) — append-only validation and review history.
 
 JSON and JSON Schema are canonical. Markdown is human navigation only.
+
+## Opt-in v4 proposition formation
+
+After building the local AlchLang core (`npm run build` in
+`language/capabilities/alchlang/plans/general-compiler-v1/implementation`), run
+`node craft/projects/domainspec-v2/formalization/validate-claim-formation.mjs`
+from the checkout root with one JSON request on stdin:
+
+```json
+{"schema_version":"domainspec-v2.formal-claim-formation-request/v1-candidate","root_directory":"/absolute/evidence/root","claim_ref":{"path":"claim.json","sha256":"<64 lowercase hex digits>","size_bytes":123,"current":true},"selected_profile":"fol-core/1-candidate"}
+```
+
+The command first validates the exact claim bytes against the full v4 JSON
+Schema, then runs the selected AlchLang proposition checker. It emits one JSON
+result: `checked` (exit 0), `rejected` (exit 2), or `unsupported` (exit 3).
+The result binds the claim, schema and local checker entry bytes (not the
+checker's transitive module graph), but it is
+**formation-only**: it does not validate accepted meaning, definition closure,
+interpretation, admission, TDE, provider execution, EVF, or runtime behavior.
+The historical Auth v4 `text/vnd.domainspec.fol-core` source is unsupported,
+not an accepted positive case. This opt-in command is separate from the
+whole-package `validate.mjs` and does not alter its current provenance blockers.
 
 The definition registry is the candidate authority for package-local term
 bodies. The ontology projects those terms into graph nodes; schemas constrain

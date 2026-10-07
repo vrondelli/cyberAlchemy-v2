@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {spawnSync} from "node:child_process";
 import {appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {resolve} from "node:path";
@@ -8,6 +9,7 @@ import {canonicalJson, canonicalizeJson, sha256HexText} from "../../intent-route
 
 import {
   acquireReasoningStateWriterLock,
+  inspectReasoningStateWriterLock,
   appendReasoningCounterevidence,
   appendReasoningStateReduction,
   assessReasoningStateTransition,
@@ -186,6 +188,61 @@ test("a reasoning-state log admits exactly one writer until clean release", () =
   } finally {
     rmSync(directory, {recursive: true, force: true});
   }
+});
+
+test("writer-lock inspection identifies stale candidates without breaking them", () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "are-reasoning-lock-inspect-"));
+  const path = resolve(directory, "reasoning.jsonl");
+  try {
+    const acquired = acquireReasoningStateWriterLock({path, owner_id: "writer:inspect"});
+    const stale = inspectReasoningStateWriterLock({path, process_probe: () => "missing"});
+    assert.equal(stale.disposition, "stale-candidate");
+    assert.equal(stale.break_authorized, false);
+    assert.equal(acquired.lock.release().ok, true);
+    assert.equal(inspectReasoningStateWriterLock({path}).disposition, "missing");
+  } finally { rmSync(directory, {recursive: true, force: true}); }
+});
+
+test("reasoning-state writer reclaims a verified terminated local owner", () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "are-reasoning-crash-lock-"));
+  const path = resolve(directory, "reasoning.jsonl");
+  try {
+    const moduleUrl = new URL("../index.mjs", import.meta.url).href;
+    const script = `const {acquireReasoningStateWriterLock} = await import(${JSON.stringify(moduleUrl)}); const result = acquireReasoningStateWriterLock({path: ${JSON.stringify(path)}}); if (!result.ok) throw new Error(JSON.stringify(result.reason_codes));`;
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {encoding: "utf8"});
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(inspectReasoningStateWriterLock({path}).disposition, "stale-candidate");
+    const recovered = acquireReasoningStateWriterLock({path, owner_id: "writer:recovered"});
+    assert.equal(recovered.ok, true);
+    assert.equal(inspectReasoningStateWriterLock({path}).disposition, "active");
+    assert.equal(recovered.lock.release().ok, true);
+  } finally { rmSync(directory, {recursive: true, force: true}); }
+});
+
+test("reasoning-state writer leaves interrupted recovery and legacy locks untouched", () => {
+  const directory = mkdtempSync(resolve(tmpdir(), "are-reasoning-recovery-marker-"));
+  const path = resolve(directory, "reasoning.jsonl");
+  try {
+    const moduleUrl = new URL("../index.mjs", import.meta.url).href;
+    const script = `const {acquireReasoningStateWriterLock} = await import(${JSON.stringify(moduleUrl)}); const result = acquireReasoningStateWriterLock({path: ${JSON.stringify(path)}}); if (!result.ok) throw new Error(JSON.stringify(result.reason_codes));`;
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {encoding: "utf8"});
+    assert.equal(child.status, 0, child.stderr);
+    const marker = `${path}.writer.lock.recovery.lock`;
+    writeFileSync(marker, "", {flag: "wx"});
+    assert.deepEqual(acquireReasoningStateWriterLock({path}).reason_codes, ["reasoning.writer-lock-recovery-held"]);
+    rmSync(marker);
+    const lockPath = `${path}.writer.lock`;
+    const current = JSON.parse(readFileSync(lockPath, "utf8"));
+    const legacy = {...current, schema_version: "are.reasoning-state-writer-lock/v1"};
+    delete legacy.host_name; delete legacy.lock_digest;
+    writeFileSync(lockPath, `${canonicalJson({...legacy, lock_digest: sha256HexText(canonicalJson(canonicalizeJson(legacy)))})}\n`);
+    assert.equal(inspectReasoningStateWriterLock({path}).disposition, "legacy-unrecoverable");
+    assert.deepEqual(acquireReasoningStateWriterLock({path}).reason_codes, ["reasoning.writer-lock-held"]);
+    writeFileSync(marker, "", {flag: "wx"});
+    rmSync(lockPath);
+    assert.equal(inspectReasoningStateWriterLock({path}).disposition, "recovery-interrupted");
+    assert.deepEqual(acquireReasoningStateWriterLock({path}).reason_codes, ["reasoning.writer-lock-recovery-held"]);
+  } finally { rmSync(directory, {recursive: true, force: true}); }
 });
 
 function state() {

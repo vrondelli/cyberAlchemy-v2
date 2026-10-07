@@ -1,0 +1,17 @@
+# G02 r11 terminal-prompt continuity — exposed, label-free diagnosis
+
+Status, 2026-10-05: **recycling loss is not the demonstrated G02 r11 bottleneck.** This result does not establish selection quality, a candidate policy, or superiority.
+
+The [r1](../research/g02-product-r4/audit-g02-r11-terminal-prompt-continuity-r1.py) and [r2](../research/g02-product-r4/audit-g02-r11-terminal-prompt-continuity-r2.py) read-only auditors checked all 12 terminal archived ARE r11 episode receipts, selected read IDs, final rendered prompts, and recycling snapshots. Neither auditor opened reference labels, native scores, DSH outputs, or new model calls. Private write-once audit receipts are `/home/vlad_/are-benchmark-archive/g02-r11-terminal-prompt-continuity-r1-20261005/AUDIT.json` (SHA-256 `99808b6ec6a1bae4b3de98c57567a1ae7a30bf253bf0f1647e19430de52feba2`) and `/home/vlad_/are-benchmark-archive/g02-r11-terminal-prompt-continuity-r2-20261005/AUDIT.json` (SHA-256 `214cd085559c3946ad97078f5b64b6802d590144e5204c6b2b2c8a8cc626145f`).
+
+All **12/12** episodes had **zero context recycles** and terminal generation zero. Across 88 selected source read IDs, **78** appeared literally in the final prompt. The remaining **10** had appeared literally in earlier prompts and their corresponding model context handles appeared in the final prompt; no selected ID lacked both terminal literal-ID and terminal handle visibility. There were zero runtime-added read IDs in these selections. This is a byte-level visibility check: handle presence does **not** prove the raw source body remained visible at the terminal step, nor that the model used it correctly.
+
+The newest [SemNav paper](https://arxiv.org/html/2609.31176) motivates explicit evidence-grounded candidate records and a comparison step that can ask a focused verification question. That mechanism is not equivalent to a generic memory-retention patch. In this r11 cohort, retention across recycling cannot explain the 22 undelivered gold paths or the rejected compact-card chooser's 1/13 proposal precision. The [multi-view acquisition screen](G02-R11-MULTIVIEW-FILE-CARD-EXPOSED-2026-10-04.md) already made nine of those 22 reachable in top 24, but its selector worsened File-F1. The next candidate should therefore test **source-grounded discrimination**: require each proposed file to have a cited causal responsibility for the issue, compare it with a plausible alternative and `NO_ADDITION`, and return a bounded verification question or abstain when the evidence is insufficient. This is a research hypothesis, not an implemented or qualified policy. Preserve the full candidate pool until a source-only supply gate passes; the previous role-stratified reduction lost too many gold candidates.
+
+Do not spend a fresh G02 cohort or claim a workspace benefit on this continuity audit. A separately frozen exposed test must first show valid choices, new-gold precision, nonnegative native File-/Span-F1, and feasible all-in tokens/time. Independent matched confirmation remains required after that.
+
+## Open Questions
+
+- Which final-prompt selected handles have their decisive source bytes compressed away, and does that correlate with actual errors?
+- Can a comparison-and-verification policy discriminate needed files from related files without the earlier listwise chooser's false-positive rate?
+- Can online relation resolution add candidate reach in mixed Python/C++ repositories without exceeding the three-read and provider budgets?

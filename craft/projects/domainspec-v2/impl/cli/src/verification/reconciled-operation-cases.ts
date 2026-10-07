@@ -51,8 +51,8 @@ export function createOperationSemanticCases(action:CheckedOperationAction,oracl
  };
  const status=(observation:ReturnType<typeof oracle.expected>,field:string):unknown=>(observation.outcome as any)[1].find((p:any)=>p[0]===field)?.[1]?.[1];
  const eventFieldSamples=(field:any,slot:string):FactRecipe[]=>{
-  const type=field.type_ref.kind==='reference'?'reference':field.type_ref.name;
-  const values=type==='integer'?['0','1','-1','-9223372036854775808','9223372036854775807',0,1,-1,0n,1n,-1n]:type==='decimal'?[0,1.5,-1.5]:type==='boolean'?[false,true]:type==='string'?['',slot,'β😀']:[slot,'β😀'];
+  const type=field.type_ref.kind==='reference'?(oracle.eventReferenceScalar(field.type_ref.selector)==='UInt64'?'uint64':'reference'):field.type_ref.name;
+  const values=type==='integer'?['0','1','-1','-9223372036854775808','9223372036854775807',0,1,-1,0n,1n,-1n]:type==='uint64'?['0','1','9007199254740992','18446744073709551615',0,1,0n,1n]:type==='decimal'?[0,1.5,-1.5]:type==='boolean'?[false,true]:type==='string'?['',slot,'β😀']:[slot,'β😀'];
   return values.map(operationValueRecipe);
  };
  const eventInputs=Object.fromEntries(action.events.map(e=>[e.parameter,{tag:'fields',fields:{occurrence:{tag:'fields',fields:{[e.contract.occurrence_id.field_id]:eventFieldSamples(e.contract.occurrence_id,e.slot)[0]!}},payload:{tag:'fields',fields:Object.fromEntries(e.contract.payload.filter(f=>f.required).map(f=>[f.field_id,eventFieldSamples(f,e.slot)[0]!]))},...(e.contract.occurred_at_policy==='required'?{occurredAt:operationValueRecipe('time-'+e.slot)}:{})}} as FactRecipe]));

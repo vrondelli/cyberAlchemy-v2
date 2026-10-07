@@ -1,12 +1,20 @@
 # KELD React staging — presentation gallery
 
+> **Historical gallery:** this records the 2026-09-19 `/react-preview` capture.
+> The React storefront has since become the staging root, and the referenced
+> screenshot files are not retained in the current workspace. Do not use this
+> page as current release evidence. The schema-v3 r23 release manifest and its
+> privacy-safe provider-paid-delivery receipt are the current machine-readable
+> authority; the receipt confirms a completed PayPal delivery without exposing
+> buyer or provider identifiers.
+
 - **Captured:** 2026-09-19
 - **Staging surface:** `https://staging.keld.studio/react-preview`
 - **Image:** `sha256:7042d40b6d4b6b5e2262a421e658d9322b95d2bef8587fa1d44030937fc76a25`
 - **Evidence:** [`presentation-evidence.json`](../../output/playwright/presentation/presentation-evidence.json) and [`paypal-complete-evidence.json`](../../output/playwright/presentation/paypal-complete-evidence.json)
 
-These are focused customer-view frames from the exact active staging image.
-They are presentation captures, not substitutes for the machine-readable
+These were focused customer-view frames from the then-active staging image.
+They are historical presentation references, not substitutes for the machine-readable
 acceptance evidence in
 [`REACT-STAGING-ACCEPTANCE.md`](REACT-STAGING-ACCEPTANCE.md).
 
@@ -145,7 +153,7 @@ artifact as Stripe and Mercado Pago.
 
 ![PayPal download complete](../../output/playwright/presentation/20-paypal-download-complete.png)
 
-## Open Questions
+## Resolved staging decision
 
-1. The React surface remains a canary at `/react-preview`; replacing the staging
-   root is a separate owner cutover decision after the provider gate passes.
+The owner-authorized React root cutover is complete. `/react-preview` is now a
+compatibility alias; production authorization remains a separate decision.

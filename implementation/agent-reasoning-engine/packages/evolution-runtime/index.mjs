@@ -18,6 +18,90 @@ export {createEvolutionScheduler} from "./src/scheduler.mjs";
 export {RESEARCH_CONTINUITY_POLICY_SCHEMA, RESEARCH_CONTINUITY_BINDING_SCHEMA, verifyResearchContinuity} from "./src/research-continuity.mjs";
 export {REPLICATION_SOURCE_PATHS, materializeReplicationManifest, verifyReplicationManifest, scoreReplicationRun, materializeReplicationResult} from "./src/requirement-replication.mjs";
 export {LATENCY_SOURCE_PATHS, materializeLatencyManifest, verifyLatencyManifest, scoreLatencyRun, materializeLatencyResult} from "./src/requirement-latency-control.mjs";
+export {
+  EVOLUTION_PROTOCOL_VERSION,
+  EVOLUTION_COMMAND_SCHEMA,
+  EVOLUTION_RESULT_SCHEMA,
+  EVOLUTION_EVENT_SCHEMA,
+  EVOLUTION_COMMAND_RECEIPT_SCHEMA,
+  EVOLUTION_CYCLE_DEFINITION_SCHEMA,
+  EVOLUTION_CYCLE_REGISTRY_SCHEMA,
+  evolutionProtocolDigest,
+  sealCycleDefinition,
+  verifyCycleDefinition,
+  verifyCycleDefinitionRegistry,
+  loadCandidateCycleDefinitionRegistry,
+  assessCycleDefinitionCompatibility,
+  materializeEvolutionCommand,
+  verifyEvolutionCommand,
+  materializeEvolutionEvent,
+  verifyEvolutionEvent,
+  materializeCommandReceipt,
+  verifyCommandReceipt,
+  materializeEvolutionResult,
+  verifyEvolutionResult,
+  verifyArtifactIdentity,
+  verifyEffectEnvelope,
+  verifyPhaseAdmission,
+  verifyHandoffOffer,
+  verifyHandoffAcceptance,
+  assessCommandReplay,
+  verifyProtocolDocument,
+} from "./src/protocol-v1.mjs";
+export {
+  EVOLUTION_KERNEL_VERSION,
+  EVOLUTION_COMMIT_SCHEMA,
+  EVOLUTION_PROJECTION_SCHEMA,
+  EVOLUTION_DIAGNOSIS_SCHEMA,
+  EVOLUTION_OBSERVATION_SCHEMA,
+  createDurableEvolutionKernel,
+  observeCandidateEvolutionRegistry,
+  observeDurableEvolution,
+} from "./src/durable-kernel-v1.mjs";
+export {
+  COORDINATION_PROTOCOL_VERSION,
+  COORDINATION_COMMAND_SCHEMA,
+  COORDINATION_EVENT_SCHEMA,
+  COORDINATION_RECEIPT_SCHEMA,
+  COORDINATION_RESULT_SCHEMA,
+  COORDINATION_PROJECTION_SCHEMA,
+  materializeCoordinationCommand,
+  verifyCoordinationCommand,
+  materializeCoordinationEvent,
+  verifyCoordinationEvent,
+  materializeCoordinationReceipt,
+  verifyCoordinationReceipt,
+  materializeCoordinationResult,
+  deriveCoordinationProjection,
+  verifyCoordinationDocument,
+} from "./src/coordination-protocol-v1.mjs";
+export {EVOLUTION_COORDINATOR_VERSION, createEvolutionCoordinator} from "./src/coordination-v1.mjs";
+export {
+  BENCHMARK_RESEARCH_RUNTIME_VERSION,
+  BENCHMARK_RESEARCH_IMPORT_SCHEMA,
+  BENCHMARK_RESEARCH_PROJECTION_SCHEMA,
+  BENCHMARK_RECONSTRUCTION_BUNDLE_SCHEMA,
+  HEN_MILESTONE_EVIDENCE_SCHEMA,
+  HEN_INDEPENDENT_REVIEWS_SCHEMA,
+  verifyBenchmarkImportManifest,
+  verifyHenProgressionEvidence,
+  loadHenFrontierImportManifest,
+  createBenchmarkResearchRuntime,
+  deriveBenchmarkResearchProjection,
+} from "./src/benchmark-research-v1.mjs";
+export {
+  HEN_HINT_COMPRESSION_VERSION,
+  HEN_HINT_PAYLOAD_SCHEMA,
+  HEN_HINT_POLICY,
+  compressHenHints,
+  verifyCompressedHenHints,
+} from "./src/hen-hint-compression-v1.mjs";
+export {
+  HEN_CANDIDATE_VIEW_VERSION,
+  HEN_CANDIDATE_VIEW_SCHEMA,
+  materializeHenCandidateView,
+  verifyHenCandidateView,
+} from "./src/hen-candidate-view-v1.mjs";
 
 export const EVOLUTION_PROFILE_SCHEMA = "are.evolution-profile/v1";
 export const IMPROVEMENT_SIGNAL_SCHEMA = "are.improvement-signal/v1";

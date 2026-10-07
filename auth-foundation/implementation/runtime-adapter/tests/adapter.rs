@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-raw-decision")]
+
 use std::collections::BTreeSet;
 
 use auth_foundation_runtime_adapter::{

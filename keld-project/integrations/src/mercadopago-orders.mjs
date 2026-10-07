@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {Rejected, CreationFailed, createAtProvider} from './errors.mjs';
+import {mercadoPagoOrdersRefundState} from './refund-state.mjs';
 
 export const ORDERS_API='orders-v1';
 // Orders identifiers observed across SDK fixtures and the live sandbox are
@@ -14,7 +15,7 @@ export const orderReference=(t,c)=>t.orderId+'_'+createHash('sha256').update(JSO
   ORDERS_API,'sandbox',c.account,c.applicationId,t.orderId,t.releaseDigest,t.amountCents,t.currency,t.expiresAt,
 ])).digest('hex').slice(0,30);
 function rejectIssues(issues){if(issues.length){const e=new Rejected('pix-order-invalid');e.issues=issues;throw e;}}
-export function validateOrder(o,t,c,{id,paid=false}={}){
+export function validateOrder(o,t,c,{id,paid=false,allowReversals=false}={}){
   const issues=[];const check=(path,ok)=>{if(!ok)issues.push({path,code:'mismatch-or-missing'});};
   check('id',orderId(o?.id)&&(!id||o.id===id));
   check('type',o?.type==='online');check('user_id',String(o?.user_id)===c.account);
@@ -35,7 +36,8 @@ export function validateOrder(o,t,c,{id,paid=false}={}){
     check('transactions.payments[0].payment_method.id',p.payment_method?.id==='pix');
     check('transactions.payments[0].payment_method.type',p.payment_method?.type==='bank_transfer');
   }
-  for(const k of ['refunds','chargebacks'])check('transactions.'+k,o?.transactions?.[k]===undefined||(Array.isArray(o.transactions[k])&&o.transactions[k].length===0));
+  for(const k of ['refunds','chargebacks'])check('transactions.'+k,o?.transactions?.[k]===undefined||
+    (Array.isArray(o.transactions[k])&&(allowReversals||o.transactions[k].length===0)));
   if(paid){
     check('status',o?.status==='processed');check('status_detail',o?.status_detail==='accredited');
     check('total_paid_amount',amount(o?.total_paid_amount,t.amountCents));
@@ -70,6 +72,20 @@ export function bindOrdersAdapter({orders,user},c,{clock=()=>Math.floor(Date.now
   const get=async id=>{if(!orderId(id))throw new Rejected('provider-id');await account();return orders.get({id});};
   return {
     account:c.account,api:ORDERS_API,
+    async terminalUnpaid(id,t){
+      const o=await get(id);
+      const p=validateOrder(o,t,c,{id});
+      const terminal=o.processing_mode==='automatic'&&
+        ((o.status==='expired'&&o.status_detail==='expired'&&
+          p.status==='expired'&&p.status_detail==='expired')||
+         (o.status==='canceled'&&o.status_detail==='canceled'&&
+          p.status==='canceled'&&['canceled','canceled_by_api'].includes(p.status_detail)))&&
+        amount(o.total_paid_amount,0)&&
+        (p.paid_amount==null||amount(p.paid_amount,0));
+      return terminal
+        ? {kind:'terminal-unpaid',provider:'mercadopago',providerApi:ORDERS_API,remoteId:id}
+        : {kind:'unresolved',provider:'mercadopago',providerApi:ORDERS_API,remoteId:id};
+    },
     async create(t,key){
       if(t.providerApi!==ORDERS_API||t.pixRequestVersion!==2||t.pixExpirationSeconds!==1800||!Number.isSafeInteger(t.pixExpiresAt)||clock()>=t.pixExpiresAt||t.expiresAt-clock()<1860)throw new CreationFailed(true);
       try {await account();}catch {throw new CreationFailed(true);}
@@ -81,6 +97,26 @@ export function bindOrdersAdapter({orders,user},c,{clock=()=>Math.floor(Date.now
     },
     async resume(id,t){const o=await get(id);return response(o,t,id);},
     async verify(id,t){const o=await get(id);validateOrder(o,t,c,{id});if(['processing','action_required','created'].includes(o.status))return null;if(o.status!=='processed')throw new Rejected('pix-order-state-review');return validateOrder(o,t,c,{id,paid:true}).id;},
+    async inspectRefund(id,t,paymentId){
+      if(t.providerApi!==ORDERS_API||t.currency!=='BRL'||!orderId(id)||
+         typeof paymentId!=='string'||!/^PAY[A-Z0-9]{26,29}$/.test(paymentId))
+        throw new Rejected('orders-refund-proof-invalid');
+      const o=await get(id);
+      return mercadoPagoOrdersRefundState({order:o,orderId:id,paymentId,
+        amountCents:t.amountCents,currency:t.currency,account:c.account,
+        applicationId:c.applicationId,externalReference:orderReference(t,c)});
+    },
+    async inspectRecordedRefund(id,t){
+      // A signed Order notification names the Order, not its Pix payment.
+      // Extract one exact payment from a fresh GET; the strict refund-state
+      // classifier then binds that payment and any REF to frozen terms.
+      if(t.providerApi!==ORDERS_API||t.currency!=='BRL')throw new Rejected('orders-refund-proof-invalid');
+      const o=await get(id),p=validateOrder(o,t,c,{id,allowReversals:true});
+      if(!p?.id)throw new Rejected('orders-refund-payment-missing');
+      return {paymentId:p.id,...mercadoPagoOrdersRefundState({order:o,orderId:id,paymentId:p.id,
+        amountCents:t.amountCents,currency:t.currency,account:c.account,
+        applicationId:c.applicationId,externalReference:orderReference(t,c)})};
+    },
     async localOrderFor(id){
       const o=await get(id);
       if(o?.id!==id||String(o.user_id)!==c.account||String(o.integration_data?.application_id)!==c.applicationId||o.live_mode===true||!/^([a-f0-9]{32})_[a-f0-9]{30}$/.test(o.external_reference))throw new Rejected('pix-order-invalid');

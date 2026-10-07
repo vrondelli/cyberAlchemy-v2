@@ -1,0 +1,29 @@
+# G03 LongMemEval-V2 development r2–r6, 2026-10-05
+
+Status: **audited, exposed development comparison; no confirmation or superiority claim**. This is a custom paired GLM-5.3-Flash small-tier experiment, not an official LongMemEval-V2 harness run or leaderboard submission. The later [r7–r8 site-scope study](G03-LME-V2-SITE-SCOPE-R7-R8-2026-10-05.md) supersedes its treatment score with a small development gain. The [official benchmark](https://github.com/xiaowu0162/LongMemEval-V2) uses a memory backend and measures both answer accuracy and query latency; this experiment has not measured that official frontier.
+
+## Frozen population and methods
+
+The [metadata-only split](../research/g03-beam-r1/freeze-lme-v2-small-metadata-split-r1.py) reserved 28 development, 140 confirmation, and 283 reserve questions before question text or gold inspection. The 28 development questions balance two per domain × question-type cell. All partitions share the same 200 small-tier trajectories, so this is question holdout, **not source-trajectory holdout**. Dataset revision `f152293e235517d504809563c833d7190b8c713b`; official harness commit `2cc8c540bdb87fe6761629b585e727e1c4704520`; split SHA-256 `f0f632c24a4c8edbdf819bbd86fac295865f5eedb8533ca70de98ec929805616`.
+
+The [r2 line-window builder](../research/g03-beam-r1/build-lme-v2-line-window-r2.py) indexed 3,090,921 AXTree windows from the shared 200 trajectories. The control uses lexical line-window ranking. Treatment adds trajectory goal and adjacent-action linkage, selecting six windows under the same 12,000-character evidence cap and source fields. The [r3 source-only form extractor](../research/g03-beam-r1/build-lme-v2-form-procedure-r3.py) changed treatment evidence for one exposed procedural question; all other r2 packet evidence stayed byte-identical. This is development adaptation, not a prospective treatment freeze.
+
+All 56 answer attempts for 28 matched questions are archived and independently checked. One treatment answer exhausted its 2,048-token completion cap with empty final content; the invalid attempt was preserved and counted incorrect, with no top-up. The r5 answer audit SHA-256 is `4b77b5e4199c83f0325637ec478b944a13edfd389af6faee58bea1e06bae9511`; the complete answer result SHA-256 is `3f2c7d363a3436a7867c12d7a7a41a2c41153e45e4b674e31685a268e32329a7`. Answer-model usage across 56 attempts was 77,757 known prompt and 6,016 known completion tokens.
+
+Twelve development questions use the pinned official deterministic rules. For the other 16, the [r6 arm-blind judge builder](../research/g03-beam-r1/build-lme-v2-dev-blind-judges-r6.py) produced two shuffled, arm-hidden official-rubric prompts per answer. The [VPS runner](../research/g03-beam-r1/run-lme-v2-dev-blind-judges-r6.mjs) made 64 tokenizer and 64 zero-retry GLM judge calls; all 64 provider responses were valid. The [audit/scorer](../research/g03-beam-r1/score-lme-v2-dev-judges-r6.py) checks the raw receipt hashes, uses the official binary-judgment parser, and resolves an arm only when its two votes agree. Three arms have split votes. **GLM is not the official default GPT-5.2 judge**, so this is GLM-adapted scoring, not native official scoring.
+
+## Development result
+
+On the 12 deterministic-rule questions, treatment scored **4/12**, control **2/12**. Across all 28, accounting for the three unresolved judge arms, treatment is **6–8/28** and control **3–4/28**. On the 25 fully resolved pairs there were 3 both-correct, 3 treatment-only, 0 control-only, and 19 both-incorrect; the two-sided exact McNemar p-value is **0.25**. The complete private r6 score receipt is `/home/vlad_/are-benchmark-archive/g03-lme-v2-dev-judge-run-r6/SCORE.json`, SHA-256 `870e8b9a13681db489911a4fab60f78a477f3e2a30fd51141346df708f50e13a`. The frozen judge result SHA-256 is `431f4fbf797f39c78a86ed662a093260e1764557c40453dae9e08c0f00b25885`.
+
+This is a favorable **development signal**, not a statistically established paired accuracy advantage. Three of seven question-type cells have no confirmed treatment correct answer. The treatment's low absolute accuracy, judge disagreement, development tuning, custom reader, and absent native latency accounting prohibit V2 or ARE product superiority wording. Do not expose the 140 confirmation questions until the next retrieval candidate, reader/judge protocol, comparator, cost ceiling, and directional gate are frozen. Do not rerun or silently repair the three disputed judge arms.
+
+## Next research boundary
+
+The immediate bottleneck is source retrieval/reading, especially dynamic-state, gotcha, and procedural evidence. A direct packet inspection found cross-environment contamination: the Magento address-navigation development question `289aea4a` received Reddit and dental-product windows, while forum-search question `0574c69a` received a dental-product window. This is source-packet evidence of a ranking/scope failure, not an inferred scoring adjustment. Develop on the 28 exposed questions only: first test source-only site/environment scoping, then audit whether six retrieved windows contain the gold-supporting source and compare multi-query/trajectory-summary retrieval against the same control and reader budget. Preserve failed attempts and model usage. An improvement on these same 28 remains development evidence; only a separately frozen, independently scored confirmation cohort could support a broader directional claim.
+
+## Open Questions
+
+- Can source-only evidence recall improve across the weak ability cells without increasing reader tokens or online latency beyond the comparator?
+- Can the official backend/reader and GPT-5.2 judge be made available for a native accuracy-latency result, or must the GLM-adapted protocol remain explicitly separate?
+- What claim gate and cost ceiling should be frozen for the 140 reserved confirmation questions after a candidate is qualified on development data?

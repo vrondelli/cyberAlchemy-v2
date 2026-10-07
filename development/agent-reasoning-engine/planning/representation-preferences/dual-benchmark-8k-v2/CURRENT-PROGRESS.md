@@ -1,6 +1,519 @@
-## Rounds 76–78 completed: clear live findings
+# Current progress ledger
 
-Four new assigned runs settled, with **106 model calls and 864,835 tokens fully
+## Current Status — Read First
+
+G02's [exposed NodeBB cross-layer diagnostic](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-cross-layer-nodebb-diagnostic-r1/RESULT-NOTE.md)
+added one already delivered, base-projectable settings-template read through
+an opt-in selector. Native File-F1 rose `0.25000 → 0.35294`, above DSH's
+`0.33333`, but Span-F1 rose only `0.35624 → 0.36245` and remains below
+DSH's `0.43701`. A source-only helper also proposes four distinct
+settings/schema/client/controller hints on this exposed task; these are not
+yet delivered evidence. Five focused tests pass. The fixed G02 cohort still
+fails its broad gate. Next: wire and test bounded hint delivery on an exposed
+episode, then freeze a materially new treatment and untouched DSH pair.
+
+G01's [prospective shared-reliability four-task campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-shared-reliability-campaign-r1/RESULT-NOTE.md)
+is complete and **passes its predeclared aggregate rule**. All four matched
+pairs scored natively; macro Span/File-F1 improved `0.012596/0.312500 →
+0.140720/0.575397`, with 24.85% fewer known model tokens and 24.72% less
+summed arm time. C's control used the first live reasoning-view fallback and
+remained scoreable. Go and Rust passed all four per-task gates; C tied at 1.0
+File-F1; Svelte tied at zero quality while modestly reducing cost. A post-score
+audit found that this Svelte task's migration-script objective and native gold
+file set (workspace artifacts plus compiler client-transform files) do not
+obviously align. Do not remove or reclassify it after scoring. No output-cap
+correction activated. This is bounded G01 evidence, not full ContextBench or
+cross-benchmark ARE proof. Next: audit task/label alignment before changing
+the engine for Svelte-like failures, then test on untouched tasks;
+resume the G02 large-window branch separately. No G01 worker is active.
+
+G01 shared transport reliability is now opt-in and receipt-bound for **both**
+arms: fallback-only historical reasoning omission and one bounded discovery
+output-cap correction. Forty focused provider-free tests pass. On the exposed
+C/zstd task from the failed campaign, [control and candidate diagnostics](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-shared-reliability-c-diagnostics-r1/RESULT-NOTE.md)
+both completed, but neither recovery branch activated. This does not repair
+the failed campaign or validate the mechanisms live. Next: a deterministic
+transport probe, then a fresh cohort with the shared policy frozen in both
+arms. No G01 worker is active.
+
+G01's [prospective fallback-only reasoning-view four-task campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-reasoning-fallback-campaign-r1/RESULT-NOTE.md)
+is complete and **rejects its all-four-pairs-valid aggregate rule**. Go, Svelte,
+and Rust each passed all four task-level gates; on these three descriptive
+pairs, macro Span/File-F1 rose `0/0 → 0.182680/0.638889`, with 45.09% fewer
+known model tokens and 41.19% less summed duration. C/zstd was unscored:
+control failed bounded-view admission and candidate exhausted the fixed
+output cap. The fallback never activated on any of the four candidate runs,
+so these gains cannot be credited to reasoning omission. The one-command
+campaign driver ran end to end on the VPS. Next: improve shared run
+reliability under a separately frozen policy, then test a fresh cohort;
+do not reclassify or rerun this failed campaign. No G01 worker is active.
+
+G01's [prospective reasoning-free-view four-task campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-reasoning-view-campaign-r1/RESULT-NOTE.md)
+is complete and **rejects its aggregate rule**. The Rust control failed with
+`glm.incomplete-output`, leaving three scored pairs. On that descriptive
+subset, ARE improved macro Span/File-F1 `0.109842/0.222222 →
+0.250309/0.666667` and used 11.24% fewer tokens, but took 16.57% more
+summed time; Go regressed Span-F1 and Svelte used more tokens/time. The
+[exposed Svelte diagnostic](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-reasoning-view-svelte-diagnostic-r1/RESULT-NOTE.md)
+confirmed that omitting reasoning from model-facing archive views repairs
+the earlier bounded-view admission failure while preserving raw receipts,
+but it scored 0/0 accuracy. Next hypothesis: omit reasoning **only when**
+the ordinary historical view cannot be admitted, then test on untouched
+tasks. A [one-command campaign driver](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/research/g01-fast-live-v1/run-campaign.mjs)
+now passes provider-free tests and removes manual four-process dispatch for
+future cohorts. No G01 worker is active.
+
+G01's [unchanged-arm eight-task replication](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-identifier-itt-replication-r1/RESULT-NOTE.md)
+is complete and **rejects its all-eight-pairs-valid aggregate rule**. Seven
+pairs scored, with candidate macro Span/File-F1 `0.373263/0.669048` versus
+control `0/0`, 45.55% fewer known model tokens and 36.49% less summed arm
+duration on that descriptive subset. One control received the predeclared
+no-final-context policy zero. The eighth Svelte candidate instead failed
+bounded-view admission after nine model calls; it cannot be assigned zero.
+The failure is linked to an 8,470-byte historical assistant reasoning field
+and a measured request floor above 8K even after tool-result deferral. Next:
+test a separate reasoning-free *view* projection while retaining raw receipts,
+then freeze a new cohort. The prior four-task G01 pass remains intact, but
+this replication does not establish broad G01 generalization. No G01 worker
+is active.
+
+G01's [prospective identifier-aware four-language campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-identifier-itt-campaign-r1/RESULT-NOTE.md)
+is complete and **passes its predeclared aggregate rule**. All eight arms
+were natively scoreable, so the separately predeclared abstention-zero policy
+was unused. Macro Span/File-F1 improved `0.022165/0.071429 →
+0.193051/0.412500`; summed known model tokens fell 39.55% and duration
+26.23%. Three tasks passed all four per-task gates; C/zstd tied at zero
+Span-F1 while improving File-F1 and cost. No Span-F1 regression occurred.
+This is four-task G01 evidence, not full ContextBench or cross-benchmark
+product proof. The previous distinctive-source campaign below remains
+rejected. No G01 worker is active. Next: inspect mechanism receipts and
+replicate on a larger untouched cohort, while resuming ARE×DSH and the
+third benchmark separately.
+
+G01's [prospective distinctive-source four-language campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-distinctive-campaign-r1/RESULT-NOTE.md)
+is complete and **rejects its predeclared aggregate pass** because the Rust
+control produced `instrument.no-final-context`, leaving three of four pairs
+scoreable. On the three scored pairs, macro Span/File-F1 rose
+`0.005327/0.333333 → 0.169195/0.511905`, with 33.25% fewer summed known
+tokens and 36.50% less summed duration. Fresh Svelte passed all four per-task
+gates and activated two distinctive source reads. Go improved both accuracy
+metrics but used more tokens and time; C improved Span-F1 and cost while
+File-F1 tied. Distinctive acquisition did not activate in C or Go, so their
+candidate effects cannot be assigned to that step. Next: separately define a
+validity treatment for explicit abstention and a bounded efficiency stop,
+then freeze a new cohort; do not retroactively repair this failed campaign.
+The [pinned-scorer abstention probe](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-abstention-probe-r1/RESULT-NOTE.md)
+confirmed that native scoring rejects both zero-step and empty-final-context
+predictions; assigning zero would require a separately declared wrapper metric.
+No G01 worker is active.
+
+G01's [distinctive-source Svelte diagnostic](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-distinctive-svelte-diagnostic-r1/RESULT-NOTE.md)
+completed on an exposed task. Its receipt-delivered, gold-blind source search
+selected the Svelte parser and CSS selector implementation files, reaching
+native Span/File-F1 `0.246068/0.285714` in 21 model calls and 52,278 known
+model tokens. This is a mechanism diagnostic, not a prospective or matched
+ARE-vs-control win. A later local-only guard for missing substantive-hint reads
+passes provider-free tests but needs a separate frozen snapshot and untouched
+cohort. The previous four-language campaign remains rejected; no G01 worker
+is active. Next: freeze the guarded arm, predeclare fresh source-only tasks,
+then run sealed matched pairs before claiming accuracy and cost improvement.
+
+G01's [prospective objective-anchor four-language campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-objective-campaign-r1/RESULT-NOTE.md)
+is complete and **rejects the predeclared aggregate pass**: only three of
+four frozen pairs scored. C/zstd and Rust/clap each passed all four task
+gates; Go/GitHub CLI saved tokens and time but tied at zero accuracy;
+Svelte was unscored in both arms. Descriptive scored-pair macro
+Span/File-F1 improved `0/0 → 0.066533/0.433333`, with 35.33% fewer
+summed known tokens and 26.88% less summed duration, but this is not a
+campaign pass or product proof. Svelte's candidate offered only an unrelated
+CSS blog post and had no eligible wide source ranges; the control exhausted
+non-tool corrections. Next G01 hypothesis: bounded task-distinctive source
+acquisition before early finish, while preserving abstention and separate
+validity accounting. No G01 worker is active.
+
+The preceding [exposed Go mechanism diagnostic](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-objective-diagnostic-r1/RESULT-NOTE.md)
+showed the objective-anchor arm repaired the previous empty-context path on
+that task, but its post-hoc four-gate improvement is **not prospective
+evidence** and did not repair the older campaign.
+
+G01's [four-language aggregate campaign](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-aggregate-campaign-r1/RESULT-NOTE.md)
+is complete and **does not pass its predeclared rule**: three of four frozen
+pairs scored; the GitHub CLI Go candidate ended with
+`instrument.no-final-context`. On scored zstd C, Svelte JavaScript, and clap
+Rust pairs, descriptive macro Span/File-F1 improved
+`0/0.222222 → 0.255357/0.555556`, with 47.70% fewer summed known tokens
+and 28.71% less summed duration. Svelte passed all four per-task gates; C
+regressed File-F1, and Rust tied at zero Span-F1. These are directional
+results, not an aggregate pass or product proof. The new JSON-driven campaign
+preparer and verifier remove most manual freeze/scoring bookkeeping. Go's
+terminal receipt offered only an unrelated `gpg-key add` range for a
+`gh codespace rebuild` task; GLM correctly selected no handle. Next: test a
+gold-blind task-relevant acquisition/early-resolution rule on untouched tasks,
+without forcing irrelevant final context. Full raw
+receipts remain on the GLM VPS; compact hashes and results are local. No G01
+worker is active.
+
+G01's [predeclared adaptive-shortlist cohort](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-terminal-shortlist-adaptive-cohort-r1/RESULT-NOTE.md)
+is complete and **rejects strict four-gate replication**. The fixed candidate
+improved native Span-F1 and File-F1 on both fresh clap Rust and GitHub CLI Go
+tasks. Rust passed all four gates with 41.67% fewer known tokens and 42.64%
+less time, stopping after the fourth delivered wide source range at discovery
+call 14. Go control finished in eight calls; candidate took eleven and used
+24.90% more tokens and 27.18% more time despite higher accuracy. The
+descriptive pooled totals favor candidate, but do not replace the frozen
+per-task rule. Both exact tasks are exposed. Next, define a larger prospective
+campaign with an aggregate estimand and explicit regressions, then test a
+gold-blind stop policy that handles both sparse evidence and early task
+resolution. No G01 worker is active.
+
+G01's [prospective clap Rust cap-12 pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-terminal-shortlist-cap12-rust-r1/RESULT-NOTE.md)
+completed through the new single-JSON pair runner, including automatic
+prediction sealing and pinned native scoring. It **fails the accuracy gates**:
+both arms scored Span/File-F1 `0/0`. Candidate cut known tokens 70.30% and
+duration 57.95%, but stopped with only one eligible wide source read and
+selected the same non-gold derive file as control. The task is exposed. The
+runner worked end to end; next test a new, gold-blind adaptive stopping
+criterion on untouched tasks instead of treating cost-only savings as proof.
+No G01 worker is active.
+
+G01's new opt-in [12-call terminal-shortlist arm](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-terminal-shortlist-cap12-cohort-r1/RESULT-NOTE.md)
+has two separately predeclared, sealed and native-scored four-gate wins on
+untouched GitHub CLI Go and Svelte JavaScript tasks. GitHub CLI improved
+Span/File-F1 `0.138594/0.666667 → 0.234498/1.000000` with 55.72% fewer
+known model tokens and 53.46% less time. The later
+[Svelte extension](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-terminal-shortlist-cap12-svelte-r1/RESULT-NOTE.md)
+improved `0/0 → 0.479265/0.333333` with 51.58% fewer tokens and 27.87% less
+time. The original fixed two-task cap-12 cohort did **not** pass because its
+zstd C pair was unscored due to separate runtime errors; the Svelte extension
+does not retroactively repair it. Treat the two positive scored pairs as
+directional cross-repository evidence, not a complete ContextBench campaign
+or full ARE-vs-control product proof. The Rust negative result and live pair
+runner are reported above. No G01 worker is active.
+
+G01's [predeclared fixed-shortlist replication cohort](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-terminal-shortlist-cohort-r1/RESULT-NOTE.md)
+is complete and **rejects a replicated four-gate claim**. The same candidate
+improved Span-F1, File-F1, and known model tokens on both untouched zstd C and
+NodeBB JavaScript tasks. NodeBB also finished faster (`286.541` versus
+`290.698` seconds), but zstd finished slower (`202.523` versus `187.141`
+seconds), failing the predeclared duration gate. Both predictions in each pair
+were sealed before pinned native scoring. Do not promote the candidate on this
+mixed cohort. Both tasks are now exposed; diagnose the timing variation and
+design a materially different, gold-blind next candidate before another
+untouched cohort. No G01 worker is active.
+
+G01's [fresh terminal-shortlist matched pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-terminal-shortlist-fresh-r1/RESULT-NOTE.md)
+is the first strong four-gate G01 result. On an untouched GitHub CLI
+release-list task, the fixed control scored Span/File-F1
+`0.323182/0.666667` versus candidate `1.000000/1.000000` with sealed
+predictions and pinned native scoring. Candidate used 82,624 versus 83,985
+known model tokens (1.62% less) and 241.577 versus 303.073 seconds (20.29%
+less). The opt-in shortlist offered eight receipt-bound wide source ranges;
+GLM selected both gold files, whereas control's terminal packet offered only
+one. This is **one-task qualification**, not broad ContextBench or
+cross-benchmark proof. Its fixed replication cohort is reported above and
+did not pass all four gates. No G01 worker is active.
+
+G01's [fresh matched paged-search r3 pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-api-search-r3-fresh-r1/RESULT-NOTE.md)
+completed with sealed predictions and pinned native scores. Both arms scored
+final Span/File-F1 `0/0` on the untouched detached-HEAD GitHub CLI task.
+Candidate used 80,914 versus 85,121 known tokens but took 201.509 versus
+184.608 seconds. R3 made zero pagination calls and zero acquisitions; its
+base searches did not meet the narrow query/path condition. More importantly,
+both arms' trajectories encountered two of three gold files, yet each
+terminal packet offered only a non-gold pull-request-template read. Reject
+r3 as an accuracy or efficiency claim. This task is now exposed. The next
+frontier is receipt-bound, gold-blind final-context selection from delivered
+base reads, tested prospectively on another task. No G01 worker is active.
+
+G01's [fresh matched API-search r2 pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-api-search-r2-fresh-r1/RESULT-NOTE.md)
+completed with sealed predictions and pinned native scoring. Both control
+and candidate scored final Span/File-F1 `0/0` on the untouched GitHub CLI
+`git_protocol` task. Candidate used 64,442 versus 81,317 known model tokens
+(-20.75%) and 179.444 versus 215.220 seconds (-16.62%), but accuracy did
+not improve. Its one new delivered base read was a `_test.go` file; the model
+selected the same unrelated `pkg/cmd/config/config.go:41-80` handle in both
+arms, while gold spans crossed three other files. Reject r2 as an accuracy
+claim. Control's trajectory briefly covered one gold file and 56.33% of
+gold-span extent; candidate's trajectory covered none, so r2 also regressed
+evidence acquisition while saving cost. The task is now exposed. Next
+requires a materially different,
+gold-blind cross-layer acquisition/selection hypothesis on an untouched task,
+or a G02 frontier pivot. No G01 worker is active.
+
+G01's [fresh-task API-search screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-api-search-fresh-r1/RESULT-NOTE.md)
+is complete but **not a matched gain**. The candidate scored final
+Span/File-F1 `0/0` with 11 GLM calls and 30,650 known tokens. It made zero
+API-search acquisitions: `PublicKey` was not recognized as the objective's
+“public key,” and the neighborhood policy excluded the returned `pkg/` Go
+files. GLM did read both gold files later but selected only an unrelated SSH
+key range at terminal. The refrozen control abstained with no context handle,
+so no native-scored control row exists; its first attempt failed a delivery
+join. Reject the candidate-only screen as an accuracy claim. This task is now
+exposed. The opt-in `intent-anchor-api-search-r2` revision now recognizes
+objective-grounded compound identifiers and admits bounded `pkg/` reads; its
+unit and episode-delivery tests pass, but it has **no live score**. Next
+preflight a scoreable control on a different untouched task before a fresh
+matched r2 dispatch, or pivot to G02's cross-repository frontier. That r2
+matched dispatch and negative result are reported above. No G01 worker is
+active.
+
+G01's [fresh same-task objective-search pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-objective-search-fresh-r1/RESULT-NOTE.md)
+completed with sealed predictions and pinned native scoring. The control and
+candidate both scored Span/File-F1 `0/0`; candidate used 81,959 versus
+79,212 known GLM tokens and 284.11 versus 231.63 seconds. Crucially, the
+candidate made **zero** task-grounded source acquisitions. The trigger was
+too narrow for actual API-identifier searches and one-segment `lib` prefixes,
+so this arm is rejected without a mechanism claim. A generic malformed-tool
+JSON correction was added to both arms after an earlier no-export control
+attempt; the successful pair used the same repaired runtime. Next test a
+new, predeclared API-identifier/path admission rule on another previously
+unscored task; its candidate-only result is reported above. No G01 worker is active.
+
+G01's [live search-follow-through screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-search-followthrough-live-r1/RESULT-NOTE.md)
+completed on the already-exposed zstd task. Six bounded source reads were
+delivered and selected; one brought `zstd_compress.c` into the final file set.
+Native File-F1 rose from `0` to `0.22222`, but Span-F1 and Line-F1 remained
+`0` because the selected C region did not intersect gold. The arm used 21
+model calls and 81,450 known tokens under 8K. Reject its accuracy claim.
+The subsequent objective-term-prioritized matched screen is reported above.
+No G01 worker is active.
+
+G01's [first live source-neighborhood screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-source-neighborhood-live-r1/RESULT-NOTE.md)
+completed on the exposed zstd task. Three new bounded base reads were actually
+delivered and selectable inside the verified 8K envelope, but native Span-F1
+and File-F1 were both `0`: the model stayed in `zstd_compress_internal.h` and
+never opened `zstd_compress.c` with `read_file`. A receipt audit then found
+confirmed C-file `search` observations, including lines near 1295; the gap is
+search-hit-to-read follow-through and terminal selection, not missing path
+discovery. Reject neighborhood expansion around model-chosen reads alone.
+The subsequent bounded search-follow-through screen is reported above.
+No G01 worker is active.
+
+G01 HEN-11 v22's exact source rows were recovered from the VPS. Its task-1
+trajectory read `lib/compress/zstd_compress.c` twenty times but terminally
+selected only an unrelated gzip test. A bounded,
+[label-free source-floor offline screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-source-floor-exposed-r1/README.md)
+over the two exposed v22 tasks recovered relevant file identity but failed
+native quality. The first eight-handle selector left task 1 at zero Span-F1;
+a subsequent regional-diversity diagnostic reached task-1 `0.012753`,
+task-4 `0.085323`, mean `0.049038`. That remains below HEN-10's mean
+`0.073272` and task-4 nonregression floor `0.126544`. Reject final-selection-
+only repair. An [undelivered source-neighborhood upper-bound diagnostic](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g01-source-floor-exposed-r1/UPPER-BOUND-RESULT-r1.md)
+reached exposed-task Span-F1 `0.100899` and `0.182173` (mean `0.141536`) by
+expanding selected source spans ±16 base lines. Those lines were not delivered
+to GLM, so this is feasibility evidence, not an ARE gain. The subsequent live
+source-neighborhood and search-follow-through screens are reported above;
+neither cleared native Span-F1. An untouched prospective comparison remains
+required. No G01 worker is active.
+
+The [predeclared four-task, two-repository G02 cohort](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-fixed-candidate-multirepo-r1/RESULT-NOTE.md)
+is complete and **rejects broad fixed-candidate generalization**: three
+untouched matched pairs passed all four strict gates, but the NodeBB
+chat-permission pair lost both native quality metrics despite 93.43% fewer
+tokens and 59.92% less wall time. Its ARE Span/File-F1 was
+`0.35624`/`0.25000` versus DSH `0.43701`/`0.33333`. The failure is a
+cross-layer evidence/selection gap: ARE selected only messaging, user
+settings, and a legacy upgrade file; the issue's now-exposed gold spans
+client settings, API schema, controller, templates, and language files too.
+Next: form a materially new gold-blind acquisition/selection hypothesis and
+test it on an untouched task, or return to G01's accuracy frontier. Do not
+rerun the exposed NodeBB task for a prospective claim. No worker is active.
+
+The fixed G02 candidate now has two untouched matched Flipt Go pairs with
+all four strict native gates passing. The new
+[webhook audit-sink pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-fresh-webhook-r1/RESULT-NOTE.md)
+scored ARE Span/File-F1 `0.26500`/`0.54545` versus DSH
+`0.25045`/`0.53333`, using 339,633 versus 447,753 known model tokens and
+326.39 versus 332.99 seconds. This second pass is narrow, with low absolute
+quality. The raw model scored `0.24346`/`0.63158`; the fixed selector raised
+Span-F1 and lowered File-F1. The source-only task, predictions, and costs
+were sealed before scoring. Its planned multi-repository cohort is reported
+above; two Flipt tasks alone never established broad generalization.
+
+The latest [fresh G02 `ui.enabled` matched pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-fresh-ui-enabled-r1/RESULT-NOTE.md)
+passes all four predeclared native gates on one untouched Flipt Go task:
+ARE Span/File-F1 `0.64081`/`0.72727` versus DSH `0.55148`/`0.55556`,
+using 173,361 versus 940,674 known model tokens and 183.94 versus 485.71
+seconds. Both predictions were sealed before scoring; the reusable sealed-pair
+scorer reverified the hashes and reproduced the decision. This is bounded
+one-task qualification, not the complete G02 campaign or the cross-benchmark
+high-level proof. Its planned untouched replication is reported above.
+
+The preceding exposed Flipt Go screens tested a source-only configuration
+relationship packet. [R1b](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-source-relations-1177-r1b/RESULT-NOTE.md)
+improved over the preceding ARE treatment but still lost DSH quality at
+Span/File-F1 `0.49428`/`0.61538`. [R2](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-source-relations-1177-r2/RESULT-NOTE.md)
+read the tracing schema definitions at the correct lines, but scored
+`0.50902`/`0.56000` versus DSH `0.54523`/`0.71429`. A receipt-bound offline
+selection replay only reached `0.52582`/`0.71429`. Both live screens and the
+offline replay are rejected; no fresh control is warranted from them. The
+failure is now final evidence selection and span localization despite actual
+source delivery, not missing hint text. No benchmark worker is active.
+
+The preceding [fresh Flipt Go pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-fresh-component-1177-r1/RESULT-NOTE.md)
+is settled and rejects the component-packet candidate: ARE Span/File-F1
+`0.47204`/`0.50000` versus DSH `0.54523`/`0.71429`. ARE used 104,231
+versus 773,892 known model tokens and 125.82 versus 437.36 seconds, but
+failed both strict quality gates. The component selector made no adjustments
+on this task. The subsequent source-relationship hypothesis is recorded above;
+no G02 candidate is promoted.
+Both predictions were sealed before scoring. No benchmark worker is active.
+
+Preceding G02 development sequence: the
+[broad-hint exposed screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-broad-hints-r1/RESULT-NOTE.md)
+passed both native quality and efficiency gates against its pinned DSH row.
+Its [fresh NodeBB pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-broad-hints-confirm-r1/RESULT-NOTE.md)
+then missed File-F1 narrowly despite better Span-F1, tokens, and time. That
+task exposed a double-encoded issue-text bug in the clause splitter. Safe
+normalization plus a 16-call cap passed all four gates on that now-exposed
+NodeBB task, but the [fresh Go pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-normalized-clauses-16-go-r1/RESULT-NOTE.md)
+rejected it: ARE Span/File-F1 `0.24952`/`0.5` versus DSH `0.25710`/`0.73684`,
+although ARE used 53,050 versus 648,011 tokens and 96.49 versus 298.07
+seconds. A [20-call Go replay](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-normalized-clauses-20-go-r1/RESULT-NOTE.md)
+and [unique-path/source-neighborhood replay](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-unique-neighborhood-20-go-r1/RESULT-NOTE.md)
+also failed quality. The neighborhood primer reached the model and led it to
+read both missing schema files, but not all relevant implementation evidence.
+The [receipt-bound initial source packet](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-initial-source-packet-go-r2/RESULT-NOTE.md)
+then delivered six real pinned-base reads and bound every read ID to model
+receipts. It caused the model to select the previously missed `internal/oci/file.go`,
+but native Span/File-F1 fell to `0.20528`/`0.55556` against DSH
+`0.25710`/`0.73684`. Tokens and wall time still improved (294,889 versus
+648,011 tokens; 192.31 versus 298.07 seconds). No G02 candidate is promoted.
+Next: address task-wide evidence coverage and final selection, then demand an
+untouched matched task before promotion. All Go replays after the fresh pair
+are exposed development screens, not fresh confirmations.
+
+The [narrow-final-evidence Go screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-narrow-final-evidence-go-r3/RESULT-NOTE.md)
+improved exposed-task Span/File-F1 to `0.24370`/`0.63636` in 16 calls,
+208,281 tokens, and 202.12 seconds, but still missed DSH's
+`0.25710`/`0.73684` quality. Its remaining acquisition gap points to late
+issue sections and compound identifiers. No candidate is promoted.
+
+The [issue-wide-hints screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-issue-wide-hints-go-r4/RESULT-NOTE.md)
+preserved the same six-read packet and added gold-free bundle/integration
+leads to the model primer. The model read neither new path; Span/File-F1
+regressed to `0.16740`/`0.37500` in 180,315 tokens and 198.89 seconds.
+Reject hint-only expansion. The next bounded test must deliver focused source
+content or otherwise change actual acquisition, not simply list more paths.
+
+The [focused eight-read packet](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-focused-packet-go-r5/RESULT-NOTE.md)
+did change actual delivery and passed exposed-task Span-F1 and efficiency:
+`0.28220` Span-F1, 167,007 tokens, 154.95 seconds versus DSH `0.25710`,
+648,011, 298.07. Live File-F1 remained low (`0.47619` vs `0.73684`), so the
+candidate is rejected. A post-run label-free final-selector replay reached
+`0.27544`/`0.76190` Span/File-F1 on the same exposed trajectory, but is not
+prospective evidence. Next: generalize and freeze that selector before an
+untouched matched task; no G02 candidate is promoted.
+
+Current as of 2026-09-26. This file is an accumulated historical ledger whose
+physical ordering is not a reliable execution queue. Older sections preserve the
+`next` instruction that was valid when written; do not execute one without
+reconciling it against [the current DAG](NEXT-DAG.md). The benchmark evolution
+run audit found that `compactRequest` replaced the system message after the
+ranked-source primer was appended. Captured requests from the earlier
+diverse-primer/no-archive screens confirm the primer was not delivered; their
+quality changes must not be attributed to it. The corrected, hash-pinned
+[G02 delivered-primer screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-delivered-primer-r2/RESULT-NOTE.md)
+confirmed delivery in the first captured model request, then failed the
+joint native quality and wall-time gates on the exposed task: Span/File-F1
+`0.41413`/`0.27586`, 345,060 tokens, 317.83 seconds versus pinned DSH
+`0.39608`/`0.4`, 482,228 tokens, 223.41 seconds. No candidate was promoted.
+The benchmark evolution
+workflow and the [G03 sixteen-question result](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/longmemeval-fast16-v1/RESULT-NOTE.md)
+own the current execution state. G03 now has a fresh matched result: 5K ARE
+11/16 correct with 16/16 valid judgments versus control 2/16 with 14/16
+valid judgments; all-in tokens were 29,787 versus 2,229,566. Both invalid
+control judgments were retained as unknown, and even assigning them correct
+leaves a large bounded accuracy gain. No benchmark dispatch is active. G01
+and G02 remain open. G02's [new two-task paired probe](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-fresh-pair-20260926/RESULT-NOTE.md)
+rejected the R2c-plus-bounded-primer candidate: JavaScript ARE Span/File-F1
+`0.3777`/`0.3750` versus DSH `0.3769`/`0.1429`, but ARE used 393,999 versus
+82,817 model tokens and took 953 versus 179 seconds. Go ARE scored
+`0.2490`/`0.3478` in 141,647 tokens; DSH stopped unscored after 944,969
+tokens at its 1M-token control budget. The repeated archive-recovery trace is
+the next focused G02 hypothesis, not a proved mechanism. That hypothesis now
+has a [passed exposed JavaScript screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-callcap16-r1/RESULT-NOTE.md):
+the 16-call finalization cap scored Span/File-F1 `0.39564`/`0.28571` in 58,670
+tokens and 142.68 seconds against the pinned DSH row's `0.37685`/`0.14286`,
+82,817 tokens and 178.5 seconds. That candidate then **failed a fresh valid
+[JavaScript pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-callcap16-confirm-r1/RESULT-NOTE.md)**:
+ARE Span/File-F1 `0.08893`/`0.17391` versus DSH `0.39608`/`0.4`, despite
+90.62% fewer tokens and 46.53% less time. The Go pair was not run after the
+quality failure. A [diverse primer](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-diverse-primer-r1/RESULT-NOTE.md)
+and [24-call](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-diverse-callcap24-r1/RESULT-NOTE.md)/[32-call](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-diverse-callcap32-r1/RESULT-NOTE.md)
+treatment-only screens on that now-exposed task also failed native quality.
+The [recovery memo](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-recovery-memo-r1/RESULT-NOTE.md)
+and [demand-mode recovery](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-demand-recovery-r1/RESULT-NOTE.md)
+also failed. Removing the archive catalog produced a stronger but still
+rejected [no-archive screen](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-no-archive-r1/RESULT-NOTE.md):
+Span/File-F1 `0.51869`/`0.38462` versus pinned DSH `0.39608`/`0.40000`,
+using 46.53% fewer tokens and 4.31% less time. After credential verification,
+a [direct-evidence terminal follow-up](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-direct-evidence-r1/RESULT-NOTE.md)
+also failed File-F1 and reduced Span-F1 to `0.41118`. Both are exposed-task
+screens, not comparative confirmation. A frozen, gold-blind task-path filter
+then passed a post-hoc diagnostic on the exposed no-archive prediction, but
+its [fresh prospective pair](../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/g02-task-path-prospective-r1/RESULT-NOTE.md)
+rejected generalization: ARE's unfiltered Span/File-F1 `0.30517`/`0.66667`
+fell to `0.29638`/`0.58824` after filtering. ARE used 154,310 known tokens
+and 202.02 seconds; DSH stopped without a final selection at its request
+budget after 988,911 tokens and 455.26 seconds, so matched quality is
+unscorable. No G02 candidate is promoted. The next mechanism needs semantic
+source-relationship coverage, not another exposed-task wording or filename
+filter, and must be tested prospectively. Earlier G02 history
+below remains provenance: its ranked-acquisition task 2 improved on DSH,
+but its earlier task 3 lost Span-F1. The R1 follow-through instruction was not delivered
+to the model; R2 delivered it and read the adjacent test file, but exceeded its
+token ceiling and ended with `glm.billing-unavailable` before native scoring.
+After the credential update, a minimal provider check returned HTTP 200.
+Bounded task-3 screens R3 and R4 completed with native Span/File-F1
+`0.4651`/`0.8` at 57,296 tokens and `0.3479`/`0.6667` at 49,188 tokens;
+both failed their fixed quality gate, so task 2 was not dispatched for them.
+Focused hints and delivered-test closure then passed task 3 at Span/File-F1
+`0.52395`/`1.0` in 225,745 tokens. Its first task-2 attempt stopped unscored
+at 463,191 tokens; a separately labeled task-2 attempt scored `0.88632`/
+`0.66667` in 427,053 tokens. Both exposed task rows exceed historical DSH
+quality with 27.0411% fewer combined tokens, but the predeclared task-2
+perfect-preservation gate failed. No fresh matched, latency, full-cohort or
+occupied-deep-window claim follows from those earlier exposed rows. The opt-in task token stop and native-score
+collector are now live exercised;
+their exact limits and next gate are in the workflow. The older snapshot below
+is historical.
+
+At the earlier candidate-only transition, fresh controls were suspended. H-L was then the latest completed candidate-only live
+run: four valid tasks, 331,492 model tokens, mean Span-F1 0.3156, mean File-F1
+0.4270 and zero perfect tasks. H-MC remains a post-hoc hypothesis. H-EN completed
+provider-free repair, balanced compression, candidate-view construction, and
+HEN-09 real tokenizer qualification. The accepted adaptive presentation passed
+all 93 frozen requests with zero model calls or retries; maximum complete
+envelopes were 4,544 initial, 7,924 populated, and 3,867 terminal. The failed
+full-audit presentation and its 48 overflows remain retained as counterevidence;
+the two attempts account for 186 tokenizer calls and zero generation calls.
+The current operational state supersedes that older HEN-10 sentence: G01 HEN-11
+v22 generation and native scoring are complete and reject the intent-anchor
+hypothesis (task Span-F1 `0` / `0.0711`, mean `0.0355`); G02 task-2 generation,
+native scoring and separate review are complete at a one-task claim ceiling; G03's
+earlier post-seal evaluation and independent review had a four-task claim
+ceiling (treatment 4/4 versus control 2/4, 97.7833% fewer all-in tokens). No
+benchmark dispatch is active. Exact hashes, metrics and next gates are maintained in
+[BENCHMARK-EVOLUTION-WORKFLOW.md](BENCHMARK-EVOLUTION-WORKFLOW.md). Development
+execution uses an exact freeze and immutable receipts without human signatures
+or pre-launch authorization.
+
+Rounds 73–78 are global research-continuation labels in the separate large-window
+ARE–DSH branch, not six DSH rounds and not the GLM 8K candidate-cycle count. They
+contain two ARE–DSH comparisons (73–74), an offline audit (75), two ARE-only
+identity-repair trials (76–77), and one deadline pair (78).
+
+### Open Questions
+
+Current unresolved questions and the gate-by-gate restart plan are maintained in
+[BENCHMARK-EVOLUTION-WORKFLOW.md](BENCHMARK-EVOLUTION-WORKFLOW.md).
+
+## Historical global rounds 76–78: live findings
+
+This entry records two ARE-only identity-repair trials (rounds 76–77) and the
+round-78 deadline pair, not three complete ARE–DSH benchmark comparisons. Four
+assigned executions settled, with **106 model calls and 864,835 tokens fully
 accounted**. Round 76's failed candidate cost 6,627 tokens and remains retained.
 The corrected identity candidate completed Svelte in round 77: 49 calls, 186,628
 tokens, Span F1 28.64%, File F1 28.57%. Its 126 runtime call IDs verify; the live

@@ -73,13 +73,25 @@ export function createEventVerifiers(config,{request=globalThis.fetch,clock=()=>
   }
   return verifiers;
 }
-export function createEventInbox({verifiers,repository,clock=()=>Math.floor(Date.now()/1000),admissionPerMinute=120}){
-  if(!Number.isSafeInteger(admissionPerMinute)||admissionPerMinute<1||admissionPerMinute>10000)throw new Rejected('event-admission-invalid');
+export function createEventInbox({verifiers,repository,clock=()=>Math.floor(Date.now()/1000),admissionPerMinute=120,preauthPerMinute=1200,maxConcurrentVerifications=8}){
+  if(!Number.isSafeInteger(admissionPerMinute)||admissionPerMinute<1||admissionPerMinute>10000||
+    !Number.isSafeInteger(preauthPerMinute)||preauthPerMinute<admissionPerMinute||preauthPerMinute>100000||
+    !Number.isSafeInteger(maxConcurrentVerifications)||maxConcurrentVerifications<1||maxConcurrentVerifications>64)
+    throw new Rejected('event-admission-invalid');
+  const preauth=new Map();let active=0;
   return {async receive(provider,body,headers,url){
     if(!Object.hasOwn(verifiers,provider))throw new Rejected('event-provider-disabled',404);
     const now=clock();
+    const bucket=now-now%60,key=provider+':'+bucket,count=(preauth.get(key)??0)+1;
+    for(const candidate of preauth.keys())if(!candidate.endsWith(':'+bucket))preauth.delete(candidate);
+    preauth.set(key,count);
+    if(count>preauthPerMinute)throw new Rejected('event-preauth-rate-limit',429);
+    if(active>=maxConcurrentVerifications)throw new Unavailable('event-verification-busy');
+    active++;
+    let event;try{event=await verifiers[provider](body,headers,url);}finally{active--;}
+    // Only authenticated provider traffic can consume the durable provider
+    // allowance. The bounded pre-auth gate above protects expensive verifiers.
     await repository('event-admit',{provider,now,limit:admissionPerMinute});
-    const event=await verifiers[provider](body,headers,url);
     return repository('event-receive',{event,now});
   }};
 }

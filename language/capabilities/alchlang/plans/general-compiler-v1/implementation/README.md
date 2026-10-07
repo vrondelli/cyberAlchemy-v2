@@ -17,7 +17,7 @@ Build the current DomainSpec CLI before using the bridge (Node 26.8.1):
 
 ```bash
 # From the repository root:
-npm --prefix projects/domainspec-v2/impl/cli run build
+npm --prefix craft/projects/domainspec-v2/impl/cli run build
 ```
 
 From this AlchLang implementation directory, after `npm run build`:
@@ -25,10 +25,17 @@ From this AlchLang implementation directory, after `npm run build`:
 ```bash
 node dist/cli.js domainspec --version
 node dist/cli.js domainspec capabilities
-node dist/cli.js domainspec lint "$(realpath ../domainspec)"
-node dist/cli.js domainspec compile "$(realpath ../domainspec)" \
+node dist/cli.js domainspec lint "$(realpath ../extensions/domainspec-lowering-v1/evidence/order-build/project)"
+node dist/cli.js domainspec compile "$(realpath ../extensions/domainspec-lowering-v1/evidence/order-build/project)" \
   --target /absolute/existing-directory/new-certificate.json
 ```
+
+This is the bounded `delivery-example` project emitted by the DomainSpec
+lowering candidate. The older `../domainspec` general-compiler project is a migration
+fixture, not a passing 1.0.0 CLI example: its legacy Mapping omits direction,
+totality and field transforms and targets a Value Object outside that Mapping
+profile's Entity/Interface endpoint contract. Do not make it pass by adding only
+a direction field; the complete mapping meaning needs a separate migration.
 
 When this package is installed locally, `alchlang domainspec …` provides the
 same command. The historical `domainspec` executable alias remains compatible.
@@ -125,6 +132,12 @@ for the compiler self-model successor, construction status and claim limits.
 
 Start with the [AlchLang tutorial](docs/TUTORIAL.md). Use the
 [language reference](docs/LANGUAGE.md) for declaration-level syntax.
+For a proposed stateful application claim, run the
+[behavioral qualification](docs/BEHAVIORAL-QUALIFICATION.md) check. It
+distinguishes source-level Operation/State Machine closure from observed
+runtime behavior and rejects function-only profiles for that claim.
+The [AlchLang fix DAG](docs/ALCHLANG-FIX-DAG.md) records the reviewed
+dependencies, completed slice, and remaining gates.
 Before authoring Rules, Policies, Invariants, Query conditions, or State Machine
 guards, consult the [FormalClaim and sorted first-order logic reference](docs/FORMAL-CLAIMS.md).
 It separates the selected FormalClaim-bound target model from the older
@@ -176,6 +189,12 @@ node dist/cli.js build examples/typed-backend.alch --backend local-compat --out 
 The development checkout retains one full regression surface, but release
 artifacts are split by required runtime:
 
+The exact candidate export maps and file allowlists are documented in
+[`PACKAGE-BOUNDARIES.md`](PACKAGE-BOUNDARIES.md) and recorded in
+`package-boundaries.json`. `npm run package-boundaries:check` fails on
+unreviewed output, documentation, example, DomainSpec-manifest or declaration-
+import drift.
+
 | Package | Command | Contents and prerequisites |
 | --- | --- | --- |
 | `@cyberalchemy/alchlang` | `alchlang` | Core parser, ontology and Node/TypeScript compilation. No Cargo templates or local-host modules. |
@@ -212,15 +231,15 @@ plan collections contain data.
 Run the focused alchLang output/meta-type test from the repository root:
 
 ```bash
-toolchains/node-typescript/bin/node-env run --project projects/domainspec-v2/impl -- \
+craft/toolchains/node-typescript/bin/node-env run --project craft/projects/domainspec-v2/impl -- \
   node --import tsx --test \
-  ../../../cyberAlchemy-v2/language/capabilities/alchlang/plans/general-compiler-v1/implementation/test/meta-type-output.test.ts
+  ../../../../language/capabilities/alchlang/plans/general-compiler-v1/implementation/test/meta-type-output.test.ts
 ```
 
 Run DomainSpec's independent 26-case, 156-swap, 13-node formation test:
 
 ```bash
-toolchains/node-typescript/bin/node-env run --project projects/domainspec-v2/impl -- \
+craft/toolchains/node-typescript/bin/node-env run --project craft/projects/domainspec-v2/impl -- \
   node --import tsx --test tools/tests/formation-golden-corpus.test.ts
 ```
 
@@ -400,7 +419,7 @@ another application implementation. Build staging is removed on completion.
 
 This changes new function bundles, not existing bundles, host/event profiles or
 accepted archives. Open questions and product decision status are tracked in
-`projects/domainspec-v2/development/output-layout/v1/DESIGN.md` at repository root.
+`craft/projects/domainspec-v2/development/output-layout/v1/DESIGN.md` at repository root.
 
 Outbound provider composition: [OUTBOUND.md](OUTBOUND.md).
 

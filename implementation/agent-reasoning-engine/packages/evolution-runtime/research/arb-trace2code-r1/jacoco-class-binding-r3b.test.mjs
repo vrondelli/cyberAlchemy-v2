@@ -1,0 +1,10 @@
+import{test}from'node:test';import assert from'node:assert/strict';import{readFileSync}from'node:fs';
+import{bindClassInfo,classInventory}from'./jacoco-class-binding-r3b.mjs';
+const i=[{path:'a/A.class',sha256:'x',bytes:1},{path:'a/package-info.class',sha256:'y',bytes:2}],s={classes:['a.A']};
+const text='  INST   BRAN   LINE   METH   CXTY   ELEMENT\n 4 0 2 1 1 class 0x0123456789abcdef a/A\n 0 0 0 0 0 class 0xfedcba9876543210 a/package-info\n';
+test('package metadata admitted as zero-line class, never silently skipped',()=>assert.equal(bindClassInfo(text,i,s).length,2));
+test('unknown hyphen class still fails semantic membership',()=>assert.throws(()=>bindClassInfo(text.replaceAll('package-info','unknown-name'),i.map(x=>({...x,path:x.path.replace('package-info','unknown-name')})),s),/unmapped/));
+test('missing compiled metadata fails inventory completeness',()=>assert.throws(()=>bindClassInfo(text.split('\n').slice(0,2).join('\n'),i,s),/incomplete/));
+test('real retained Jsoup inventory preflight, no execution',()=>{const root='/home/vlad_/are-benchmark-archive/g01-jacoco-feasibility-r3-20261006/Defects4J-Jsoup-5/';const inventory=classInventory(root+'trusted-fixture/target/classes'),instrumentation=JSON.parse(readFileSync(root+'INSTRUMENTATION.json')),bound=bindClassInfo(readFileSync(root+'CLASSINFO.stdout','utf8'),inventory,instrumentation);assert.equal(bound.length,inventory.length);assert.equal(bound.filter(x=>x.analysis_omission).length,2);});
+test('unverified omission never accepted',()=>assert.throws(()=>bindClassInfo(text,[...i,{path:'a/A$1.class',empty_synthetic:false,method_count:1}],s),/incomplete/));
+test('verified zero-method synthetic omission stays explicit',()=>assert.equal(bindClassInfo(text,[...i,{path:'a/A$1.class',empty_synthetic:true,method_count:0}],s).at(-1).class_id,null));

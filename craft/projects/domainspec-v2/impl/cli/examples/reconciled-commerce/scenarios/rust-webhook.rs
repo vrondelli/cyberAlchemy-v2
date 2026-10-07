@@ -16,6 +16,9 @@ fn sign(body: &[u8], secret: &str) -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let route = std::env::args().nth(1).unwrap_or_else(|| "/webhook".to_owned());
+    assert!(route.starts_with('/') && route.len() > 1 && !route.contains("//")
+        && route.bytes().skip(1).all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-')));
     let body = b"domainspec-installed-webhook";
     let secret = "installed-reference-secret";
     let invocations = Arc::new(AtomicUsize::new(0));
@@ -34,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let address = listener.local_addr()?;
     let task = tokio::spawn(async move { axum::serve(listener, router).await });
     let client = reqwest::Client::new();
-    let url = format!("http://{address}/webhook");
+    let url = format!("http://{address}{route}");
     let invalid_status = client.post(&url).header("x-domainspec-signature", "0".repeat(64)).body(body.to_vec()).send().await?.status();
     assert_eq!(invalid_status.as_u16(), 401);
     assert_eq!(invocations.load(Ordering::SeqCst), 0);

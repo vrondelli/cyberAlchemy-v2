@@ -91,6 +91,15 @@ resolves to `CA2-ROUTE-IMPLEMENT`. These are distinct states; creating a plan
 does not authorize its execution, and implementation evidence does not prove
 goal achievement.
 
+An exact owner-directed private ARE G01/G02/G03 benchmark campaign resolves to
+`CA2-ROUTE-BENCHMARK-RUN`. Its candidate lifecycle permits only the bounded
+campaign preparation, provider requests, receipts, analysis, and archival
+named in the route registry. It requires owner authorization and protected
+effect assessment for spend and external provider calls; routine operations
+within already granted campaign scope do not require repeated confirmation.
+Publication, release, deployment, and general external effects remain separate
+objectives and are not granted by a benchmark run.
+
 An intention to start an unbounded new product, project, system, capability,
 workflow, or initiative is a Define-first intake, not yet a Plan or Implement
 objective. The caller labels it `define-intake` and routes it to

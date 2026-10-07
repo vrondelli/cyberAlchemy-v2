@@ -3,7 +3,7 @@ import test from "node:test";
 import React, {createElement as h} from "react";
 import {renderToString} from "ink";
 
-import {ActivityIndicator, ApprovalButton, Composer, DiagnosticTimeline, isComposerDisabled} from "../src/app.mjs";
+import {ActivityIndicator, ApprovalButton, Composer, DiagnosticTimeline, RecoveryPanel, isComposerDisabled} from "../src/app.mjs";
 
 test("approval button renders the exact pending digest and explicit confirmation boundary", () => {
   const digest = "e".repeat(64);
@@ -36,11 +36,21 @@ test("diagnostic timeline renders bounded phase evidence", () => {
   assert.match(text, /AWAITING_APPROVAL/u);
 });
 
+test("recovery panel shows a terminal host observation without implying readiness", () => {
+  const output = renderToString(h(RecoveryPanel, {observation: {disposition: "host-terminal", turn_status: "interrupted"}}), {columns: 110});
+  assert.match(output, /Recovery blocked/u);
+  assert.match(output, /Matching host turn: interrupted/u);
+  assert.match(output, /No proposal was restored/u);
+  assert.match(output, /Ctrl\+R rechecks/u);
+  assert.doesNotMatch(output, /Ready/u);
+});
+
 test("continuation guidance is not rendered as composer input", () => {
   const output = renderToString(h(Composer, {value: "", prompt: "Type your next message.", disabled: false}), {columns: 80});
   assert.match(output, /Type your next message\./u);
   assert.doesNotMatch(output, />\s*What would you like to do next\?/u);
   assert.equal(isComposerDisabled("working"), true);
   assert.equal(isComposerDisabled("applying"), true);
+  assert.equal(isComposerDisabled("uncertain"), true);
   assert.equal(isComposerDisabled("idle"), false);
 });

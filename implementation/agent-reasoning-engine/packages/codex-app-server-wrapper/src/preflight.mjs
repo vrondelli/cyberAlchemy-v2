@@ -2,6 +2,7 @@ import {composeContextLifecycle} from "../../context-basis-runtime/index.mjs";
 import {deepFreeze, digestValue, fail, freezeResult, isRecord, nonEmptyString} from "./canonical.mjs";
 import {addContextFragment, contextFragment} from "./protocol.mjs";
 import {buildRequestContext} from "./request-context.mjs";
+import {buildOwnedRequestContext} from "./owned-request-context.mjs";
 
 function directiveFromComposition(composition, requestContext, envelope = null) {
   if (composition.ok) {
@@ -95,6 +96,20 @@ export function evaluateTurnPreflight(input, options = {}) {
     return fail("preflight", ["preflight.input-required"]);
   }
   const requestContext = observedPhase(options, "request-context-build", () => buildRequestContext(input.message, input.turn_binding, input.objective_resolution));
+  return evaluateContextPreflight(input, requestContext, options, true);
+}
+
+/** Native Host entry: no turn/start packet, Codex fragment or forwarding. */
+export function evaluateOwnedRequestPreflight(input, options = {}) {
+  if (!isRecord(input) || !isRecord(input.owned_request) || !isRecord(input.turn_binding)) {
+    return fail("preflight", ["preflight.owned-input-required"]);
+  }
+  const requestContext = observedPhase(options, "request-context-build", () =>
+    buildOwnedRequestContext(input.owned_request, input.turn_binding, input.objective_resolution));
+  return evaluateContextPreflight(input, requestContext, options, false);
+}
+
+function evaluateContextPreflight(input, requestContext, options, codexForwarding) {
   if (!requestContext.ok) return requestContext;
   const binding = input.turn_binding;
   if (binding.lane !== "plan-bound" && binding.lane !== "interaction-bound") {
@@ -103,7 +118,7 @@ export function evaluateTurnPreflight(input, options = {}) {
   if (!nonEmptyString(binding.consumer_ref) || !nonEmptyString(binding.purpose) || !nonEmptyString(binding.source_epoch)) {
     return fail("preflight", ["preflight.view-binding-incomplete"]);
   }
-  const rpcIdentity = String(input.message.id ?? requestContext.value.request_id);
+  const rpcIdentity = String(input.message?.id ?? requestContext.value.request_id);
   const view = {
     lane: binding.lane,
     consumer_ref: binding.consumer_ref,
@@ -152,7 +167,9 @@ export function evaluateTurnPreflight(input, options = {}) {
   }, options);
   const composition = lifecycle.ok ? lifecycle.value.composition : lifecycle.composition;
   const envelope = lifecycle.ok ? lifecycle.value.context_envelope : null;
-  const directive = observedPhase(options, "preflight-directive-projection", () => directiveFromComposition(composition ?? lifecycle.context_envelope ?? lifecycle, requestContext, envelope));
+  const projected = observedPhase(options, "preflight-directive-projection", () => directiveFromComposition(composition ?? lifecycle.context_envelope ?? lifecycle, requestContext, envelope));
+  const directive = codexForwarding ? projected : freezeResult({...projected,
+    schema_version: "are.owned-preflight-directive/v1"});
   if (directive.directive_kind !== "direct") {
     return deepFreeze({ok: true, action: directive.directive_kind, directive, forwarded_message: null, composition, lifecycle, authority_effect: "none"});
   }
@@ -160,6 +177,12 @@ export function evaluateTurnPreflight(input, options = {}) {
     const failed = lifecycle.context_envelope ?? lifecycle.refresh_assessment ?? lifecycle;
     const blocked = freezeResult({...directive, directive_kind: "block", reason_codes: failed.reason_codes ?? ["preflight.context-lifecycle-failed"], residue: failed.residue ?? []});
     return deepFreeze({ok: true, action: "block", directive: blocked, forwarded_message: null, composition, lifecycle, authority_effect: "none"});
+  }
+  if (!codexForwarding) {
+    return deepFreeze({ok: true, action: "prepared", directive,
+      original_request: input.owned_request, request_context: requestContext.value,
+      composition, lifecycle, context_envelope: envelope,
+      refresh_assessment: lifecycle.value.refresh_assessment, authority_effect: "none"});
   }
   const fragment = observedPhase(options, "context-fragment-projection", () => contextFragment(lifecycle.value));
   const forwardedMessage = observedPhase(options, "message-context-projection", () => addContextFragment(input.message, fragment));

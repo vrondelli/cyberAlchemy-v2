@@ -162,6 +162,10 @@ export {
   CERTIFY_LEAN_VERSION,
   type AssuranceCertificateV1,
   type CertificationCheckV1,
+  type CertificationCheckV2,
+  type RetainedCertificationStageV1,
+  type RetainedCertificationStageInspectionV1,
+  inspectRetainedCertificationStage,
 } from "./assurance/certify.js";
 export {
   loadCompiledProjectGraph,
@@ -220,6 +224,7 @@ export * from "./system-integration/messaging-v2.js";
 export { compileMessagingRuntimeBindingsV1, compileExternalApiRuntimeBindingsV1 } from "./system-integration/application-graph-v1.js";
 export { validateOperationRequestContracts } from "./generation/whole-application-v1.js";
 export { composeWholeApplicationPlanV1, composeComposedWholeApplicationPlan, planComposedWholeApplication } from "./generation/whole-application-v1.js";
+export { composeProviderApplicationV1, assertProviderApplicationPlanV1, type ProviderApplicationPlanV1 } from "./generation/provider-application-v1.js";
 export { planEmbeddedIntegrationContributionV1 } from "./system-integration/embedded-generation-v1.js";
 export * from "./system-integration/external-api-v2-types.js";
 export * from "./system-integration/external-api-v2.js";

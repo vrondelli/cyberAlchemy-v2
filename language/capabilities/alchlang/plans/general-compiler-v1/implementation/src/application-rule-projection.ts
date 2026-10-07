@@ -29,6 +29,7 @@ export function lowerApplicationRuleProjections(source: string, bindings: unknow
   }
   const selected = exact(root.rules, formation.model.rules.map(r => r.id), "$interpretation/rules");
   const projectFiles = { ...formation.projectFiles };
+  const declarationBindings = object(object(bindings, "$bindings").declarations, "$bindings/declarations");
   const projections: Obj[] = [];
   for (const rule of formation.model.rules) {
     const at = `$interpretation/rules/${rule.id}`;
@@ -95,8 +96,7 @@ export function lowerApplicationRuleProjections(source: string, bindings: unknow
     };
     const targetPath = `specs/${formation.feature}/nodes/${formation.symbols[rule.id]}.json`;
     const node = JSON.parse(projectFiles[targetPath]!);
-    const metadata = object(object(bindings, "$bindings").declarations, "$bindings/declarations");
-    const ontology = object(metadata[rule.id], at).ontology;
+    const ontology = object(declarationBindings[rule.id], at).ontology;
     node.body.predicate = "structured:domainspec.typed-rule/v2";
     node.body.typed_contract = { schema_version: "domainspec.typed-rule/v2", ontology_rule: ontology, parameters, expression: lower(claim.proposition) };
     projectFiles[targetPath] = json(node);
@@ -106,10 +106,115 @@ export function lowerApplicationRuleProjections(source: string, bindings: unknow
       preservation: { direction: "equivalent-under-selected-interpretation", domain: "well-typed-ground-parameters",
         expanded_node_limit: 1024, known_losses: [], result_semantics: "boolean", unsupported_constructs: ["quantifiers", "functions", "non-unary-predicates", "non-scalar-equality"] }, proof: false });
   }
+  const nodePath = (id: string) => `specs/${formation.feature}/nodes/${formation.symbols[id]}.json`;
+  const ruleContract = (id: string, at: string): Obj => {
+    const contract = JSON.parse(projectFiles[nodePath(id)]!).body.typed_contract;
+    if (contract?.schema_version !== "domainspec.typed-rule/v2") return fail("FORMAL_CONSUMER_RULE", at, `consumer requires projected Rule ${id}`);
+    return contract;
+  };
+  const typedInputs = (inputs: Array<{ name: string; type: Obj }>) => inputs.map(input => ({ name: symbol(input.name, "_"), type: input.type }));
+  const traceInputs = (id: string): Array<{ name: string; type: Obj }> =>
+    (formation.trace.declarations.find(item => item.source_id === id)?.inputs as Array<{ name: string; type: Obj }> | undefined) ?? [];
+  const argumentBindings = (consumer: string, ruleId: string, inputs: Array<{ name: string; type: Obj }>,
+    bindings: Array<{ parameter: string; path: string[]; source_line: number }>, allowExactNames: boolean): Obj[] => {
+    const contract = ruleContract(ruleId, consumer); const parameters = contract.parameters as Array<{ name: string; type: Obj }>;
+    const selected = bindings.length ? bindings : allowExactNames
+      ? parameters.filter(parameter => inputs.some(input => symbol(input.name, "_") === parameter.name)).map(parameter => ({ parameter: parameter.name, path: [parameter.name], source_line: 0 }))
+      : [];
+    if (json(selected.map(item => symbol(item.parameter, "_")).sort()) !== json(parameters.map(item => item.name).sort())) {
+      return fail("FORMAL_CONSUMER_ARGUMENTS", consumer, `Rule ${ruleId} arguments must be bound exactly`);
+    }
+    return parameters.map(parameter => {
+      const binding = selected.find(item => symbol(item.parameter, "_") === parameter.name)!;
+      const root = symbol(binding.path[0]!, "_"); const input = inputs.find(item => symbol(item.name, "_") === root);
+      if (!input || binding.path.length !== 1) return fail("FORMAL_CONSUMER_ARGUMENTS", `$line:${binding.source_line}`, "consumer bindings currently require one explicit whole input");
+      if (json(input.type) !== json(parameter.type)) return fail("FORMAL_CONSUMER_ARGUMENT_TYPE", `$line:${binding.source_line}`, `Rule ${ruleId} argument type differs from consumer input`);
+      return { parameter: parameter.name, value: { op: "path", root, properties: [] } };
+    });
+  };
+  const consumers: Obj[] = [];
+  for (const invariant of formation.model.invariants) {
+    const claim = invariant.claim_ref ?? formation.model.rules.find(rule => rule.id === invariant.rule_ref)!.claim_ref;
+    consumers.push({ consumer_kind: "Invariant", consumer_id: invariant.id, rule_ref: invariant.rule_ref, claim_ref: claim,
+      binding: invariant.rule_ref ? "declared-rule" : "declared-claim", source_line: invariant.source_line });
+  }
+  for (const declaration of formation.model.declarations) {
+    if (declaration.kind === "policy") {
+      const traced = traceInputs(declaration.id);
+      const inputs = typedInputs(declaration.inputs.map(input => ({ name: input.name, type: traced.find(item => item.name === input.name)!.type })));
+      if (declaration.inputs.length !== declaration.input_names.length) fail("FORMAL_CONSUMER_INPUT_TYPE", `$policy:${declaration.id}`, "executable Policy projection requires typed inputs");
+      const cases = declaration.cases.map(item => ({ target: `${formation.feature}:${formation.symbols[item.target]}`, rule: {
+        selector: `${formation.feature}:${formation.symbols[item.rule]}`,
+        arguments: argumentBindings(`$policy:${declaration.id}`, item.rule, inputs, declaration.bindings.filter(binding => binding.rule === item.rule), true),
+      } }));
+      const node = JSON.parse(projectFiles[nodePath(declaration.id)]!);
+      node.body = { description: node.body.description, typed_contract: { schema_version: "domainspec.typed-policy/v2",
+        ontology_policy: object(declarationBindings[declaration.id], `$policy:${declaration.id}`).ontology, inputs, cases,
+        default_target: `${formation.feature}:${formation.symbols[declaration.default_target]}` } };
+      projectFiles[nodePath(declaration.id)] = json(node);
+      consumers.push({ consumer_kind: "Policy", consumer_ref: `${formation.feature}:${formation.symbols[declaration.id]}`,
+        rules: declaration.cases.map(item => `${formation.feature}:${formation.symbols[item.rule]}`), binding: "typed-exact-arguments" });
+    } else if (declaration.kind === "state-machine") {
+      const traced = traceInputs(declaration.id);
+      const typed = declaration.inputs.map(input => ({ name: symbol(input.name, "_"), type: traced.find(item => item.name === input.name)!.type }));
+      const targetSyntax = declaration.transitions.some(item => item.trigger_event !== null);
+      if (targetSyntax && declaration.transitions.some(item => item.trigger_event === null)) {
+        fail("FORMAL_CONSUMER_STATE_MACHINE", `$state-machine:${declaration.id}`, "target State Machine transitions require explicit trigger Events throughout");
+      }
+      const fullyTyped = targetSyntax;
+      if (fullyTyped) {
+        const transitions = declaration.transitions.map(item => ({ transition_id: symbol(item.id), source_state: symbol(item.from), target_state: symbol(item.to),
+          trigger_event_ref: `${formation.feature}:${formation.symbols[item.trigger_event!]}`,
+          guard: item.rule ? { selector: `${formation.feature}:${formation.symbols[item.rule]}`, arguments: argumentBindings(`$state-machine:${declaration.id}/${item.id}`, item.rule, typed, item.bindings, false) } : null,
+          output_intents: item.result_event ? [{ slot: symbol(item.result_event), event_ref: `${formation.feature}:${formation.symbols[item.result_event]}` }] : [] }));
+        const node = JSON.parse(projectFiles[nodePath(declaration.id)]!);
+        const ontology = object(declarationBindings[declaration.id], `$state-machine:${declaration.id}`).ontology;
+        node.body = { description: node.body.description, typed_contract: { schema_version: "domainspec.typed-state-machine/v1", ontology_state_machine: ontology,
+          inputs: typed, states: declaration.states.map(state => symbol(state)), initial: symbol(declaration.initial), transitions } };
+        projectFiles[nodePath(declaration.id)] = json(node);
+        const featurePath = `specs/${formation.feature}/feature.json`; const feature = JSON.parse(projectFiles[featurePath]!);
+        for (const edgeId of [...feature.edges] as string[]) {
+          const relative = `specs/${formation.feature}/edges/${edgeId}.json`; const edge = JSON.parse(projectFiles[relative]!);
+          if (edge.relationship === "transitions" && edge.target_node_id === formation.symbols[declaration.id]) { feature.edges.splice(feature.edges.indexOf(edgeId), 1); delete projectFiles[relative]; }
+        }
+        for (const trigger of [...new Set(declaration.transitions.map(item => item.trigger_event!))]) {
+          const edgeId = `${formation.symbols[trigger]}-transitions-${formation.symbols[declaration.id]}`;
+          feature.edges.push(edgeId); projectFiles[`specs/${formation.feature}/edges/${edgeId}.json`] = json({ schema_version: "domainspec.edge/v1", feature_id: formation.feature,
+            edge_id: edgeId, relationship: "transitions", source_node_id: formation.symbols[trigger], target_node_id: formation.symbols[declaration.id], scope: "feature" });
+        }
+        feature.edges.sort(); projectFiles[featurePath] = json(feature);
+      }
+      consumers.push({ consumer_kind: "State Machine", consumer_ref: `${formation.feature}:${formation.symbols[declaration.id]}`,
+        rules: declaration.transitions.flatMap(item => item.rule ? [`${formation.feature}:${formation.symbols[item.rule]}`] : []),
+        binding: fullyTyped ? "typed-exact-arguments" : "declared-rule-static-only" });
+    } else if (declaration.kind === "operation") {
+      const rules = [...new Set([...declaration.requires, ...formation.model.rules.filter(rule => rule.enforces.includes(declaration.id)).map(rule => rule.id)])];
+      consumers.push({ consumer_kind: "Operation", consumer_ref: `${formation.feature}:${formation.symbols[declaration.id]}`,
+        rules: rules.map(rule => `${formation.feature}:${formation.symbols[rule]}`), binding: "runtime-realization-exact-arguments" });
+    } else if (declaration.kind === "query") {
+      consumers.push({ consumer_kind: "Query", consumer_ref: `${formation.feature}:${formation.symbols[declaration.id]}`,
+        rules: [`${formation.feature}:${formation.symbols[declaration.rule]}`], binding: "typed-exact-arguments" });
+    } else if (declaration.kind === "workflow") {
+      const traced = traceInputs(declaration.id);
+      const directInputs = declaration.inputs.map(input => ({ name: symbol(input.name, "_"), type: traced.find(item => item.name === input.name)!.type }));
+      for (const rule of declaration.rules) argumentBindings(`$workflow:${declaration.id}`, rule, directInputs,
+        declaration.bindings.filter(binding => binding.rule === rule), false);
+      const stepRules = declaration.steps.flatMap(step => {
+        const operation = formation.model.declarations.find(item => item.id === step);
+        if (operation?.kind !== "operation") return fail("FORMAL_CONSUMER_WORKFLOW", `$workflow:${declaration.id}`, `${step} is not an Operation`);
+        return [...operation.requires, ...formation.model.rules.filter(rule => rule.enforces.includes(step)).map(rule => rule.id)];
+      });
+      consumers.push({ consumer_kind: "Workflow", consumer_ref: `${formation.feature}:${formation.symbols[declaration.id]}`,
+        direct_rules: declaration.rules.map(rule => `${formation.feature}:${formation.symbols[rule]}`),
+        step_rules: [...new Set(stepRules)].map(rule => `${formation.feature}:${formation.symbols[rule]}`),
+        binding: declaration.rules.length ? "typed-exact-arguments-plus-guarded-steps" : "guarded-steps" });
+    }
+  }
   const queries = projectApplicationQueries(formation, projectFiles);
   const trace = { schema_version: "alchlang.rule-projection-trace/v1-candidate", formation_sha256: digest(json(formation)),
     interpretation_sha256: digest(json(interpretation)), projections,
     query_projections: queries,
+    formal_consumers: consumers,
     project_files: Object.fromEntries(Object.entries(projectFiles).map(([p, bytes]) => [p, digest(bytes)])),
     operation_realization: "required", authority_effect: "none" };
   return { formation, projectFiles, trace };

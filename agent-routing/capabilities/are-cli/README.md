@@ -4,6 +4,11 @@ The local adapter calls ARE through `are decide route|context|effect|continue`.
 It is an instruction-driven integration for agents in this checkout. It does
 not intercept the host, replace a running chat's transport, start Codex, or
 invoke a model. MCP remains the last stage in [PLAN.md](PLAN.md).
+This limitation describes the CLI adapter, not the intended post-activation
+host integration. An existing host chat becomes ARE-controlled only through
+the separately verified
+[activated-session control contract](../../../development/agent-reasoning-engine/planning/automatic-thread-integration-v1/SESSION-CONTROL-CONTRACT.md);
+calling this CLI or connecting MCP does not activate it.
 
 ## Bootstrap contract
 
@@ -94,10 +99,13 @@ repositories and VPS clients need their own declared host integration.
 ## Open Questions
 
 Host hooks, the exact Codex binary, VPS continuity and MCP are staged in
-[PLAN.md](PLAN.md#open-questions). No host hook or MCP server is installed by
-this implementation.
+[PLAN.md](PLAN.md#open-questions). The project-local STDIO adapter is now
+implemented at
+`implementation/agent-reasoning-engine/packages/are-mcp-server`; registration
+and client restart remain host-specific operational effects.
 
 The next local adapter is implemented in [HOOKS.md](HOOKS.md): advisory prompt
 events, a candidate configuration renderer, and a read-only host inspector.
 Native delivery passed the [pinned loopback canary](NATIVE-HOST-TEST.md).
-Active hook configuration remains unchanged; MCP stays last.
+Active hook configuration remains unchanged. MCP was implemented last and
+reuses these same decision operations.

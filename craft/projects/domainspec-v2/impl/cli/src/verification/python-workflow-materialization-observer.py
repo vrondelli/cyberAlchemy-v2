@@ -27,6 +27,19 @@ def freeze(v):
     return repr(v)
 
 
+def reference_scalar(model, selector):
+    if model is None:
+        return 'String'
+    declaration = next((row for row in model['declarations'] if row['selector'] == selector), None)
+    if declaration is None or declaration['kind'] != 'Entity':
+        return 'String'
+    identities = [field for field in declaration['contract']['properties'] if field['identity']]
+    require(len(identities) == 1, 'reference identity cardinality')
+    identity = identities[0]['type']
+    require(identity['kind'] == 'scalar' and identity['name'] in ('String', 'UInt64'), 'reference identity scalar')
+    return identity['name']
+
+
 # Exact bounded inert-copy and capture provenance contract. This text is never
 # imported from the generated program or executed by the source observer.
 CAPTURE = '''
@@ -85,12 +98,13 @@ def expected(w, model, provider, root, references, descriptor):
         def field_type(f, wire):
             t = f["type_ref"]
             if t["kind"] == "reference":
-                return "str" if wire else "_Ref" + str(ref_ids[t["selector"]])
+                return ("int | str" if reference_scalar(model, t["selector"]) == "UInt64" else "str") if wire else "_Ref" + str(ref_ids[t["selector"]])
             return {"string": "str", "boolean": "bool", "integer": "int | str" if wire else "int", "decimal": "int | float" if wire else "float", "timestamp": "str", "uuid": "str"}[t["name"]]
         def normal(f, v):
             t = f["type_ref"]
             if t["kind"] == "reference":
-                return "_Ref" + str(ref_ids[t["selector"]]) + "(_e.text(" + v + "))"
+                helper = "_event_ref_uint64" if reference_scalar(model, t["selector"]) == "UInt64" else "_e.text"
+                return "_Ref" + str(ref_ids[t["selector"]]) + "(" + helper + "(" + v + "))"
             return "_e." + {"string": "string", "boolean": "boolean", "integer": "integer", "decimal": "decimal", "timestamp": "text", "uuid": "text"}[t["name"]] + "(" + v + ")"
         def shape(name, fields):
             return c.shape(name, [(f["field_id"], field_type(f, True), field_type(f, False), not f["required"]) for f in fields])
@@ -175,6 +189,18 @@ from {runtime} import values as _v, facts as _facts
         source += f'from {runtime} import event_values as _e\n'
     source += ''.join(f'from {r["module"]} import EventRef as _Ref{i}\n' for i, r in enumerate(references))
     source += '_lookup_codec("utf-16-le")\n_lookup_codec("utf-16-be")\n'
+    if any(r['scalar'] == 'UInt64' for r in references):
+        source += '''def _event_ref_uint64(value):
+    if type(value) is int:
+        number = value
+    elif type(value) is str and 1 <= len(value) <= 20 and (value == "0" or value[0] != "0" and value.isascii() and value.isdecimal()):
+        number = int(value)
+    else:
+        return _e.fail()
+    if number < 0 or number > 18446744073709551615:
+        return _e.fail()
+    return number
+'''
     source += '\n'.join(c.shapes + c.facts + event_code)
     for i, (s, t) in enumerate(zip(results, result_types)):
         source += f'''\n@_dataclass(frozen=True, slots=True, weakref_slot=True, eq=False)
@@ -268,8 +294,9 @@ def observe(data):
     for selector in selectors:
         feature, node = selector.split(':')
         path = root + '/runtime/event_references/' + feature.replace('-', '_') + '/' + node.replace('-', '_') + '.py'
-        references.append({'selector': selector, 'module': base.relative(provider, path[:-3])})
-        sources[path] = 'from typing import NewType as _NewType\nEventRef = _NewType(' + repr(selector) + ', str)\n'
+        scalar = reference_scalar(data['model'], selector)
+        references.append({'selector': selector, 'module': base.relative(provider, path[:-3]), 'scalar': scalar})
+        sources[path] = 'from typing import NewType as _NewType\nEventRef = _NewType(' + repr(selector) + ', ' + ('int' if scalar == 'UInt64' else 'str') + ')\n'
     descriptor = dict(schema_version='domainspec.python-workflow-materialization-descriptor/v1-candidate', workflow_sha256=w['workflow_sha256'], field_compilation_sha256=w['field_compilation_sha256'], contract_sha256='88d7a46aa61a28b371de4e468163a2c36c1da1d8ca83c14c77584fb2061a54a4', selector=w['bindings']['selector'], steps=[{k: s[k] for k in ('step_id', 'operation_ref', 'action_sha256')} for s in w['steps']], compensations=[{k: s[k] for k in ('compensation_id', 'for_step', 'operation_ref', 'action_sha256')} for s in w['compensations']], effect_contract='pure-typed-materialization', invariant_execution='not-performed', commit_evidence='not-established', event_construction='not-performed', authority_effect='none')
     require(p['descriptor'] == descriptor, 'descriptor meaning')
     sources[provider] = expected(w, data['model'], provider, root, references, descriptor)
@@ -294,6 +321,4 @@ def observe(data):
             require(hashlib.sha256(content).hexdigest() == support[path.split('/')[-1]], 'support bytes:' + path)
     require(hashlib.sha256((pathlib.Path(data['root']) / provider).read_bytes()).hexdigest() == p['provider_sha256'], 'provider custody')
     return {'whole_source': True, 'modules': len(paths)}
-
-
 

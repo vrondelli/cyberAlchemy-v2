@@ -10,7 +10,7 @@ import {getReconciledSource} from '../../src/generation/reconciled-sources.ts';
 import {planConfiguredRustEnums, RUST_ALGEBRAIC_SUM_PROTOCOL, RUST_ENUM_CONTRACT_SHA256, RUST_ENUM_PROTOCOL, RUST_ENUM_SELECTION_VERSION} from '../../src/generation/configured-rust-enums.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const contractPath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation/rust-enum-generation-contract.json');
 
 function fixture(t: any) {

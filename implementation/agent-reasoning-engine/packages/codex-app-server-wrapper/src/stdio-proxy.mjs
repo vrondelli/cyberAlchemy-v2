@@ -16,13 +16,24 @@ export function runStdioProxy({wrapper, command = "codex", args = ["app-server"]
   let clientChain = Promise.resolve();
   let serverChain = Promise.resolve();
   let clientEnded = false;
+  let failed = false;
   const pendingClientRequestIds = new Set();
+
+  function stopAfterFailure() {
+    if (failed) return;
+    failed = true;
+    clientLines.close();
+    serverLines.close();
+    child.kill?.("SIGTERM");
+    wrapper.close?.();
+  }
 
   function closeChildInputWhenDrained() {
     if (clientEnded && pendingClientRequestIds.size === 0 && !child.stdin.destroyed) child.stdin.end();
   }
 
   clientLines.on("line", (line) => {
+    if (failed) return;
     clientChain = clientChain.then(async () => {
       const parsed = parseJsonLine(line);
       if (!parsed.ok) {
@@ -36,10 +47,14 @@ export function runStdioProxy({wrapper, command = "codex", args = ["app-server"]
       writeMessages(child.stdin, actions.to_server);
       writeMessages(client_output, actions.to_client);
       closeChildInputWhenDrained();
-    }).catch((error) => writeMessages(client_output, [jsonRpcError(null, -32603, "Wrapper client-path failure", {message: error.message})]));
+    }).catch((error) => {
+      writeMessages(client_output, [jsonRpcError(null, -32603, "Wrapper client-path failure", {message: error.message})]);
+      stopAfterFailure();
+    });
   });
 
   serverLines.on("line", (line) => {
+    if (failed) return;
     serverChain = serverChain.then(async () => {
       const parsed = parseJsonLine(line);
       if (!parsed.ok) {
@@ -51,7 +66,10 @@ export function runStdioProxy({wrapper, command = "codex", args = ["app-server"]
       writeMessages(client_output, actions.to_client);
       if (parsed.kind === "response") pendingClientRequestIds.delete(String(parsed.value.id));
       closeChildInputWhenDrained();
-    }).catch((error) => writeMessages(client_output, [jsonRpcError(null, -32603, "Wrapper server-path failure", {message: error.message})]));
+    }).catch((error) => {
+      writeMessages(client_output, [jsonRpcError(null, -32603, "Wrapper server-path failure", {message: error.message})]);
+      stopAfterFailure();
+    });
   });
 
   child.stderr.on("data", (chunk) => client_error.write(chunk));

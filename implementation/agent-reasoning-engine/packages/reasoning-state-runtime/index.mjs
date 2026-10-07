@@ -9,6 +9,7 @@ import {
   writeSync,
 } from "node:fs";
 import {randomUUID} from "node:crypto";
+import {hostname} from "node:os";
 import {dirname, resolve} from "node:path";
 
 import {
@@ -17,6 +18,8 @@ import {
   deepFreeze,
   sha256HexText,
 } from "../intent-route-resolver/index.mjs";
+import {materializeReasoningPlanContext, verifyReasoningPlanContext} from "./plan-context.mjs";
+export {REASONING_PLAN_CONTEXT_SCHEMA, materializeReasoningPlanContext, verifyReasoningPlanContext} from "./plan-context.mjs";
 
 export const REASONING_STATE_EVENT_SCHEMA = "are.reasoning-state-event/v1";
 export const REASONING_STATE_EPOCH_SCHEMA = "are.reasoning-state-epoch/v1";
@@ -114,17 +117,40 @@ export function acquireReasoningStateWriterLock({path, owner_id = "are-reasoning
   const absolutePath = resolve(path);
   const lockPath = `${absolutePath}.writer.lock`;
   mkdirSync(dirname(lockPath), {recursive: true});
+  if (existsSync(`${lockPath}.recovery.lock`)) return fail("writer-lock", ["reasoning.writer-lock-recovery-held"], [{lock_path: lockPath}]);
   let descriptor;
   try {
     descriptor = openSync(lockPath, "wx", 0o600);
   } catch (error) {
-    if (error?.code === "EEXIST") return fail("writer-lock", ["reasoning.writer-lock-held"], [{lock_path: lockPath}]);
-    return fail("writer-lock", ["reasoning.writer-lock-create-failed"], [{lock_path: lockPath, code: error?.code ?? null}]);
+    if (error?.code !== "EEXIST") return fail("writer-lock", ["reasoning.writer-lock-create-failed"], [{lock_path: lockPath, code: error?.code ?? null}]);
+    const old = inspectReasoningStateWriterLock({path});
+    if (old.disposition !== "stale-candidate" || old.record?.schema_version !== "are.reasoning-state-writer-lock/v2") {
+      return fail("writer-lock", ["reasoning.writer-lock-held"], [{lock_path: lockPath, disposition: old.disposition}]);
+    }
+    const recoveryPath = `${lockPath}.recovery.lock`;
+    let recovery;
+    try { recovery = openSync(recoveryPath, "wx", 0o600); }
+    catch { return fail("writer-lock", ["reasoning.writer-lock-recovery-held"], [{lock_path: lockPath}]); }
+    try {
+      const current = inspectReasoningStateWriterLock({path});
+      if (current.disposition !== "stale-candidate" || current.record?.lock_digest !== old.record.lock_digest) {
+        return fail("writer-lock", ["reasoning.writer-lock-held"], [{lock_path: lockPath, disposition: current.disposition}]);
+      }
+      unlinkSync(lockPath);
+      try { descriptor = openSync(lockPath, "wx", 0o600); }
+      catch (reacquireError) { return fail("writer-lock", [reacquireError?.code === "EEXIST" ? "reasoning.writer-lock-held" : "reasoning.writer-lock-create-failed"], [{lock_path: lockPath}]); }
+    } catch (recoveryError) {
+      return fail("writer-lock", ["reasoning.writer-lock-recovery-failed"], [{lock_path: lockPath, code: recoveryError?.code ?? null}]);
+    } finally {
+      closeSync(recovery);
+      unlinkSync(recoveryPath);
+    }
   }
   const material = canonicalizeJson({
-    schema_version: "are.reasoning-state-writer-lock/v1",
+    schema_version: "are.reasoning-state-writer-lock/v2",
     owner_id: owner_id.trim(),
     ledger_path: absolutePath,
+    host_name: hostname(),
     process_id: process.pid,
     nonce: randomUUID(),
     authority_effect: "none",
@@ -158,6 +184,33 @@ export function acquireReasoningStateWriterLock({path, owner_id = "are-reasoning
   });
   writerLocks.add(lock);
   return Object.freeze({ok: true, lock, value: lockRecord, authority_effect: "none"});
+}
+
+export function inspectReasoningStateWriterLock({path, process_probe = (processId) => {
+  try { process.kill(processId, 0); return "alive"; }
+  catch (error) { return error?.code === "ESRCH" ? "missing" : error?.code === "EPERM" ? "alive-unverified" : "unknown"; }
+}} = {}) {
+  if (!text(path)) return fail("writer-lock-inspection", ["reasoning.writer-lock-path-required"]);
+  const lockPath = `${resolve(path)}.writer.lock`;
+  const recoveryMarkerPresent = existsSync(`${lockPath}.recovery.lock`);
+  if (!existsSync(lockPath)) return freeze({ok: true, disposition: recoveryMarkerPresent ? "recovery-interrupted" : "missing", lock_path: lockPath, recovery_marker_present: recoveryMarkerPresent, break_authorized: false, authority_effect: "none"});
+  let record;
+  try { record = JSON.parse(readFileSync(lockPath, "utf8").trim()); }
+  catch { return freeze({ok: false, disposition: "unreadable", reason_codes: ["reasoning.writer-lock-record-unreadable"], lock_path: lockPath, break_authorized: false, authority_effect: "none"}); }
+  const material = {...record}; delete material.lock_digest;
+  if (!["are.reasoning-state-writer-lock/v1", "are.reasoning-state-writer-lock/v2"].includes(record.schema_version)
+    || !Number.isSafeInteger(record.process_id) || record.process_id < 1
+    || record.ledger_path !== resolve(path) || !text(record.owner_id) || !text(record.nonce)
+    || (record.schema_version === "are.reasoning-state-writer-lock/v2" && !text(record.host_name))
+    || digest(material) !== record.lock_digest) {
+    return freeze({ok: false, disposition: "invalid", reason_codes: ["reasoning.writer-lock-record-invalid"], lock_path: lockPath, break_authorized: false, authority_effect: "none"});
+  }
+  if (record.schema_version === "are.reasoning-state-writer-lock/v1") return freeze({ok: true, disposition: "legacy-unrecoverable", lock_path: lockPath, record, recovery_marker_present: recoveryMarkerPresent, break_authorized: false, authority_effect: "none"});
+  if (record.host_name !== hostname()) return freeze({ok: true, disposition: "foreign-host", lock_path: lockPath, record, recovery_marker_present: recoveryMarkerPresent, break_authorized: false, authority_effect: "none"});
+  const processState = process_probe(record.process_id);
+  const disposition = processState === "missing" ? "stale-candidate" : processState.startsWith("alive") ? "active" : "indeterminate";
+  return freeze({ok: true, disposition, process_state: processState, lock_path: lockPath, record, recovery_marker_present: recoveryMarkerPresent, break_authorized: false,
+    claim_limit: "Diagnostic evidence only; this inspection never deletes or breaks a writer lock.", authority_effect: "none"});
 }
 
 export function createAppendOnlyFileReasoningStateSink({path, create_parent = true, initial_record_count = 0} = {}) {
@@ -270,7 +323,37 @@ function verifyEvent(event) {
     && Number.isSafeInteger(event.sequence)
     && event.sequence > 0
     && digest(event.content) === event.content_digest
+    && (event.event_kind !== "plan-context-recorded" || verifyReasoningPlanContext(event.content).ok)
     && event.authority_effect === "none";
+}
+
+export function appendReasoningPlanContext(ledger, input, {expected_thread_ref, source_digests} = {}) {
+  const built = materializeReasoningPlanContext(input, {expected_thread_ref, source_digests});
+  if (!built.ok) return built;
+  const previous = getLatestReasoningPlanContext(ledger, expected_thread_ref);
+  if (previous?.content.plan_context_digest === built.digest) {
+    return freeze({ok: true, disposition: "duplicate", event: previous, value: previous.content, authority_effect: "none"});
+  }
+  if (built.value.previous_plan_context_digest !== (previous?.content.plan_context_digest ?? null)) {
+    return fail("plan-context", ["reasoning.plan-context-stale-predecessor"]);
+  }
+  const appended = appendReasoningStateEvent(ledger, {
+    event_kind: "plan-context-recorded",
+    idempotency_key: `plan-context:${expected_thread_ref}:${built.digest}`,
+    content: built.value,
+    provenance_refs: built.value.source_refs.map(source => `${source.source_ref}:${source.source_digest}`),
+  });
+  return appended.ok ? freeze({...appended, value: built.value}) : appended;
+}
+
+export function getLatestReasoningPlanContext(ledger, thread_ref) {
+  const state = ledgerState(ledger);
+  if (!text(thread_ref)) return null;
+  for (let index = state.events.length - 1; index >= 0; index -= 1) {
+    const event = state.events[index];
+    if (event.event_kind === "plan-context-recorded" && event.content.thread_ref === thread_ref) return event;
+  }
+  return null;
 }
 
 export function appendReasoningStateEvent(ledger, input) {
@@ -730,6 +813,7 @@ export function checkpointReasoningState(ledger, input = {}) {
   }
   const flushed = state.sink.flush();
   if (!flushed?.ok) return fail("checkpoint", flushed?.reason_codes ?? ["reasoning.sink-flush-failed"], flushed?.residue ?? []);
+  state.retainedCheckpoints.add(checkpoint.checkpoint_digest);
   return freeze({ok: true, value: checkpoint, digest: checkpoint.checkpoint_digest, flush: flushed, authority_effect: "none"});
 }
 
@@ -739,6 +823,7 @@ function inspectReasoningStateRecords(records, expectedLedgerId = null) {
   const events = [];
   const eventsByKey = new Map();
   const eventsByDigest = new Map();
+  const planContextHeads = new Map();
   const epochs = new Map();
   const checkpoints = new Map();
   const frontierEvents = [];
@@ -778,6 +863,15 @@ function inspectReasoningStateRecords(records, expectedLedgerId = null) {
       if (value.sequence !== expectedSequence || value.predecessor_digest !== expectedPredecessor || eventsByDigest.has(value.event_digest) || eventsByKey.has(value.idempotency_key)) {
         residue.push({record_number: recordNumber, event_digest: value.event_digest});
         continue;
+      }
+      if (value.event_kind === "plan-context-recorded") {
+        const prior = planContextHeads.get(value.content.thread_ref) ?? null;
+        if (value.content.previous_plan_context_digest !== prior) {
+          reasons.push("reasoning.log-plan-context-chain-invalid");
+          residue.push({record_number: recordNumber, event_digest: value.event_digest});
+          continue;
+        }
+        planContextHeads.set(value.content.thread_ref, value.content.plan_context_digest);
       }
       events.push(value);
       eventsByDigest.set(value.event_digest, value);
@@ -1000,7 +1094,10 @@ export function recoverReasoningStateLedger(input, options = {}) {
   for (const [key, value] of inspected.eventsByKey) state.eventsByKey.set(key, value);
   for (const [key, value] of inspected.eventsByDigest) state.eventsByDigest.set(key, value);
   for (const [key, value] of inspected.epochs) state.epochs.set(key, value);
-  for (const [key, value] of inspected.checkpoints) state.checkpoints.set(key, value);
+  for (const [key, value] of inspected.checkpoints) {
+    state.checkpoints.set(key, value);
+    state.retainedCheckpoints.add(key);
+  }
   for (const [key, value] of inspected.frontiers) state.frontiers.set(key, value);
   state.recovery = assessment;
   return Object.freeze({ok: true, ledger, assessment, checkpoint: selected.value, authority_effect: "none"});
@@ -1458,6 +1555,7 @@ export function createReasoningStateLedger({ledger_id = "are-reasoning-state:loc
     eventsByDigest: new Map(),
     epochs: new Map(),
     checkpoints: new Map(),
+    retainedCheckpoints: new Set(),
     frontiers: new Map(),
     recovery: null,
   };
@@ -1472,6 +1570,9 @@ export function createReasoningStateLedger({ledger_id = "are-reasoning-state:loc
     frontiers: () => listReasoningStateFrontiers(ledger),
     getEpoch: (epochDigest) => getReasoningStateEpoch(ledger, epochDigest),
     epochs: () => listReasoningStateEpochs(ledger),
+    // Live entries require a successful flush. Recovered entries are exact
+    // checkpoint records retained in the verified log, not proof of prior ACK.
+    checkpoints: () => freeze([...state.checkpoints.values()].filter(value => state.retainedCheckpoints.has(value.checkpoint_digest))),
     snapshot: () => freeze([...state.events]),
     inspect: () => freeze({ledger_id: state.ledgerId, event_count: state.events.length, epoch_count: state.epochs.size, checkpoint_count: state.checkpoints.size, frontier_count: state.frontiers.size, head_event_digest: state.events.at(-1)?.event_digest ?? null, durability: state.sink.durability, sink: state.sink.inspect?.() ?? null, recovery: state.recovery, authority_effect: "none"}),
     close: () => state.sink.close?.() ?? sinkResult("close", "unsupported"),

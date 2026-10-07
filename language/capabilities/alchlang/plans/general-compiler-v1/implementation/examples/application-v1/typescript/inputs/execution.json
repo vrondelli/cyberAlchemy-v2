@@ -1,0 +1,162 @@
+{
+  "schema_version": "alchlang.application-execution/v1-candidate",
+  "projection_sha256": "d1e70d61b6182951b6c0d24ce1cffb028f3e1e3c439f38a4419db7a69a62c5d4",
+  "selection": {
+    "schema_version": "domainspec.reconciled-compilation/v1-candidate",
+    "profile_id": "domainspec.reconciled-typescript/v1-candidate",
+    "language": "typescript",
+    "module_root": "application",
+    "layout_version": "domainspec.existing-profile-layout/v1-candidate",
+    "value_profile": "domainspec.typescript-exact-uint64/v1",
+    "field_bindings": [],
+    "factories": [
+      {
+        "selector": "commerce:order",
+        "base_validators": [
+          {
+            "rule": "commerce:identity-valid",
+            "arguments": [
+              {
+                "parameter": "identity",
+                "field": "id"
+              }
+            ]
+          }
+        ],
+        "extensions": []
+      },
+      {
+        "selector": "commerce:order-notice",
+        "base_validators": [
+          {
+            "rule": "commerce:identity-valid",
+            "arguments": [
+              {
+                "parameter": "identity",
+                "field": "id"
+              }
+            ]
+          }
+        ],
+        "extensions": []
+      }
+    ],
+    "operations": [
+      {
+        "schema_version": "domainspec.operation-action-bindings/v1-candidate",
+        "selector": "commerce:submit-order",
+        "inputs": [
+          {
+            "name": "request",
+            "type": {
+              "kind": "named",
+              "selector": "commerce:order"
+            }
+          }
+        ],
+        "reads": [
+          {
+            "slot": "commerce:order",
+            "target": "commerce:order",
+            "parameter": "current",
+            "key": {
+              "op": "path",
+              "root": "request",
+              "properties": [
+                "FIXTURE-ORDER#id"
+              ]
+            }
+          }
+        ],
+        "guards": [
+          {
+            "selector": "commerce:eligible-order",
+            "arguments": [
+              {
+                "parameter": "order",
+                "value": {
+                  "op": "path",
+                  "root": "current",
+                  "properties": []
+                }
+              }
+            ]
+          }
+        ],
+        "writes": [
+          {
+            "slot": "commerce:order",
+            "target": "commerce:order",
+            "mode": "replace",
+            "value": {
+              "op": "path",
+              "root": "request",
+              "properties": []
+            }
+          }
+        ],
+        "events": [],
+        "result": {
+          "type": {
+            "kind": "named",
+            "selector": "commerce:order"
+          },
+          "value": {
+            "op": "path",
+            "root": "request",
+            "properties": []
+          }
+        },
+        "atomicity": "state-and-outbox",
+        "continuation": "awaited-settlement"
+      },
+      {
+        "schema_version": "domainspec.operation-action-bindings/v1-candidate",
+        "selector": "commerce:receive-notice",
+        "inputs": [
+          {
+            "name": "request",
+            "type": {
+              "kind": "named",
+              "selector": "commerce:order-notice"
+            }
+          }
+        ],
+        "reads": [],
+        "guards": [
+          {
+            "selector": "commerce:identity-valid",
+            "arguments": [
+              {
+                "parameter": "identity",
+                "value": {
+                  "op": "path",
+                  "root": "request",
+                  "properties": [
+                    "FIXTURE-ORDER-NOTICE#id"
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "writes": [],
+        "events": [],
+        "result": {
+          "type": {
+            "kind": "named",
+            "selector": "commerce:order-notice"
+          },
+          "value": {
+            "op": "path",
+            "root": "request",
+            "properties": []
+          }
+        },
+        "atomicity": "state-and-outbox",
+        "continuation": "awaited-settlement"
+      }
+    ],
+    "workflows": []
+  }
+}

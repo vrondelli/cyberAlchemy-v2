@@ -1,0 +1,17 @@
+# G01 reserved confirmation r1 — score-blind preflight result
+
+Status, 2026-10-04: **terminal failed admission, 11/24 admitted; no ranking, labels, passing-commit source, GLM calls, or scores.** This is not a reduced 11-case confirmation. All original 12 Python and 12 Java reserved metadata slots remain visible and outcome-unopened. The [frozen admission rule](G01-BUGSWARM-GRAPH-CONFIRM-R1-SCORE-BLIND-ADMISSION-2026-10-04.md) was not changed during this run.
+
+The metadata-only manifest SHA-256 is `f468b433d9314e8e55f466f5a9359d0d491e523ec2ec71dd11f84c18bd8daa22`; its builder and VPS runner SHA-256 values are `7d69075461b06ba423c7494f5cc2803d7614d1b4f5fa22c022d2d251ced0aa98` and `98fbabac6089ecf9b9b48fb13891e9f417db571c3f7c5ead2820ee57d53c39c9`. The builder verified 24 distinct reserved repositories disjoint from the 24 prior exposed, 24 graph-development, and 24 B-development repositories. Every attempt used exact failed-commit codeload HTTPS availability, an HTTPS BugSwarm job page, and an HTTPS raw log; no automatic retry was made. The VPS run-result SHA-256 is `6221d6bfd7baeda65bf37257b38e061d33e8140a25aa6f17ed8c534b48b1d951`.
+
+All 24 slots were attempted. Codeload returned final HTTP 200 for 23 and 404 for Java slot 15 (`hashgraph/hedera-mirror-node`). Nine raw-log transfers ended with curl exit 56 after about 81.7 KB; incomplete bytes were retained but not admitted. The runner's page check was too narrow: it required the literal `GitHub Actions job {id}` and a GitHub repository URL, but at least Python slot 6 (`pydanny/cookiecutter-django`) is an older BugSwarm **Travis-CI** artifact whose HTTPS page identifies `Travis-CI job 59233809` and links to `app.travis-ci.com/pydanny/cookiecutter-django/jobs/59233809`. That slot's exact failed commit and 126,529-byte raw log both passed, yet the frozen r1 validator rejected its page. Other page mismatches have not been individually adjudicated; some pages themselves transferred incompletely. Do not recast the 11/24 r1 outcome after this diagnosis.
+
+The VPS bundle contains the 24 case receipts, freeze, result, manifest, runner, and every nonempty raw-log attempt. Its complete sorted filename-and-SHA-256 inventory digest `7040fb1db288c193d0a85d094388a43e189aaeab06673d656fc97ba9d1f21011` matches the private WSL cold copy at `/home/vlad_/are-benchmark-archive/bugswarm-1.3.1-g01-feasibility-20261004/graph-confirm-r1/source-only/g01-bugswarm-graph-confirm-r1-preflight/`. No material was deleted from the VPS.
+
+Next: fix a *separate* score-blind r2 admission rule before further requests. It should accept exact job/repository identity for both supported BugSwarm CI providers, diagnose the HTTPS early-close mechanism without treating partial bodies as valid, and apply the predeclared same-language/reserved-partition repository-disjoint replacement rule only to genuinely unavailable slots. Preserve all r1 failures and the original 24-slot denominator. The confirmation treatment, comparators, labels, and model calls remain closed until full source/log admission succeeds.
+
+## Open Questions
+
+- Can a transport variant obtain the nine complete HTTPS logs without disabling TLS validation or altering r1 receipts?
+- Which page mismatches are CI-provider wording versus incomplete transport or genuine identity disagreement?
+- Is slot 15's failed commit permanently unavailable at the exact repository, and if so which score-blind reserved replacement qualifies?

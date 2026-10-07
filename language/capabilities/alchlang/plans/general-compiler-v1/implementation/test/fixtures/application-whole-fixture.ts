@@ -6,9 +6,11 @@ import { digest, json } from "../../src/domainspec-profile.js";
 import { lowerApplicationDomain } from "../../src/application-domain-lowering.js";
 import { lowerApplicationRuleProjections } from "../../src/application-rule-projection.js";
 import { prepareApplicationExecutable } from "../../src/application-executable.js";
+import { deriveApplicationIntegrationBindings } from "../../src/application-integration-derivation.js";
 
 /** Synthetic author choices only: no production approval or environment access. */
-export async function wholeApplicationFixture(selectionId = "provider-selection:commerce-runtime", composed = false) {
+export async function wholeApplicationFixture(selectionId = "provider-selection:commerce-runtime", composed = false, derivedIntegration = false,
+  language: "typescript" | "python" | "rust" = "typescript") {
   const base = executableFixture();
   const [p, m, a] = await Promise.all([persistenceFixture(), messagingFixture(), externalApiFixture()]);
   const compiler = a.compiler;
@@ -29,11 +31,12 @@ operation ReceiveNotice:
   output OrderNotice
   requires IdentityValid
 publication PublishOrder:`).replace("-> operation SubmitOrder", "-> operation ReceiveNotice");
-  const source = base.source + p.source.slice(base.source.length) + messageDeclarations + a.source.slice(base.source.length) + `runtime-profile CommerceRuntime:
-  target typescript
-  selection ${selectionId}
+  const profileName = language === "typescript" ? "CommerceRuntime" : language === "python" ? "CommerceRuntimePython" : "CommerceRuntimeRust";
+  const runtimeProfile = (name: string, target: "typescript" | "python" | "rust", selectedId: string) => `runtime-profile ${name}:
+  target ${target}
+  selection ${selectedId}
   provider-pack domainspec.reference-postgresql16-nats-http/v1-candidate
-  runtime node "26.8.1"
+  runtime ${target === "typescript" ? 'node "26.8.1"' : target === "python" ? 'python ">=3.11"' : 'rust-edition "2024"'}
   provider persistence postgresql:16
   provider messaging nats:jetstream
   provider outbound-http http:outbound
@@ -43,11 +46,18 @@ publication PublishOrder:`).replace("-> operation SubmitOrder", "-> operation Re
   environment NATS_URL endpoint-reference required
   environment PAYMENT_BASE_URL endpoint-reference required
   environment WEBHOOK_SECRET secret-reference required
-` + (composed ? `realization SubmitOrderExecution:
+  environment ORDER_EVENTS_TOPIC endpoint-reference required
+  messaging-destination channel:order-events-topic ORDER_EVENTS_TOPIC
+`;
+  const profileSelection = (target: "typescript" | "python" | "rust") => target === language ? selectionId : `provider-selection:reference-${target}`;
+  const source = base.source + p.source.slice(base.source.length) + messageDeclarations + a.source.slice(base.source.length)
+    + runtimeProfile("CommerceRuntime", "typescript", profileSelection("typescript"))
+    + runtimeProfile("CommerceRuntimePython", "python", profileSelection("python"))
+    + runtimeProfile("CommerceRuntimeRust", "rust", profileSelection("rust"))
+    + (composed ? `realization SubmitOrderExecution:
   operation SubmitOrder
   input request
-  query current <- FindOrder()
-  on-absence current fail ORDER_NOT_FOUND
+  read current <- Order key request.id
   guard EligibleOrder(order <- current)
   write Order replace <- request
   result <- request
@@ -97,12 +107,27 @@ realization ReceiveNoticeExecution:
     ProviderRequest: { ontology: "FIXTURE-PROVIDER-REQUEST", meaning: "Explicit provider request projection." },
     ProviderResponse: { ontology: "FIXTURE-PROVIDER-RESPONSE", meaning: "Explicit provider response projection." },
   } };
-  const persistence = { binding: p.binding, compiler }, messaging = { binding: m.binding, compiler }, api = { binding: a.binding, compiler }, runtime = { profile: "CommerceRuntime", compiler };
-  const contexts = [persistence, messaging, api, runtime] as const;
+  const explicitContexts = [{ binding: p.binding, compiler }, { binding: m.binding, compiler }, { binding: a.binding, compiler }, { profile: profileName, compiler }] as const;
+  const derived = derivedIntegration ? deriveApplicationIntegrationBindings(source, profileName, compiler) : undefined;
+  const contexts: readonly [any, any, any, any] = derived
+    ? [{ binding: derived.persistence, compiler }, { binding: derived.messaging, compiler },
+      { binding: derived.externalApi, compiler }, { profile: profileName, compiler }]
+    : explicitContexts;
   const formation = lowerApplicationDomain(source, bindings, base.sources, ...contexts);
   const interpretation = { ...base.interpretation, formation_sha256: digest(json(formation)) };
   const projection = lowerApplicationRuleProjections(source, bindings, base.sources, interpretation, ...contexts);
   const selection: any = structuredClone(base.execution.selection);
+  if (language === "python") {
+    selection.schema_version = "domainspec.reconciled-python-compilation/v1-candidate";
+    selection.profile_id = "domainspec.reconciled-python/v1-candidate";
+    selection.language = "python";
+    delete selection.value_profile;
+  } else if (language === "rust") {
+    selection.schema_version = "domainspec.reconciled-rust-compilation/v1-candidate";
+    selection.profile_id = "domainspec.reconciled-rust/v1-candidate";
+    selection.language = "rust";
+    delete selection.value_profile;
+  }
   selection.factories.push({ selector: "commerce:order-notice", base_validators: [{ rule: "commerce:identity-valid", arguments: [{ parameter: "identity", field: "id" }] }], extensions: [] });
   selection.operations.push({ schema_version: "domainspec.operation-action-bindings/v1-candidate", selector: "commerce:receive-notice",
     inputs: [{ name: "request", type: { kind: "named", selector: "commerce:order-notice" } }], reads: [],
@@ -121,3 +146,6 @@ realization ReceiveNoticeExecution:
     source_id: "integration-source:alch-commerce", disclosure_policy: existing.disclosure_policy, orodi_binding: existing.orodi_binding };
   return { source, compiler, bindings, sources: base.sources, contexts, formation, interpretation, execution, candidate, observation };
 }
+
+export const wholeApplicationFixtureForLanguage = (language: "typescript" | "python" | "rust") =>
+  wholeApplicationFixture(`provider-selection:reference-${language}`, false, false, language);

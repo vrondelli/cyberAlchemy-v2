@@ -4,6 +4,7 @@ import {canonicalJson, sha256} from '../input/source-manifest.js';
 import {assertCheckedWorkflowBindings, type CheckedWorkflowBindings, type WorkflowValueExpression} from '../typed-operation/workflow-bindings.js';
 import type {TypedType, ValueExpression} from '../typed-operation/contracts.js';
 import {createOperationValueReference, operationReferenceFields} from './reconciled-operation-values.js';
+import {eventReferenceIdentity} from '../generation/event-reference-identity.js';
 
 export const WORKFLOW_VALUES_DEFINITION_SHA256 = '2cfde9cbe6ef8979eaa2f7b79007f2fdd768f0bd0c246c9018b4c5ae59d9cf4c';
 const fail = (message: string): never => {throw new TypeError('WORKFLOW_VALUE_REFERENCE:' + message);};
@@ -44,11 +45,17 @@ function snapshot(raw: unknown): any {
 }
 
 /** Event input only: generated occurredAt remains absent and no clock is called. */
-function eventInput(contract: CheckedWorkflowBindings['event_inputs'][number]['contract'], value: any) {
+function eventInput(graph: CompiledProjectGraph, contract: CheckedWorkflowBindings['event_inputs'][number]['contract'], value: any) {
   const generated = contract.occurred_at_policy === 'generated';
   operationReferenceFields(value, generated ? ['occurrence', 'payload'] : ['occurrence', 'payload', 'occurredAt']);
-  const field = (type: {kind: string; name?: string}, v: any): any => {
-    if (type.kind === 'reference' || type.name === 'uuid' || type.name === 'timestamp') return typeof v === 'string' && v.length ? v : fail('nonempty Event text required');
+  const field = (type: {kind: string; name?: string; selector?: string}, v: any): any => {
+    if (type.kind === 'reference') {
+      const scalar = eventReferenceIdentity(graph, type.selector!, reason => fail(reason)).scalar;
+      if (scalar === 'String') return typeof v === 'string' && v.length ? v : fail('nonempty Event reference required');
+      if (typeof v === 'number' && !Number.isSafeInteger(v) || typeof v === 'string' && !/^(?:0|[1-9][0-9]*)$/.test(v) || !['bigint', 'number', 'string'].includes(typeof v)) return fail('exact Event UInt64 reference required');
+      const n = BigInt(v); return n >= 0n && n <= 18446744073709551615n ? n : fail('Event UInt64 reference range');
+    }
+    if (type.name === 'uuid' || type.name === 'timestamp') return typeof v === 'string' && v.length ? v : fail('nonempty Event text required');
     if (type.name === 'string') return typeof v === 'string' ? v : fail('Event string required');
     if (type.name === 'boolean') return typeof v === 'boolean' ? v : fail('Event boolean required');
     if (type.name === 'decimal') return typeof v === 'number' && Number.isFinite(v) ? v : fail('finite Event decimal required');
@@ -77,7 +84,7 @@ export function createWorkflowValueReference(graph: CompiledProjectGraph, workfl
     const data = snapshot(raw);
     operationReferenceFields(data, [...inputs.map(p => p.name), ...workflow.event_inputs.map(p => p.name)]);
     const input = freeze(Object.fromEntries([...inputs.map(p => [p.name, values.normalize(p.type, data[p.name])]),
-      ...workflow.event_inputs.map(p => [p.name, eventInput(p.contract, data[p.name])])]));
+      ...workflow.event_inputs.map(p => [p.name, eventInput(graph, p.contract, data[p.name])])]));
     captures.add(input); return input;
   }
   function captureResult(input: Input, stepId: string, raw: unknown): Result {

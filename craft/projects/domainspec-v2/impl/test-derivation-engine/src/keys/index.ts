@@ -19,12 +19,24 @@ function canonicalJson(params: Readonly<Record<string, Value>>): string {
   return `{${parts.join(",")}}`;
 }
 
-/** obligation_key = sha1(source_anchor | rule_type | canonical_params). */
+export interface ObligationFreshness {
+  readonly ruleSetVersion: string;
+  readonly semanticSourceFingerprint: string;
+}
+
+/**
+ * v2 derivation keys bind the rule-set and source semantics. The three-argument
+ * form remains only for historical callers; it must not be used for current
+ * derived/evidence identities.
+ */
 export function obligationKey(
   sourceAnchor: SourceAnchor,
   ruleType: RuleType,
   canonicalParams: Readonly<Record<string, Value>>,
+  freshness?: ObligationFreshness,
 ): ObligationKey {
-  const payload = `${sourceAnchor}|${ruleType}|${canonicalJson(canonicalParams)}`;
+  const payload = freshness
+    ? `v2|${JSON.stringify(freshness.ruleSetVersion)}|${freshness.semanticSourceFingerprint}|${sourceAnchor}|${ruleType}|${canonicalJson(canonicalParams)}`
+    : `${sourceAnchor}|${ruleType}|${canonicalJson(canonicalParams)}`;
   return createHash("sha1").update(payload).digest("hex");
 }

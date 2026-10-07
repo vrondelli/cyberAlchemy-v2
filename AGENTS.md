@@ -1,7 +1,8 @@
 # CyberAlchemy v2 Agent Instructions
 
-This project is staged inside the private `domainspec-core` umbrella. Parent
-repository submodule discipline still applies.
+This project is a standalone private checkout. Its selected DomainSpec v2 and
+Node/TypeScript sources live under `craft/`; no `domainspec-core` checkout is a
+runtime or validation prerequisite.
 
 ## Local Authority Model
 
@@ -27,9 +28,8 @@ explain these surfaces, but they do not redefine them.
   this project unless a later import plan requires it.
 - Stage scattered definitions, glossaries, constitutions, axioms, quality rules,
   and anti-patterns under `authority/imports/` before promoting them.
-- Treat [../.arcanum/inventory/](../.arcanum/inventory/) and
-  [../.arcanum/ontology-vault/](../.arcanum/ontology-vault/) as read models and
-  candidate maps, not promoted authority.
+Legacy umbrella inventory and ontology read models retained under `craft/support/core` are
+provenance only, not active routing or authority dependencies.
 - Keep public Arcanum patterns separate from private DomainSpec evidence.
 - Generated runtime mirrors are evidence of projection, not canonical source.
 - Research may propose; authority decides; implementation waits for a gate.

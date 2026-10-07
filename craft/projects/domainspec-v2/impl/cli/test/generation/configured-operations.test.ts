@@ -212,7 +212,13 @@ test('Native Operations preserve composite identities and nested optional list s
   properties.find((p:any)=>p.name==='id').type=named('detail');
   for(const [name,kind]of [['maybe','optional'],['items','list'],['unique','set']])properties.push({name,ontology_property:'FIXTURE-ACCOUNT#'+name,type:{kind,element:named('detail')},identity:false,cardinality:kind==='optional'?'optional':kind==='list'?'many':'many-unique',meaning:name});
   properties.push({name:'resolution',ontology_property:'FIXTURE-ACCOUNT#resolution',type:named('resolution'),identity:false,cardinality:'one',meaning:'resolution'});node.body.fields=properties.map((p:any)=>p.name);
-  f.write('specs/commerce/nodes/account.json',node);f.bindings.inputs[0].type=named('detail');f.bindings.result={type:named('account'),value:at('replacement')};f.save();
+  f.write('specs/commerce/nodes/account.json',node);
+  // Event references intentionally retain their scalar wire contract. This
+  // case exercises the Operation store's composite Entity identity without
+  // implicitly widening the separate Event reference protocol.
+  const posted=read(path.join(f.source,'specs/commerce/nodes/posted.json'));
+  posted.body.payload.find((field:any)=>field.field_id==='account-id').type_ref={kind:'primitive',name:'string'};
+  f.write('specs/commerce/nodes/posted.json',posted);f.bindings.inputs[0].type=named('detail');f.bindings.result={type:named('account'),value:at('replacement')};f.save();
   const c=f.compile(),n=native(path.join(f.temp,'nested'),c.plan()),run=n.load(),v:any=input();
   const extra={id:{amount:'2'},maybe:null,items:[{amount:'4'},{amount:'4'}],unique:[{amount:'5'},{amount:'6'}],resolution:{variant:'Some',payload:{amount:'18446744073709551615'}}};
   v.account_id={amount:'2'};v.replacement={...v.replacement,...extra};let batch:any,reads=0;

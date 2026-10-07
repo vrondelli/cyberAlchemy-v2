@@ -94,6 +94,7 @@ test("L2 runtime ports preserve one language-neutral integration contract", () =
     delivery_observed: false,
     consumer_completion_observed: false,
   });
+  assert.equal(manifest.ports.find((port: any) => port.port_id === "publication:order-submitted").destination_environment_name, "ORDER_EVENTS_TOPIC");
   assert.deepEqual(manifest.transactions[0].participant_refs, ["participant:order-row", "participant:outbox-row"]);
 });
 
@@ -127,6 +128,10 @@ test("L2 provider composition rejects missing capabilities and undeclared failur
   missingFailure.external_api.integration_kernel.failure_mappings[0].cases = missingFailure.external_api.integration_kernel.failure_mappings[0].cases.filter((item: any) => item.provider_failure_matcher !== "http:timeout");
   const failurePlan = planWholeApplicationV1(path.join(example, "source"), json("selections/typescript.json"), missingFailure);
   assert.throws(() => composeProviderApplicationV1(failurePlan, json("providers/typescript.json"), missingFailure), /DS_PROVIDER_FAILURE_UNDECLARED/);
+  const wrongDestination = json("providers/typescript.json");
+  wrongDestination.configuration.messaging_destinations[0].channel_ref = "channel:different-topic";
+  const destinationPlan = planWholeApplicationV1(path.join(example, "source"), json("selections/typescript.json"), structuredClone(integration));
+  assert.throws(() => composeProviderApplicationV1(destinationPlan, wrongDestination, structuredClone(integration)), /DS_PROVIDER_MESSAGING_DESTINATION_COVERAGE/);
 });
 
 test("L2 provider composition rejects an integration source other than the bound source", () => {
@@ -215,9 +220,9 @@ test("R05 TypeScript provider invokes exact mappings, one Operation, transaction
       published.push({ subject, payload: JSON.parse(new TextDecoder().decode(bytes)), messageId: options.headers?.get("Nats-Msg-Id") });
       return { stream: "ORDERS", seq: 4 };
     },
-  });
+  }, "orders.test");
   const receipt = await publisher.publish({ type: "posted", version: "1", occurrence: { "event-id": "evt-9" }, occurredAt: notice.occurredAt, payload: { "order-id": 9n, delta: 1n, ratio: 1 } });
-  assert.deepEqual(published, [{ subject: "orders.submitted", payload: { id: "9", name: "integration" }, messageId: "evt-9" }]);
+  assert.deepEqual(published, [{ subject: "orders.test", payload: { id: "9", name: "integration" }, messageId: "evt-9" }]);
   assert.deepEqual(receipt, { acceptance_boundary_ref: "acceptance:order-event-publish", provider_acknowledgement_ref: "ORDERS:4", claim_ceiling: "provider-accepted", delivery_observed: false, consumer_completion_observed: false });
 
   const outbound = await import(pathToFileURL(path.join(temporary, "src/providers/reference/outbound-http.ts")).href) as any;
@@ -245,6 +250,7 @@ test("R05 TypeScript provider invokes exact mappings, one Operation, transaction
     NATS_URL: "nats://reference",
     PAYMENT_BASE_URL: "https://payments.invalid",
     WEBHOOK_SECRET: "reference-secret",
+    ORDER_EVENTS_TOPIC: "orders.runtime",
   }, {
     database: async () => { lifecycle.push("database-connect"); return lifecyclePool; },
     messaging: async () => { lifecycle.push("messaging-connect"); return { connection: { drain: async () => { lifecycle.push("messaging-drain"); } }, jetstream: {} }; },
@@ -357,8 +363,8 @@ async def run():
     assert json.loads(outbox[4]) == {"type": "posted", "version": "1", "occurrence": {"event-id": "evt-9"}, "occurredAt": "2026-09-16T12:00:00Z", "payload": {"order-id": 9, "delta": 1, "ratio": 1.0}}
 
     jetstream = JetStream()
-    receipt = await NatsJetStreamOrderPublisher(jetstream).publish(event_posted(notice))
-    assert jetstream.published == [("orders.submitted", {"id": 9, "name": "integration"}, {"Nats-Msg-Id": "evt-9"})], repr(jetstream.published)
+    receipt = await NatsJetStreamOrderPublisher(jetstream, "orders.test").publish(event_posted(notice))
+    assert jetstream.published == [("orders.test", {"id": 9, "name": "integration"}, {"Nats-Msg-Id": "evt-9"})], repr(jetstream.published)
     assert receipt == {"acceptance_boundary_ref": "acceptance:order-event-publish", "provider_acknowledgement_ref": "ORDERS:4", "claim_ceiling": "provider-accepted", "delivery_observed": False, "consumer_completion_observed": False}
 
     client = HttpClient()
@@ -459,7 +465,7 @@ class Connectors:
     async def wait_started(self, server, task): events.append("wait-started"); await asyncio.sleep(0); server.started = True
 
 async def run():
-    running = await start_reference_application({"DATABASE_URL":"postgres://reference","INBOUND_BIND_ADDRESS":"127.0.0.1:0","NATS_URL":"nats://reference","PAYMENT_BASE_URL":"https://payments.invalid","WEBHOOK_SECRET":"reference-secret"}, Connectors())
+    running = await start_reference_application({"DATABASE_URL":"postgres://reference","INBOUND_BIND_ADDRESS":"127.0.0.1:0","NATS_URL":"nats://reference","PAYMENT_BASE_URL":"https://payments.invalid","WEBHOOK_SECRET":"reference-secret","ORDER_EVENTS_TOPIC":"orders.runtime"}, Connectors())
     assert running.health() == {"status": "ready"}
     await running.stop(); await running.stop()
     assert running.health() == {"status": "stopped"}
@@ -558,7 +564,7 @@ test("L2 provider artifacts expose environment references without embedding secr
   const forbidden = ["postgres://user:password", "nats://token@", "super-secret-webhook"];
   for (const language of ["typescript", "python", "rust"] as const) {
     const bytes = plan(language).artifacts.map(item => item.content).join("\n");
-    for (const name of ["DATABASE_URL", "INBOUND_BIND_ADDRESS", "NATS_URL", "PAYMENT_BASE_URL", "WEBHOOK_SECRET"]) assert.match(bytes, new RegExp(name));
+    for (const name of ["DATABASE_URL", "INBOUND_BIND_ADDRESS", "NATS_URL", "PAYMENT_BASE_URL", "WEBHOOK_SECRET", "ORDER_EVENTS_TOPIC"]) assert.match(bytes, new RegExp(name));
     for (const value of forbidden) assert.doesNotMatch(bytes, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });

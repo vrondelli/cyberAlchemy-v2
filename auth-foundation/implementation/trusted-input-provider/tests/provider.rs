@@ -1,6 +1,5 @@
-use auth_foundation_runtime_adapter::{DecisionClock, PortFailure};
-use auth_foundation_trusted_boundary::{
-    AuthenticationEvidenceResolver, RouteAuthorizationBindingResolver,
+use auth_foundation_authorization_state_model::{
+    AuthenticationEvidenceResolver, DecisionClock, PortFailure, RouteAuthorizationBindingResolver,
 };
 use auth_foundation_trusted_input_provider::{
     SCHEMA_V1, SqliteAuthenticationEvidenceResolver, SqliteRouteAuthorizationBindingResolver,
@@ -62,6 +61,71 @@ fn generated_query_constructs_complete_logical_snapshot() {
     assert_eq!(snapshot.authentication_evidence[0].evidence_identity, 1);
     assert_eq!(snapshot.route_bindings.len(), 1);
     assert_eq!(snapshot.route_bindings[0].binding_identity, 1);
+}
+
+#[test]
+fn matching_third_occurrence_is_not_truncated_in_combined_or_port_resolvers() {
+    fn three_row_connection() -> Connection {
+        let connection = seeded_connection();
+        connection.execute_batch(
+            "INSERT INTO auth_authentication_evidence
+                 (evidence_row_id, evidence_ref, session_id, trusted, revoked, expires_at)
+             VALUES (2, 'auth-1', 'session-2', 0, 0, 101),
+                    (3, 'auth-1', 'session-3', 1, 0, 101);
+             INSERT INTO auth_route_authorization_bindings
+                 (binding_row_id, route_id, resource, action, scope, scope_evidence_ref, complete, enabled)
+             VALUES (2, 'documents.read', 'documents', 'read', 'tenant-7', 'scope-2', 0, 1),
+                    (3, 'documents.read', 'documents', 'read', 'tenant-7', 'scope-3', 1, 1);",
+        ).expect("insert occurrences");
+        connection
+    }
+    let combined =
+        SqliteTrustedInputResolver::from_connection(three_row_connection(), FixedClock(100))
+            .expect("construct combined resolver");
+    let (_, TrustedInputResolution::Resolved(snapshot)) = combined
+        .resolve("auth-1", "documents.read")
+        .expect("resolve")
+    else {
+        panic!("expected resolved snapshot")
+    };
+    assert_eq!(
+        snapshot
+            .authentication_evidence
+            .iter()
+            .map(|row| row.evidence_identity)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert_eq!(
+        snapshot
+            .route_bindings
+            .iter()
+            .map(|row| row.binding_identity)
+            .collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+
+    let authentication = SqliteAuthenticationEvidenceResolver::from_connection(
+        three_row_connection(),
+        FixedClock(100),
+    )
+    .expect("construct authentication resolver");
+    let routes = SqliteRouteAuthorizationBindingResolver::from_connection(three_row_connection())
+        .expect("construct route resolver");
+    assert_eq!(
+        authentication
+            .resolve_authentication_evidence("auth-1")
+            .expect("auth rows")
+            .len(),
+        3
+    );
+    assert_eq!(
+        routes
+            .resolve_route_authorization_bindings("documents.read")
+            .expect("route rows")
+            .len(),
+        3
+    );
 }
 
 #[test]

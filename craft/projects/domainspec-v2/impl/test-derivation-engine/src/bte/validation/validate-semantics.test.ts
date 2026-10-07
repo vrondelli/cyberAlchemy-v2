@@ -148,6 +148,16 @@ describe("L0B semantic validation", () => {
     expect(compareExactSets(actual, extra).diagnostics.map(({ code }) => code))
       .toContain("BTE_RECOMPOSITION_EXTRA");
 
+    // Both sets are internally valid and have the same logical members; the
+    // comparator must still reject changed bytes under a reused identity.
+    const changed = createExactSet(identity("set", "changed"), [
+      { ...first, content_sha256: sha256("changed a") },
+      second,
+    ]);
+    expect(validateExactSet(changed).result).toBe("pass");
+    expect(compareExactSets(expected, changed).diagnostics.map(({ code }) => code))
+      .toContain("BTE_DIGEST_MISMATCH");
+
     const stale = structuredClone(expected);
     stale.membership_digest = "0".repeat(64);
     expect(validateExactSet(stale).diagnostics.map(({ code }) => code))
@@ -222,6 +232,19 @@ describe("L0B semantic validation", () => {
         implementationProducerIds: ["bte-semantic-validator"],
       }),
     ).toEqual({ result: "pass", diagnostics: [] });
+
+    const changedFreeze = structuredClone(freeze);
+    changedFreeze.frozen_cases = createExactSet(freeze.frozen_cases.set_id, [
+      { ...freeze.frozen_cases.members[0]!, content_sha256: sha256("different case bytes") },
+    ]);
+    expect(validateExactSet(changedFreeze.frozen_cases).result).toBe("pass");
+    expect(validateRedFixtureBundle({
+      manifest,
+      freeze: changedFreeze,
+      roots: { "test-root": root },
+      publicationReceiptSha256: publicationSha,
+      implementationProducerIds: ["bte-semantic-validator"],
+    }).diagnostics.map(({ code }) => code)).toContain("BTE_DIGEST_MISMATCH");
 
     const staleManifest = structuredClone(manifest);
     staleManifest.contract_publication_sha256 = "0".repeat(64);

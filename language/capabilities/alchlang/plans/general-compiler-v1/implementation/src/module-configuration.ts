@@ -65,7 +65,7 @@ function parse(source: string) {
     target!.fields[key] = unquote(clause![2]!);
   }
   for (const header of ["domain", "profile", "owner", "runtime"]) if (!headers[header]) fail(`missing ${header}`);
-  if (headers.profile !== "module-configuration-v1") fail("profile must be module-configuration-v1");
+  if (!["module-configuration-v1", "module-configuration-v2"].includes(headers.profile!)) fail("profile must be module-configuration-v1 or module-configuration-v2");
   if (headers.runtime !== "node>=26.8.1" || !safe(headers.owner!)) fail("runtime or owner is invalid");
   for (const kind of KINDS) if (!declarations.some((item) => item.kind === kind)) fail(`at least one ${kind} declaration is required`);
   if (declarations.filter((item) => item.kind === "configuration").length !== 1 || declarations.filter((item) => item.kind === "governed-by").length !== 1) fail("exactly one configuration and governed-by declaration are required");
@@ -74,7 +74,7 @@ function parse(source: string) {
   for (const item of declarations) {
     if (names.has(item.name)) fail(`duplicate declaration ${item.name}`);
     names.add(item.name);
-    const allowed = new Set(REQUIRED[item.kind]);
+    const allowed = new Set([...REQUIRED[item.kind], ...(headers.profile === "module-configuration-v2" && item.kind === "module" ? ["runtime-source", "runtime-source-sha256", "compiled-source", "compiled-source-sha256"] : [])]);
     for (const key of Object.keys(item.fields)) if (!allowed.has(key)) fail(`${item.name}: unsupported clause ${key}`);
     for (const key of allowed) if (!item.fields[key]) fail(`${item.name}: missing ${key}`);
   }
@@ -89,6 +89,10 @@ function parse(source: string) {
     if (!safe(module.fields["factory-id"]!)) fail(`${module.name}: invalid factory-id`);
     for (const field of ["module-id", "adapter-protocol"]) if (!identifier(module.fields[field]!)) fail(`${module.name}: invalid ${field}`);
     if (!digest(module.fields["factory-source-sha256"]!) || !digest(module.fields["manifest-digest"]!) || module.fields["side-effects"] !== "false" || module.fields["authority-effect"] !== "none") fail(`${module.name}: unsafe or invalid module boundary`);
+    if (headers.profile === "module-configuration-v2") {
+      for (const field of ["runtime-source", "runtime-source-sha256", "compiled-source", "compiled-source-sha256"]) if (!module.fields[field]) fail(`${module.name}: missing ${field}`);
+      for (const field of ["runtime-source-sha256", "compiled-source-sha256"]) if (!digest(module.fields[field]!)) fail(`${module.name}: invalid ${field}`);
+    }
   }
   for (const capability of capabilities) {
     const module = byName.get(capability.fields.module!);
@@ -123,11 +127,22 @@ export function compileModuleConfiguration(sourcePath: string) {
     const sourceFile = realpathSync(path.resolve(root, module.fields["factory-source"]!));
     const sourceDigest = sha256(readFileSync(sourceFile));
     if (sourceDigest !== module.fields["factory-source-sha256"]) fail(`${module.name}: factory source digest drift`);
+    const pinnedSource = (sourceKey: string, digestKey: string) => {
+      const file = realpathSync(path.resolve(root, module.fields[sourceKey]!));
+      const observed = sha256(readFileSync(file));
+      if (observed !== module.fields[digestKey]) fail(`${module.name}: ${sourceKey} digest drift`);
+      return {path: path.relative(root, file).split(path.sep).join("/"), sha256: observed};
+    };
+    const runtimeBinding = parsed.headers.profile === "module-configuration-v2" ? (() => {
+      const runtime = pinnedSource("runtime-source", "runtime-source-sha256");
+      const compiled = pinnedSource("compiled-source", "compiled-source-sha256");
+      return {runtime_source: runtime.path, runtime_source_sha256: runtime.sha256, compiled_source: compiled.path, compiled_source_sha256: compiled.sha256};
+    })() : {runtime_source: undefined, runtime_source_sha256: undefined, compiled_source: undefined, compiled_source_sha256: undefined};
     const capabilities = parsed.capabilities.filter((item) => item.fields.module === module.name).map((item) => ({capability_id: item.fields["capability-id"], input_protocol: item.fields["input-protocol"], output_protocol: item.fields["output-protocol"]})).sort((left, right) => left.capability_id!.localeCompare(right.capability_id!));
     if (!capabilities.length) fail(`${module.name}: at least one capability is required`);
     const manifestMaterial = {schema_version: "are.module-manifest/v1", module_id: module.fields["module-id"], version: module.fields.version, adapter_protocol: module.fields["adapter-protocol"], capabilities, required_permissions: [], side_effects: false, authority_effect: "none"};
     if (sha256(canonical(manifestMaterial)) !== module.fields["manifest-digest"]) fail(`${module.name}: manifest digest does not match declarations`);
-    return {declaration: module.name, factory_id: module.fields["factory-id"], factory_source: path.relative(root, sourceFile).split(path.sep).join("/"), factory_source_sha256: sourceDigest, module_id: module.fields["module-id"], version: module.fields.version, manifest_digest: module.fields["manifest-digest"], capabilities};
+    return {declaration: module.name, factory_id: module.fields["factory-id"], factory_source: path.relative(root, sourceFile).split(path.sep).join("/"), factory_source_sha256: sourceDigest, ...runtimeBinding, module_id: module.fields["module-id"], version: module.fields.version, manifest_digest: module.fields["manifest-digest"], capabilities};
   }).sort((left, right) => left.module_id!.localeCompare(right.module_id!));
   const moduleByDeclaration = new Map(moduleRecords.map((item) => [item.declaration, item]));
   const entryRecords = parsed.entries.map((entry) => {
@@ -139,8 +154,8 @@ export function compileModuleConfiguration(sourcePath: string) {
   const ontologyNodes = [{id: `configuration:${configuration.configuration_id}`, kind: "configuration", name: parsed.configuration.name}, ...moduleRecords.map((item) => ({id: `module:${item.module_id}`, kind: "module", name: item.declaration})), ...entryRecords.map((item) => ({id: `entry:${item.entry_id}`, kind: "entry", name: item.entry_id}))];
   const ontologyEdges = [...moduleRecords.map((item) => ({from: `configuration:${configuration.configuration_id}`, to: `module:${item.module_id}`, relation: "binds"})), ...entryRecords.map((item) => ({from: `entry:${item.entry_id}`, to: `module:${item.module_id}`, relation: "invokes"}))];
   const ontology = {schema_version: "alchlang.module-configuration-ontology/v1", source: {path: path.basename(resolved), sha256: sha256(source)}, nodes: ontologyNodes, edges: ontologyEdges, selector: governed.fields.selector, ontology_admitted: false, authority_effect: "none"};
-  const conformance = {schema_version: "alchlang.module-configuration-conformance/v1", status: "pass", checks: ["exact-adoption-binding", "exact-factory-source-binding", "exact-manifest-reconstruction", "module-identity-non-collapse", "entry-semantic-orthogonality", "multiple-explicit-entry-points"].map((check_id) => ({check_id, outcome: "PASS"})), entry_count: entryRecords.length, module_count: moduleRecords.length, runtime_admitted: false, enforcement_active: false, authority_effect: "none"};
-  return {profile: "module-configuration-v1", sourcePath: resolved, source, source_sha256: sha256(source), configuration, entries: entryRecords, modules: moduleRecords, ontology, conformance, governance: {decision_path: path.relative(root, decisionPath).split(path.sep).join("/"), decision_sha256: sha256(decisionBytes), constitution_id: governed.fields["constitution-id"], selector: governed.fields.selector}, authority_effect: "none"};
+  const conformance = {schema_version: "alchlang.module-configuration-conformance/v1", status: "pass", checks: ["exact-adoption-binding", "exact-factory-source-binding", ...(parsed.headers.profile === "module-configuration-v2" ? ["exact-injected-runtime-binding", "exact-compiled-artifact-binding"] : []), "exact-manifest-reconstruction", "module-identity-non-collapse", "entry-semantic-orthogonality", "multiple-explicit-entry-points"].map((check_id) => ({check_id, outcome: "PASS"})), entry_count: entryRecords.length, module_count: moduleRecords.length, runtime_admitted: false, enforcement_active: false, authority_effect: "none"};
+  return {profile: parsed.headers.profile, sourcePath: resolved, source, source_sha256: sha256(source), configuration, entries: entryRecords, modules: moduleRecords, ontology, conformance, governance: {decision_path: path.relative(root, decisionPath).split(path.sep).join("/"), decision_sha256: sha256(decisionBytes), constitution_id: governed.fields["constitution-id"], selector: governed.fields.selector}, authority_effect: "none"};
 }
 
 export function checkModuleConfiguration(sourcePath: string) {
@@ -161,9 +176,10 @@ export function buildModuleConfiguration(sourcePath: string, outputPath: string)
     write("provenance/alch/source.alch", compiled.source);
     write("provenance/ontology.json", json(compiled.ontology));
     write("provenance/governance-binding.json", json({...compiled.governance, constitution_adopted: true, runtime_admitted: false, authority_effect: "none"}));
+    if (compiled.profile === "module-configuration-v2") write("provenance/runtime-bindings.json", json({schema_version: "alchlang.module-runtime-bindings/v1-candidate", modules: compiled.modules, authority_effect: "none"}));
     write("evidence/conformance.json", json(compiled.conformance));
     const inventory = Object.fromEntries(files(stage).sort().map((file) => [path.relative(stage, file).split(path.sep).join("/"), sha256(readFileSync(file))]));
-    write("manifest.json", json({schema_version: "alchlang.module-configuration-build/v1", profile: compiled.profile, source_sha256: compiled.source_sha256, configuration_id: compiled.configuration.configuration_id, pipeline: ["alch-source", "module-configuration-ontology", "runtime-configuration", "entrypoint-projection", "conformance-evidence"], files: inventory, ontology_admitted: false, constitution_adopted: true, runtime_admitted: false, enforcement_active: false, authority_effect: "none"}));
+    write("manifest.json", json({schema_version: "alchlang.module-configuration-build/v1", profile: compiled.profile, source_sha256: compiled.source_sha256, configuration_id: compiled.configuration.configuration_id, pipeline: ["alch-source", "module-configuration-ontology", "runtime-configuration", ...(compiled.profile === "module-configuration-v2" ? ["injected-runtime-binding"] : []), "entrypoint-projection", "conformance-evidence"], files: inventory, ontology_admitted: false, constitution_adopted: true, runtime_admitted: false, enforcement_active: false, authority_effect: "none"}));
     renameSync(stage, output);
     return {status: "built", profile: compiled.profile, output, files: Object.keys(inventory).length + 1, modules: compiled.modules.length, entries: compiled.entries.length, runtime_admitted: false, authority_effect: "none"};
   } catch (error) { rmSync(stage, {recursive: true, force: true}); throw error; }

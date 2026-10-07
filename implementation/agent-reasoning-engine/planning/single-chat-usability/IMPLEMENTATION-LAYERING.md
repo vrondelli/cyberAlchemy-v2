@@ -1,7 +1,7 @@
 ---
 title: Single-Chat Product, Usability Benchmark, and Engine Feedback Implementation Layering
-status: planning-candidate
-updatedAt: 2026-09-04
+status: retired-provenance
+updatedAt: 2026-09-28
 owners:
   product_meaning: CyberAlchemy coding-agent product owner
   reasoning_runtime: Agent Reasoning Engine runtime owner
@@ -11,6 +11,15 @@ authority_effect: none
 ---
 
 # Single-Chat Product, Usability Benchmark, and Engine Feedback Implementation Layering
+
+Retired interface plan: the CyberAlchemy TUI is discontinued. This document is
+historical design evidence, not an implementation queue, UI parity target, or
+fallback for the current ARE integration. The active desktop interface plan is
+[Whole UI Implementation Plan](../../apps/desktop-companion/docs/WHOLE-UI-IMPLEMENTATION-PLAN.md),
+and exact-task integration remains governed by the
+[automatic thread integration work-pack](../../../../development/agent-reasoning-engine/planning/automatic-thread-integration-v1/INTEGRATION-WORK-PACK.md).
+The conversation-runtime concepts below may be evaluated independently, but
+none of the TUI work items below should be executed as current product work.
 
 This document plans one user-facing chat backed by the Agent Reasoning Engine
 (ARE), a thin terminal adapter, a layered usability benchmark, and an exact

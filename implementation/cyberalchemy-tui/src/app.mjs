@@ -9,7 +9,7 @@ import {DEFINITIONS, ONTOLOGY_RELATIONS, renderRelationLine} from "./ontology-vi
 
 function statusColor(phase) {
   if (phase === "completed") return "green";
-  if (phase === "error" || phase === "stopped") return "red";
+  if (phase === "error" || phase === "stopped" || phase === "uncertain") return "red";
   if (phase === "waiting" || phase === "review") return "cyan";
   return "yellow";
 }
@@ -166,6 +166,19 @@ function PreflightPanel({receipt}) {
   );
 }
 
+export function RecoveryPanel({observation}) {
+  const label = observation?.status === "checking" ? "Checking owned host history"
+    : observation?.disposition === "host-terminal" ? `Matching host turn: ${observation.turn_status}`
+      : observation?.disposition === "host-active" ? "Matching host turn: active"
+        : observation?.disposition === "host-active-unbound" ? "Owned host thread active; turn unbound"
+          : observation?.disposition === "host-idle-unbound" ? "Owned host thread idle; turn unbound"
+            : "Host turn unverified";
+  return h(Box, {borderStyle: "round", borderColor: "red", paddingX: 1, flexDirection: "column",
+    "aria-role": "alert", "aria-label": "Proposal recovery blocked"},
+  h(Text, {bold: true, color: "red"}, `Recovery blocked · ${label}`),
+  h(Text, {dimColor: true}, "No proposal was restored. No automatic retry or new proposal. Ctrl+R rechecks host history."));
+}
+
 export function Composer({value, prompt, disabled}) {
   return h(Box, {borderStyle: "round", borderColor: disabled ? "gray" : "cyan", paddingX: 1, flexDirection: "column"},
     h(Text, {color: disabled ? "gray" : "white", wrap: "truncate"}, prompt),
@@ -178,7 +191,7 @@ export function Composer({value, prompt, disabled}) {
 }
 
 export function isComposerDisabled(phase, terminal = false) {
-  return terminal || phase === "working" || phase === "applying" || phase === "self-testing";
+  return terminal || phase === "working" || phase === "applying" || phase === "self-testing" || phase === "uncertain";
 }
 
 export function DiagnosticTimeline({items = []}) {
@@ -224,6 +237,11 @@ export function CyberAlchemyApp(props) {
   useEffect(() => defineController.subscribe(setDefineConversation), [defineController]);
   useEffect(() => codingController.subscribe(setCodingConversation), [codingController]);
   useEffect(() => {
+    if (codingConversation.phase === "uncertain" && codingConversation.reconciliation === null) {
+      void codingController.reconcilePendingTurn?.();
+    }
+  }, [codingConversation.phase, codingConversation.reconciliation, codingController]);
+  useEffect(() => {
     const approvalDigest = codingConversation.phase === "review" ? codingConversation.result?.approval_digest : null;
     setControlCenter((current) => reduceControlCenterEvent(current, {
       type: "conversation.sync",
@@ -251,6 +269,7 @@ export function CyberAlchemyApp(props) {
     else if (value === "/implement") setShell((current) => reduceShellEvent(current, {type: "capability.open", capabilityId: "implement"}));
     else if (value === "/self-test" && shell.capabilityId === "implement") void codingController.selfTest();
     else if (value === "/diagnostics" && shell.capabilityId === "implement") setShell((current) => reduceShellEvent(current, {type: "overlay.open", overlay: "diagnostics"}));
+    else if (value === "/reconcile" && shell.capabilityId === "implement") void codingController.reconcilePendingTurn?.();
     else if (value === "/quit") void quit();
     else return false;
     return true;
@@ -260,6 +279,7 @@ export function CyberAlchemyApp(props) {
     if (key.ctrl && character === "c") return void quit();
     if (key.ctrl && character === "p") return command("/help");
     if (key.ctrl && character === "o") return command("/context");
+    if (key.ctrl && character === "r" && shell.capabilityId === "implement") return command("/reconcile");
     if (key.ctrl && character === "1") return setControlCenter((current) => reduceControlCenterEvent(current, {type: "focus.select", focus: "sessions"}));
     if (key.ctrl && character === "2") return setControlCenter((current) => reduceControlCenterEvent(current, {type: "focus.select", focus: "chat"}));
     if (key.ctrl && (character === "3" || character === "a")) return setControlCenter((current) => reduceControlCenterEvent(current, {type: "focus.select", focus: "attention"}));
@@ -316,11 +336,15 @@ export function CyberAlchemyApp(props) {
     !shell.overlay ? h(ActivityIndicator, {phase: conversation.phase}) : null,
     !shell.overlay && shell.capabilityId === "implement" ? h(PreflightPanel, {receipt: conversation.preflight}) : null,
     !shell.overlay && shell.capabilityId === "implement" ? h(DiagnosticTimeline, {items: conversation.timeline}) : null,
+    !shell.overlay && shell.capabilityId === "implement" && conversation.phase === "uncertain"
+      ? h(RecoveryPanel, {observation: conversation.reconciliation}) : null,
     h(ControlCenterPanels, {state: controlCenter, center, columns}),
     h(QueueFooter, {state: controlCenter}),
     h(Box, {paddingX: 1},
       h(Text, {dimColor: true}, props.controlCenterDemo
         ? "Demo data only · no background process or effect authority · Ctrl+C exit"
+        : conversation.phase === "uncertain"
+        ? "Ctrl+R recheck host history · Enter exit · no automatic retry"
         : terminal
         ? "Enter exit · Ctrl+P commands · Ctrl+O context · Ctrl+C exit · no implicit authority"
         : conversation.phase === "review"

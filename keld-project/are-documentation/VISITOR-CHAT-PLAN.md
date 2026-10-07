@@ -24,7 +24,7 @@ flowchart TD
 
 ## Reset semantics
 
-Each conversation has its own ARE runtime, intent predecessor, semantic adapter/cache, ledger, messages, and preferences. The browser keeps a random session capability in memory; no cookie or local storage is used. A new visit/tab creates a fresh session on first send. Leaving attempts deletion; idle sessions expire at the server-configured boundary on subsequent API activity, and the browser renders that reported duration rather than a hard-coded policy claim. Local development defaults to 30 minutes; the production entry point requires an explicit owner-selected positive integer duration. Restarting the server discards process-local state.
+Each conversation has its own ARE runtime, intent predecessor, semantic adapter/cache, ledger, messages, and preferences. The current browser implementation keeps the random session capability in same-tab `sessionStorage`, not a cookie or persistent `localStorage`, so a refresh can restore the conversation after server revalidation. Restoration is bound to a random marker in that tab's history state; hash navigation preserves the marker, and an opener-created tab with cloned storage discards the inherited capability. This is a tested opener case, not a universal duplicate-tab or browser-variant guarantee. Leaving aborts an active request; it does not currently send a deletion request. Idle sessions expire at the server-configured boundary on subsequent API activity, and the browser renders that reported duration rather than a hard-coded policy claim. Local development defaults to 30 minutes; the production entry point requires an explicit owner-selected positive integer duration. Restarting the server discards process-local state.
 
 | Control | Language preferences | Routing history | Model transcript, intent chain, ledger |
 | --- | --- | --- | --- |
@@ -47,6 +47,7 @@ There are no learned routing rules in this adapter. Reset routing clears decisio
 - At most two model calls per turn, no automatic retries, 2,048 output tokens per call, 60-second provider I/O timeout, 15-second maximum secret-resolution timeout, and 150-second turn deadline.
 - Stop/reset/disconnect/shutdown abort pending work; browser generation guards reject late replies.
 - Validated model classification and exact preference quotes; allowlisted diagnostic codes instead of raw errors; no simulated fallback.
+- A verified `selection.no-match` router block may still receive a real model-generated, conversation-only reply. The activity and checkpoint preserve the no-route verdict and zero-tool boundary. Ambiguous selections, unavailable semantic evidence, source failures, and other gates or blocks still stop the reply; inferred intent never becomes an explicit route signal.
 - Escaped React text output. No filesystem, shell, live search, application-test, or deployment tools are attached.
 
 These protections apply to a bounded local prototype. They do not establish answer accuracy, general prompt-injection immunity, security certification, or production readiness.
@@ -62,5 +63,5 @@ Final results are recorded in [README.md](README.md#visitor-state-and-chat-prote
 - What durable aggregate/per-visitor budget should apply before eventual public hosting?
 - Which learned routing-rule capability should be integrated later? The UI must not imply one already exists.
 - Should individual preferences be removable beyond the current clear-all language control?
-- Should sessions survive navigation or refresh later? Current behavior intentionally starts fresh.
+- Should the current same-tab refresh retention remain, and what additional browser-variant or duplicate-tab proof is needed beyond the passing opener-created-tab regression?
 - What review is needed before attaching real execution tools?

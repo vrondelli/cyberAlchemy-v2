@@ -16,10 +16,13 @@ test('real ARE routing, context selection, checkpoint and scoped preference reus
   await chat.submit('Call users teammates. Explain signup.', {signal: signal(), emit: e => events.push(e)});
   await chat.submit('What happens when an invitation expires?', {signal: signal(), emit: e => events.push(e)});
   assert.ok(events.some(e => e.kind === 'route' && e.route_id === 'CA2-ROUTE-UNDERSTAND' && /^[a-f0-9]{64}$/.test(e.decision_digest)));
+  assert.ok(events.some(e => e.kind === 'route' && e.route_id === null && e.decision_kind === 'block'));
+  assert.ok(events.some(e => e.kind === 'conversation-mode' && e.mode === 'no-route' && e.reason_codes[0] === 'selection.no-match' && e.tools_available === 0));
   assert.ok(events.some(e => e.kind === 'context' && e.selected.includes('signup')));
   assert.equal(events.filter(e => e.kind === 'checkpoint').length, 2);
-  assert.match(requests[1].messages[0].content, /route independently for each request/);
+  assert.match(requests[1].messages[0].content, /routing independently for each request/);
   assert.match(requests[1].messages[0].content, /valid invitation never marks an email verified/);
+  assert.match(requests[3].messages[0].content, /ARE route: none .*conversation-only reply/);
   assert.ok(requests[3].messages[0].content.includes('Call users teammates.'));
   assert.equal(chat.inspect().value.messages.length, 4);
   assert.equal(events.filter(e => e.type === 'done').length, 2);
@@ -50,11 +53,25 @@ test('persistent invalid intent output falls back to host understand with no ret
   assert.equal(calls, 3);
   assert.ok(events.some(e => e.kind === 'validation' && e.attempt === 2 && e.fallback === 'host-understand'));
   assert.ok(events.some(e => e.kind === 'intent-recovery' && e.strategy === 'host-understand' && e.authority_effect === 'none'));
-  assert.ok(events.some(e => e.kind === 'route' && e.route_id === 'CA2-ROUTE-UNDERSTAND'));
+  assert.ok(events.some(e => e.kind === 'route' && e.route_id === null && e.decision_kind === 'block'));
+  assert.ok(events.some(e => e.kind === 'conversation-mode' && e.mode === 'no-route' && e.authority_effect === 'none'));
   assert.ok(events.some(e => e.type === 'message' && e.text === 'Safe fallback reply.'));
   assert.deepEqual(chat.state().preferences, []);
   assert.equal(chat.busy, false);
   assert.throws(() => validateInterpretation({objective: 'x', kind: 'understand', preference: null, execute: true}, 'x'));
+});
+
+test('ambiguous route gate does not become conversation-only reply', async () => {
+  const events = []; let calls = 0;
+  const chat = createChatSession({model: async input => {
+    calls++;
+    return {text: input.json ? JSON.stringify({objective: 'Plan and implement changes', kind: 'plan', preference: null}) : 'Unexpected reply.', receipt};
+  }});
+  await chat.submit('Plan and implement all gaps', {signal: signal(), emit: e => events.push(e)});
+  assert.equal(calls, 1);
+  assert.ok(events.some(e => e.kind === 'route' && e.decision_kind === 'gate' && e.route_id === null));
+  assert.ok(events.some(e => e.type === 'message' && /could not select one route/.test(e.text)));
+  assert.ok(!events.some(e => e.kind === 'conversation-mode' || e.kind === 'checkpoint' || e.kind === 'reply'));
 });
 
 test('provider failure produces no prepared success or checkpoint', async () => {

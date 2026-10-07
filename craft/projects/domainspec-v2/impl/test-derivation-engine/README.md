@@ -60,3 +60,45 @@ pnpm install        # or: pnpm dlx tsx, matching repo convention
 pnpm run typecheck  # tsc --noEmit
 pnpm run test       # vitest run
 ```
+
+## Test the admitted Auth SFOL case derivation
+
+From this package directory, derive the eight Boolean cases from the exact
+selected Auth SFOL claim, module, admission decision, and clause manifest:
+
+```bash
+npm run sfol:claim-cases -- \
+  --root ../../../../../auth-foundation \
+  --selection src/sfol/claim-cases/examples/auth-command-boundary.selection.json \
+  --summary
+```
+
+Omit `--summary` to obtain the complete candidate case set. Save that JSON
+and pass `--replay <saved-case-set.json>` to recompute it from the selected
+current source bytes. A changed source or case set fails closed. This is a
+TDE-owned typed finite-case derivation, not a DomainSpec v4 neutral obligation
+set, independent proof of the manifest's graph/build provenance, provider
+observation, or an F5 satisfying result.
+
+To compare those eight cases with the Auth Rust command-boundary executable,
+build the real native target and run the candidate local link:
+
+```bash
+# build from the repository root
+tools/toolchain/run cargo build --offline --locked \
+  --manifest-path auth-foundation/implementation/sfol-conformance/Cargo.toml
+
+# then, from this package directory
+npm run sfol:native-link -- \
+  --root ../../../../../auth-foundation \
+  --selection src/sfol/claim-cases/examples/auth-command-boundary.selection.json \
+  --executable ../../../../../auth-foundation/implementation/sfol-conformance/target/debug/auth-foundation-sfol-conformance \
+  --summary
+```
+
+Omit `--summary` to save the full link and use `--replay <saved-link.json>`
+to re-execute against independently selected current sources and executable
+bytes. The CLI pins the binary bytes it sees; it does not prove how the binary
+was built. A matched replay is trusted-local observation only, with no
+isolation, independent SFOL semantic proof, DomainSpec v4 neutral set, EVF
+join, F5 satisfaction, or production runtime guarantee.

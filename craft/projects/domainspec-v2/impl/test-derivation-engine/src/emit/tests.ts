@@ -213,18 +213,30 @@ function emitAstEval(o: Obligation, b: Binding, formal: string): string | null {
   if (b.kind === "count-cap-makeup" || b.kind === "count-cap-payout") {
     if (ast.kind !== "count-cap") return null;
     const caseName = paramStr(o, "case"); // first-allowed | duplicate-capped
+    if (caseName !== "first-allowed" && caseName !== "duplicate-capped") return null;
+    // Select prospective cardinalities from the parsed predicate. The bound
+    // decision asks whether ONE new transaction may be created, so the input
+    // fixture contains one fewer existing transaction than that cardinality.
+    // A shape with no satisfying and falsifying cardinality is not asserted.
+    let allowedCount: number;
+    let cappedCount: number;
+    switch (ast.op) {
+      case "<=": allowedCount = ast.cap; cappedCount = ast.cap + 1; break;
+      case "<": allowedCount = ast.cap - 1; cappedCount = ast.cap; break;
+      case ">=": allowedCount = ast.cap; cappedCount = ast.cap - 1; break;
+      case ">": allowedCount = ast.cap + 1; cappedCount = ast.cap; break;
+      case "==": allowedCount = ast.cap; cappedCount = ast.cap + 1; break;
+      default: return null;
+    }
+    if (allowedCount < 1 || cappedCount < 1 || !Number.isSafeInteger(ast.cap)) return null;
+    const witnessCount = (caseName === "first-allowed" ? allowedCount : cappedCount) - 1;
     const txType = b.tx_type ?? "";
     const field = b.decision_field ?? "";
     const endDate = "2026-01-31";
     const amountField =
       b.kind === "count-cap-makeup" ? "totalAppliedMakeup" : "totalPayout";
-    // first-allowed: no existing tx on endDate -> flag true (cap not yet reached).
-    // duplicate-capped: an existing tx of this type on endDate -> flag false.
-    const existing =
-      caseName === "duplicate-capped"
-        ? `[{ type: ${p(txType)}, date: ${p(endDate)} }]`
-        : `[]`;
-    const expected = caseName === "duplicate-capped" ? "false" : "true";
+    const existing = `[${Array.from({ length: witnessCount }, () => `{ type: ${p(txType)}, date: ${p(endDate)} }`).join(", ")}]`;
+    const expected = caseName === "first-allowed" ? "true" : "false";
     return [
       ...head,
       `  it(${p(title(o))}, () => {`,
@@ -474,7 +486,7 @@ export function emitEvfS1StrictTests(
   if (
     input.obligationIds[0] !== obligationId ||
     input.binding.obligation_id !== obligationId ||
-    input.binding.binding_id !== "evf.key-door.binding.v1"
+    input.binding.binding_id !== "evf.key-door.binding.v2"
   ) {
     fail("OBLIGATION_ID_MISMATCH", "strict emission identity join failed");
   }

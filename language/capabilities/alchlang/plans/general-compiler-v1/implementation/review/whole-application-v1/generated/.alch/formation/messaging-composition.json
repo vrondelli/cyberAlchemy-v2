@@ -1,0 +1,295 @@
+{
+  "schema_version": "domainspec.messaging-composition/v2-candidate",
+  "composition_id": "messaging-composition:commerce-derived-v1",
+  "integration_kernel": {
+    "schema_version": "domainspec.integration-kernel/v2-candidate",
+    "kernel_id": "integration-kernel:commerce-messaging-derived-v1",
+    "definition_pack_sha256": "cc93b59b68cbb016fdab6b0b4a476e69d1e0e6df99df1d94ca1c48fb7ff16c2a",
+    "integration_bindings": [
+      {
+        "binding_id": "binding:publish-order",
+        "concern": "messaging",
+        "direction": "outbound",
+        "logical_boundary_ref": "commerce:order-submitted",
+        "contract_ref": "contract:publish-order-publisher",
+        "provider_realization_ref": "provider-realization:commerce-broker",
+        "policy_refs": [
+          "delivery:order-events"
+        ],
+        "serialization_profile_ref": "serialization:order-message-json-v1",
+        "failure_mapping_ref": "failure-mapping:publish-order-broker",
+        "evidence_boundary": "derived-formation-only",
+        "authority_effect": "none"
+      },
+      {
+        "binding_id": "binding:consume-order",
+        "concern": "messaging",
+        "direction": "inbound",
+        "logical_boundary_ref": "commerce:receive-notice",
+        "contract_ref": null,
+        "provider_realization_ref": "provider-realization:commerce-broker",
+        "policy_refs": [
+          "ack:consume-order",
+          "delivery:order-events",
+          "ordering:consume-order",
+          "dedup:consume-order"
+        ],
+        "serialization_profile_ref": "serialization:order-message-json-v1",
+        "failure_mapping_ref": "failure-mapping:consume-order-broker",
+        "evidence_boundary": "derived-formation-only",
+        "authority_effect": "none"
+      }
+    ],
+    "provider_profiles": [
+      {
+        "profile_id": "provider-profile:broker-v1",
+        "concern": "messaging",
+        "provider_kind": "managed-broker",
+        "capability_set": [
+          "dead-letter",
+          "topic"
+        ],
+        "configuration_schema_ref": "schema:broker-configuration-v1",
+        "secret_slot_refs": [],
+        "compatibility_constraints": [
+          "broker:topic-support"
+        ],
+        "authority_effect": "none"
+      }
+    ],
+    "provider_realizations": [
+      {
+        "realization_id": "provider-realization:commerce-broker",
+        "provider_profile_ref": "provider-profile:broker-v1",
+        "adapter_ref": "adapter:commerce-broker",
+        "resource_ref": "resource:commerce-broker",
+        "configuration_ref": "configuration:commerce-broker",
+        "credential_binding_ref": null,
+        "deployment_ref": null,
+        "evidence_boundary": "configuration-reference-only",
+        "runtime_observed": false,
+        "authority_effect": "none"
+      }
+    ],
+    "serialization_profiles": [
+      {
+        "profile_id": "serialization:order-message-json-v1",
+        "logical_type_ref": "commerce:order-submitted",
+        "format": "json",
+        "schema_ref": "schema:order-message-json-v1",
+        "version": "v1",
+        "compatibility_policy": "backward",
+        "encoding_options": {
+          "canonical_keys": true
+        },
+        "authority_effect": "none"
+      }
+    ],
+    "failure_mappings": [
+      {
+        "mapping_id": "failure-mapping:publish-order-broker",
+        "boundary_ref": "contract:publish-order-publisher",
+        "cases": [
+          {
+            "provider_failure_matcher": "broker:throttled",
+            "failure_outcome_ref": "commerce:submit-order",
+            "outcome_class": "retryable"
+          },
+          {
+            "provider_failure_matcher": "broker:invalid-message",
+            "failure_outcome_ref": "commerce:submit-order",
+            "outcome_class": "non-retryable"
+          }
+        ],
+        "unknown_failure_outcome_ref": "commerce:submit-order",
+        "continuation_owner_ref": "owner:fixture-owner",
+        "evidence_boundary": "classification-only",
+        "authority_effect": "none"
+      },
+      {
+        "mapping_id": "failure-mapping:consume-order-broker",
+        "boundary_ref": "boundary:consume-order-consumer",
+        "cases": [
+          {
+            "provider_failure_matcher": "broker:throttled",
+            "failure_outcome_ref": "commerce:submit-order",
+            "outcome_class": "retryable"
+          },
+          {
+            "provider_failure_matcher": "broker:invalid-message",
+            "failure_outcome_ref": "commerce:submit-order",
+            "outcome_class": "non-retryable"
+          }
+        ],
+        "unknown_failure_outcome_ref": "commerce:submit-order",
+        "continuation_owner_ref": "owner:fixture-owner",
+        "evidence_boundary": "classification-only",
+        "authority_effect": "none"
+      }
+    ],
+    "runtime_receipts": [],
+    "runtime_guarantees_observed": false,
+    "authority_effect": "none"
+  },
+  "message_types": [
+    {
+      "message_type_id": "message-type:order-message-v1",
+      "message_kind": "event-notification",
+      "logical_payload_ref": "commerce:order-submitted",
+      "serialization_profile_ref": "serialization:order-message-json-v1",
+      "version": "v1"
+    }
+  ],
+  "message_mappings": [
+    {
+      "mapping_id": "message-mapping:publish-order",
+      "mapper_ref": "commerce:order-to-message",
+      "direction": "logical-to-message",
+      "source_ref": "commerce:order-submitted",
+      "target_ref": "message-type:order-message-v1",
+      "total": true
+    },
+    {
+      "mapping_id": "message-mapping:consume-order",
+      "mapper_ref": "commerce:message-to-order",
+      "direction": "message-to-application",
+      "source_ref": "message-type:order-message-v1",
+      "target_ref": "commerce:receive-notice#request",
+      "total": true,
+      "input_paths": [
+        {
+          "parameter": "payload",
+          "path": [
+            "payload"
+          ]
+        }
+      ],
+      "request_parameters": [
+        {
+          "parameter": "request",
+          "source": {
+            "kind": "mapping-result",
+            "path": []
+          }
+        }
+      ]
+    }
+  ],
+  "channels": [
+    {
+      "channel_id": "channel:order-events-topic",
+      "channel_kind": "topic",
+      "accepted_message_type_refs": [
+        "message-type:order-message-v1"
+      ],
+      "owner_ref": "owner:fixture-owner",
+      "lifecycle_policy_ref": "lifecycle:order-events",
+      "provider_name": null,
+      "consumption_model": "fan-out-subscriptions"
+    },
+    {
+      "channel_id": "channel:failed-orders-dead-letter",
+      "channel_kind": "dead-letter",
+      "accepted_message_type_refs": [
+        "message-type:order-message-v1"
+      ],
+      "owner_ref": "owner:fixture-owner",
+      "lifecycle_policy_ref": "lifecycle:failed-orders",
+      "provider_name": null,
+      "source_channel_ref": "channel:order-events-topic",
+      "terminal_failure_classes": [
+        "integration:invalid-message",
+        "integration:max-attempts"
+      ],
+      "retention_policy_ref": "retention:bounded",
+      "redrive_policy_ref": "redrive:operator-approved"
+    }
+  ],
+  "delivery_policies": [
+    {
+      "policy_id": "delivery:order-events",
+      "guarantee": "at-least-once",
+      "retry_schedule_ref": "retry:bounded-exponential",
+      "max_attempts": 5,
+      "lease_or_visibility_ref": "visibility:bounded",
+      "terminal_disposition": "dead-letter",
+      "dead_letter_channel_ref": "channel:failed-orders-dead-letter"
+    }
+  ],
+  "producer_acceptance_boundaries": [
+    {
+      "boundary_id": "acceptance:publish-order",
+      "publication_binding_ref": "publication:publish-order",
+      "condition": "provider-accepted",
+      "observation_boundary": "boundary:publish-order-publish-response",
+      "claim_ceiling": "provider-accepted"
+    }
+  ],
+  "acknowledgement_boundaries": [
+    {
+      "boundary_id": "ack:consume-order",
+      "subscription_binding_ref": "subscription:consume-order",
+      "condition": "application-committed",
+      "failure_before_ack": "failure:transport-redelivery",
+      "failure_after_ack": "failure:application-recovery",
+      "evidence_boundary": "authored-acknowledgement-only"
+    }
+  ],
+  "ordering_policies": [
+    {
+      "policy_id": "ordering:consume-order",
+      "mode": "unordered",
+      "key_expression": null,
+      "observation_boundary": "boundary:consume-order-delivery",
+      "disorder_handling": "accept-and-observe"
+    }
+  ],
+  "deduplication_policies": [
+    {
+      "policy_id": "dedup:consume-order",
+      "key_expression": "message.messageId",
+      "owner_ref": "owner:fixture-owner",
+      "retention_window_ref": "retention:bounded",
+      "transaction_binding_ref": null,
+      "duplicate_outcome": "return-recorded-result"
+    }
+  ],
+  "publication_bindings": [
+    {
+      "binding_id": "publication:publish-order",
+      "integration_binding_ref": "binding:publish-order",
+      "producer_contract_ref": "contract:publish-order-publisher",
+      "logical_source_ref": "commerce:order-submitted",
+      "message_type_ref": "message-type:order-message-v1",
+      "mapper_ref": "commerce:order-to-message",
+      "channel_ref": "channel:order-events-topic",
+      "delivery_policy_ref": "delivery:order-events",
+      "producer_acceptance_boundary_ref": "acceptance:publish-order",
+      "provider_realization_ref": "provider-realization:commerce-broker",
+      "failure_mapping_ref": "failure-mapping:publish-order-broker",
+      "evidence_boundary": "provider-acceptance-is-not-delivery",
+      "authority_effect": "none"
+    }
+  ],
+  "subscription_bindings": [
+    {
+      "binding_id": "subscription:consume-order",
+      "integration_binding_ref": "binding:consume-order",
+      "channel_ref": "channel:order-events-topic",
+      "subscription_id": "consume-order",
+      "message_type_ref": "message-type:order-message-v1",
+      "mapper_ref": "commerce:message-to-order",
+      "operation_ref": "commerce:receive-notice",
+      "acknowledgement_boundary_ref": "ack:consume-order",
+      "delivery_policy_ref": "delivery:order-events",
+      "ordering_policy_ref": "ordering:consume-order",
+      "deduplication_policy_ref": "dedup:consume-order",
+      "failure_mapping_ref": "failure-mapping:consume-order-broker",
+      "provider_realization_ref": "provider-realization:commerce-broker",
+      "evidence_boundary": "formation-only-no-consumption-claim",
+      "authority_effect": "none"
+    }
+  ],
+  "runtime_delivery_observed": false,
+  "authority_effect": "none"
+}

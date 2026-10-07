@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.dev/schemas/alchlang/runtime-observation-join/v1-candidate",
+  "title": "AlchLang exact stage-separated runtime observation join candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "join_id", "source_ref", "compiled_graph_ref", "provider_selection_ref", "generated_artifact_refs", "runtime_environment_ref", "orodi_binding_ref", "cleanup_report_ref", "stages", "observed_stage_count", "all_stages_independently_observed", "stage_inference_used", "orodi_projection", "temporary_resources_removed", "authority_effect", "claim_ceiling"],
+  "properties": {
+    "schema_version": {"const": "alchlang.runtime-observation-join/v1-candidate"},
+    "join_id": {"$ref": "#/$defs/text"},
+    "source_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "compiled_graph_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "provider_selection_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "generated_artifact_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/exactCurrentRef"}},
+    "runtime_environment_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "orodi_binding_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "cleanup_report_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "stages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application_commit", "provider_acceptance", "transport_delivery", "business_completion"],
+      "properties": {
+        "application_commit": {"allOf": [{"$ref": "#/$defs/stageRecord"}, {"properties": {"stage_key": {"const": "application_commit"}, "domain_stage": {"const": "application-committed"}}}]},
+        "provider_acceptance": {"allOf": [{"$ref": "#/$defs/stageRecord"}, {"properties": {"stage_key": {"const": "provider_acceptance"}, "domain_stage": {"const": "provider-accepted"}}}]},
+        "transport_delivery": {"allOf": [{"$ref": "#/$defs/stageRecord"}, {"properties": {"stage_key": {"const": "transport_delivery"}, "domain_stage": {"const": "transport-delivered"}}}]},
+        "business_completion": {"allOf": [{"$ref": "#/$defs/stageRecord"}, {"properties": {"stage_key": {"const": "business_completion"}, "domain_stage": {"const": "business-completed"}}}]}
+      }
+    },
+    "observed_stage_count": {"type": "integer", "minimum": 0, "maximum": 4},
+    "all_stages_independently_observed": {"type": "boolean"},
+    "stage_inference_used": {"const": false},
+    "orodi_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge_sequence", "return_edge", "runtime_control_capabilities"],
+      "properties": {
+        "edge_sequence": {"const": ["runtime", "observer", "orodi-adapter", "orodi-evaluator"]},
+        "return_edge": {"const": "prohibited"},
+        "runtime_control_capabilities": {"$ref": "#/$defs/runtimeCapabilities"}
+      }
+    },
+    "temporary_resources_removed": {"const": true},
+    "authority_effect": {"const": "none"},
+    "claim_ceiling": {"$ref": "#/$defs/text"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"observed_stage_count": {"const": 4}}},
+      "then": {"properties": {"all_stages_independently_observed": {"const": true}}},
+      "else": {"properties": {"all_stages_independently_observed": {"const": false}}}
+    }
+  ],
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "exactCurrentRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "current"],
+      "properties": {
+        "path": {"$ref": "#/$defs/text"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "current": {"const": true}
+      }
+    },
+    "stageRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_key", "domain_stage", "status", "runtime_receipt_ref", "observation_ref", "outcome", "receipt_id", "observation_id"],
+      "properties": {
+        "stage_key": {"enum": ["application_commit", "provider_acceptance", "transport_delivery", "business_completion"]},
+        "domain_stage": {"enum": ["application-committed", "provider-accepted", "transport-delivered", "business-completed"]},
+        "status": {"enum": ["observed", "not-observed"]},
+        "runtime_receipt_ref": {"oneOf": [{"$ref": "#/$defs/exactCurrentRef"}, {"type": "null"}]},
+        "observation_ref": {"oneOf": [{"$ref": "#/$defs/exactCurrentRef"}, {"type": "null"}]},
+        "outcome": {"oneOf": [{"enum": ["accepted", "rejected", "failed", "unknown"]}, {"type": "null"}]},
+        "receipt_id": {"oneOf": [{"$ref": "#/$defs/text"}, {"type": "null"}]},
+        "observation_id": {"oneOf": [{"$ref": "#/$defs/text"}, {"type": "null"}]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "observed"}}},
+          "then": {"properties": {"runtime_receipt_ref": {"$ref": "#/$defs/exactCurrentRef"}, "observation_ref": {"$ref": "#/$defs/exactCurrentRef"}, "outcome": {"enum": ["accepted", "rejected", "failed", "unknown"]}, "receipt_id": {"$ref": "#/$defs/text"}, "observation_id": {"$ref": "#/$defs/text"}}},
+          "else": {"properties": {"runtime_receipt_ref": {"type": "null"}, "observation_ref": {"type": "null"}, "outcome": {"type": "null"}, "receipt_id": {"type": "null"}, "observation_id": {"type": "null"}}}
+        }
+      ]
+    },
+    "runtimeCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["select_retries", "write_provider_state", "call_apis", "deploy", "enact_business_effects"],
+      "properties": {
+        "select_retries": {"const": false},
+        "write_provider_state": {"const": false},
+        "call_apis": {"const": false},
+        "deploy": {"const": false},
+        "enact_business_effects": {"const": false}
+      }
+    }
+  }
+}

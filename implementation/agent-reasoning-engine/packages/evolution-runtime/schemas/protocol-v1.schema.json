@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/are/evolution-runtime/protocol-v1.schema.json",
+  "title": "ARE evolution runtime protocol v1",
+  "oneOf": [
+    {"$ref": "#/$defs/command"},
+    {"$ref": "#/$defs/result"},
+    {"$ref": "#/$defs/event"},
+    {"$ref": "#/$defs/commandReceipt"},
+    {"$ref": "#/$defs/artifactIdentity"},
+    {"$ref": "#/$defs/effectEnvelope"},
+    {"$ref": "#/$defs/phaseAdmission"},
+    {"$ref": "#/$defs/handoffOffer"},
+    {"$ref": "#/$defs/handoffAcceptance"}
+  ],
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "authorityNone": {"const": "none"},
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id", "actor_kind"],
+      "properties": {
+        "actor_id": {"$ref": "#/$defs/identifier"},
+        "actor_kind": {"enum": ["user", "agent", "worker", "adapter", "runtime"]}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_kind", "record_ref"],
+      "properties": {
+        "record_kind": {"$ref": "#/$defs/identifier"},
+        "record_ref": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "command_id", "idempotency_key", "expected_event_revision", "actor", "cycle_ref", "cycle_definition_ref", "cycle_definition_digest", "operation", "target", "payload", "payload_digest", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-command/v1"},
+        "command_id": {"type": "string", "pattern": "^evolution-command:[a-f0-9]{64}$"},
+        "idempotency_key": {"$ref": "#/$defs/identifier"},
+        "expected_event_revision": {"type": "integer", "minimum": 0},
+        "actor": {"$ref": "#/$defs/actor"},
+        "worker_ref": {"oneOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_digest": {"$ref": "#/$defs/sha256"},
+        "operation": {"type": "string", "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"},
+        "target": {"$ref": "#/$defs/target"},
+        "payload": {"type": "object"},
+        "payload_digest": {"$ref": "#/$defs/sha256"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "event_id", "cycle_ref", "revision", "command_id", "event_type", "target", "payload_digest", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-event/v1"},
+        "event_id": {"type": "string", "pattern": "^evolution-event:[a-f0-9]{64}$"},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "revision": {"type": "integer", "minimum": 1},
+        "command_id": {"type": "string", "pattern": "^evolution-command:[a-f0-9]{64}$"},
+        "event_type": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        "target": {"$ref": "#/$defs/target"},
+        "payload_digest": {"$ref": "#/$defs/sha256"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "commandReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "receipt_id", "receipt_digest", "command_id", "command_digest", "idempotency_key", "cycle_ref", "cycle_definition_digest", "disposition", "previous_event_revision", "next_event_revision", "event_refs", "reason_codes", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-command-receipt/v1"},
+        "receipt_id": {"type": "string", "pattern": "^evolution-command-receipt:[a-f0-9]{64}$"},
+        "receipt_digest": {"$ref": "#/$defs/sha256"},
+        "command_id": {"type": "string", "pattern": "^evolution-command:[a-f0-9]{64}$"},
+        "command_digest": {"$ref": "#/$defs/sha256"},
+        "idempotency_key": {"$ref": "#/$defs/identifier"},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_digest": {"$ref": "#/$defs/sha256"},
+        "disposition": {"enum": ["accepted", "rejected"]},
+        "previous_event_revision": {"type": "integer", "minimum": 0},
+        "next_event_revision": {"type": "integer", "minimum": 0},
+        "event_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^evolution-event:[a-f0-9]{64}$"}},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "command_id", "disposition", "receipt", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-result/v1"},
+        "command_id": {"type": "string", "pattern": "^evolution-command:[a-f0-9]{64}$"},
+        "disposition": {"enum": ["accepted", "rejected"]},
+        "receipt": {"$ref": "#/$defs/commandReceipt"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "semanticBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cycle_ref", "cycle_definition_digest", "role", "provenance_refs", "claim_ceiling"],
+      "properties": {
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_digest": {"$ref": "#/$defs/sha256"},
+        "role": {"$ref": "#/$defs/identifier"},
+        "provenance_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "claim_ceiling": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "artifact_id", "sha256", "byte_length", "media_type", "semantic_binding", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-artifact-identity/v1"},
+        "artifact_id": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"$ref": "#/$defs/nonEmptyString"},
+        "semantic_binding": {"$ref": "#/$defs/semanticBinding"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "effectEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "envelope_ref", "cycle_ref", "cycle_definition_digest", "authorization_ref", "allowed_effect_classes", "resource_limits", "expires_at", "enabled", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-effect-envelope/v1"},
+        "envelope_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_digest": {"$ref": "#/$defs/sha256"},
+        "authorization_ref": {"$ref": "#/$defs/identifier"},
+        "allowed_effect_classes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "resource_limits": {"type": "object"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "enabled": {"type": "boolean"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "phaseAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "admission_ref", "cycle_ref", "phase", "expected_event_revision", "envelope_ref", "envelope_digest", "prerequisite_receipt_refs", "disposition", "reason_codes", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-phase-admission/v1"},
+        "admission_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "phase": {"$ref": "#/$defs/identifier"},
+        "expected_event_revision": {"type": "integer", "minimum": 0},
+        "envelope_ref": {"$ref": "#/$defs/identifier"},
+        "envelope_digest": {"$ref": "#/$defs/sha256"},
+        "prerequisite_receipt_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "disposition": {"enum": ["admitted", "rejected"]},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "handoffOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "handoff_ref", "handoff_type", "source_cycle_ref", "target_cycle_kind", "artifact_refs", "claim_refs", "offer_receipt_ref", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-handoff-offer/v1"},
+        "handoff_ref": {"$ref": "#/$defs/identifier"},
+        "handoff_type": {"$ref": "#/$defs/identifier"},
+        "source_cycle_ref": {"$ref": "#/$defs/identifier"},
+        "target_cycle_kind": {"$ref": "#/$defs/identifier"},
+        "artifact_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "claim_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "offer_receipt_ref": {"$ref": "#/$defs/identifier"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    },
+    "handoffAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "handoff_ref", "offer_digest", "receiving_cycle_ref", "accepted_artifact_refs", "accepted_claim_refs", "disposition", "reason_codes", "acceptance_receipt_ref", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-handoff-acceptance/v1"},
+        "handoff_ref": {"$ref": "#/$defs/identifier"},
+        "offer_digest": {"$ref": "#/$defs/sha256"},
+        "receiving_cycle_ref": {"$ref": "#/$defs/identifier"},
+        "accepted_artifact_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "accepted_claim_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "disposition": {"enum": ["accepted", "rejected"]},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "acceptance_receipt_ref": {"$ref": "#/$defs/identifier"},
+        "authority_effect": {"$ref": "#/$defs/authorityNone"}
+      }
+    }
+  }
+}

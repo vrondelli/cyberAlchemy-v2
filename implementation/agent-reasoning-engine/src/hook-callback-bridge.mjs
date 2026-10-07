@@ -31,7 +31,8 @@ export async function startHookCallbackBridge({client} = {}) {
       if (!event || typeof event !== "object" || Array.isArray(event) || event.method !== undefined || !["UserPromptSubmit", "PreToolUse", "Stop"].includes(event.hook_event_name)) return fail(400, "callback.event-invalid");
       const result = await client.observeHook(event);
       if (typeof result?.ok !== "boolean" || !result.stdout || typeof result.stdout !== "object") return fail(500, "callback.adapter-invalid");
-      reply(200, {ok: result.ok, stdout: result.stdout, reason_codes: result.reason_codes ?? []});
+      reply(200, {ok: result.ok, ...(typeof result.kind === "string" ? {kind: result.kind} : {}),
+        stdout: result.stdout, reason_codes: result.reason_codes ?? []});
     } catch {
       if (!response.headersSent && !response.destroyed) fail(500, "callback.adapter-failed");
     }

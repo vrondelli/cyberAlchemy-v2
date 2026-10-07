@@ -29,12 +29,13 @@ def numeric_view(value):
 
 
 class Runtime:
-    def __init__(self, source):
-        self.source, self.touches = source, []
+    def __init__(self, source, reference_scalars):
+        self.source, self.reference_scalars, self.touches = source, reference_scalars, []
 
     def atom(self, recipe, field=None):
         kind, value = recipe['kind'], recipe['value']
-        name = (field or {}).get('type_ref', {}).get('name')
+        ref = (field or {}).get('type_ref', {})
+        name = ref.get('name') if ref.get('kind') != 'reference' else ('integer' if self.reference_scalars[ref['selector']] == 'UInt64' else 'string')
         if kind == 'string': return value
         if kind == 'boolean': return value == 'true'
         if kind == 'python-int': return int(value)
@@ -98,7 +99,8 @@ class Runtime:
         require(type(output.occurrence) is types.MappingProxyType and type(output.payload) is types.MappingProxyType, 'immutable Event fields')
         require(type(output.type) is str and type(output.version) is str and type(output.occurredAt) is str, 'Event metadata types')
         def atom(field, value):
-            name = field['type_ref'].get('name', 'reference')
+            ref = field['type_ref']
+            name = ref['name'] if ref['kind'] == 'primitive' else ('integer' if self.reference_scalars[ref['selector']] == 'UInt64' else 'string')
             exact = {'integer': int, 'decimal': float, 'boolean': bool}.get(name, str)
             require(type(value) is exact, 'exact Event carrier')
             if name == 'decimal': require(value != 0 or math.copysign(1, value) == 1, 'canonical decimal zero')
@@ -130,8 +132,10 @@ def run(data, predecessor, observer):
         provider = importlib.import_module(m['provider_path'][:-3].replace('/', '.'))
         for index, ref in enumerate(m['reference_imports']):
             shared = importlib.import_module(ref['relative_path'][:-3].replace('/', '.')).EventRef
-            require(getattr(provider, '_Ref' + str(index)) is shared and shared.__supertype__ is str and shared.__name__ == ref['selector'], 'shared reference type identity')
-        runtime, generated = Runtime(source), source['occurred_at_policy'] == 'generated'
+            supertype = int if ref['identity']['scalar'] == 'UInt64' else str
+            require(getattr(provider, '_Ref' + str(index)) is shared and shared.__supertype__ is supertype and shared.__name__ == ref['selector'], 'shared reference type identity')
+        runtime = Runtime(source, {ref['selector']: ref['identity']['scalar'] for ref in m['reference_imports']})
+        generated = source['occurred_at_policy'] == 'generated'
         for case in row['cases']:
             expected = numeric_view(json.loads(case['expected']['value']))
             if case['mode'] == 'event-descriptor':

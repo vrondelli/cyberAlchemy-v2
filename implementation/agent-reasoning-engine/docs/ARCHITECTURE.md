@@ -1,7 +1,9 @@
 # Architecture
 
-This document describes the architecture frozen by `ARE-PRODUCT-CANDIDATE-018`,
-version `0.10.0-self-contained-candidate.7`. ARE surrounds replaceable model and
+This document uses the architecture frozen by `ARE-PRODUCT-CANDIDATE-018`,
+version `0.10.0-self-contained-candidate.7`, as the historical baseline for the
+later unfrozen working prototype. Current closure and test counts must come from
+working-prototype regression evidence, not Candidate 018 or Candidate 020. ARE surrounds replaceable model and
 host implementations with deterministic contracts for intent, context, state,
 decisions, effects, continuity, and evidence.
 
@@ -80,6 +82,13 @@ conversation state. It projects user-facing progress from product records while
 keeping private reasoning, credentials, and provider internals outside the
 conversation surface.
 
+That is ownership of ARE's internal conversation plane, not automatic control
+of an existing host chat. For one external task, ARE becomes the turn-lifecycle
+controller only after the separately verified
+[activated-session control contract](../../../development/agent-reasoning-engine/planning/automatic-thread-integration-v1/SESSION-CONTROL-CONTRACT.md)
+is satisfied. Host account, permissions, approvals and execution remain with
+their existing owners.
+
 Conversation state is distinct from reasoning state. A conversation can present
 or resume work while the reasoning ledger remains append-only and independently
 verifiable. Disconnect recovery reconstructs the visible session from durable
@@ -115,6 +124,13 @@ identity and provenance. See [Configuration](CONFIGURATION.md) and
 
 ## Product layers
 
+The product-profile layer is distinct from the functional architecture below.
+Minimum Core is selected by default; extensions are explicit opt-ins; research
+requires development mode. The generated
+[capability matrix](generated/CAPABILITY-MATRIX.md) owns the current per-package
+classification. A Core entrypoint may expose extension injection, but it may not
+statically import an optional extension.
+
 | Layer | Responsibility | Main packages |
 | --- | --- | --- |
 | Meaning and intent | Preserve raw intent and compile request contracts | `request-intent-runtime`, `intent-route-resolver` |
@@ -129,7 +145,8 @@ identity and provenance. See [Configuration](CONFIGURATION.md) and
 | Verification | Package and verify module ports and product evidence | distribution-envelope and release-verification packages |
 | Evaluation | Test reasoning behavior and improvement chains | `real-reasoning-benchmark` |
 
-The complete list of 17 required components and two required integrations is in
+The complete current list is generated in the capability matrix; descriptions
+and dependency relationships remain in
 [Components and integrations](COMPONENTS-AND-INTEGRATIONS.md).
 
 ## Evolution and research boundary
@@ -148,13 +165,19 @@ making one provider's behavior part of the core architecture. See
 
 ## Release architecture
 
-`product.json` declares the product boundary. Release construction resolves the
+`product.json` declares the selectable product boundary. Working-prototype
+construction resolves the
 declared components, integrations, repository profiles, route capability,
 ARE-owned semantic adapter, local secret bridge, tests and evidence into a
 content-addressed closure. Alch and the DomainSpec compiler are outside its
 build-time and runtime dependency boundary.
 
-Candidate 018 currently verifies:
+The default CLI and gateway consume a digest-bound repository runtime bundle
+that carries decision policy, definitions, ontology, instructions, supplemental
+context and one source epoch. Mutable repository reads are available only in
+explicit `development-live` mode and make no product-replay claim.
+
+Candidate 018 historically verified:
 
 | Property | Frozen value |
 | --- | ---: |
@@ -164,7 +187,9 @@ Candidate 018 currently verifies:
 | Test cases | 1,158 |
 | Test files / targets | 146 / 20 |
 
-The frozen closure is a self-contained source distribution. The materializer
+That frozen closure is a self-contained source distribution. The current Core
+and extension closures have separate working-prototype tests and no release
+status. The historical Candidate 018 materializer
 copies only its 907 exact paths into an empty destination and verifies every
 regular-file digest. A separate deterministic archive drill verifies local
 installation, health, reconnect/restart, corruption detection, source rollback

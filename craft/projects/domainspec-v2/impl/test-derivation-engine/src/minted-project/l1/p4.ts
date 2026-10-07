@@ -1,7 +1,4 @@
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-
-import { repositoryRoot } from "./exact-ref.js";
+import { importHistoricalPokerTeamBackendModule } from "./historical-backend.js";
 import { fail, P4_IDENTITY, type P4Effect, type P4Execution } from "./types.js";
 
 type TaggedScalar = { readonly tag: "integer" | "string"; readonly value: string };
@@ -42,11 +39,7 @@ type P4Adapter = {
   teardown(resource: unknown, runtime: P4Harness): Promise<void>;
 };
 
-const adapterModuleUrl = pathToFileURL(resolve(
-  repositoryRoot(),
-  "validation/poker-team/backend/src/domain/__derived__/financial-settlement.sfol.adapter.ts",
-)).href;
-const { createPayoutEffectAdapter } = await import(adapterModuleUrl) as {
+const { createPayoutEffectAdapter } = await importHistoricalPokerTeamBackendModule("p4-adapter") as {
   createPayoutEffectAdapter(input: {
     readonly fixture: P4FixtureDocument;
     readonly contractId: string;

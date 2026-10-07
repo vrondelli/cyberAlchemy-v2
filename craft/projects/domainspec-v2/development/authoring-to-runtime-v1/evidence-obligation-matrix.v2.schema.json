@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/domainspec-v2/authoring-to-runtime/evidence-obligation-matrix.v2.schema.json",
+  "title": "AlchLang E05 current assessment of the historical 32-obligation matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task", "result", "authority_effect", "base_matrix", "current_boundaries", "test_files", "assessments", "coverage", "claim_ceiling", "open_questions"],
+  "properties": {
+    "schema_version": {"const": "alchlang.evidence-obligation-matrix/v2-candidate"},
+    "task": {"const": "E05"},
+    "result": {"const": "blocked"},
+    "authority_effect": {"const": "none"},
+    "base_matrix": {"$ref": "#/$defs/binding"},
+    "current_boundaries": {
+      "type": "object", "additionalProperties": false, "required": ["E01", "E02", "E03", "E04"],
+      "properties": {"E01": {"$ref": "#/$defs/binding"}, "E02": {"$ref": "#/$defs/binding"}, "E03": {"$ref": "#/$defs/binding"}, "E04": {"$ref": "#/$defs/binding"}}
+    },
+    "test_files": {"type": "array", "minItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/binding"}},
+    "assessments": {"type": "array", "minItems": 32, "maxItems": 32, "items": {"$ref": "#/$defs/assessment"}},
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["obligations", "by_task", "satisfied", "blocked", "unexplained_gaps", "representation_only_substitutes"],
+      "properties": {
+        "obligations": {"const": 32},
+        "by_task": {"type": "object", "additionalProperties": false, "required": ["E01", "E02", "E03", "E04"], "properties": {"E01": {"const": 8}, "E02": {"const": 8}, "E03": {"const": 8}, "E04": {"const": 8}}},
+        "satisfied": {"type": "integer", "minimum": 0, "maximum": 31},
+        "blocked": {"type": "integer", "minimum": 1, "maximum": 32},
+        "unexplained_gaps": {"const": 0},
+        "representation_only_substitutes": {"const": 0}
+      }
+    },
+    "claim_ceiling": {"type": "string", "minLength": 1},
+    "open_questions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "binding": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "status", "gap"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^E0[1-4]-O0[1-8]$"},
+        "status": {"enum": ["pass", "blocked"]},
+        "test_name": {"type": "string", "minLength": 1},
+        "gap": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "pass"}}}, "then": {"properties": {"gap": {"type": "null"}}}},
+        {"if": {"properties": {"status": {"const": "blocked"}}}, "then": {"properties": {"gap": {"type": "string", "minLength": 1}}}}
+      ]
+    }
+  }
+}

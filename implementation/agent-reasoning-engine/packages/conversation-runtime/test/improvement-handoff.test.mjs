@@ -20,6 +20,15 @@ function failedBenchmark() {
   };
 }
 
+const projector = ({benchmark_result: benchmark, expected_result_digest: expected}) => ({
+  ok: true,
+  value: {
+    failed_scenario_ids: benchmark.cases.filter((item) => !item.passed).map((item) => item.scenario_id),
+    hypotheses: [{hypothesis_id: `hypothesis:${expected.slice(0, 12)}`, authority_effect: "none"}],
+    authority_effect: "none"
+  }
+});
+
 test("an exact ARE-owned usability failure creates a non-authorizing hypothesis handoff", () => {
   const benchmark = failedBenchmark();
   const observation = createUsabilityObservation({source_benchmark_result_digest: digest(benchmark), scenario_id: "CHAT-003", status: "FAIL", observed_behavior: "The corrected constraint was forgotten.", expected_behavior: "The corrected constraint remains active.", failure_domain: "reasoning-engine", target_component: "request-intent-runtime"});
@@ -28,17 +37,19 @@ test("an exact ARE-owned usability failure creates a non-authorizing hypothesis 
   const handed = createEngineImprovementHandoff({observation, classification: classified.value});
   assert.equal(handed.ok, true);
   assert.equal(handed.value.authority_effect, "none");
-  const projected = projectEngineHandoffToHypotheses({handoff: handed.value, benchmark_result: benchmark});
+  const projected = projectEngineHandoffToHypotheses({handoff: handed.value, benchmark_result: benchmark, projector});
   assert.equal(projected.ok, true);
   assert.equal(projected.value.hypotheses.length, 1);
   assert.equal(projected.value.hypotheses[0].authority_effect, "none");
 });
 
-test("TUI-owned and not-evaluated observations cannot enter ARE evolution", () => {
+test("interaction-adapter and not-evaluated observations cannot enter ARE evolution", () => {
   const benchmark = failedBenchmark();
-  const tuiObservation = createUsabilityObservation({source_benchmark_result_digest: digest(benchmark), scenario_id: "CHAT-003", status: "FAIL", observed_behavior: "Text was clipped.", expected_behavior: "Text remains visible.", failure_domain: "interaction-adapter"});
-  const tuiClass = classifyUsabilityFailure({observation: tuiObservation, failure_kind: "render-clipping"});
-  assert.equal(createEngineImprovementHandoff({observation: tuiObservation, classification: tuiClass.value}).ok, false);
+  const adapterObservation = createUsabilityObservation({source_benchmark_result_digest: digest(benchmark), scenario_id: "CHAT-003", status: "FAIL", observed_behavior: "Text was clipped.", expected_behavior: "Text remains visible.", failure_domain: "interaction-adapter"});
+  const adapterClass = classifyUsabilityFailure({observation: adapterObservation, failure_kind: "render-clipping"});
+  assert.equal(adapterClass.ok, true);
+  assert.equal(adapterClass.value.disposition, "interaction-adapter-improvement-candidate");
+  assert.equal(createEngineImprovementHandoff({observation: adapterObservation, classification: adapterClass.value}).ok, false);
   const unknown = createUsabilityObservation({source_benchmark_result_digest: digest(benchmark), scenario_id: "CHAT-003", status: "NOT_EVALUATED", observed_behavior: "No participant evidence.", expected_behavior: "Comprehension measured.", failure_domain: "not_evaluable"});
   const unknownClass = classifyUsabilityFailure({observation: unknown, failure_kind: "missing-evidence"});
   assert.equal(createEngineImprovementHandoff({observation: unknown, classification: unknownClass.value}).ok, false);
@@ -49,7 +60,7 @@ test("handoff projection rejects changed benchmark bytes", () => {
   const observation = createUsabilityObservation({source_benchmark_result_digest: digest(benchmark), scenario_id: "CHAT-003", status: "FAIL", observed_behavior: "Constraint lost.", expected_behavior: "Constraint retained.", failure_domain: "reasoning-engine", target_component: "request-intent-runtime"});
   const classification = classifyUsabilityFailure({observation, failure_kind: "context"}).value;
   const handoff = createEngineImprovementHandoff({observation, classification}).value;
-  assert.equal(projectEngineHandoffToHypotheses({handoff, benchmark_result: {...benchmark, status: "PASS"}}).ok, false);
+  assert.equal(projectEngineHandoffToHypotheses({handoff, benchmark_result: {...benchmark, status: "PASS"}, projector}).ok, false);
 });
 
 test("an interaction failure cannot be relabeled as engine-owned", () => {

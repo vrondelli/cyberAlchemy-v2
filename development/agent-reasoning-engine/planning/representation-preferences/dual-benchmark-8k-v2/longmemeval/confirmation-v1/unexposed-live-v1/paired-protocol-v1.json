@@ -1,0 +1,71 @@
+{
+  "schema_version": "are.longmemeval-unexposed-paired-protocol/v1",
+  "status": "comparison-decided-not-generation-frozen",
+  "objective": "Test whether bounded whole-turn retrieval preserves answer correctness while reducing total generation tokens against sequential retained-note ingestion on an unexposed four-task full-S cohort.",
+  "cohort": {
+    "selection_sha256": "2232f5cb5a59e16e8d74ed474e18556e6eddd3cd074f2a90c60215854a8b9c18",
+    "cohort_sha256": "4f97a9e1f121fd7938ec266ba995552845696df803b7cb5fd852cfe02f56ceec",
+    "source_manifest_sha256": "ba59f28a061728002e607e2ecb4cfd3fbdaff03494d62039268fb02422a6d437",
+    "ordered_question_ids": ["0e4e4c46", "gpt4_5438fa52", "ef66a6e5", "0862e8bf_abs"],
+    "replacement_tasks_allowed": false
+  },
+  "arms": {
+    "control": {
+      "method": "sequential-retained-note-ingestion",
+      "source_order": "original",
+      "ingestion_output_cap": 768,
+      "answer_output_cap": 1024
+    },
+    "treatment": {
+      "method": "all-user-priority-question-lexical-whole-turn-retrieval-v1",
+      "answer_output_cap": 1024
+    }
+  },
+  "pair_order": [
+    {"question_id": "0e4e4c46", "arms": ["control", "treatment"]},
+    {"question_id": "gpt4_5438fa52", "arms": ["treatment", "control"]},
+    {"question_id": "ef66a6e5", "arms": ["control", "treatment"]},
+    {"question_id": "0862e8bf_abs", "arms": ["treatment", "control"]}
+  ],
+  "wire": {
+    "model": "glm-5.3-flash",
+    "context_limit": 8000,
+    "temperature": 0,
+    "stream": false,
+    "thinking": {"type": "enabled", "clear_thinking": false},
+    "reasoning_effort": "low",
+    "automatic_retries": 0
+  },
+  "planning_limits": {
+    "maximum_tokenizer_calls": 256,
+    "model_generation_calls": 0,
+    "maximum_generation_calls_after_planning": 248,
+    "generation_call_formula": "sum(control_chunk_count) + 8",
+    "generation_token_reservation_formula": "8000 * generation_calls",
+    "judge_calls": 8,
+    "judge_token_reservation": 64000,
+    "maximum_pair_concurrency": 2,
+    "maximum_elapsed_seconds": 7200
+  },
+  "success_gate": {
+    "completed_answers": 8,
+    "valid_judgments": 8,
+    "treatment_correct": 4,
+    "treatment_correct_gte_control": true,
+    "minimum_total_token_reduction_fraction": 0.15,
+    "all_requests_within_context_limit": true,
+    "all_usage_known": true,
+    "persistence_or_transport_failure": false
+  },
+  "separation": {
+    "generation_receives_evaluator_references": false,
+    "reference_acquisition_before_generation_seal": false,
+    "raw_mixed_upstream_mounted_in_generation": false
+  },
+  "live_dispatch_admitted": false,
+  "authority_effect": "none",
+  "open_questions": [
+    "What exact control chunk counts and generation-call total will fresh tokenizer planning freeze?",
+    "Will every treatment projection and control chunk fit its actual 8K wire boundary?"
+  ]
+}

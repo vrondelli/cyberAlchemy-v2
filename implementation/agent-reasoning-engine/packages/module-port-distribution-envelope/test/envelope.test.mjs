@@ -3,6 +3,7 @@ import {createHash} from "node:crypto";
 import {chmodSync, cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {dirname, resolve} from "node:path";
+import {spawnSync} from "node:child_process";
 import test from "node:test";
 
 import {envelopeBindings, verifyDistributionEnvelope} from "../index.mjs";
@@ -37,13 +38,113 @@ function rewriteBundle(root, mutate, {resign = false} = {}) {
   }
 }
 
-test("the exact local candidate envelope verifies offline", () => {
-  const result = verifyDistributionEnvelope({repository_root: repositoryRoot});
-  assert.equal(result.ok, true, result.reason_codes.join(","));
-  assert.equal(result.signature_verified, true);
-  assert.equal(result.trust_posture, "test-only-deterministic-fixture");
-  assert.equal(result.release_eligible, false);
-  assert.equal(result.effect_authorized, false);
+test("the exact local candidate envelope verifies offline in a named git-checkout context", () => {
+  const root = fixture();
+  try {
+    const binaryPath = resolve(root, envelopeBindings.binary.path);
+    chmodSync(binaryPath, 0o755);
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", "--", envelopeBindings.binary.path]).status, 0);
+    const result = verifyDistributionEnvelope({repository_root: root, verification_context: "git-checkout"});
+    assert.equal(result.ok, true, result.reason_codes.join(","));
+    assert.equal(result.signature_verified, true);
+    assert.equal(result.trust_posture, "test-only-deterministic-fixture");
+    assert.equal(result.release_eligible, false);
+    assert.equal(result.effect_authorized, false);
+    assert.equal(result.signed_binary_mode, "0555");
+    assert.equal(result.observed_binary_mode, "0755");
+    assert.equal(result.binary_mode_posture, "git-executable-bit-materialization");
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("packaged artifact verification preserves the exact signed mode", () => {
+  const root = fixture();
+  try {
+    const path = resolve(root, envelopeBindings.binary.path);
+    chmodSync(path, 0o555);
+    const result = verifyDistributionEnvelope({repository_root: root});
+    assert.equal(result.ok, true, result.reason_codes.join(","));
+    assert.equal(result.binary_mode_posture, "signed-artifact-mode-exact");
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("ordinary owner-writable materialization is not accepted as a packaged artifact", () => {
+  const root = fixture();
+  try {
+    chmodSync(resolve(root, envelopeBindings.binary.path), 0o755);
+    assert.deepEqual(verifyDistributionEnvelope({repository_root: root}).reason_codes, ["envelope.binary-mode-policy-invalid"]);
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("git-checkout normalization requires tracked executable identity", () => {
+  const root = fixture();
+  try {
+    const path = resolve(root, envelopeBindings.binary.path);
+    chmodSync(path, 0o755);
+    assert.deepEqual(
+      verifyDistributionEnvelope({repository_root: root, verification_context: "git-checkout"}).reason_codes,
+      ["envelope.binary-mode-policy-invalid"],
+    );
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", "--", envelopeBindings.binary.path]).status, 0);
+    const result = verifyDistributionEnvelope({repository_root: root, verification_context: "git-checkout"});
+    assert.equal(result.ok, true, result.reason_codes.join(","));
+    assert.equal(result.binary_mode_posture, "git-executable-bit-materialization");
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("git-checkout normalization rejects every mode except exact 0755", () => {
+  for (const hostileMode of [0o775, 0o757, 0o754, 0o655]) {
+    const root = fixture();
+    try {
+      const path = resolve(root, envelopeBindings.binary.path);
+      chmodSync(path, hostileMode);
+      assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+      assert.equal(spawnSync("git", ["-C", root, "add", "--", envelopeBindings.binary.path]).status, 0);
+      assert.deepEqual(
+        verifyDistributionEnvelope({repository_root: root, verification_context: "git-checkout"}).reason_codes,
+        ["envelope.binary-mode-policy-invalid"],
+      );
+    } finally { rmSync(root, {recursive: true, force: true}); }
+  }
+});
+
+test("git-checkout normalization rejects a non-executable index entry", () => {
+  const root = fixture();
+  try {
+    const path = resolve(root, envelopeBindings.binary.path);
+    chmodSync(path, 0o644);
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    assert.equal(spawnSync("git", ["-C", root, "add", "--", envelopeBindings.binary.path]).status, 0);
+    chmodSync(path, 0o755);
+    assert.deepEqual(
+      verifyDistributionEnvelope({repository_root: root, verification_context: "git-checkout"}).reason_codes,
+      ["envelope.binary-mode-policy-invalid"],
+    );
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("git-checkout normalization rejects working bytes that differ from the index", () => {
+  const root = fixture();
+  try {
+    const path = resolve(root, envelopeBindings.binary.path);
+    chmodSync(path, 0o755);
+    assert.equal(spawnSync("git", ["init", "-q", root]).status, 0);
+    writeFileSync(path, Buffer.concat([readFileSync(path), Buffer.from([0])]));
+    assert.equal(spawnSync("git", ["-C", root, "add", "--", envelopeBindings.binary.path]).status, 0);
+    cpSync(resolve(repositoryRoot, envelopeBindings.binary.path), path);
+    assert.deepEqual(
+      verifyDistributionEnvelope({repository_root: root, verification_context: "git-checkout"}).reason_codes,
+      ["envelope.binary-mode-policy-invalid"],
+    );
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("unknown verification contexts fail closed", () => {
+  assert.deepEqual(
+    verifyDistributionEnvelope({repository_root: repositoryRoot, verification_context: "trust-me"}).reason_codes,
+    ["envelope.verification-context-invalid"],
+  );
 });
 
 test("deterministic materialization produces identical envelope bytes", () => {

@@ -7,7 +7,8 @@ export function createPythonEventControls(node: CompiledProjectGraph['nodes'][nu
   const module = getPythonEventVerificationContext(plan).find(m => m.selector === node.selector);
   if (!module || module.descriptor.contract_sha256 !== sha256(canonicalJson(node.body))) throw new TypeError('DS_PYTHON_EVENT_CONTROLS:source binding');
   const binding = {id: 'case-0', mode: 'event-descriptor', format: 'string' as const, values: [], expected: {kind: 'value' as const, value: canonicalJson(module.descriptor)}};
-  const shared = createEventSemanticCases(node, binding);
+  const referenceScalars = new Map(module.reference_imports.map(reference => [reference.selector, reference.identity.scalar] as const));
+  const shared = createEventSemanticCases(node, binding, referenceScalars);
   if (shared.state !== 'ready') return shared;
   const baseline = shared.cases.find(c => c.mode === 'event')!;
   const cases = [...shared.cases];

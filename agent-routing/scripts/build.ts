@@ -113,9 +113,9 @@ function build() {
     compiler: {
       id: "domainspec-v2-minted-project-tools",
       version: "minted-project-tools/v1",
-      compiler_path: "projects/domainspec-v2/impl/tools/minted-project/compiler.ts",
+      compiler_path: "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/compiler.ts",
       compiler_sha256: sha256(readFileSync(compilerPath)),
-      views_path: "projects/domainspec-v2/impl/tools/minted-project/views.ts",
+      views_path: "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/views.ts",
       views_sha256: sha256(readFileSync(viewsPath)),
       projection_builder_path: "cyberAlchemy-v2/agent-routing/scripts/build.ts",
       projection_builder_sha256: sha256(readFileSync(projectionBuilderPath)),
@@ -174,7 +174,7 @@ function build() {
         "../implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/profiles/interaction-learning-canary-v1.json",
       ].map(name => [name, sha256(readFileSync(resolve(packageRoot, name)))])),
       build_runtime: { node: process.versions.node, tsx: tsxPackage.version,
-        compiler_package_ref: "projects/domainspec-v2/impl/package.json",
+        compiler_package_ref: "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/package.json",
         compiler_package_sha256: sha256(readFileSync(selectedPath("projects/domainspec-v2/impl/package.json"))) },
       recent_context_sources: Object.fromEntries([
         "profile.json", "README.md", "definitions.json", "capability.json", "ontology.json",

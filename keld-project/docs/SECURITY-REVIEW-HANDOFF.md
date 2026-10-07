@@ -3,25 +3,118 @@
 Prepared 2026-09-18 for a fresh owner-authorized security-review session.
 Status: review specification and source inventory, **not a security certification or release approval**. Private project; do not publish source, transcripts, credentials or infrastructure evidence.
 
+Current execution update, 2026-09-20: see
+[SECURITY-PLAN-EXECUTION-2026-09-20.md](SECURITY-PLAN-EXECUTION-2026-09-20.md)
+for the deployment history through the current r12 fixed-rate application image,
+reviewed
+implementation DAG, real-browser Stripe,
+Mercado Pago, storefront, and ARE evidence, the genuine Stripe
+delivery/redelivery and stopped-worker recovery proof, audited reconciliation
+resolution and PayPal missing-order classification, PayPal handoff evidence,
+path-move impact, and the remaining operational and product gates. That staging
+evidence advances this handoff; it does not convert it into production approval.
+The r12 Alpine application candidate and source-clean ARE public-chat image are
+now live on staging and bound by the current schema-v3 r23 manifest; r11 and r9
+remain rollback history. The conversion policy is fixed at 5.10 BRL/USD with
+reference `merchant-fixed-5.10` and no expiry; existing checkout attempts keep
+their creation-time frozen quote.
+The repeatable backup and recovery boundary is in
+[FULL-STATE-BACKUP-RESTORE.md](FULL-STATE-BACKUP-RESTORE.md).
+The live exact-release/drift manifest now covers the exact KELD/ARE containers,
+43 explicitly allowlisted non-secret deployment/evidence inputs, and all 84
+files in the preserved KELD application build context. All 82 KELD runtime-source
+files match the deployed image byte-for-byte and the context secret scan is
+empty. The ARE evidence binds exact image IDs, declared package manifests, and
+independently observed `/srv` trees. r17 exposed a second public-chat `dist/`
+overlay; r18 replaces it with an image whose 96 declared payload files match the
+prior live content while removing four stale unreferenced chunks. All three ARE
+package trees now match their declarations. The replacement has zero context
+secrets, zero exact-image High/Critical or secret findings, a constrained
+isolated smoke, and a passing Firefox chat/refresh/reset journey. This is
+image-content provenance, not a clean-room rebuild.
+A private archive covers all seven custom image IDs from the preceding r20
+baseline, verifies 91 OCI blob digests and seven manifest entries, and has
+matching off-VPS hashes. That exact set passed an automated 15.566-second load into an empty Docker
+29.8.1 containerd-snapshotter image store with all seven manifest IDs preserved
+and zero containers before and after. A classic `vfs` load was rejected because
+it exposed config IDs instead. r21 binds the r20 archive and recovery receipts
+as previous-baseline recovery evidence plus both reusable tools. The fresh r21
+archive verifies 91 blobs and passed a 28.78-second empty-engine load with all
+seven exact IDs and zero containers. The archive and both receipts have matching
+off-VPS copies, and schema-v3 r23 binds the current receipts and tools. r23 also
+binds a privacy-safe receipt for five Stripe, two Mercado Pago, and one PayPal
+provider-confirmed paid journey with one consumed exact-artifact grant per
+journey. The receipt omits customer, account, order, remote-payment, and payer-
+email identifiers. It proves current ledger/artifact state, not browser rendering
+or genuine webhook delivery; Mercado Pago and PayPal webhook restart/replay
+proof therefore remains open.
+Service/state restore and public cutover are separate.
+A hardened systemd timer
+re-verifies it plus service-specific public response content, semantic no-model-
+call chat availability/retention state, and the public allow/deny probes every
+five minutes, validates the fixed quote's reference/null-expiry/no-refresh
+semantics, accepts only the three explicit HTTPS hosts, refuses redirects
+and ambiguous URL forms, and writes a private bounded state. Its
+first scheduled run passed. A credential-safe external success-heartbeat sender
+and inactive systemd drop-in are staged, but no receiver was selected or tested.
+The current state is local detection and release evidence, not external alert
+delivery, production authorization, or a substitute for a rollback drill.
+The current backup workflow also runs a standalone secret-silent structural and
+integrity verifier before publishing a recovery point; all three retained r9
+full-state backups pass it.
+An official-API BCB PTAX fetcher is also staged. It emits a reviewable exact
+sell-rate proposal but deliberately cannot override or apply the merchant-fixed
+quote.
+
 Execution update, 2026-09-18: the local review/remediation run is recorded in
 [PUBLIC-CHAT-SECURITY-FINDINGS.md](PUBLIC-CHAT-SECURITY-FINDINGS.md) and the
 [implementation DAG](PUBLIC-CHAT-SECURITY-IMPLEMENTATION-DAG.md). The
 [completion audit](SECURITY-COMPLETION-AUDIT.md) maps every original obligation
 to current evidence or its remaining owner gate. Local chat and
-custom KELD image gates pass. The exact Keycloak raw findings now have a
-topology-bound OpenVEX assessment and a zero-finding adjusted scan, but that
-candidate disposition still needs security-owner acceptance or replacement.
-The product owner selected `/are/`; generated KELD pages, ARE assets and APIs,
-the edge allowlist, and local browser/runtime evidence now agree on that prefix.
-The local KELD Caddy/Compose production candidate now carries that route and
-passes an integrated synthetic stack smoke. Target-host acceptance and
-deployment remain operator actions, not completed effects.
+custom KELD image gates pass. The original two exact Keycloak raw findings have
+a topology-bound OpenVEX assessment. A fresh 2026-09-20 database scan also
+reports two Bouncy Castle CVEs in duplicate client/server jar paths; the existing
+VEX does not cover them and no current zero-finding Keycloak claim is made. The
+experimental optimized/read-only image remains unpromoted pending remediation or
+a configuration-bound affectedness assessment and security-owner acceptance.
+The live realm now has a separate reversible crypto-surface migration: both
+unused WebAuthn registration actions are disabled, identity providers are empty,
+enabled clients are OIDC-only with no X.509 client authenticator, all seven bound
+authentication flows are checked, and X.509/WebAuthn executions outside the
+guarded built-in client flow are disabled. The public edge also blocks dynamic
+client registration. Exact-source tracing supports deployment-specific
+not-in-execute-path candidate dispositions for the two Bouncy Castle findings,
+but the machine-readable VEX remains unchanged pending security-owner acceptance
+or a clean dependency update.
+A later complete Bouncy Castle 1.85 overlay removes both BC findings and retains
+three raw findings. The exact downstream image passes an isolated restored-state
+rehearsal and a candidate-backed application/browser regression covering two
+registrations, PKCE callback exchange, forced renewal, logout, and two-buyer
+order isolation. An exact-SBOM-subject OpenVEX proposal records Netty and the
+unused SQL Server driver as proposed `not_affected` and keeps the disputed
+OpenJDK record `under_investigation`. It passes the official OpenVEX 0.2.0
+schema, is explicitly unapproved, and is absent from every Compose and scanner
+input. The raw scan therefore remains authoritative and live staging remains on
+the stock Keycloak image. Corrected like-for-like Trivy 0.74.0 full-license
+scans produce the same 52 classifier entries for stock and candidate images,
+with zero normalized delta. The changed 1.85 Bouncy Castle JARs each retain the
+same embedded MIT license file. This reduces the candidate-specific license
+question but does not approve the unchanged stock-image notices, source offers,
+artifact rights, or distribution terms.
+The product owner subsequently selected the dedicated `are.keld.studio` root as
+the public ARE URL. Generated KELD pages and the live edge use `/`; public
+`/are/` is a legacy redirect, while the isolated runtime/API contract retains
+`/are/*` internally. A follow-up review found and repaired the reusable
+KELD Caddy/Compose candidate, smoke proof, and guide that still encoded ARE on
+the storefront `/are/` route. The corrected candidate requires a distinct
+`ARE_DOMAIN` and passes the focused deployment suite and Caddy parsing. This is
+source validation; the immutable live r9 override was already correct.
 The combined public-release decision also remains blocked by unexecuted product,
 operator, and real-service acceptance gates.
 
 ## Start here
 
-Open `/home/vrondelli/projects/cyberAlchemy-v2` in the new account/session. Read root `AGENTS.md` and follow its routing contract, then this document. A change of account does not transfer local files, credentials, tools or prior conversation automatically. Use this checkout, or transfer a sanitized source snapshot containing the untracked work and required shared packages. Never include `.runtime`, personal credential configurations, vaults, age identities, SSH private keys, browser session capabilities or raw customer data.
+Open `/home/vlad_/projects/cyberAlchemy-v2` in the new account/session. Read root `AGENTS.md` and follow its routing contract, then this document. A change of account does not transfer local files, credentials, tools or prior conversation automatically. Use this checkout, or transfer a sanitized source snapshot containing the untracked work and required shared packages. Never include `.runtime`, personal credential configurations, vaults, age identities, SSH private keys, browser session capabilities or raw customer data.
 
 Suggested starting instruction:
 
@@ -72,7 +165,11 @@ Context documents: [SDK integration](SDK-INTEGRATION.md), [execution DAG](CURREN
   approve those inputs. Real public TLS, browser Keycloak login, genuine provider
   checkout/webhook delivery and restoration acceptance remain separate proof
   obligations.
-- VPS: `187.77.163.194`; storefront `keld.studio`; proposed/configured staging identity host `auth.keld.studio`. Latest staging plan records both domains resolving to the VPS; recheck at execution, rather than trusting historical DNS results.
+- VPS: `187.77.163.194`; staging storefront `staging.keld.studio`; current
+  staging identity host `auth.staging.keld.studio`; ARE host `are.keld.studio`.
+  All three public probes passed on 2026-09-20; recheck at execution rather than
+  trusting historical DNS results. Reserve the apex identity names for a later
+  owner-authorized production cutover.
 - Prior SSH inspection found Ubuntu 26.04.1, about 16 GB RAM, 191 GB free and no Docker in PATH. It also found an existing `cyberalchemy-orchestrator.service` on **127.0.0.1:18080**, plus `/opt/cyberalchemy-orchestrator` and `/opt/cyberalchemy-are-tools`. Revalidate; do not treat this as a fresh VPS. A GLM deployment was not independently established by that inventory.
 - Existing SSH key authentication worked as root using `~/.ssh/id_ed25519` with strict host verification. Do not copy that key into chat, application images or handoff attachments. Root SSH is an operator capability, never a chat capability.
 - Some older deployment prose still says “fresh VPS” or lists already-resolved questions. Use dated evidence and flag contradictions; do not silently interpret old documentation as current machine state.
@@ -240,8 +337,9 @@ End with a pass/fail/blocked matrix for the boundaries above, exact source/image
 - Will its service run on a separate VM or a hardened isolated workload on the
   existing VPS, and will the operator accept the candidate egress and seccomp
   controls there?
-- Will the security owner accept the exact-digest Keycloak OpenVEX assessment or
-  require a clean replacement image?
+- Will the security and license owners approve, revise, or reject the fully
+  rehearsed downstream Keycloak candidate and its exact-subject OpenVEX
+  proposal, or require a clean supported replacement image?
 - Which idle-retention value, provider-side handling, exact monetary values, and
   abuse controls will be used?
 - Will the operator accept and deploy the tested KELD ingress candidate for the

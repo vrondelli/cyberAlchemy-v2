@@ -210,7 +210,7 @@ test("a continuation-shaped turn inherits the selected objective and routes with
   assert.equal(JSON.parse(projected.params.additionalContext["cyberalchemy.request-context"].value).objective_kind, "implement");
 
   const started = await wrapper.processClientMessage(next);
-  assert.equal(started.to_server.length, 1);
+  assert.equal(started.to_server.length, 1, JSON.stringify(started));
   const context = JSON.parse(started.to_server[0].params.additionalContext[CONTEXT_KEY].value);
   assert.equal(context.route_id, "CA2-ROUTE-IMPLEMENT");
   const projectedFrontier = JSON.parse(started.to_server[0].params.additionalContext["cyberalchemy.are.objective-frontier"].value);

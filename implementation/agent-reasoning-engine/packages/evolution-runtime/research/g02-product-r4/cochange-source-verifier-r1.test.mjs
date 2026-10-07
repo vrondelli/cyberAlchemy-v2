@@ -1,0 +1,10 @@
+// Open Questions: evidence/G02-COCHANGE-SOURCE-VERIFIER-R1.json.
+import test from'node:test';import assert from'node:assert/strict';import{sourceView,decodeVerification}from'./cochange-source-verifier-r1.mjs';
+const packet={candidates:[sourceView({id:'f0',path:'a.py',bytes:Buffer.from('def required():\n    return required_value\n'),issue:'required',kind:'candidate'})],seeds:[sourceView({id:'s0',path:'b.py',bytes:Buffer.from('from a import required\n'),issue:'required',kind:'seed'})]};
+const reply=()=>({file_ids:['f0'],proofs:[{file_id:'f0',candidate_line_ids:['f0:L1','f0:L2'],seed_line_ids:['s0:L1'],role:'implements-required-behavior'}]});
+test('binds exact presented source lines and optional whole fence',()=>{const r=decodeVerification(packet,'```json\n'+JSON.stringify(reply())+'\n```');assert.deepEqual(r.paths,['a.py']);assert.equal(r.proofs[0].candidate_lines[1].text,'    return required_value');assert.equal(r.enclosing_json_fence_removed,true);});
+test('empty choice is explicit abstention',()=>assert.deepEqual(decodeVerification(packet,'{"file_ids":[],"proofs":[]}').paths,[]));
+test('unknown line and cross-file candidate line rejected',()=>{const r=reply();r.proofs[0].candidate_line_ids=['f0:L1','s0:L1'];assert.throws(()=>decodeVerification(packet,JSON.stringify(r)));});
+test('unknown files, duplicate IDs and unmatched proofs rejected',()=>{for(const mutate of [r=>r.file_ids.push('f0'),r=>r.file_ids[0]='f9',r=>r.proofs=[]]){const r=reply();mutate(r);assert.throws(()=>decodeVerification(packet,JSON.stringify(r)));}});
+test('prose and extra fields rejected',()=>{assert.throws(()=>decodeVerification(packet,'Here is the answer: '+JSON.stringify(reply())));assert.throws(()=>decodeVerification(packet,JSON.stringify({...reply(),other:true})));});
+test('partial views retain whole lines and honest omissions',()=>{const v=sourceView({id:'f0',path:'a.py',bytes:Buffer.from(Array.from({length:300},(_,i)=>'value'+i+' = required').join('\n')),issue:'required',kind:'candidate',maximumLines:10});assert.equal(v.shown_lines.length,10);assert.equal(v.omitted_source_lines,290);assert.equal(v.source_complete,false);});

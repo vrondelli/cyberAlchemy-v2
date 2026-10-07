@@ -40,7 +40,8 @@ test('native Events preserve all shared cases, explicit clocks, exact carriers, 
   assert.throws(() => getPythonEventVerificationContext(structuredClone(f.plan)), /registered/);
   assert.equal(canonicalJson(getPythonEventVerificationContext(f.plan)).includes('"artifacts"'), false);
   for (const row of rows) {
-    const shared = createEventSemanticCases(f.graph.nodes.find(n => n.selector === row.selector)!, row.cases[0]);
+    const referenceScalars = new Map(row.module.reference_imports.map((reference: any) => [reference.selector, reference.identity.scalar]));
+    const shared = createEventSemanticCases(f.graph.nodes.find(n => n.selector === row.selector)!, row.cases[0], referenceScalars);
     assert.equal(shared.state, 'ready');
     assert.deepEqual(row.cases.filter((c: any) => c.mode !== 'event-native-carrier'), (shared as any).cases, 'every source case retained:' + row.selector);
   }

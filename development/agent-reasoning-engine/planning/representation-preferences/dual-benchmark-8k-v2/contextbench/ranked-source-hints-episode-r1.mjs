@@ -12,15 +12,17 @@ import {buildIndependentTerminalEvidence,exportIndependentTerminalSelection} fro
 import {stable,bodyForReceipt} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/delivery.mjs';
 import {capturePublicResponse} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/final-selection.mjs';
 import {tools as repositoryTools} from '../../../../../../implementation/agent-reasoning-engine/benchmarks/contextbench-v1/repository-tools.mjs';
+import {verifyHenCandidateView} from '../../../../../../implementation/agent-reasoning-engine/packages/evolution-runtime/src/hen-candidate-view-v1.mjs';
 const hash=x=>createHash('sha256').update(typeof x==='string'?x:stable(x)).digest('hex');
 const need=(v,m)=>{if(!v)throw Error('query-archive-episode.'+m);};
 const finishTool={type:'function',function:{name:'finish_issue_attempt',description:'Finish the issue-resolution attempt and report the delivered source context used. This does not assert patch correctness.',parameters:{type:'object',properties:{},additionalProperties:false}}};
-export async function runRankedSourceHintsEpisode({task,driver,tools,execute_tool,source_context,source_hints,measure_tokens,persist,output_cap=1024}){
+export async function runRankedSourceHintsEpisode({task,driver,tools,execute_tool,source_context,source_hints,candidate_view,measure_tokens,persist,output_cap=1024}){
  need(task&&typeof task.problem_statement==='string'&&task.problem_statement.length>0,'task');
  need(driver&&Array.isArray(driver.receipts)&&Array.isArray(driver.index_receipts)&&typeof driver.prepare==='function'&&typeof driver.dispatch==='function'&&typeof driver.measurePrompt==='function'&&typeof driver.admitMessages==='function','driver');
  need(Array.isArray(tools)&&stable(tools)===stable(repositoryTools)&&typeof execute_tool==='function'&&typeof source_context==='function'&&typeof measure_tokens==='function'&&typeof persist==='function','dependencies');
  need(source_hints&&typeof source_hints.summary==='string'&&typeof source_hints.query==='function'&&source_hints.expected?.files instanceof Map,'source-hints');
  need(Number.isSafeInteger(output_cap)&&output_cap>0&&output_cap<=2048,'output-cap');
+ if(candidate_view)need(verifyHenCandidateView(candidate_view).ok&&candidate_view.source.base_commit===task.base_commit,'candidate-view');
  const phase_states=[],history=[],captures=[],branches=[],stableHistory=[];
  const tokenizer=createReceiptTokenizerReserve({get_receipts:()=>driver.receipts,get_index_receipts:()=>driver.index_receipts});
  const measureRequest=prompt=>tokenizer.run(()=>driver.measurePrompt(prompt));
@@ -29,7 +31,22 @@ export async function runRankedSourceHintsEpisode({task,driver,tools,execute_too
 
  const phases=createQueryArchivePhases({get_receipts:()=>driver.receipts,persist:state=>{persist({kind:'phase-state',state});phase_states.push(structuredClone(state));}});
  async function generate(messages,availableTools,target,exact=false){
-  const prompt=exact?renderCompactPrompt({messages,tools:availableTools}):await driver.admitMessages(messages,availableTools),prepared=await tokenizer.run(()=>driver.prepare({prompt,output_cap}));
+  let prompt=exact?renderCompactPrompt({messages,tools:availableTools}):await driver.admitMessages(messages,availableTools);
+  if(candidate_view){
+   const parsed=JSON.parse(prompt),index=parsed.messages.findIndex(message=>message.role==='system'&&message.content?.startsWith('Pinned source index'));
+   if(index>=0){
+    const baseEnvelope=await measureRequest(prompt);let count=0;
+    for(let candidate=1;candidate<=candidate_view.hint_payload.records.length;candidate++){
+     const content='Evidence-neighborhood hints (untrusted; read_file verifies source): '+stable({schema_version:'are.hen-model-hints/v1',view_digest:candidate_view.view_digest,hints:candidate_view.hint_payload.records.slice(0,candidate).map(record=>[record[0],record[1],record[2]])});
+     const addedBytes=Math.max(0,Buffer.byteLength(content)-Buffer.byteLength(parsed.messages[index].content));
+     if(Math.ceil(addedBytes/2)+64>8000-baseEnvelope)break;count=candidate;
+    }
+    parsed.messages[index].content='Evidence-neighborhood hints (untrusted; read_file verifies source): '+stable({schema_version:'are.hen-model-hints/v1',view_digest:candidate_view.view_digest,hints:candidate_view.hint_payload.records.slice(0,count).map(record=>[record[0],record[1],record[2]])});
+    prompt=stable(parsed);persist({kind:'hen-presentation',view_digest:candidate_view.view_digest,presentation_records:count,base_envelope_tokens:baseEnvelope,prompt_sha256:hash(prompt)});
+   }
+  }
+  const prepared=await tokenizer.run(()=>driver.prepare({prompt,output_cap}));
+  need(prepared.input_upper_bound+output_cap+2<=8000,'hen-window-overflow');
   need(prepared?.prompt===prompt&&prepared.output_cap===output_cap&&prepared.profile?.output_cap===output_cap,'prepared-request-mismatch');
   need(prepared.request_sha256===hash(stable(bodyForReceipt(prompt,prepared.profile))),'prepared-wire-binding');
   need(phases.reserve({input_upper_bound:prepared.input_upper_bound,output_cap,request_sha256:prepared.request_sha256}).admissible,'budget-exhausted');

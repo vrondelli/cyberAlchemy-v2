@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildMintedProjectViews } from "../../../projects/domainspec-v2/impl/tools/minted-project/views";
+import { buildMintedProjectViews } from "../../craft/projects/domainspec-v2/impl/tools/minted-project/views";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(scriptDir, "..");
@@ -72,8 +72,8 @@ function build() {
     if (first[key] !== second[key]) throw new Error(`NON_DETERMINISTIC_DOMAINSPEC_BUILD:${key}`);
   }
 
-  const compilerPath = resolve(repositoryRoot, "projects/domainspec-v2/impl/tools/minted-project/compiler.ts");
-  const viewsPath = resolve(repositoryRoot, "projects/domainspec-v2/impl/tools/minted-project/views.ts");
+  const compilerPath = resolve(repositoryRoot, "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/compiler.ts");
+  const viewsPath = resolve(repositoryRoot, "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/views.ts");
   const builderPath = resolve(packageRoot, "scripts/build.ts");
   const validatorPath = resolve(packageRoot, "scripts/validate.py");
   const bridgePath = resolve(packageRoot, "bridge.json");
@@ -103,6 +103,16 @@ function build() {
   const evolutionVariantWorkspacePath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/src/variant-workspace.mjs");
   const evolutionUpgradeControllerPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/src/upgrade-controller.mjs");
   const evolutionOperationsTestPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/test/operations.test.mjs");
+  const evolutionProtocolPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/src/protocol-v1.mjs");
+  const evolutionProtocolSchemaPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/schemas/protocol-v1.schema.json");
+  const evolutionCycleDefinitionSchemaPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/schemas/cycle-definition-v1.schema.json");
+  const evolutionCyclePolicySchemaPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/schemas/cycle-policies-v1.schema.json");
+  const evolutionCycleRegistryPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/registry/cycle-definitions.v1.json");
+  const evolutionProtocolTestPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/test/protocol-v1.test.mjs");
+  const evolutionDurableKernelPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/src/durable-kernel-v1.mjs");
+  const evolutionDurableKernelCliPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/bin/kernel.mjs");
+  const evolutionDurableKernelTestPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/test/durable-kernel-v1.test.mjs");
+  const evolutionDurableKernelFixturePath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/fixtures/durable-kernel-v1/three-layer-snapshot.json");
   const evolutionBenchmarkBridgePath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/benchmarks/real-reasoning-v1/src/evolution-bridge.mjs");
   const evolutionCanaryPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/benchmarks/real-reasoning-v1/bin/evolution-canary.mjs");
   const codexEvolutionSignalsPath = resolve(repositoryRoot, "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/codex-app-server-wrapper/src/evolution-signals.mjs");
@@ -121,9 +131,9 @@ function build() {
     compiler: {
       id: "domainspec-v2-minted-project-tools",
       version: "minted-project-tools/v1",
-      compiler_path: "projects/domainspec-v2/impl/tools/minted-project/compiler.ts",
+      compiler_path: "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/compiler.ts",
       compiler_sha256: sha256(readFileSync(compilerPath)),
-      views_path: "projects/domainspec-v2/impl/tools/minted-project/views.ts",
+      views_path: "cyberAlchemy-v2/craft/projects/domainspec-v2/impl/tools/minted-project/views.ts",
       views_sha256: sha256(readFileSync(viewsPath)),
       projection_builder_path: "cyberAlchemy-v2/agent-reasoning-engine/scripts/build.ts",
       projection_builder_sha256: sha256(readFileSync(builderPath)),
@@ -281,6 +291,47 @@ function build() {
           single_writer_workspaces: true,
           recommend_only_default: true,
           canary_rollback: true,
+          authority_effect: "none",
+        },
+        {
+          id: "multi-cycle-evolution-protocol@1",
+          evidence_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/src/protocol-v1.mjs",
+          evidence_sha256: sha256(readFileSync(evolutionProtocolPath)),
+          protocol_schema_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/schemas/protocol-v1.schema.json",
+          protocol_schema_sha256: sha256(readFileSync(evolutionProtocolSchemaPath)),
+          cycle_definition_schema_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/schemas/cycle-definition-v1.schema.json",
+          cycle_definition_schema_sha256: sha256(readFileSync(evolutionCycleDefinitionSchemaPath)),
+          cycle_policy_schema_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/schemas/cycle-policies-v1.schema.json",
+          cycle_policy_schema_sha256: sha256(readFileSync(evolutionCyclePolicySchemaPath)),
+          candidate_registry_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/registry/cycle-definitions.v1.json",
+          candidate_registry_sha256: sha256(readFileSync(evolutionCycleRegistryPath)),
+          protocol_test_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/test/protocol-v1.test.mjs",
+          protocol_test_sha256: sha256(readFileSync(evolutionProtocolTestPath)),
+          closed_json_boundaries: true,
+          direct_state_assignment: false,
+          candidate_definition_count: 5,
+          admitted_definition_count: 0,
+          enabled_definition_count: 0,
+          durable_storage: false,
+          authority_effect: "none",
+        },
+        {
+          id: "multi-cycle-evolution-durable-kernel@1",
+          evidence_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/src/durable-kernel-v1.mjs",
+          evidence_sha256: sha256(readFileSync(evolutionDurableKernelPath)),
+          json_cli_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/bin/kernel.mjs",
+          json_cli_sha256: sha256(readFileSync(evolutionDurableKernelCliPath)),
+          recovery_test_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/test/durable-kernel-v1.test.mjs",
+          recovery_test_sha256: sha256(readFileSync(evolutionDurableKernelTestPath)),
+          projection_fixture_ref: "cyberAlchemy-v2/implementation/agent-reasoning-engine/packages/evolution-runtime/fixtures/durable-kernel-v1/three-layer-snapshot.json",
+          projection_fixture_sha256: sha256(readFileSync(evolutionDurableKernelFixturePath)),
+          atomic_commit_visibility: true,
+          append_only_event_and_receipt_entries: true,
+          content_addressed_objects: true,
+          disposable_sqlite_index: true,
+          projection_layer_count: 3,
+          cycle_admission_changed: false,
+          external_execution: false,
           authority_effect: "none",
         },
         {

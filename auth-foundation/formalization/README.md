@@ -20,6 +20,13 @@ Canonical artifacts:
   — Auth-owned accepted definitions-bearing v2 meaning, candidate external
   InterpretationModel lifecycle correction, explicit definition graph, v4 FormalClaim draft,
   derived consumer envelope, predecessor evidence, and case package.
+- [`cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/`](cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/)
+  — selected command-boundary SFOL clause and archived v2 TDE/Rust case evidence.
+  From the repository root, run
+  `node auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/replay-historical-v2.mjs`
+  to replay its unchanged v2 derivation inside a disposable copy of the former
+  source layout. The replay requires the local TSX and pinned Rust toolchain;
+  it does not rewrite historical artifacts or establish an F5 runtime guarantee.
 
 `validate.mjs` checks source currency, record closure, stable-ID uniqueness,
 relation endpoint closure, source bindings, authority ceilings, package

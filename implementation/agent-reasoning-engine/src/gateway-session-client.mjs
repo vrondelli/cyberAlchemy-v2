@@ -15,7 +15,10 @@ export function createGatewaySessionClient(options = {}) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256 || !Number.isSafeInteger(timeout) || timeout < 1) throw new TypeError("gateway-client.invalid-limits");
   const events = new EventEmitter();
   if (options.hook_decide !== undefined && typeof options.hook_decide !== 'function') throw new TypeError('gateway-client.hook-decide-invalid');
-  const hooks = createHookEventSession({...(options.hook_decide ? {decide: options.hook_decide} : {})});
+  if (options.enforce_supported_tool_blocks !== undefined
+    && typeof options.enforce_supported_tool_blocks !== "boolean") throw new TypeError("gateway-client.tool-block-mode-invalid");
+  const hooks = createHookEventSession({...(options.hook_decide ? {decide: options.hook_decide} : {}),
+    enforce_supported_tool_blocks: options.enforce_supported_tool_blocks === true});
   const requests = new Map();
   let transport = null, rpc = null, connecting = null, token = null, sequence = 0;
   let connected = false, disposed = false, generation = 0;

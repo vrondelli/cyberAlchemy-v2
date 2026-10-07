@@ -17,11 +17,17 @@ Use this table when prose and machine records appear to disagree.
 | Test ownership and plan digest | [`../src/product-test-plan.mjs`](../src/product-test-plan.mjs) |
 | Isolated execution | [`../src/product-isolation.mjs`](../src/product-isolation.mjs) |
 | Release gates | [`../scripts/verify-release.mjs`](../scripts/verify-release.mjs) |
-| Current Candidate 018 closure | [`../evidence/product-candidate.018.json`](../evidence/product-candidate.018.json) |
-| Current Candidate 018 test results | [`../evidence/product-test-receipt.018.json`](../evidence/product-test-receipt.018.json) |
-| Current failure-learning canary | [`../evidence/failure-learning-canary.018.json`](../evidence/failure-learning-canary.018.json) |
+| Historical Candidate 020 closure | [`../evidence/product-candidate.020.json`](../evidence/product-candidate.020.json) |
+| Historical Candidate 020 test results | [`../evidence/product-test-receipt.020.json`](../evidence/product-test-receipt.020.json) |
+| Historical Candidate 020 failure-learning canary | [`../evidence/failure-learning-canary.020.json`](../evidence/failure-learning-canary.020.json) |
+| Historical Candidate 020 archive lifecycle and retention | [`releases/0.10.0-rc.1-lifecycle-receipt.json`](releases/0.10.0-rc.1-lifecycle-receipt.json) |
+| Historical Candidate 020 portability qualification | [`releases/0.10.0-rc.1-portability-receipt.json`](releases/0.10.0-rc.1-portability-receipt.json) |
+| Historical Candidate 020 optional-module composition | [`releases/0.10.0-rc.1-optional-module-composition-receipt.json`](releases/0.10.0-rc.1-optional-module-composition-receipt.json) |
+| Unfrozen vNext working-prototype regression | [`../../../goals/projects/agent-reasoning-engine/plans/ARE-VNEXT-COHERENCE-REGRESSION.v1.json`](../../../goals/projects/agent-reasoning-engine/plans/ARE-VNEXT-COHERENCE-REGRESSION.v1.json) |
+| Current generated layer and maturity matrix | [`generated/CAPABILITY-MATRIX.md`](generated/CAPABILITY-MATRIX.md) |
 | Repository route registry | [`../../../agent-routing/routes.json`](../../../agent-routing/routes.json) |
-| Decision CLI schema | [`../../../agent-routing/capabilities/are-cli/request.schema.json`](../../../agent-routing/capabilities/are-cli/request.schema.json) |
+| Decision CLI runtime schema | [`../schemas/cli-request.schema.json`](../schemas/cli-request.schema.json) |
+| Repository-facing schema compatibility copy | [`../../../agent-routing/capabilities/are-cli/request.schema.json`](../../../agent-routing/capabilities/are-cli/request.schema.json) |
 | Stable project definitions | [`../../../authority/definitions/DEFINITIONS.md`](../../../authority/definitions/DEFINITIONS.md) |
 | Enduring research objective | [`../../../agent-reasoning-engine/LIGHTHOUSE.md`](../../../agent-reasoning-engine/LIGHTHOUSE.md) |
 | Research method, benchmark map, and explanatory roadmap | [Research program](RESEARCH-PROGRAM.md) |
@@ -34,8 +40,10 @@ Use this table when prose and machine records appear to disagree.
 | Selected version, supported-surface, tag, changelog and deprecation policy | [`release-policy.json`](release-policy.json) and its [`release-policy-receipt.json`](release-policy-receipt.json) |
 | Commercial license direction supplied by Keld | [Keld license and payment research](../../../keld-project/docs/LICENSE-PAYMENT-RESEARCH.md), digest-bound by [`release-policy.json`](release-policy.json) |
 | Commercial license requirements, Candidate 018 inventory, resolved owner decisions, and qualified-review gates | [`license-requirements.json`](license-requirements.json) and its [`license-requirements-receipt.json`](license-requirements-receipt.json) |
+| Candidate 020 rights/license preparation and qualified-review handoff | [`0.10.0-rc.1-rights-license-review-handoff.md`](releases/0.10.0-rc.1-rights-license-review-handoff.md), [`reviewer assignment`](releases/0.10.0-rc.1-rights-license-review-assignment.json), [`license-requirements.candidate-020.json`](license-requirements.candidate-020.json), and its [`receipt`](license-requirements-receipt.candidate-020.json) |
 | Commercial identity, owners, contacts, markets, use scope, and license direction | [`release-owner-decisions.json`](release-owner-decisions.json) and its [`release-owner-decisions-receipt.json`](release-owner-decisions-receipt.json) |
 | Candidate 018 file-level source-family, embedded-rights-marker, and provenance-review inventory | [`source-rights-inventory.json`](source-rights-inventory.json) and its [`source-rights-inventory-receipt.json`](source-rights-inventory-receipt.json) |
+| Candidate 020 exact file-level source-rights inventory and engineering review | [`source-rights-inventory.candidate-020.json`](source-rights-inventory.candidate-020.json), its [`receipt`](source-rights-inventory-receipt.candidate-020.json), and [`source-rights-review.candidate-020.json`](source-rights-review.candidate-020.json) |
 | Documentation lifecycle and claim vocabulary | [Documentation contract](DOCUMENTATION-CONTRACT.md) |
 | Complete DR-task status, evidence, blockers and owner gates | [`release-readiness.json`](release-readiness.json) and its [`release-readiness-receipt.json`](release-readiness-receipt.json) |
 | Deployment readiness and missing evidence | [Deployment guide](DEPLOYMENT.md) |

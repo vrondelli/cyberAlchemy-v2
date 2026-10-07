@@ -1,7 +1,7 @@
 # Cyberalchemy Agent Routing Specification
 
 Generated human view. Canonical semantics live in the project-local machine sources.
-Graph digest: `7ceb7eb681bd61a34d05f8f755c0647d413989ec5598a830f9c2c9430c8ce600`.
+Graph digest: `72221d697231964052d5cd5f397b417720353b395380d1edab58941a9df1d44b`.
 
 ## Nodes
 

@@ -17,7 +17,7 @@ function executable(path, id) {
   catch { return check(id, "BLOCK", [`preflight.${id}-unavailable`], resolve(path)); }
 }
 
-export function runCodingAgentPreflight({provider, config, repository_root, codex_command = null, codex_profile = null, proposal_output = null, session_path = null, resume = false, runner = spawnSync, probe_container = true} = {}) {
+export function runCodingAgentPreflight({provider, config, repository_root, codex_command = null, codex_profile = null, transport_mode = "direct", proposal_output = null, session_path = null, resume = false, runner = spawnSync, probe_container = true} = {}) {
   const checks = [];
   let parsed = null;
   const codex = provider === "codex-app-server";
@@ -38,7 +38,9 @@ export function runCodingAgentPreflight({provider, config, repository_root, code
   }
 
   if (codex) {
-    checks.push(executable(codex_command, "codex-command"));
+    checks.push(transport_mode === "gateway" && !codex_command
+      ? check("codex-command", "PASS", [], "gateway-owned-backend")
+      : executable(codex_command, "codex-command"));
     try {
       const profile = JSON.parse(readFileSync(resolve(codex_profile), "utf8"));
       if (typeof profile?.protocol_binding?.observed_codex_version !== "string") throw new Error("binding-missing");

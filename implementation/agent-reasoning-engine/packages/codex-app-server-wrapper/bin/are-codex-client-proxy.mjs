@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import {resolve} from "node:path";
-
 import {runGatewayClientProxy} from "../index.mjs";
+import {resolveGatewayIpcPath} from "../src/local-ipc.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -15,5 +14,5 @@ if (!socketArg || !consumerArg || !["plan-bound", "interaction-bound"].includes(
   process.stderr.write("Usage: are-codex-client-proxy --socket <gateway.sock> --consumer <consumer-id> --lane plan-bound|interaction-bound\n");
   process.exitCode = 2;
 } else {
-  runGatewayClientProxy({socket_path: resolve(socketArg), consumer_id: consumerArg, lane: laneArg});
+  runGatewayClientProxy({socket_path: resolveGatewayIpcPath(socketArg), consumer_id: consumerArg, lane: laneArg, connection_token: process.env.ARE_GATEWAY_CONNECTION_TOKEN});
 }

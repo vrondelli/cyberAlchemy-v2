@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { dirname, posix, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { posix, resolve } from "node:path";
+
+import { localImplRoot } from "../lib/local-impl-root.js";
 
 import {
   resolveMintedProjectSources,
   type MintedProjectSourceRecord,
-} from "./resolver";
-import { validateMintedNodeFormation } from "./meta-type-body-adapter";
-import { validateJsonSchema, type JsonObject, type JsonSchemaViolation } from "./schema-validator";
+} from "./resolver.js";
+import { validateMintedNodeFormation } from "./meta-type-body-adapter.js";
+import { validateJsonSchema, type JsonObject, type JsonSchemaViolation } from "./schema-validator.js";
 
 export const MINTED_PROJECT_COMPILER_ERROR_CODES = [
   "PROJECT_SCHEMA_INVALID",
@@ -180,7 +181,7 @@ export interface MintedProjectCompileOptions {
   };
 }
 
-const implRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const implRoot = localImplRoot(import.meta.url);
 const domainspecRoot = resolve(implRoot, "..");
 
 function readJson<T>(path: string): T {

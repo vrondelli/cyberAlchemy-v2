@@ -24,7 +24,8 @@ Candidate 013's limitation.
 ## `decide` rejects a request
 
 Validate the request against
-`agent-routing/capabilities/are-cli/request.schema.json`. Check schema version,
+`implementation/agent-reasoning-engine/schemas/cli-request.schema.json` (the
+runtime copy, checked for drift against the repository-facing schema). Check schema version,
 unique session/request IDs, field postures, and the exact predecessor receipt.
 Engine or source failures are diagnostics. Do not select a fallback route.
 

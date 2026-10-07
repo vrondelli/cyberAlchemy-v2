@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateSchemaInstance } from "./schema-instance.mjs";
 
 const packageRoot = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(packageRoot, "../../..");
@@ -106,163 +107,6 @@ function applyFixtureMutation(instance, mutation, macros) {
     throw new Error(`unsupported fixture mutation: ${mutation.operation}`);
   }
   return instance;
-}
-
-function jsonType(value) {
-  if (value === null) return "null";
-  if (Array.isArray(value)) return "array";
-  if (Number.isInteger(value)) return "integer";
-  return typeof value;
-}
-
-function typeMatches(value, expectedType) {
-  if (expectedType === "number") return typeof value === "number";
-  if (expectedType === "object") {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-  return jsonType(value) === expectedType;
-}
-
-function resolveLocalRef(ref, rootSchema) {
-  if (!ref.startsWith("#/")) throw new Error(`unsupported schema reference: ${ref}`);
-  return ref.slice(2).split("/").reduce((cursor, token) => {
-    const decoded = token.replaceAll("~1", "/").replaceAll("~0", "~");
-    if (cursor === undefined || !(decoded in cursor)) {
-      throw new Error(`unresolved schema reference: ${ref}`);
-    }
-    return cursor[decoded];
-  }, rootSchema);
-}
-
-function validateSchemaInstance(instance, schema, rootSchema, instancePath = "$") {
-  const errors = [];
-
-  if (schema.$ref) {
-    return validateSchemaInstance(
-      instance,
-      resolveLocalRef(schema.$ref, rootSchema),
-      rootSchema,
-      instancePath,
-    );
-  }
-
-  for (const branch of schema.allOf ?? []) {
-    errors.push(...validateSchemaInstance(instance, branch, rootSchema, instancePath));
-  }
-  if (schema.anyOf) {
-    const branchErrors = schema.anyOf.map((branch) =>
-      validateSchemaInstance(instance, branch, rootSchema, instancePath)
-    );
-    if (!branchErrors.some((items) => items.length === 0)) {
-      errors.push(`${instancePath}: does not satisfy anyOf`);
-    }
-  }
-  if (schema.oneOf) {
-    const matchingBranches = schema.oneOf.filter((branch) =>
-      validateSchemaInstance(instance, branch, rootSchema, instancePath).length === 0
-    ).length;
-    if (matchingBranches !== 1) {
-      errors.push(`${instancePath}: satisfies ${matchingBranches} oneOf branches instead of one`);
-    }
-  }
-  if (schema.not && validateSchemaInstance(instance, schema.not, rootSchema, instancePath).length === 0) {
-    errors.push(`${instancePath}: satisfies forbidden not schema`);
-  }
-  if (schema.if) {
-    const conditionMatches = validateSchemaInstance(
-      instance,
-      schema.if,
-      rootSchema,
-      instancePath,
-    ).length === 0;
-    if (conditionMatches && schema.then) {
-      errors.push(...validateSchemaInstance(instance, schema.then, rootSchema, instancePath));
-    }
-    if (!conditionMatches && schema.else) {
-      errors.push(...validateSchemaInstance(instance, schema.else, rootSchema, instancePath));
-    }
-  }
-
-  if (Object.hasOwn(schema, "const") && !deepEqual(instance, schema.const)) {
-    errors.push(`${instancePath}: expected constant ${JSON.stringify(schema.const)}`);
-  }
-  if (schema.enum && !schema.enum.some((value) => deepEqual(instance, value))) {
-    errors.push(`${instancePath}: value is outside enum`);
-  }
-
-  if (schema.type) {
-    const allowedTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
-    if (!allowedTypes.some((type) => typeMatches(instance, type))) {
-      errors.push(`${instancePath}: expected type ${allowedTypes.join("|")}, got ${jsonType(instance)}`);
-      return errors;
-    }
-  }
-
-  if (typeof instance === "string") {
-    if (schema.minLength !== undefined && instance.length < schema.minLength) {
-      errors.push(`${instancePath}: shorter than minLength ${schema.minLength}`);
-    }
-    if (schema.pattern && !(new RegExp(schema.pattern)).test(instance)) {
-      errors.push(`${instancePath}: does not match ${schema.pattern}`);
-    }
-  }
-
-  if (typeof instance === "number" && schema.minimum !== undefined && instance < schema.minimum) {
-    errors.push(`${instancePath}: lower than minimum ${schema.minimum}`);
-  }
-
-  if (Array.isArray(instance)) {
-    if (schema.minItems !== undefined && instance.length < schema.minItems) {
-      errors.push(`${instancePath}: has fewer than ${schema.minItems} items`);
-    }
-    if (schema.uniqueItems === true) {
-      const identities = instance.map((value) => JSON.stringify(value));
-      if (!unique(identities)) errors.push(`${instancePath}: items are not unique`);
-    }
-    if (schema.items) {
-      instance.forEach((value, index) => {
-        errors.push(...validateSchemaInstance(
-          value,
-          schema.items,
-          rootSchema,
-          `${instancePath}[${index}]`,
-        ));
-      });
-    }
-  }
-
-  if (instance !== null && typeof instance === "object" && !Array.isArray(instance)) {
-    const properties = schema.properties ?? {};
-    for (const requiredProperty of schema.required ?? []) {
-      if (!Object.hasOwn(instance, requiredProperty)) {
-        errors.push(`${instancePath}: missing required property ${requiredProperty}`);
-      }
-    }
-    for (const [key, value] of Object.entries(instance)) {
-      if (Object.hasOwn(properties, key)) {
-        errors.push(...validateSchemaInstance(
-          value,
-          properties[key],
-          rootSchema,
-          `${instancePath}.${key}`,
-        ));
-      } else if (schema.additionalProperties === false) {
-        errors.push(`${instancePath}: unexpected property ${key}`);
-      } else if (
-        schema.additionalProperties &&
-        typeof schema.additionalProperties === "object"
-      ) {
-        errors.push(...validateSchemaInstance(
-          value,
-          schema.additionalProperties,
-          rootSchema,
-          `${instancePath}.${key}`,
-        ));
-      }
-    }
-  }
-
-  return errors;
 }
 
 const manifest = parseJson(manifestPath, "DSF-V001");
@@ -958,6 +802,7 @@ if (!manifest || !ontology || !method) {
     "FormalizationDefinitionRegistry/v1-candidate",
     "BusinessMeaning/v1-candidate",
     "BusinessMeaning/v2-candidate",
+    "BusinessAcceptanceDecision/v1-candidate",
     "InterpretationModel/v1-candidate",
     "EvaluationContext/v1-candidate",
     "FormalClaimSourcePayload/v2",
@@ -965,6 +810,7 @@ if (!manifest || !ontology || !method) {
     "FormalClaimDefinitionBinding/v1-candidate",
     "FormalClaimSource/v4-candidate",
     "FormalClaimEnvelope/v1-candidate",
+    "FormalClaimUnderstandingProjection/v1-candidate",
     "FormalLanguageProfileRegistry/v1-candidate",
     "FormalClaimCapabilityAssessment/v1-candidate",
     "NeutralObligationSet/v1-candidate",
@@ -973,10 +819,14 @@ if (!manifest || !ontology || !method) {
     "NativeSourceBundle/v1-candidate",
     "ProviderRuntimeBinding/v1-candidate",
     "ProviderEvidenceBinding/v1-candidate",
+    "ProviderEvidenceBinding/v2-candidate",
+    "ProviderEvidenceBinding/v3-candidate",
     "FormalClaimLeanBinding/v1-candidate",
     "TheoremObligationRequest/v1-candidate",
     "TheoremEvidenceBinding/v1-candidate",
     "EvfEvidenceJoin/v1-candidate",
+    "EvfEvidenceJoin/v2-candidate",
+    "EvfEvidenceJoin/v3-candidate",
     "AuthoringSession/v1-candidate",
     "DefineFormalizationWizard/v1-candidate",
     "FormalizationCasePackage/v1-candidate",
@@ -991,6 +841,21 @@ if (!manifest || !ontology || !method) {
     edge.from_contract === "FormalClaimSource/v4-candidate" &&
     edge.to_contract === "FormalClaimSourcePayload/v2"
   );
+  const v3CaseClaimBinding = contractSet?.contracts?.find((contract) =>
+    contract.contract_id === "ProviderEvidenceBinding/v3-candidate"
+  );
+  const v3CaseClaimJoin = contractSet?.contracts?.find((contract) =>
+    contract.contract_id === "EvfEvidenceJoin/v3-candidate"
+  );
+  const v3CaseClaimEdge = contractSet?.compatibility_edges?.find((edge) =>
+    edge.from_contract === "ProviderEvidenceBinding/v3-candidate" &&
+    edge.to_contract === "EvfEvidenceJoin/v3-candidate" &&
+    edge.relation === "joined-by"
+  );
+  const v3CaseClaimForbiddenEdges = contractSet?.compatibility_edges?.filter((edge) =>
+    edge.from_contract === "ProviderEvidenceBinding/v3-candidate" &&
+    (edge.relation === "evidences" || edge.relation === "supersedes-candidate")
+  ) ?? [];
   check(
     "DSF-V045",
     contractSet !== undefined &&
@@ -998,8 +863,15 @@ if (!manifest || !ontology || !method) {
       sameSet(contractIds, requiredContractIds) &&
       sameSet(contractSet.outcome_algebra, requiredOutcomes) &&
       v3Compatibility?.status === "adapter-required" &&
-      v4Compatibility?.status === "adapter-required",
-    "candidate contract identifiers cover definition-bound v4, the declared execution and theorem paths, preserve typed outcomes, and keep v3/v4 behind explicit v2 adapter boundaries",
+      v4Compatibility?.status === "adapter-required" &&
+      v3CaseClaimBinding?.method_stage === "DSF-S5" &&
+      v3CaseClaimBinding?.owner === "EVF" &&
+      v3CaseClaimBinding?.canonical_input === false &&
+      v3CaseClaimJoin?.method_stage === "DSF-S7" &&
+      v3CaseClaimJoin?.canonical_input === false &&
+      v3CaseClaimEdge?.status === "candidate" &&
+      v3CaseClaimForbiddenEdges.length === 0,
+    "candidate contracts retain typed outcomes and adapter boundaries while v3 case claims remain noncanonical preflight feeding only a BLOCKED read model",
   );
 
   const profiles = candidateInstances.get("domainspec.formal-language-profile-registry");
@@ -1149,12 +1021,14 @@ if (!manifest || !ontology || !method) {
   const requiredFixtureSchemas = [
     "schemas/business-meaning.schema.json",
     "schemas/business-meaning.v2-candidate.schema.json",
+    "schemas/business-acceptance-decision.v1-candidate.schema.json",
     "schemas/interpretation-model.schema.json",
     "schemas/evaluation-context.schema.json",
     "schemas/formal-claim-source-candidate.schema.json",
     "schemas/formal-claim-definition-binding.schema.json",
     "schemas/formal-claim-source-v4-candidate.schema.json",
     "schemas/formal-claim-envelope.schema.json",
+    "schemas/formal-claim-understanding-projection.schema.json",
     "schemas/authoring-session.schema.json",
     "schemas/formal-claim-capability-assessment.schema.json",
     "schemas/neutral-obligation-set.schema.json",
@@ -1163,24 +1037,34 @@ if (!manifest || !ontology || !method) {
     "schemas/native-source-bundle.schema.json",
     "schemas/provider-runtime-binding.schema.json",
     "schemas/provider-evidence-binding.schema.json",
+    "schemas/provider-evidence-binding.v3.schema.json",
     "schemas/formal-claim-lean-binding.schema.json",
     "schemas/theorem-obligation-request.schema.json",
     "schemas/theorem-evidence-binding.schema.json",
     "schemas/evf-evidence-join.schema.json",
+    "schemas/evf-evidence-join.v3.schema.json",
     "schemas/formalization-case-package.schema.json",
     "schemas/formalization-case-package.v2-candidate.schema.json",
   ];
   const requiredBoundaryCaseIds = [
+    "business-decision-rejects-unbound-subject-digest",
     "formalclaim-current-with-stale-meaning",
     "formalclaim-v4-rejects-interpretation-model",
     "definition-binding-rejects-name-inference",
     "claim-envelope-rejects-authority-collapse",
     "claim-envelope-rejects-reference-expansion",
+    "understanding-projection-rejects-authority-collapse",
+    "understanding-projection-rejects-semantic-mutation",
     "evaluation-context-positive-without-interpretation",
     "case-package-v2-claim-ready-without-interpretation",
     "case-package-v2-admitted-without-admission",
     "provider-evidence-runtime-missing",
+    "provider-case-claim-v3-rejects-completed-execution",
+    "provider-case-claim-v3-rejects-passed-normalization",
+    "provider-case-claim-v3-rejects-empty-residue",
     "evf-pass-with-stale-claim-ref",
+    "evf-case-claim-v3-rejects-pass-bounded",
+    "evf-case-claim-v3-rejects-verification-upgrade",
     "case-package-positive-l1-pass",
     "case-package-pass-without-current-join",
   ];

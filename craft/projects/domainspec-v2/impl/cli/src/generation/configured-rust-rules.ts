@@ -34,7 +34,7 @@ export function planConfiguredRustRules(graph: CompiledProjectGraph, fields: Com
   if (sha256(contractSource) !== RUST_RULE_CONTRACT_SHA256) fail('contract drift');
   if (selection.schema_version !== RUST_RULE_SELECTION_VERSION || selection.language !== 'rust' || selection.field_compilation_sha256 !== (fields?.compilation_sha256 ?? null)) fail('stale or unsupported selection');
   selection.module_root.split('/').forEach(rustSnake);
-  if (!Array.isArray(selection.roots) || !selection.roots.length || selection.roots.length > 256 || new Set(selection.roots).size !== selection.roots.length) fail('bounded unique roots required');
+  if (!Array.isArray(selection.roots) || selection.roots.length > 256 || new Set(selection.roots).size !== selection.roots.length || selection.roots.length === 0 && graph.nodes.some(node => node.kind === 'Rule')) fail('bounded unique roots required');
   const declarations = new Map(fields?.model.declarations.map(row => [row.selector, row]) ?? []);
   const properties = new Map([...declarations.values()].flatMap(row => row.kind === 'Enum' ? [] : row.contract.properties.map(property => [property.ontology_property, {owner: row.selector, property}] as const)));
   const rules = new Map<string, TypedRuleContract>();

@@ -71,7 +71,7 @@ _lookup_codec("utf-16-be")
 ` + (references.some(r=>r.scalar==='UInt64')?`def _event_ref_uint64(value):
     if type(value) is int:
         number = value
-    elif type(value) is str and len(value) <= 20 and (value == "0" or value[0] != "0" and value.isascii() and value.isdecimal()):
+    elif type(value) is str and 1 <= len(value) <= 20 and (value == "0" or value[0] != "0" and value.isascii() and value.isdecimal()):
         number = int(value)
     else:
         return _e.fail()

@@ -22,6 +22,11 @@ export function compileApplicationWhole(candidate: ReturnType<typeof prepareAppl
   if (!formation.persistence || !formation.messaging || !formation.externalApi || !formation.runtime) {
     return fail("APPLICATION_WHOLE_PARTITIONS", "this whole-application vertical requires explicit persistence, messaging, API and runtime partitions");
   }
+  const inbound = formation.model.integrations.filter(item => item.kind === "inbound-endpoint");
+  if (inbound.length !== 1 || inbound[0]!.protocol.method !== "POST") {
+    return fail("APPLICATION_WHOLE_ENDPOINT", "the reference provider currently requires one authored HTTP POST endpoint");
+  }
+  const route = { method: "POST" as const, path: inbound[0]!.protocol.path };
   const integrationSource = {
     schema_version: "domainspec.integration-generation-source/v2-candidate",
     source_id: input.source_id,
@@ -31,8 +36,11 @@ export function compileApplicationWhole(candidate: ReturnType<typeof prepareAppl
     disclosure_policy: input.disclosure_policy, orodi_binding: input.orodi_binding,
   };
   const runtimeBinding = compiler.compileApplicationRuntimeBinding(graph, integrationSource, formation.runtime.selected.selection, candidate.selection);
-  const application = compiler.composeApplicationArtifacts(executable.plan, integrationSource, runtimeBinding.binding);
-  const artifactIndex = { plan_sha256: application.plan_sha256,
+  const wholeApplication = compiler.composeApplicationArtifacts(executable.plan, integrationSource, runtimeBinding.binding);
+  const application = compiler.composeProviderApplicationArtifacts(wholeApplication, formation.runtime.selected.selection, integrationSource, route);
+  const artifactIndex = { whole_application_plan_sha256: wholeApplication.plan_sha256,
+    provider_application_plan_sha256: application.plan_sha256,
+    provider_selection_sha256: application.provider_selection_sha256,
     artifacts: application.artifacts.map(({ relative_path, sha256, size_bytes }) => ({ relative_path, sha256, size_bytes })),
     runtime_guarantees_observed: false, authority_effect: "none" };
   const files = { "application-integration-source.json": json(integrationSource), "application-runtime-binding.json": json(runtimeBinding), "application-artifact-index.json": json(artifactIndex) };
@@ -40,10 +48,11 @@ export function compileApplicationWhole(candidate: ReturnType<typeof prepareAppl
     source_sha256: formation.trace.source_sha256, executable_trace_sha256: digest(json(executable.trace)),
     observation_sha256: digest(json(observation)), selected_profile: formation.runtime.selected.id,
     runtime_binding_sha256: runtimeBinding.runtime_binding_sha256,
-    application_plan_sha256: application.plan_sha256,
+    whole_application_plan_sha256: wholeApplication.plan_sha256,
+    provider_application_plan_sha256: application.plan_sha256,
     files: Object.fromEntries(Object.entries(files).map(([p, bytes]) => [p, { sha256: digest(bytes), size_bytes: Buffer.byteLength(bytes) }])),
     runtime_guarantees_observed: false, authority_effect: "none" };
-  return { executable, integrationSource, runtimeBinding, application, files: { ...files, "application-whole-trace.json": json(trace) }, trace };
+  return { executable, integrationSource, runtimeBinding, wholeApplication, application, files: { ...files, "application-whole-trace.json": json(trace) }, trace };
 }
 
 export function assertApplicationWholeCurrent(candidate: ReturnType<typeof prepareApplicationExecutable>, graph: DomainSpecGraph, observation: unknown, compiler: DomainSpecCompiler, result: unknown): void {

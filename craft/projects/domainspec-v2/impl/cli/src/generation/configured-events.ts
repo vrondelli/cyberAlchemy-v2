@@ -46,7 +46,7 @@ export function planConfiguredEvents(graph:CompiledProjectGraph,boundary:Compile
   const certificate=createCompiledProjectCertificate(graph);
   if(selection.boundary_sha256!==boundary.boundary_sha256||boundary.certificate.graph_sha256!==certificate.graph_sha256)fail('stale or cross-graph boundary');
   if(typeof selection.module_root!=='string'||!selection.module_root.split('/').every(portable))fail('unsafe module root');
-  const expected={configuration:'c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d',...PROFILED_SOURCE_DIGESTS,event_contract:EVENT_CONTRACT_SHA256};
+  const expected={configuration:'9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317',...PROFILED_SOURCE_DIGESTS,event_contract:EVENT_CONTRACT_SHA256};
   for(const key of Object.keys(expected) as (keyof typeof expected)[])if(typeof sources[key]!=='string'||sha256(sources[key])!==expected[key])fail('source drift:'+key);
   if(!Array.isArray(selection.roots)||Object.getPrototypeOf(selection.roots)!==Array.prototype)fail('plain roots required');
   const d:Record<string,PropertyDescriptor>=Object.getOwnPropertyDescriptors(selection.roots),length=d.length!.value;

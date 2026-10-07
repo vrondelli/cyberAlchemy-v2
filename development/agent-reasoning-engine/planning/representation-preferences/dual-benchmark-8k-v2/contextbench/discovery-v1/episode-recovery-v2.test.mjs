@@ -10,7 +10,7 @@ import {stable,bodyForReceipt,bindDelivery} from '../../../../../../../implement
 import {runEpisode} from './episode-recovery-v2.mjs';
 import {EXPANDED,EXPANDED_TOOL,exportTerminalEvidenceSelection} from '../terminal-evidence.mjs';
 const hash=x=>createHash('sha256').update(x).digest('hex');
-async function exercise({visibility='eager',premature=false,skipRefresh=false,enabled=true,recycle=false,oversize=false,deferral=false,badRecovery=false,badReceipt=false,failedDiscovery=false,novelty=null,endAt=12}={}){
+async function exercise({visibility='eager',premature=false,skipRefresh=false,enabled=true,recycle=false,oversize=false,deferral=false,badRecovery=false,badReceipt=false,failedDiscovery=false,novelty=null,endAt=12,systemAppendix=''}={}){
  const root=mkdtempSync(join(tmpdir(),'discovery-episode-')),base=join(root,'base');mkdirSync(base);const utf8=deferral?'function alpha() {'+'x'.repeat(1200)+'}\n':'function alpha() {}\n',snapshot={path:'alpha.js',utf8,source_sha256:hash(utf8)};writeFileSync(join(base,'alpha.js'),utf8);const beta={path:'beta.js',utf8:'function beta() {}\n',source_sha256:hash('function beta() {}\n')};writeFileSync(join(base,'beta.js'),beta.utf8);
  const receipts=[],prompts=[],events=[],executions=[];let requests=0,forcedRecycle=false;
  const tool=(id,name,args,raw)=>({id,type:'function',function:{name,arguments:raw??stable(args)}});
@@ -32,7 +32,7 @@ async function exercise({visibility='eager',premature=false,skipRefresh=false,en
  const task={instance_id:'fixture',repo_url:'https://example.invalid/fixture.git',base_commit:'a'.repeat(40),problem_statement:'Inspect alpha source.'};
  const recycler=openContextRecycling({transport,fixture_root:base,scope:{request:task.problem_statement},options:{directory:join(root,'state'),context_limit:8000,recycle_at:7000,safety_margin:1000,state:{objective:task.problem_statement,constraints:[],completed:[],pending:[],facts:[],lessons:[],evidence_refs:['base']}}});
  try{
-  const result=await runEpisode({task,arm:'baseline',client:{receipts,maximum_model_retries:0},recycler,tools:['read_file','get_patch'].map(name=>({type:'function',function:{name,parameters:{type:'object'}}})),execute_tool:async(name,args)=>{executions.push(name);if(name==='get_patch')return {ok:true,output:{patch:''}};assert.equal(name,'read_file');const source=args.path==='beta.js'?beta:snapshot;return {ok:true,output:{...source,start_line:1,end_line:1,utf8:source.utf8.trimEnd()}};},source_context:()=>({snapshots:[snapshot,beta],repoRoot:base,patch:''}),measure_index_tokens:async text=>Math.ceil(text.length/4),limits:{maximum_calls:deferral?4:20,...(deferral?{finalization_reserve_tokens:1500,finalization_calls:2}:{}),output_cap:512,total_tokens:80000,index_entries:8,index_tokens:1024,terminal_submission:true,terminal_content_fallback:true,maximum_terminal_corrections:0,incomplete_output_corrections:0,terminal_evidence_review:true,terminal_evidence_version:EXPANDED,terminal_evidence_max_handles:32,terminal_evidence_max_state_bytes:8192,terminal_evidence_max_state_tokens:2048,compact_representation:true,discovery_retention:enabled,recovery_visibility:visibility,output_deferral:deferral},run_id:'fixture',on_event:async e=>events.push(e)});
+  const result=await runEpisode({task,arm:'baseline',client:{receipts,maximum_model_retries:0},recycler,tools:['read_file','get_patch'].map(name=>({type:'function',function:{name,parameters:{type:'object'}}})),execute_tool:async(name,args)=>{executions.push(name);if(name==='get_patch')return {ok:true,output:{patch:''}};assert.equal(name,'read_file');const source=args.path==='beta.js'?beta:snapshot;return {ok:true,output:{...source,start_line:1,end_line:1,utf8:source.utf8.trimEnd()}};},source_context:()=>({snapshots:[snapshot,beta],repoRoot:base,patch:''}),measure_index_tokens:async text=>Math.ceil(text.length/4),limits:{maximum_calls:deferral?4:20,...(deferral?{finalization_reserve_tokens:1500,finalization_calls:2}:{}),output_cap:512,total_tokens:80000,index_entries:8,index_tokens:1024,terminal_submission:true,terminal_content_fallback:true,maximum_terminal_corrections:0,incomplete_output_corrections:0,terminal_evidence_review:true,terminal_evidence_version:EXPANDED,terminal_evidence_max_handles:32,terminal_evidence_max_state_bytes:8192,terminal_evidence_max_state_tokens:2048,compact_representation:true,discovery_retention:enabled,recovery_visibility:visibility,output_deferral:deferral},run_id:'fixture',system_appendix:systemAppendix,on_event:async e=>events.push(e)});
   const archive=bindDelivery({captures:result.captures,receipts:result.receipts});
   const exported=result.status==='final_context_selected'?exportTerminalEvidenceSelection({...result,packet:result.terminal_evidence_packet,response_capture:result.response_captures.at(-1),source_snapshots:[snapshot,beta],task},base):null;
   return {result,exported,requests,prompts,events,executions,archive};
@@ -49,6 +49,14 @@ test('treatment omits old exchanges but protects first delivery and native archi
 });
 test('control has no injected schemas, projection, index or discovery reminders',async()=>{
  const r=await exercise({enabled:false});assert.equal(r.result.status,'final_context_selected',r.result.error);assert.equal(r.result.history_projections.length,0);assert.equal(r.result.discovery_presentations.length,0);assert.equal(r.result.recovery_presentations.length,0);assert.ok(r.prompts.every(p=>!p.tools.some(t=>t.function.name==='list_recovery_page')));
+});
+test('compact requests preserve the bounded ranked-source appendix on the actual model wire',async()=>{
+ const marker='Pinned source hint: alpha.js@base:1-1; read_file before relying on it.';
+ const r=await exercise({systemAppendix:marker});
+ assert.equal(r.result.status,'final_context_selected',r.result.error);
+ assert.ok(r.prompts[0].messages[0].content.includes(marker));
+ assert.ok(r.prompts.slice(0,-1).every(p=>p.messages[0].content.includes(marker)));
+ assert.ok(!r.prompts.at(-1).messages[0].content.includes(marker),'terminal evidence review has its own instruction');
 });
 test('reminders consume only successful rendered requests, rate limit and stop at finalization',async()=>{
  const r=await exercise({recycle:true,endAt:15});assert.equal(r.result.status,'final_context_selected',r.result.error);assert.equal(r.result.recycling.recycles,1);assert.ok(r.result.captures.length>r.requests);const ds=r.result.discovery_presentations;assert.equal(ds.length,3);assert.equal(ds[0].step,2);assert.ok(ds.slice(1).every((d,i)=>d.step-ds[i].step>=4));

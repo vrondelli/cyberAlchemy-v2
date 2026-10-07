@@ -116,7 +116,7 @@ def validate_sql_surface() -> dict:
             for pattern in forbidden:
                 if pattern in source:
                     raise RuntimeError(f"DYNAMIC_RUNTIME_SQL:{path.relative_to(REPOSITORY)}:{pattern}")
-    api_test = (API / "tests/http_api.rs").read_text(encoding="utf-8")
+    api_test = (API / "src/http_api_tests.rs").read_text(encoding="utf-8")
     for payload in ("' OR 1=1 --", "DROP TABLE auth_sessions", "UNION SELECT", "PRAGMA writable_schema"):
         if payload not in api_test:
             raise RuntimeError(f"MISSING_INJECTION_CASE:{payload}")

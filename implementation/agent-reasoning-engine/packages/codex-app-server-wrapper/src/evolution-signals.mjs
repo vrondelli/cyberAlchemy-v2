@@ -1,4 +1,3 @@
-import {createImprovementSignal} from "../../evolution-runtime/index.mjs";
 import {freezeResult, isRecord, nonEmptyString} from "./canonical.mjs";
 
 export const CODEX_EVOLUTION_SIGNAL_EMISSION_SCHEMA = "are.codex-evolution-signal-emission/v1";
@@ -12,6 +11,7 @@ export async function emitCompletionImprovementSignals(input) {
   if (configuration.trigger !== "turn/completed") return summary({disposition: "blocked", provider_calls: 0, sink_calls: 0, signal_count: 0, signal_refs: [], reason_codes: ["evolution.signal-trigger-unsupported"]});
   if (!nonEmptyString(input.completion_digest)) return summary({disposition: "blocked", provider_calls: 0, sink_calls: 0, signal_count: 0, signal_refs: [], reason_codes: ["evolution.completion-digest-required"]});
   if (typeof input.signal_provider !== "function") return summary({disposition: "no-provider", provider_calls: 0, sink_calls: 0, signal_count: 0, signal_refs: [], reason_codes: []});
+  if (typeof input.signal_factory !== "function") return summary({disposition: "blocked", provider_calls: 0, sink_calls: 0, signal_count: 0, signal_refs: [], reason_codes: ["evolution.signal-factory-required"]});
 
   let candidates;
   try {
@@ -35,7 +35,7 @@ export async function emitCompletionImprovementSignals(input) {
   ].filter(Boolean);
   let signals;
   try {
-    signals = candidates.map((candidate) => createImprovementSignal({
+    signals = candidates.map((candidate) => input.signal_factory({
       ...candidate,
       source_result_ref: `codex-turn-completed:${input.completion_digest}`,
       provenance_refs: [...(candidate.provenance_refs ?? []), ...provenance],
@@ -51,7 +51,7 @@ export async function emitCompletionImprovementSignals(input) {
     for (const signal of signals) {
       sinkCalls += 1;
       const result = await input.signal_sink(signal);
-      if (result?.ok === false) throw new Error("signal sink rejected record");
+      if (result?.ok !== true) throw new Error("signal sink did not confirm a checkpointed record");
     }
   } catch {
     return summary({disposition: "sink-failed", provider_calls: 1, sink_calls: sinkCalls, signal_count: signals.length, signal_refs: signals.map((signal) => signal.record_id), reason_codes: ["evolution.signal-sink-failed"]});

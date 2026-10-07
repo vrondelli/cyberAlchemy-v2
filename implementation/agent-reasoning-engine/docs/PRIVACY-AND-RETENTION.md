@@ -20,7 +20,7 @@ each record before enabling durable use.
 
 ## Current repository profile
 
-The Candidate 018 repository profile uses these bounded defaults:
+The current unfrozen working prototype retains these bounded local defaults:
 
 | Setting | Value |
 | --- | ---: |
@@ -34,10 +34,11 @@ The Candidate 018 repository profile uses these bounded defaults:
 | Reasoning log bytes per session | 64 MiB |
 | Expiration tombstone lifetime | 1 hour |
 | Reasoning State mode | File per consumer, single writer |
-| Gateway session store | Append-only file with fsync, single writer |
+| Gateway session store | Hash-chained file with fsync, single writer, explicit crash-safe compaction |
 
 These are development-candidate defaults, not a general retention policy. The
-owning values live in [`repository-v1.json`](../packages/codex-app-server-wrapper/profiles/repository-v1.json).
+owning development values live in [`repository-v1.json`](../packages/codex-app-server-wrapper/profiles/repository-v1.json);
+product execution consumes their verified compiled runtime bundle.
 
 ## Collection and projection rules
 
@@ -50,6 +51,8 @@ owning values live in [`repository-v1.json`](../packages/codex-app-server-wrappe
 - Record provider cache use only from configured observed fields.
 - Do not place raw sensitive content in identifiers, filenames, or diagnostic
   reason codes.
+- Backend stderr and transport tails cross a bounded redaction/digest boundary;
+  raw bytes are not emitted by the product gateway diagnostic path.
 
 ## Retention, revision, and deletion
 
@@ -57,7 +60,8 @@ Runtime-journal eviction removes eligible closed operational segments under its
 policy. It does not rewrite the append-only Reasoning State ledger. To revise or revoke an interaction lesson, append a new record.
 This record prevents future delivery of the earlier lesson and preserves its history.
 
-Session expiry, logical revocation, cache compaction, and physical deletion are
+Session expiry, logical revocation, gateway-log compaction, cache compaction,
+and physical deletion are
 different operations. Candidate 018 has bounded session and journal mechanisms.
 It does not define a complete physical-erasure policy for every copy, backup,
 frozen candidate, or research artifact. Deployments that require such a policy

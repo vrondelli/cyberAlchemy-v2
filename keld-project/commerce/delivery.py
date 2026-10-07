@@ -57,7 +57,8 @@ class Delivery:
         identity(customer);self._time(now)
         with self.ledger.transaction() as db:
             order=db.execute("SELECT * FROM orders WHERE id=? AND customer=? AND status='paid'",(order_id,customer)).fetchone()
-            if not order:raise Rejected('delivery-not-authorized')
+            if not order or db.execute('SELECT 1 FROM access_revocations WHERE order_id=?',(order_id,)).fetchone():
+                raise Rejected('delivery-not-authorized')
             self._artifact(order['release_digest'])
             token=secrets.token_urlsafe(32)
             db.execute('INSERT INTO download_grants VALUES (?,?,?,?,?,?,?,NULL)',
@@ -83,7 +84,9 @@ class Delivery:
                 if not grant or grant['customer']!=customer or grant['mode']!=self.mode or grant['consumed_at'] is not None or not grant['created_at']<=now<grant['expires_at']:
                     raise Rejected('grant-invalid')
                 order=db.execute("SELECT * FROM orders WHERE id=? AND customer=? AND status='paid'",(grant['order_id'],customer)).fetchone()
-                if not order or order['release_digest']!=grant['release_digest']:raise Rejected('delivery-not-authorized')
+                if (not order or order['release_digest']!=grant['release_digest'] or
+                    db.execute('SELECT 1 FROM access_revocations WHERE order_id=?',(grant['order_id'],)).fetchone()):
+                    raise Rejected('delivery-not-authorized')
                 artifact=self._artifact(grant['release_digest']);path=self._path(artifact)
                 snapshot=tempfile.TemporaryFile(mode='w+b')
                 digest=hashlib.sha256();size=0

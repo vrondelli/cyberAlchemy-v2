@@ -25,7 +25,7 @@ import {materializeStandaloneDistribution} from "../../../../implementation/agen
 const here = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(here, "../../../..");
 const productRelative = "cyberAlchemy-v2/implementation/agent-reasoning-engine";
-const candidatePath = resolve(repositoryRoot, "implementation/agent-reasoning-engine/evidence/product-candidate.018.json");
+const defaultCandidatePath = resolve(repositoryRoot, "implementation/agent-reasoning-engine/evidence/product-candidate.018.json");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
 function fail(message, detail = "") {
@@ -111,7 +111,7 @@ function gatewayLifecycle(productRoot) {
   return Object.freeze({status: "PASS", test_file: relative(productRoot, testPath), test_cases: match ? Number(match[1]) : null});
 }
 
-async function durableStoreRecovery(productRoot, workingRoot) {
+async function durableStoreRecovery(productRoot, workingRoot, candidateId) {
   const gatewayApi = await import(pathToFileURL(resolve(productRoot, "packages/codex-app-server-wrapper/index.mjs")));
   const reasoningApi = await import(pathToFileURL(resolve(productRoot, "packages/reasoning-state-runtime/index.mjs")));
   const stateRoot = resolve(workingRoot, "state");
@@ -137,14 +137,14 @@ async function durableStoreRecovery(productRoot, workingRoot) {
   const sink = reasoningApi.createAppendOnlyFileReasoningStateSink({path: reasoningPath});
   const ledger = reasoningApi.createReasoningStateLedger({ledger_id: reasoningLedgerId, sink});
   const request = ledger.append({event_kind: "request-interpreted", content: {request_id: "request:recovery", route_id: "CA2-ROUTE-IMPLEMENT"}});
-  const context = ledger.append({event_kind: "context-projected", content: {context_envelope_digest: "context:recovery", selected_dependencies: ["candidate:018"]}});
+  const context = ledger.append({event_kind: "context-projected", content: {context_envelope_digest: "context:recovery", selected_dependencies: [candidateId]}});
   if (!request.ok || !context.ok) fail("durable.reasoning-append-failed");
   const epoch = ledger.seal({
     event_digests: [request.event.event_digest, context.event.event_digest],
     consumer_ref: "codex:recovery",
     request_ref: "request:recovery",
     context_envelope_digest: "context:recovery",
-    selected_dependencies: ["candidate:018"],
+    selected_dependencies: [candidateId],
     frontier: {continuation: "complete"},
   });
   if (!epoch.ok) fail("durable.reasoning-seal-failed");
@@ -195,32 +195,34 @@ async function durableStoreRecovery(productRoot, workingRoot) {
       gateway_session_store: {status: "PASS", event_count: gatewayAfter.event_count, head_event_digest: gatewayAfter.head_event_digest},
       reasoning_state_ledger: {status: "PASS", event_count: reasoningAfter.event_count, checkpoint_count: reasoningAfter.checkpoint_count, recovered_checkpoint_digest: restoredReasoning.assessment.recovered_checkpoint_digest},
     },
-    scope: "disposable local Candidate 018 state paths",
+    scope: `disposable local ${candidateId} state paths`,
   });
 }
 
 function parseArguments() {
   const args = process.argv.slice(2);
-  const parsed = {output: null, artifact: null};
+  const parsed = {output: null, artifact: null, candidate: null};
   for (let index = 0; index < args.length; index += 2) {
     const flag = args[index];
     const value = args[index + 1];
-    if (!value || !["--output", "--artifact"].includes(flag)) {
-      fail("usage", "verify-source-distribution-lifecycle.mjs [--output <receipt.json>] [--artifact <artifact.tar.gz>]");
+    if (!value || !["--output", "--artifact", "--candidate"].includes(flag)) {
+      fail("usage", "verify-source-distribution-lifecycle.mjs [--candidate <candidate.json>] [--output <receipt.json>] [--artifact <artifact.tar.gz>]");
     }
     const key = flag.slice(2);
     if (parsed[key]) fail("argument.duplicate", flag);
     parsed[key] = resolve(value);
   }
   if (parsed.artifact && !parsed.artifact.endsWith(".tar.gz")) fail("artifact.extension-required", ".tar.gz");
-  return parsed;
+  return {...parsed, candidate: parsed.candidate ?? defaultCandidatePath};
 }
 
-const {output, artifact: requestedArtifact} = parseArguments();
+const {output, artifact: requestedArtifact, candidate: candidatePath} = parseArguments();
 const temporary = mkdtempSync(resolve(tmpdir(), "are-distribution-lifecycle-"));
 
 try {
   const candidate = JSON.parse(readFileSync(candidatePath, "utf8"));
+  const candidateNumber = candidate.candidate_id.match(/(\d+)$/u)?.[1];
+  if (!candidateNumber) fail("candidate.identity-invalid");
   const firstSource = resolve(temporary, "source-a");
   const secondSource = resolve(temporary, "source-b");
   const firstMaterialization = materializeStandaloneDistribution(firstSource);
@@ -228,8 +230,8 @@ try {
   if (firstMaterialization.closure_digest !== candidate.source_closure.closure_digest) fail("candidate.closure-mismatch");
   if (secondMaterialization.closure_digest !== firstMaterialization.closure_digest) fail("materialization.nondeterministic");
 
-  const firstArchivePath = resolve(temporary, "are-candidate-018-a.tar.gz");
-  const secondArchivePath = resolve(temporary, "are-candidate-018-b.tar.gz");
+  const firstArchivePath = resolve(temporary, `are-candidate-${candidateNumber}-a.tar.gz`);
+  const secondArchivePath = resolve(temporary, `are-candidate-${candidateNumber}-b.tar.gz`);
   const firstArchive = createArchive(firstSource, firstArchivePath);
   const secondArchive = createArchive(secondSource, secondArchivePath);
   if (firstArchive.sha256 !== secondArchive.sha256 || firstArchive.bytes !== secondArchive.bytes) fail("archive.nondeterministic");
@@ -251,7 +253,7 @@ try {
 
   const installedHealth = doctor(launcher, installedProduct, true);
   const gateway = gatewayLifecycle(installedProduct);
-  const durableStore = await durableStoreRecovery(installedProduct, resolve(prefix, "durable-recovery-drill"));
+  const durableStore = await durableStoreRecovery(installedProduct, resolve(prefix, "durable-recovery-drill"), candidate.candidate_id);
 
   const injectedPath = resolve(installedProduct, "bin/are.mjs");
   appendFileSync(injectedPath, "\nthis is an injected invalid recovery fixture !!!\n");
@@ -269,7 +271,7 @@ try {
   if (uninstall.status !== "PASS") fail("uninstall.incomplete");
 
   const receipt = {
-    schema_version: "are.source-distribution-lifecycle-receipt/v1",
+    schema_version: "are.source-distribution-lifecycle-receipt/v2",
     status: "PASS",
     candidate: {
       candidate_id: candidate.candidate_id,
@@ -280,7 +282,7 @@ try {
     },
     artifact: {
       format: "tar+gzip",
-      filename: `are-${candidate.product.version}.tar.gz`,
+      filename: requestedArtifact ? requestedArtifact.split("/").at(-1) : `are-${candidate.product.version}.tar.gz`,
       bytes: firstArchive.bytes,
       sha256: firstArchive.sha256,
       reproducibility_runs: 2,
@@ -307,9 +309,19 @@ try {
         gzip: run("gzip", ["--version"]).stdout.split("\n")[0],
       },
     },
+    retention: {
+      storage_class: requestedArtifact ? "repository-local-compressed-canonical" : "not-retained",
+      artifact_path: requestedArtifact ? relative(repositoryRoot, requestedArtifact).replaceAll("\\", "/") : null,
+      duplicate_builds: "discarded-after-byte-and-digest-comparison",
+      retain_until: "explicit product-owner decision after a verified successor archive and rollback horizon",
+      deletion_authority: "product-owner",
+      external_replication: "NOT_RUN",
+    },
+    open_questions_ref: "docs/releases/0.10.0-rc.1.md#open-questions",
     authority_effect: "none",
-    claim_limit: "This receipt proves a disposable local source-package and two-store recovery lifecycle for Candidate 018. It is not product approval, publication, deployment, a trusted signature, or production recovery evidence.",
+    claim_limit: `This receipt proves a disposable local source-package and two-store recovery lifecycle for ${candidate.candidate_id}. It is not product approval, publication, deployment, a trusted signature, external archival custody, or production recovery evidence.`,
   };
+  receipt.receipt_digest = sha256(JSON.stringify(receipt));
   const encoded = `${JSON.stringify(receipt, null, 2)}\n`;
   if (output) {
     mkdirSync(dirname(output), {recursive: true});

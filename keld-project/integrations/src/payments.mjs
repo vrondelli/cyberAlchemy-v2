@@ -1,10 +1,11 @@
 import {bindOrdersAdapter, ORDERS_API} from './mercadopago-orders.mjs';
 import Stripe from 'stripe';
-import {MercadoPagoConfig, Payment, Order, User} from 'mercadopago';
+import {MercadoPagoConfig, Payment, PaymentRefund, Order, User} from 'mercadopago';
 import {Client, Environment, OrdersController, PaymentsController} from '@paypal/paypal-server-sdk';
 import {createHash} from 'node:crypto';
 import {Rejected} from './auth.mjs';
 import {createAtProvider,CreationFailed} from './errors.mjs';
+import {stripeRefundState,mercadoPagoRefundState,paypalRefundState,paypalKnownRefundState,paypalRefundCaptureId} from './refund-state.mjs';
 
 const requireThat=(value,code)=>{if(!value)throw new Rejected(code);};
 export const keyFor=(...values)=>createHash('sha256').update(JSON.stringify(values)).digest('hex');
@@ -33,18 +34,25 @@ export function createPaymentAdapters(config) {
     clientCredentialsAuthCredentials:{oAuthClientId:config.paypal.clientId,oAuthClientSecret:config.paypal.secret},
     httpClientOptions:{retryConfig:{maxNumberOfRetries:0}}});
   const mpConfig=new MercadoPagoConfig({accessToken:config.mercadopago.accessToken,options:{timeout:10000,maxRetries:0}});
-  const adapters=bindPaymentAdapters({stripe,mp,orders:new OrdersController(paypal),captures:new PaymentsController(paypal)},config);
+  const adapters=bindPaymentAdapters({stripe,mp,mpRefunds:new PaymentRefund(mpConfig),
+    mpRefundCommands:new PaymentRefund(new MercadoPagoConfig({accessToken:config.mercadopago.accessToken,
+      options:{timeout:10000,maxRetries:0}})),
+    orders:new OrdersController(paypal),captures:new PaymentsController(paypal)},config);
   if(config.mercadopago.api===ORDERS_API){
     const legacy=adapters.mercadopago,modern=bindOrdersAdapter({orders:new Order(mpConfig),user:new User(mpConfig)},config.mercadopago);
     adapters.mercadopago={...modern,localOrderFor:id=>id.startsWith('ORD')?modern.localOrderFor(id):legacy.localOrderFor(id)};
     const selected=t=>{requireThat(['payments-v1',ORDERS_API].includes(t.providerApi??'payments-v1'),'unsupported-api');return t.providerApi===ORDERS_API?modern:legacy;};
-    for(const method of ['resume','verify'])adapters.mercadopago[method]=(id,t,...rest)=>selected(t)[method](id,t,...rest);
+    for(const method of ['resume','verify','terminalUnpaid','inspectRefund'])adapters.mercadopago[method]=(id,t,...rest)=>selected(t)[method](id,t,...rest);
+    for(const method of ['refundPaymentId','issueFullRefund'])adapters.mercadopago[method]=(id,t,...rest)=>{
+      requireThat((t.providerApi??'payments-v1')==='payments-v1','refund-provider-unsupported');
+      return legacy[method](id,t,...rest);
+    };
     adapters.mercadopago.discover=(t,interval)=>selected(t).discover(t,interval);
   }
   return adapters;
 }
 
-export function bindPaymentAdapters({stripe,mp,orders,captures},config) {
+export function bindPaymentAdapters({stripe,mp,mpRefunds,mpRefundCommands,orders,captures},config) {
   const stripeAccount=async()=>requireThat((await stripe.accounts.retrieve()).id===config.stripe.account,'merchant-mismatch');
   function stripeTerms(s,t) {
     requireThat(s.livemode===false&&s.mode==='payment'&&s.client_reference_id===t.orderId&&s.metadata?.release===t.releaseDigest&&s.currency===t.currency.toLowerCase()&&s.amount_total===t.amountCents&&s.amount_subtotal===t.amountCents,'stripe-terms-mismatch');
@@ -57,9 +65,35 @@ export function bindPaymentAdapters({stripe,mp,orders,captures},config) {
     requireThat(p.intent==='CAPTURE'&&Array.isArray(u)&&u.length===1&&u[0].referenceId===t.orderId&&u[0].customId===t.releaseDigest&&u[0].payee?.merchantId===config.paypal.account&&u[0].amount?.currencyCode===t.currency&&cents(u[0].amount.value)===t.amountCents,'paypal-terms-mismatch');
     return u[0];
   }
+  async function getPayPalOrder(id) {
+    try {
+      const {result}=await orders.getOrder({id:remoteId(id)});
+      return result;
+    } catch(error) {
+      const status=error?.statusCode??error?.status??error?.response?.statusCode??error?.response?.status;
+      if(status===404)throw new Rejected('paypal-order-missing');
+      throw error;
+    }
+  }
   return {
     stripe:{
       account:config.stripe.account,
+      async terminalUnpaid(id,t){
+        await stripeAccount();
+        const s=await stripe.checkout.sessions.retrieve(remoteId(id));
+        stripeTerms(s,t);
+        requireThat(s.id===id&&s.object==='checkout.session','provider-id-mismatch');
+        // Current KELD creation enables card only. Stripe documents an expired
+        // Checkout Session as unable to process further; complete/unpaid may
+        // still be processing. A linked PaymentIntent needs separate review.
+        const terminal=s.status==='expired'&&s.payment_status==='unpaid'&&
+          s.payment_intent===null&&Array.isArray(s.payment_method_types)&&
+          s.payment_method_types.length===1&&s.payment_method_types[0]==='card'&&
+          s.expires_at===t.expiresAt;
+        return terminal
+          ? {kind:'terminal-unpaid',provider:'stripe',remoteId:id}
+          : {kind:'unresolved',provider:'stripe',remoteId:id};
+      },
       async localOrderFor(id){
         await stripeAccount();const s=await stripe.checkout.sessions.retrieve(remoteId(id));
         requireThat(s.id===id&&s.livemode===false,'provider-id-mismatch');return remoteId(s.client_reference_id);
@@ -105,10 +139,102 @@ export function bindPaymentAdapters({stripe,mp,orders,captures},config) {
         const c=p.latest_charge;
         requireThat(p.id===s.payment_intent&&p.livemode===false&&p.status==='succeeded'&&p.amount_received===t.amountCents&&p.amount===t.amountCents&&p.currency===t.currency.toLowerCase()&&c?.payment_intent===p.id&&c.livemode===false&&c.paid===true&&c.captured===true&&c.refunded===false&&c.disputed===false&&c.amount_refunded===0&&c.amount===t.amountCents&&c.currency===t.currency.toLowerCase(),'stripe-capture-invalid');
         return remoteId(p.id);
+      },
+      async inspectRefund(id,t,paymentId,refundId){
+        await stripeAccount();
+        const s=await stripe.checkout.sessions.retrieve(remoteId(id));stripeTerms(s,t);
+        requireThat(s.id===id&&s.object==='checkout.session'&&s.status==='complete'&&s.payment_status==='paid'&&
+          s.payment_intent===paymentId,'stripe-refund-proof-invalid');
+        const p=await stripe.paymentIntents.retrieve(remoteId(paymentId),{expand:['latest_charge']});
+        const c=p.latest_charge;
+        requireThat(c&&typeof c==='object'&&p.amount_received===t.amountCents,'stripe-refund-proof-invalid');
+        const refunds=await stripe.refunds.list({payment_intent:paymentId,limit:100});
+        return stripeRefundState({payment:p,charge:c,refunds,paymentId,amountCents:t.amountCents,
+          currency:t.currency,refundId});
+      },
+      async refundPaymentId(id,t){
+        await stripeAccount();
+        const s=await stripe.checkout.sessions.retrieve(remoteId(id));stripeTerms(s,t);
+        requireThat(s.id===id&&s.object==='checkout.session'&&s.status==='complete'&&
+          s.payment_status==='paid','stripe-refund-proof-invalid');
+        return remoteId(s.payment_intent);
+      },
+      async issueFullRefund(paymentId,t,key){
+        requireThat(/^[a-f0-9]{64}$/.test(key)&&Number.isSafeInteger(t.amountCents)&&
+          t.amountCents>0&&['USD','BRL'].includes(t.currency),'refund-command-invalid');
+        const id=remoteId(paymentId);
+        const r=await stripe.refunds.create({payment_intent:id,amount:t.amountCents},
+          {idempotencyKey:key});
+        requireThat(r.object==='refund'&&r.livemode===false&&r.payment_intent===id&&
+          r.amount===t.amountCents&&r.currency===t.currency.toLowerCase()&&
+          typeof r.charge==='string','stripe-refund-response-invalid');
+        return {providerRef:remoteId(r.id),status:r.status};
+      },
+      async paymentForRefund(refundId){
+        await stripeAccount();
+        const r=await stripe.refunds.retrieve(remoteId(refundId));
+        requireThat(r.id===refundId&&r.object==='refund'&&r.livemode===false&&
+          Number.isSafeInteger(r.amount)&&r.amount>0&&
+          typeof r.charge==='string'&&typeof r.currency==='string',
+          'stripe-refund-proof-invalid');
+        return remoteId(r.payment_intent);
+      },
+      async paymentForDispute(disputeId){
+        await stripeAccount();
+        const d=await stripe.disputes.retrieve(remoteId(disputeId));
+        requireThat(d.id===disputeId&&d.object==='dispute'&&d.livemode===false&&
+          d.status==='lost'&&Number.isSafeInteger(d.amount)&&d.amount>0&&
+          typeof d.currency==='string','stripe-dispute-proof-invalid');
+        const chargeId=remoteId(d.charge);
+        const c=await stripe.charges.retrieve(chargeId);
+        requireThat(c.id===chargeId&&c.object==='charge'&&c.livemode===false&&
+          c.paid===true&&c.captured===true&&c.status==='succeeded'&&
+          Number.isSafeInteger(c.amount)&&c.amount>=d.amount&&c.currency===d.currency,
+          'stripe-dispute-proof-invalid');
+        const paymentId=remoteId(c.payment_intent);
+        requireThat(d.payment_intent==null||d.payment_intent===paymentId,
+          'stripe-dispute-proof-invalid');
+        return paymentId;
+      },
+      async inspectLostDispute(id,t,paymentId,disputeId){
+        await stripeAccount();
+        const s=await stripe.checkout.sessions.retrieve(remoteId(id));stripeTerms(s,t);
+        requireThat(s.id===id&&s.object==='checkout.session'&&s.status==='complete'&&
+          s.payment_status==='paid'&&s.payment_intent===paymentId,
+          'stripe-dispute-proof-invalid');
+        const d=await stripe.disputes.retrieve(remoteId(disputeId));
+        requireThat(d.id===disputeId&&d.object==='dispute'&&d.livemode===false&&
+          d.status==='lost'&&Number.isSafeInteger(d.amount)&&d.amount>0&&
+          d.amount<=t.amountCents&&d.currency===t.currency.toLowerCase()&&
+          (d.payment_intent==null||d.payment_intent===paymentId),
+          'stripe-dispute-proof-invalid');
+        const p=await stripe.paymentIntents.retrieve(remoteId(paymentId),{expand:['latest_charge']});
+        const c=p.latest_charge;
+        requireThat(p.id===paymentId&&p.livemode===false&&p.status==='succeeded'&&
+          p.amount===t.amountCents&&p.amount_received===t.amountCents&&
+          p.currency===t.currency.toLowerCase()&&c&&typeof c==='object'&&
+          c.id===d.charge&&c.payment_intent===paymentId&&c.livemode===false&&
+          c.status==='succeeded'&&c.paid===true&&c.captured===true&&
+          c.amount===t.amountCents&&c.currency===t.currency.toLowerCase(),
+          'stripe-dispute-proof-invalid');
+        return {kind:'lost-dispute',provider:'stripe',providerRef:disputeId};
       }
     },
     mercadopago:{
       account:config.mercadopago.account,
+      async terminalUnpaid(id,t){
+        const p=await mp.get({id:remoteId(id)});
+        mpTerms(p,t);
+        requireThat(String(p.id)===id,'provider-id-mismatch');
+        const terminal=p.status==='cancelled'&&
+          ['expired','by_collector','by_payer'].includes(p.status_detail)&&
+          Date.parse(p.date_of_expiration)===t.expiresAt*1000&&
+          (p.transaction_amount_refunded===0||p.transaction_amount_refunded==='0')&&
+          p.date_approved==null;
+        return terminal
+          ? {kind:'terminal-unpaid',provider:'mercadopago',providerApi:'payments-v1',remoteId:id}
+          : {kind:'unresolved',provider:'mercadopago',providerApi:'payments-v1',remoteId:id};
+      },
       async localOrderFor(id){
         const p=await mp.get({id:remoteId(id)});
         requireThat(String(p.id)===id&&p.live_mode===false&&String(p.collector_id)===config.mercadopago.account,'merchant-mismatch');return remoteId(p.external_reference);
@@ -147,17 +273,51 @@ export function bindPaymentAdapters({stripe,mp,orders,captures},config) {
         if(p.status!=='approved')return null;
         requireThat(p.status_detail==='accredited'&&Number(p.transaction_amount_refunded)===0,'pix-payment-invalid');
         return remoteId(String(p.id));
+      },
+      async inspectRefund(id,t,paymentId){
+        requireThat(id===paymentId,'pix-refund-proof-invalid');
+        const p=await mp.get({id:remoteId(id)});mpTerms(p,t);
+        requireThat(String(p.id)===id,'provider-id-mismatch');
+        const refunds=await mpRefunds.list({payment_id:id});
+        return mercadoPagoRefundState({payment:p,refunds,paymentId,amountCents:t.amountCents});
+      },
+      async refundPaymentId(id,t){
+        requireThat(t.providerApi!=='orders-v1','refund-provider-unsupported');
+        const p=await mp.get({id:remoteId(id)});mpTerms(p,t);
+        requireThat(String(p.id)===id,'pix-refund-proof-invalid');
+        return remoteId(id);
+      },
+      async issueFullRefund(paymentId,t,key){
+        requireThat(t.providerApi!=='orders-v1'&&t.currency==='BRL'&&
+          /^[a-f0-9]{64}$/.test(key)&&Number.isSafeInteger(t.amountCents)&&t.amountCents>0,
+          'refund-command-invalid');
+        const id=remoteId(paymentId);
+        requireThat(/^\d+$/.test(id),'pix-refund-proof-invalid');
+        const r=await mpRefundCommands.create({payment_id:id,
+          body:{amount:Number(money(t.amountCents))},
+          requestOptions:{idempotencyKey:key,maxRetries:0}});
+        requireThat(Number.isSafeInteger(r?.id)&&r.id>0&&String(r.payment_id)===id&&
+          cents(r.amount)===t.amountCents,'pix-refund-response-invalid');
+        return {providerRef:id+':'+r.id,status:r.status};
       }
     },
     paypal:{
       account:config.paypal.account,
       currency:config.paypal.currency??'USD',
+      async terminalUnpaid(id,t){
+        // Orders CAPTURE exposes no qualified no-later-capture predicate in this
+        // integration. Even VOIDED or a 404 needs operator/provider review.
+        const p=await getPayPalOrder(id);
+        paypalTerms(p,t);
+        requireThat(p.id===id,'provider-id-mismatch');
+        return {kind:'unresolved',provider:'paypal',remoteId:id};
+      },
       async localOrderFor(id){
-        const {result:p}=await orders.getOrder({id:remoteId(id)});
+        const p=await getPayPalOrder(id);
         requireThat(p.id===id&&p.purchaseUnits?.length===1&&p.purchaseUnits[0].payee?.merchantId===config.paypal.account,'merchant-mismatch');return remoteId(p.purchaseUnits[0].referenceId);
       },
       async resume(id,t){
-        const {result:p}=await orders.getOrder({id:remoteId(id)});paypalTerms(p,t);requireThat(p.id===id,'provider-id-mismatch');
+        const p=await getPayPalOrder(id);paypalTerms(p,t);requireThat(p.id===id,'provider-id-mismatch');
         requireThat(['CREATED','PAYER_ACTION_REQUIRED','APPROVED'].includes(p.status),'checkout-not-open');
         if(p.status==='APPROVED')return {remoteId:id,recovered:true};
         return {remoteId:id,checkoutUrl:redirect(p.links?.find(l=>['payer-action','approve'].includes(l.rel))?.href,'www.sandbox.paypal.com')};
@@ -176,13 +336,38 @@ export function bindPaymentAdapters({stripe,mp,orders,captures},config) {
         return {remoteId:remoteId(p.id),checkoutUrl:redirect(url,'www.sandbox.paypal.com')};
       },
       async verify(id,t,{capture=false,key}={}) {
-        let {result:p}=await orders.getOrder({id});let u=paypalTerms(p,t);requireThat(p.id===id,'provider-id-mismatch');
+        let p=await getPayPalOrder(id);let u=paypalTerms(p,t);requireThat(p.id===id,'provider-id-mismatch');
         if(p.status==='APPROVED'&&capture){({result:p}=await orders.captureOrder({id,paypalRequestId:key,prefer:'return=representation'}));u=paypalTerms(p,t);requireThat(p.id===id,'provider-id-mismatch');}
         if(p.status!=='COMPLETED')return null;
         const cs=u.payments?.captures;requireThat(cs?.length===1&&cs[0].finalCapture===true,'paypal-capture-count');
         const {result:c}=await captures.getCapturedPayment({captureId:remoteId(cs[0].id)});
         requireThat(c.id===cs[0].id&&c.status==='COMPLETED'&&c.amount?.currencyCode===t.currency&&cents(c.amount.value)===t.amountCents&&c.supplementaryData?.relatedIds?.orderId===id,'paypal-capture-invalid');
         return remoteId(c.id);
+      },
+      async inspectRefund(id,t,paymentId){
+        const p=await getPayPalOrder(id);const u=paypalTerms(p,t);
+        requireThat(p.id===id&&p.status==='COMPLETED'&&u.payments?.captures?.length===1&&
+          u.payments.captures[0].id===paymentId,'paypal-refund-proof-invalid');
+        const {result:c}=await captures.getCapturedPayment({captureId:remoteId(paymentId)});
+        return paypalRefundState({capture:c,captureId:paymentId,orderId:id,
+          amountCents:t.amountCents,currency:t.currency});
+      },
+      async captureForKnownRefund(refundId){
+        const {result:r}=await captures.getRefund({refundId:remoteId(refundId)});
+        return paypalRefundCaptureId(r,refundId);
+      },
+      async inspectKnownRefund(id,t,paymentId,refundId){
+        // The signed event is only a refund-ID hint. Three fresh GETs bind its
+        // resource to this merchant, one exact capture, and the frozen order.
+        const p=await getPayPalOrder(id);const u=paypalTerms(p,t);
+        requireThat(p.id===id&&p.status==='COMPLETED'&&u.payments?.captures?.length===1&&
+          u.payments.captures[0].id===paymentId&&u.payments.captures[0].finalCapture===true,
+          'paypal-refund-proof-invalid');
+        const {result:c}=await captures.getCapturedPayment({captureId:remoteId(paymentId)});
+        const {result:r}=await captures.getRefund({refundId:remoteId(refundId)});
+        return paypalKnownRefundState({refund:r,refundId,capture:c,captureId:paymentId,
+          orderId:id,amountCents:t.amountCents,currency:t.currency,
+          merchantId:config.paypal.account});
       }
     }
   };

@@ -319,7 +319,7 @@ export function projectObjectiveFrontierForTurnStart(message, continuationResult
   });
   const requestHint = canonicalizeJson({
     schema_version: "are.request-context-hint/v1",
-    raw_request: rawRequest,
+    raw_request: `${proposal.objective_kind}: ${proposal.action_ref}`,
     objective_kind: proposal.objective_kind,
     requested_effects: proposal.effect_classes,
     target_refs: [proposal.action_ref],

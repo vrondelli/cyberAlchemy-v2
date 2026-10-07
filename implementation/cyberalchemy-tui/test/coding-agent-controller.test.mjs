@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
-import {existsSync, mkdtempSync, readFileSync, rmSync} from "node:fs";
+import {existsSync, lstatSync, mkdtempSync, readFileSync, rmSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {resolve} from "node:path";
 import test from "node:test";
 
 import {createCodingAgentController} from "../src/coding-agent-controller.mjs";
+import {createTuiGatewayRecoveryPath} from "../src/gateway-recovery.mjs";
+import {GATEWAY_CONNECTED_SCHEMA} from "../../agent-reasoning-engine/packages/codex-app-server-wrapper/index.mjs";
+import {digestValue} from "../../agent-reasoning-engine/packages/codex-app-server-wrapper/src/canonical.mjs";
 
 async function waitFor(controller, predicate) {
   if (predicate(controller.snapshot())) return controller.snapshot();
@@ -81,6 +84,116 @@ test("coding controller selects Codex App Server without requiring a model crede
     assert.equal(calls.length, 1);
     assert.equal(calls[0].codexCommand, "/codex");
     assert.match(completed.transcript.at(-1).text, /a\.mjs/u);
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("coding controller carries gateway continuity privately across proposal turns", async () => {
+  const root = mkdtempSync(resolve(tmpdir(), "cyberalchemy-tui-gateway-continuity-"));
+  try {
+    const calls = [];
+    const controller = createCodingAgentController({
+      chatMode: true, provider: "codex-app-server", config: {schema_version: "scope"}, repositoryRoot: root,
+      gatewaySocket: resolve(root, "gateway.sock"), transportMode: "gateway",
+      runCodexProposal: async (input) => {
+        calls.push(input);
+        if (calls.length === 1) input.onGatewayContinuity("private-resume-token");
+        return {status: "BLOCK", reason_codes: ["fixture-stop"], authority_effect: "none"};
+      },
+    });
+    controller.submit("first proposal");
+    await waitFor(controller, (state) => state.phase === "idle" && calls.length === 1);
+    controller.submit("second proposal");
+    await waitFor(controller, (state) => state.phase === "idle" && calls.length === 2);
+    assert.equal(calls[0].gatewayResumeToken, null);
+    assert.equal(calls[1].gatewayResumeToken, "private-resume-token");
+    assert.equal(JSON.stringify(controller.snapshot()).includes("private-resume-token"), false);
+    await controller.close();
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("coding controller recovers its private gateway token after restart and rejects a concurrent writer", async () => {
+  const root = mkdtempSync(resolve(tmpdir(), "cyberalchemy-tui-restart-"));
+  const statePath = createTuiGatewayRecoveryPath({socket_path: resolve(root, "gateway.sock"), state_home: resolve(root, "state")});
+  const token = "private-restart-token";
+  const receipt = (resumed) => ({schema_version: GATEWAY_CONNECTED_SCHEMA, ok: true,
+    consumer_id: "codex:coding-proposal", resumed,
+    continuity: {resume_token: token, resume_token_digest: digestValue(token)}});
+  const common = {chatMode: true, provider: "codex-app-server", config: {schema_version: "scope"},
+    repositoryRoot: root, gatewayRecoveryPath: statePath};
+  try {
+    const first = createCodingAgentController({...common, runCodexProposal: async (input) => {
+      assert.equal(input.gatewayResumeToken, null);
+      input.onGatewayConnected(receipt(false));
+      input.onGatewayThreadStarted("thread-owned-by-tui");
+      return {status: "BLOCK", reason_codes: ["fixture-stop"]};
+    }});
+    first.submit("first proposal");
+    await waitFor(first, (state) => state.phase === "idle" && state.lastTurnStatus === "error");
+    assert.equal(lstatSync(statePath).mode & 0o777, 0o600);
+    assert.equal(JSON.stringify(first.snapshot()).includes(token), false);
+
+    const competing = createCodingAgentController({...common, runCodexProposal: async () => { throw new Error("must not dispatch"); }});
+    competing.submit("competing proposal");
+    const rejected = await waitFor(competing, (state) => state.phase === "idle" && state.lastTurnStatus === "error");
+    assert.match(rejected.error, /recovery-lock-held/u);
+    await competing.close();
+    await first.close();
+
+    const second = createCodingAgentController({...common, runCodexProposal: async (input) => {
+      assert.equal(input.gatewayResumeToken, token);
+      input.onGatewayConnected(receipt(true));
+      return {status: "BLOCK", reason_codes: ["fixture-stop"]};
+    }});
+    second.submit("second proposal");
+    await waitFor(second, (state) => state.phase === "idle" && state.lastTurnStatus === "error");
+    assert.equal(JSON.stringify(second.snapshot()).includes(token), false);
+    await second.close();
+  } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test("coding controller persists an interrupted model turn and blocks fresh work after restart", async () => {
+  const root = mkdtempSync(resolve(tmpdir(), "cyberalchemy-tui-pending-turn-"));
+  const statePath = createTuiGatewayRecoveryPath({socket_path: resolve(root, "gateway.sock"), state_home: resolve(root, "state")});
+  const token = "pending-turn-token";
+  const receipt = {schema_version: GATEWAY_CONNECTED_SCHEMA, ok: true, consumer_id: "codex:coding-proposal",
+    resumed: false, continuity: {resume_token: token, resume_token_digest: digestValue(token)}};
+  const common = {chatMode: true, provider: "codex-app-server", config: {schema_version: "scope"},
+    repositoryRoot: root, gatewayRecoveryPath: statePath};
+  try {
+    const first = createCodingAgentController({...common, runCodexProposal: async (input) => {
+      input.onGatewayConnected(receipt);
+      input.onGatewayThreadStarted("pending-thread");
+      input.onGatewayTurnStarting({thread_id: "pending-thread", request_key: "coding:turn:pending:1", prompt_sha256: "a".repeat(64)});
+      return {status: "BLOCK", reason_codes: ["model.transport-failed"]};
+    }});
+    first.submit("first proposal");
+    const uncertain = await waitFor(first, (state) => state.phase === "uncertain");
+    assert.equal(uncertain.error, "coding-agent.gateway-turn-outcome-unresolved");
+    assert.equal(first.submit("second proposal"), false);
+    const saved = JSON.parse(readFileSync(statePath, "utf8"));
+    assert.equal(saved.pending_turn.thread_id, "pending-thread");
+    assert.equal(saved.pending_turn.text_digest, "a".repeat(64));
+    assert.equal(JSON.stringify(saved).includes("first proposal"), false);
+    await first.close();
+
+    let dispatched = false;
+    let observed = 0;
+    const second = createCodingAgentController({...common, runCodexProposal: async () => { dispatched = true; },
+      observePendingTurn: async () => {
+        observed += 1;
+        return {schema_version: "are.tui-pending-turn-observation/v1", disposition: "host-terminal",
+          turn_status: "completed", reason_codes: [], turn_id_digest: "b".repeat(64), authority_effect: "none"};
+      }});
+    assert.equal(second.snapshot().phase, "uncertain");
+    assert.equal(await second.reconcilePendingTurn(), true);
+    assert.equal(observed, 1);
+    assert.equal(second.snapshot().reconciliation.disposition, "host-terminal");
+    assert.equal(second.snapshot().phase, "uncertain");
+    assert.match(second.snapshot().prompt, /not yet recovered/u);
+    assert.equal(second.submit("new proposal"), false);
+    assert.equal(dispatched, false);
+    assert.equal(JSON.stringify(second.snapshot()).includes(token), false);
+    await second.close();
   } finally { rmSync(root, {recursive: true, force: true}); }
 });
 

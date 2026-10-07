@@ -1,9 +1,19 @@
 # Automatic ARE integration for the existing conversation
 
 Status: planning candidate. Route: CA2-ROUTE-PLAN. Owner: ARE product owner.
-Target conversation: `01a072f5-d339-77e1-931a-5244b57f3982`.
-Scope authorized now: planning only. No host configuration, model session,
-repository runtime, learned state, credentials or conversation history is changed.
+Target conversation: `01a0d8c7-9192-7d62-aafb-8eb07c1d558c`.
+The earlier `01a072f5-d339-77e1-931a-5244b57f3982` target in the
+initial source register and prototype receipts is historical provenance, not
+the current cutover target. The active Codex goal and task APIs both identify
+the target above; a separate read-only App Server process matched its thread
+and session IDs and active goal. This is a candidate binding observation, not
+an exclusive writer handover or activation. Run the
+[target-binding guard](../../../implementation/agent-reasoning-engine/scripts/check-g1-target-binding.mjs)
+from the task session before any future handover probe; target drift blocks.
+Initial scope of this planning artifact: planning only. Later owner-directed
+construction is tracked in the [work-pack](INTEGRATION-WORK-PACK.md); no host
+configuration, model session, learned state, credentials or conversation history
+is changed by this target-binding correction.
 This is not an admitted Goal or execution binding; the route registry records
 Goals validation as blocked. That does not prevent this planning candidate.
 
@@ -14,6 +24,14 @@ by ARE automatically. ARE tracks the current objective, interprets corrections,
 updates scoped understanding, selects relevant context, observes results, and
 uses repeated failures to propose capability improvements. The user need not ask
 the assistant to call ARE. Replies still arrive through the selected chat client.
+The conditional meaning of “ARE controls the session chat” and the exact
+activation gate are specified in the
+[activated-session control contract](SESSION-CONTROL-CONTRACT.md). This plan
+does not itself activate that control.
+The [integration map](INTEGRATION-MAP.md) distinguishes the session controller,
+interaction clients, host backends, decision interfaces, model transports,
+observers and Evolution handoffs. Codex is one backend, not the definition of
+ARE session ownership.
 
 Preserve this conversation and, preferably, the existing desktop interface.
 Same-history continuation through a different client and same-desktop automatic
@@ -51,7 +69,7 @@ does not establish access to this desktop conversation or a replacement transpor
 
 ```text
 User's selected client
-  -> authenticated ARE gateway / one conversation owner
+  -> authenticated ARE gateway / one conversation writer after activation
   -> classify input and update current objective
   -> interpret feedback against the relevant completed episode
   -> validate scope, provenance, conflicts and requested control

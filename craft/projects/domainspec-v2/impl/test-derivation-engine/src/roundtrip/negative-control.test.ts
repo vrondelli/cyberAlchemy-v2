@@ -21,7 +21,7 @@ import { runNegativeControl, SENTINEL_ID } from "./negative-control.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FEATURE_DIR = resolve(
   __dirname,
-  "../../../../../../validation/poker-team/docs/features/financial-settlement",
+  "../../__fixtures__/financial-settlement",
 );
 
 describe("INV-3 negative control: the gate CAN fail", () => {

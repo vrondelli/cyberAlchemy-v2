@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   assertCanonicalEqual,
   assertExactRef,
+  canonicalJson,
   digestValue,
   exactRef,
   readJson,
@@ -38,6 +39,16 @@ export const L1_PATHS = {
   r4Fixture: "projects/domainspec-v2/development/evolvable-validation-framework/fixtures/SWU-GCP-003-R4/financial-settlement-r4-input.v1.json",
   r4Binding: "projects/domainspec-v2/development/evolvable-validation-framework/fixtures/SWU-GCP-003-R4/financial-settlement-r4-binding.v1.json",
 } as const;
+
+export type L1ProjectionPaths = Readonly<{
+  graph: string;
+  sourceManifest: string;
+}>;
+
+export const L1_CURRENT_PROJECTION: L1ProjectionPaths = {
+  graph: "projects/domainspec-v2/impl/spec/features/financial-settlement/generated-current-20261002/graph.json",
+  sourceManifest: "projects/domainspec-v2/impl/spec/features/financial-settlement/generated-current-20261002/source-manifest.json",
+};
 
 export type MintedGraph = {
   readonly schema_version: "minted-graph/v1";
@@ -116,12 +127,19 @@ function expectedFor(unit: "P4" | "R4"): {
       };
 }
 
-export function loadFinancialSettlementGraph(repoRoot: string): MintedGraph {
-  return readJson<MintedGraph>(repoRoot, L1_PATHS.graph);
+export function loadFinancialSettlementGraph(
+  repoRoot: string,
+  projection: L1ProjectionPaths = L1_PATHS,
+): MintedGraph {
+  return readJson<MintedGraph>(repoRoot, projection.graph);
 }
 
-function validateManifest(repoRoot: string, graph: MintedGraph): SourceManifest {
-  const manifest = readJson<SourceManifest>(repoRoot, L1_PATHS.sourceManifest);
+function validateManifest(
+  repoRoot: string,
+  graph: MintedGraph,
+  projection: L1ProjectionPaths,
+): SourceManifest {
+  const manifest = readJson<SourceManifest>(repoRoot, projection.sourceManifest);
   if (
     manifest.schema_version !== "minted-source-manifest/v1" ||
     manifest.project_id !== "financial-settlement" ||
@@ -182,9 +200,13 @@ function relationshipSignature(repoRoot: string): RelationshipSignature {
   };
 }
 
-function graphHandle(repoRoot: string, graph: MintedGraph): GraphHandle {
-  const graphRef = exactRef(repoRoot, L1_PATHS.graph);
-  const sourceManifestRef = exactRef(repoRoot, L1_PATHS.sourceManifest);
+function graphHandle(repoRoot: string, graph: MintedGraph, projection: L1ProjectionPaths): GraphHandle {
+  const selectedGraph = readJson<MintedGraph>(repoRoot, projection.graph);
+  if (canonicalJson(graph) !== canonicalJson(selectedGraph)) {
+    fail("SOURCE_GRAPH_DIGEST_STALE", "derivation", "in-memory graph differs from selected graph bytes");
+  }
+  const graphRef = exactRef(repoRoot, projection.graph);
+  const sourceManifestRef = exactRef(repoRoot, projection.sourceManifest);
   const relationshipRef = exactRef(repoRoot, L1_PATHS.relationshipRegistry);
   const kindsRef = exactRef(repoRoot, L1_PATHS.kindsRegistry);
   const profileRef = exactRef(repoRoot, L1_PATHS.profile);
@@ -214,10 +236,15 @@ function exactOne<T>(items: readonly T[], code: "EDGE_ENDPOINT_MISMATCH" | "EDGE
 export function deriveUnit(
   repoRoot: string,
   unit: "P4" | "R4",
-  options: { readonly graph?: MintedGraph; readonly signature?: RelationshipSignature } = {},
+  options: {
+    readonly graph?: MintedGraph;
+    readonly signature?: RelationshipSignature;
+    readonly projection?: L1ProjectionPaths;
+  } = {},
 ): DerivationResult {
   const expected = expectedFor(unit);
-  const graph = options.graph ?? loadFinancialSettlementGraph(repoRoot);
+  const projection = options.projection ?? L1_PATHS;
+  const graph = options.graph ?? loadFinancialSettlementGraph(repoRoot, projection);
   if (
     graph.schema_version !== "minted-graph/v1" ||
     graph.authority !== "generated-semantic-read-model" ||
@@ -225,7 +252,7 @@ export function deriveUnit(
   ) {
     fail("SOURCE_GRAPH_DIGEST_STALE", "derivation", "graph identity or authority is invalid");
   }
-  validateManifest(repoRoot, graph);
+  validateManifest(repoRoot, graph, projection);
   assertRelationshipSignature(options.signature ?? relationshipSignature(repoRoot));
 
   const p4Nodes = graph.nodes.filter((node) => node.node_id === P4_IDENTITY.rule_id && node.kind === "Rule");
@@ -280,7 +307,7 @@ export function deriveUnit(
   return {
     unit,
     identity: expected.identity,
-    graph_handle: graphHandle(repoRoot, graph),
+    graph_handle: graphHandle(repoRoot, graph, projection),
     O_spec: spec.obligation,
     O_gen: generated,
     comparison: "equal",

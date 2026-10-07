@@ -34,10 +34,10 @@ export function createIndexTokenizer({registry,reference,maximum_calls,maximum_t
   }};
 }
 
-export function liveClientFactory({credential_path,signal,persistence,before_dispatch}){
+export function liveClientFactory({credential_path,credential_override,post=postOnce,signal,persistence,before_dispatch}){
   if(!persistence||typeof before_dispatch!=='function')throw Error('bounded-client.persistence-and-dispatch-check-required');
   // Resolve credential reference/configuration only. Secret bytes remain with the provider.
-  const {registry,reference}=credentials(credential_path);
+  const {registry,reference}=credential_override??credentials(credential_path);
   return {
     create_client:({cell,record_event=()=>{}})=>{
       const profile=cell.provider_profile;
@@ -51,9 +51,9 @@ export function liveClientFactory({credential_path,signal,persistence,before_dis
         maximum_tokenizer_transport_attempts:profile.request_tokenizer_transport_attempts??1,
         request_budget:cell.limits.output_deferral===true?'contextbench-deferral-v1':cell.limits.finalization_reserve_tokens>0?'contextbench-budget-v1':'holdout-window-v1',
         maximum_request_bytes:262144,token_margin:profile.token_margin,reasoning_effort:profile.reasoning_effort,
-        model_timeout_ms:profile.model_timeout_ms,signal,persistence,before_dispatch});
+        model_timeout_ms:profile.model_timeout_ms,signal,persistence,before_dispatch,post});
       const index=createIndexTokenizer({registry,reference,maximum_calls:profile.index_tokenizer_maximum_calls,maximum_transport_attempts:profile.index_tokenizer_transport_attempts??1,
-        record:receipt=>record_event({kind:'index-tokenizer',receipt}),signal,before_dispatch});
+        record:receipt=>record_event({kind:'index-tokenizer',receipt}),signal,before_dispatch,post});
       return {...client,index_receipts:index.receipts,measure_index:index.measure};
     },
     measure_index_tokens:(text,client)=>client.measure_index(text)

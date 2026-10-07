@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+import {createHash} from "node:crypto";
+import {existsSync, readFileSync, rmSync, writeFileSync} from "node:fs";
+import {join, resolve} from "node:path";
+
+import {createDurableEvolutionKernel, createEvolutionCoordinator, loadCandidateCycleDefinitionRegistry} from "../../index.mjs";
+import {canonicalJson} from "../../../intent-route-resolver/index.mjs";
+
+const argument = (name) => { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : null; };
+const cycleRoot = resolve(argument("--cycle-root") ?? "");
+const engineRoot = join(cycleRoot, "engine");
+const cycleRef = "cycle:controlled-upgrade:ilh04-headless-operational-v1";
+const phase = "operational-headless-binding";
+const validatorRef = "validator:ilh04-headless-operational-artifact-v1";
+const registry = loadCandidateCycleDefinitionRegistry();
+const definition = registry.definitions.find((entry) => entry.cycle_kind === "controlled-upgrade");
+if (!definition) throw new Error("operational-continuity-settlement.definition-missing");
+const files = [["decision", "owner-decision.json"], ["plan", "operational-plan.json"], ["state", "continuity-state.json"], ["manifest", "activation-manifest.json"], ["canary", "operational-canary-result.json"], ["live", "live-initialize-result.json"], ["validation", "operational-validation.json"], ["package", "operational-package.json"]];
+for (const [, file] of files) if (!existsSync(join(cycleRoot, file))) throw new Error(`operational-continuity-settlement.artifact-missing:${file}`);
+const hashFile = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
+const tasks = files.map(([name, file], index) => ({task_id: `task:ilh04-headless-operational:${name}`, title: `Bind verified IL-H04 operational ${name} artifact`, owner: "agent", lane: "controlled-upgrade", stage: name, question_ref: `question:ilh04-headless-operational:${name}`, depends_on: index ? [`task:ilh04-headless-operational:${files[index - 1][0]}`] : [], completion_criteria: [`criterion:ilh04-headless-operational:${name}`], validator_ref: validatorRef, artifact_file: file}));
+const plan = {schema_version: "are.research-work-plan/v1", plan_digest: definition.definition_digest, research_dag: {dag_digest: "8".repeat(64)}, tasks, topological_order: tasks.map((task) => task.task_id), authority_effect: "none"};
+const envelope = {schema_version: "are.evolution-effect-envelope/v1", envelope_ref: "envelope:controlled-upgrade:ilh04-headless-operational-v1", cycle_ref: cycleRef, cycle_definition_digest: definition.definition_digest, authorization_ref: "conversation:do-everything-to-finish-this", allowed_effect_classes: ["repository-read"], resource_limits: {maximum_attempts: 1, maximum_concurrency: 1, maximum_tokens: 16, maximum_cost: 0, maximum_elapsed_seconds: 120}, expires_at: "2030-01-01T00:00:00.000Z", enabled: true, authority_effect: "none"};
+const actor = {actor_id: "agent:ilh04-headless-operational", actor_kind: "agent"};
+const base = (revision, idempotency_key) => ({idempotency_key, expected_event_revision: revision, actor, worker_ref: null, cycle_ref: cycleRef, cycle_definition_ref: definition.definition_ref, cycle_definition_digest: definition.definition_digest});
+const options = (kernel, strict = true) => ({kernel, registry, verify_plan: strict ? (candidate) => canonicalJson(candidate) === canonicalJson(plan) : () => true, validators: strict ? {[validatorRef]: ({task, evidence}) => ({ok: evidence.length === 1 && evidence[0].criterion_id === task.completion_criteria[0] && evidence[0].artifact_digest === hashFile(join(cycleRoot, task.artifact_file))})} : {}, cycle_validators: strict ? {"controlled-upgrade": ({definition: bound, plan: boundPlan, envelope: boundEnvelope}) => ({ok: bound.definition_digest === definition.definition_digest && canonicalJson(boundPlan) === canonicalJson(plan) && boundEnvelope.authorization_ref === envelope.authorization_ref})} : {}, now: () => "2026-09-24T23:00:00.000Z"});
+const kernel = createDurableEvolutionKernel({root: engineRoot, require_enabled: false});
+const coordinator = createEvolutionCoordinator(options(kernel));
+let projection = coordinator.inspect().value;
+let row = projection.phases.find((entry) => entry.cycle_ref === cycleRef && entry.phase === phase);
+if (!row) {
+  const admitted = coordinator.admitPhase({...base(0, `${cycleRef}:admit`), phase, plan, envelope, prerequisite_receipt_refs: ["package:IL-H04-local-headless-activation-v1", "conversation:do-everything-to-finish-this"]});
+  if (admitted.disposition !== "accepted") throw new Error(`operational-continuity-settlement.admission-failed:${admitted.reason_codes.join(",")}`);
+}
+while (true) {
+  projection = coordinator.inspect().value;
+  row = projection.phases.find((entry) => entry.cycle_ref === cycleRef && entry.phase === phase);
+  if (!row.frontier.length) break;
+  const taskRef = row.frontier[0];
+  const leased = coordinator.leaseWork({...base(row.event_refs.length, `${cycleRef}:lease:${row.event_refs.length}`), phase, task_ref: taskRef, worker_ref: "worker:ilh04-operational-binder", rationale: "Bind an already validated operational continuity artifact.", effect_class: "repository-read", resource_request: {tokens: 1, cost: 0, elapsed_seconds: 1}, lease_seconds: 300});
+  if (leased.disposition !== "accepted") throw new Error(`operational-continuity-settlement.lease-failed:${leased.reason_codes.join(",")}`);
+  projection = coordinator.inspect().value;
+  row = projection.phases.find((entry) => entry.cycle_ref === cycleRef && entry.phase === phase);
+  const item = row.work_items.find((entry) => entry.task_id === taskRef);
+  const task = tasks.find((entry) => entry.task_id === taskRef);
+  const settled = coordinator.settleWork({...base(row.event_refs.length, `${cycleRef}:settle:${row.event_refs.length}`), phase, task_ref: taskRef, lease_ref: item.active_lease.lease_ref, fencing_token: item.active_lease.fencing_token, outcome: "succeeded", evidence: [{criterion_id: task.completion_criteria[0], artifact_ref: `artifact:ilh04-headless-operational:${task.stage}`, artifact_digest: hashFile(join(cycleRoot, task.artifact_file))}], accounting: {tokens: 1, cost: 0, elapsed_seconds: 1}});
+  if (settled.disposition !== "accepted") throw new Error(`operational-continuity-settlement.settle-failed:${settled.reason_codes.join(",")}`);
+}
+const final = coordinator.inspect().value;
+const finalRow = final.phases.find((entry) => entry.cycle_ref === cycleRef && entry.phase === phase);
+if (!finalRow || finalRow.work_items.some((entry) => entry.state !== "completed")) throw new Error("operational-continuity-settlement.incomplete");
+const before = canonicalJson(final);
+const restarted = createEvolutionCoordinator(options(createDurableEvolutionKernel({root: engineRoot, require_enabled: false}), false)).inspect().value;
+if (canonicalJson(restarted) !== before) throw new Error("operational-continuity-settlement.restart-drift");
+rmSync(join(engineRoot, "index", "evolution.sqlite"), {force: true});
+const recoveringKernel = createDurableEvolutionKernel({root: engineRoot, require_enabled: false});
+if (recoveringKernel.diagnose().value.disposition !== "rebuild-required") throw new Error("operational-continuity-settlement.recovery-diagnosis-invalid");
+recoveringKernel.recover();
+const recovered = createEvolutionCoordinator(options(recoveringKernel, false)).inspect().value;
+if (canonicalJson(recovered) !== before) throw new Error("operational-continuity-settlement.recovery-drift");
+const material = {schema_version: "are.operational-continuity-coordinator-settlement/v1", cycle_ref: cycleRef, definition_digest: definition.definition_digest, phase, task_count: finalRow.work_items.length, completed_task_count: finalRow.work_items.filter((entry) => entry.state === "completed").length, accounting: finalRow.accounting, restart_verified: true, sqlite_loss_recovery_verified: true, coordination_projection_digest: createHash("sha256").update(before).digest("hex"), activation: "controlled-local-operational", authority_effect: "none"};
+const settlement = {...material, settlement_digest: createHash("sha256").update(canonicalJson(material)).digest("hex")};
+writeFileSync(join(cycleRoot, "coordinator-settlement.json"), `${canonicalJson(settlement)}\n`, {mode: 0o600});
+process.stdout.write(`${canonicalJson({ok: true, ...settlement})}\n`);

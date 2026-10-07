@@ -1,4 +1,5 @@
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -33,6 +34,12 @@ class ProvisioningTests(unittest.TestCase):
     def rows(self):
         with sqlite3.connect(self.root / 'history.sqlite') as db:
             return [json.loads(row[0]) for row in db.execute('SELECT body FROM history ORDER BY seq')]
+
+    def test_local_host_test_harness_is_in_exact_source_closure(self):
+        script = ROOT / 'run-local-host-tests.sh'
+        key = str(script.relative_to(compiler.REPO))
+        manifest = host.load(ROOT / 'source-manifest.json')
+        self.assertEqual(manifest['sources'].get(key), hashlib.sha256(script.read_bytes()).hexdigest())
 
     def test_real_ansible_dag_and_restart(self):
         first = self.invoke()
@@ -180,8 +187,14 @@ class ProvisioningTests(unittest.TestCase):
     def test_nonlocal_root_and_unknown_adapter_are_rejected(self):
         with self.assertRaisesRegex(RuntimeError, 'ROOT_MUST_BE_PRIVATE_TMP_FIXTURE'):
             host.open_root('/home/anything')
+        with self.assertRaisesRegex(RuntimeError, 'ROOT_MUST_BE_PRIVATE_TMP_FIXTURE'):
+            host.open_root('/var/tmp/alch-provision-valid/child')
         with self.assertRaisesRegex(RuntimeError, 'ADAPTER_NOT_ALLOWED'):
             host.execute('shell', self.root, {}, None, 1)
+
+    def test_private_var_tmp_root_is_accepted(self):
+        with tempfile.TemporaryDirectory(prefix='alch-provision-', dir='/var/tmp') as value:
+            self.assertEqual(host.open_root(value), Path(value))
 
 
 if __name__ == '__main__':

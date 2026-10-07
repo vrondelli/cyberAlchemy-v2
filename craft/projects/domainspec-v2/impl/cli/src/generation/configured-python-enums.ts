@@ -6,7 +6,7 @@ import type {PlannedArtifact} from './contracts.js';
 export const PYTHON_ENUM_SELECTION_VERSION = 'domainspec.configured-python-enums-selection/v1-candidate';
 export const PYTHON_ENUM_PROTOCOL = 'python.nominal-enum-explicit-wire/v1';
 export const PYTHON_ENUM_SOURCE_DIGESTS = Object.freeze({
-  configuration: 'c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d',
+  configuration: '9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317',
   base: '48d0ba174105b020bb6b94c79c27b208a67f7d5f92d4c0c9c3a28c7d91a04d9f',
   python: '148cd333265563f6591ad6cd1cd7300b2fe0af3b9ec19de84ab4dab3162fbca4',
 });

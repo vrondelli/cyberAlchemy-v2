@@ -5,10 +5,21 @@ import {serveBuild} from './serve-build.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(resolve(root, '../video/package.json'));
-const {chromium} = require('playwright-core');
+let playwright;
+try {
+  playwright = require('playwright-core');
+} catch (error) {
+  const externalRoot = process.env.ARE_PLAYWRIGHT_ROOT?.trim();
+  if (!externalRoot) {
+    throw new Error('playwright-core is unavailable; install it or set ARE_PLAYWRIGHT_ROOT to a trusted Playwright package', {cause: error});
+  }
+  playwright = require(externalRoot);
+}
+const {chromium} = playwright;
 const preview = await serveBuild(resolve(root, 'dist'));
+const chromiumExecutable = process.env.ARE_CHROMIUM?.trim();
 const browser = await chromium.launch({
-  executablePath: process.env.ARE_CHROMIUM ?? '/home/vrondelli/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
+  ...(chromiumExecutable ? {executablePath: chromiumExecutable} : {}),
   args: ['--no-sandbox'],
 });
 const page = await browser.newPage({viewport: {width: 1280, height: 900}});
@@ -29,6 +40,8 @@ await page.route('**/are/api/are/**', async route => {
     if (chatRequests > 1) return route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: 'provider-unavailable'})});
     const events = [
       {type: 'session', conversation_id: '11111111-1111-4111-8111-111111111111', session_token: 'a'.repeat(64), state: {...state, turns_remaining: 20}},
+      {type: 'activity', kind: 'route', decision_kind: 'block', route_id: null, reason_codes: ['selection.no-match'], authority_effect: 'none'},
+      {type: 'activity', kind: 'conversation-mode', mode: 'no-route', reason_codes: ['selection.no-match'], authority_effect: 'none', tools_available: 0},
       {type: 'message', text: '## Rendered heading\n\n**Bold answer**\n\n| Check | Result |\n| --- | --- |\n| Markdown | Safe |'},
       {type: 'done'},
       {type: 'state', state},
@@ -49,6 +62,9 @@ try {
   check('assistant Markdown emphasis renders', await page.locator('.live-answer strong', {hasText: 'Bold answer'}).count() === 1);
   check('assistant Markdown table renders', await page.locator('.live-answer table').count() === 1);
   check('raw Markdown markers are not visible', !(await page.locator('.live-answer').innerText()).includes('**'));
+  await page.getByText('ARE at work', {exact: false}).click();
+  check('router no-match is visible', await page.getByText('Route · no match', {exact: true}).count() === 1);
+  check('conversation-only boundary is visible', await page.getByText('Conversation only · no ARE route selected', {exact: true}).count() === 1);
 
   await page.getByRole('link', {name: 'Documentation', exact: true}).click();
   await page.getByRole('heading', {name: 'What would you like to do?'}).waitFor();
@@ -57,10 +73,21 @@ try {
   await page.getByRole('heading', {name: 'Rendered heading'}).waitFor();
   check('conversation survives navigation', await page.getByText('Show formatted output', {exact: true}).count() === 1);
   check('allowance survives navigation', await page.getByText('19 turns left', {exact: true}).count() >= 1);
+  check('tab binding survives navigation', await page.evaluate(() => {const stored = JSON.parse(sessionStorage.getItem('are.live-chat/v1') ?? 'null'); return !!stored?.tabId && stored.tabId === history.state?.__areLiveChatTabId;}));
   await page.reload();
+  check('tab binding survives reload', await page.evaluate(() => {const stored = JSON.parse(sessionStorage.getItem('are.live-chat/v1') ?? 'null'); return !!stored?.tabId && stored.tabId === history.state?.__areLiveChatTabId;}));
   await page.getByRole('heading', {name: 'Rendered heading'}).waitFor();
   check('conversation survives a same-tab refresh', await page.getByText('Show formatted output', {exact: true}).count() === 1);
   check('server revalidates the refreshed session', await page.getByText('19 turns left', {exact: true}).count() >= 1);
+
+  const opened = page.context().waitForEvent('page');
+  await page.evaluate(() => window.open(location.href, '_blank'));
+  const child = await opened;
+  await child.getByRole('heading', {name: 'What are you working on?'}).waitFor();
+  check('opener-created tab starts with a fresh conversation', await child.getByText('Show formatted output', {exact: true}).count() === 0);
+  await child.waitForFunction(() => sessionStorage.getItem('are.live-chat/v1') === null);
+  check('opener-cloned capability is discarded', await child.evaluate(() => sessionStorage.getItem('are.live-chat/v1') === null));
+  await child.close();
 
   await composer.fill('Retry this request');
   await page.getByRole('button', {name: 'Send ↑'}).click();

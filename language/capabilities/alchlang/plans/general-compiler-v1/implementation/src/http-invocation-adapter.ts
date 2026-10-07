@@ -1,4 +1,4 @@
-import type {HttpInvocation,HttpAttempt,BindingIdentity,InvocationJson,InvocationControl} from '../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/runtime/http-invocation.js';
+import type {HttpInvocation,HttpAttempt,BindingIdentity,InvocationJson,InvocationControl} from './integration-runtime-types.js';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {defaultDomainSpecPackageRoot} from './domainspec-cli.js';
@@ -18,7 +18,7 @@ export function createHttpInvocation({bindings,fetchImpl=fetch,allowLoopbackFixt
  }
  const resolveBinding=(identity:any)=>{const b=configured.get(identity.id);if(!b||b.version!==identity.version||b.model!==identity.model)fail('BINDING_MISMATCH');return {id:b.id,version:b.version,model:b.model,remote_model:b.remoteModel??b.model};};
  const sendOnce:HttpInvocation['sendOnce']=(identity:BindingIdentity,body:InvocationJson,control:InvocationControl):HttpAttempt=>{
-  const b=configured.get(identity.id);if(!b||b.version!==identity.version)fail('BINDING_MISMATCH');
+  const b=configured.get(identity.id);if(!b||b.version!==identity.version||b.model!==identity.model)fail('BINDING_MISMATCH');
   const controller=new AbortController();let reader:ReadableStreamDefaultReader<Uint8Array>|undefined,cancelPromise:Promise<void>|undefined,ended=false,started=false;
   let settle!:()=>void;const settled=new Promise<void>(r=>{settle=r;});
   const finish=()=>{if(ended)return;ended=true;control.signal.removeEventListener('abort',onAbort);settle();};

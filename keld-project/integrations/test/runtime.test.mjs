@@ -26,6 +26,9 @@ test('config validates fixture and TLS locally, preserves integer quotes and agg
  const {input,root,path}=await configFixture(t);const config=await loadConfig(path,{env});
  assert.equal((await config.integration.quoteBrl(5001)).amountCents,25005);
  assert.equal(config.integration.auth.namespace,'keld');
+ assert.equal(config.integration.automaticReplacement,false);
+ assert.equal(compileConfig({...input,checkout:{automaticReplacement:true}},{env}).integration.automaticReplacement,true);
+ assert.throws(()=>compileConfig({...input,checkout:{automaticReplacement:'true'}},{env}),e=>e.issues.some(i=>i.path==='checkout.automaticReplacement'));
  assert.equal(config.integration.payments.mercadopago.api,'orders-v1');
  assert.equal(config.integration.payments.paypal.currency,'USD');
  assert.throws(()=>compileConfig({...input,payments:{...input.payments,paypal:{...input.payments.paypal,currency:'EUR'}}},{env}),e=>e.issues.some(i=>i.path==='payments.paypal.currency'));
@@ -38,6 +41,8 @@ test('config validates fixture and TLS locally, preserves integer quotes and agg
  const expired={...input,quoteBrl:{...input.quoteBrl,expiresAt:1}};
  assert.throws(()=>compileConfig(expired,{env}),e=>e.issues.some(i=>i.path==='quoteBrl.expiresAt'));
  assert.equal(compileConfig(expired,{env,requireCurrentQuote:false}).integration.payments.environment,'sandbox');
+ const fixed=compileConfig({...input,quoteBrl:{numerator:510,denominator:100,reference:'merchant-fixed-5.10',expiresAt:null}},{env,now:4102444800});
+ assert.deepEqual(await fixed.integration.quoteBrl(5001),{amountCents:25505,currency:'BRL',reference:'merchant-fixed-5.10'});
  assert.throws(()=>compileConfig({...input,origin:'https://0.0.0.0:17443'},{env:{...env,KELD_STRIPE_SECRET:'sk_live_private-secret'}}),e=>{
    const paths=e.issues.map(i=>i.path);assert.ok(paths.includes('origin'));assert.ok(paths.includes('payments.stripe.secretEnv'));assert.ok(!JSON.stringify(e).includes('private-secret'));return true;
  });

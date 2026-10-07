@@ -5,6 +5,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const target = path.resolve(process.argv[2] ?? "");
+const route = process.argv[3] ?? "/webhook";
+assert.match(route, /^\/[A-Za-z0-9/_-]+$/);
 const dist = path.join(target, "dist");
 const inboundCandidates = fs.readdirSync(dist, { recursive: true })
   .map(entry => String(entry).split(path.sep).join("/"))
@@ -27,7 +29,7 @@ try {
   const address = server.address();
   assert.notEqual(address, null);
   assert.equal(typeof address, "object");
-  const url = `http://127.0.0.1:${address.port}/webhook`;
+  const url = `http://127.0.0.1:${address.port}${route}`;
   const invalid = await fetch(url, { method: "POST", headers: { "x-domainspec-signature": "0".repeat(64) }, body });
   assert.equal(invalid.status, 401);
   assert.equal(invocations, 0);

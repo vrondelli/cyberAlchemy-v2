@@ -12,7 +12,7 @@ import {planConfiguredRustStateMachines, RUST_STATE_MACHINE_CONTRACT_SHA256, RUS
 import {rustSelectorModule} from '../../src/generation/configured-rust-values.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const contractPath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation/rust-state-machine-generation-contract.json');
 
 function fixture(t: any) {

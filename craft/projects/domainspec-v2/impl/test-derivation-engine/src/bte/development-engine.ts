@@ -137,7 +137,7 @@ export const RELATIONSHIP_CONTRACTS: Readonly<
   },
   maps: {
     source: ["Mapping"],
-    target: ["Entity", "Interface"],
+    target: ["Entity", "Value Object", "Interface"],
     scopes: ["same-feature", "cross-feature"],
   },
   contains: {

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/are/evolution-runtime/coordination-protocol-v1.schema.json",
+  "title": "ARE evolution coordination protocol v1",
+  "oneOf": [
+    {"$ref": "#/$defs/command"},
+    {"$ref": "#/$defs/event"},
+    {"$ref": "#/$defs/receipt"},
+    {"$ref": "#/$defs/result"}
+  ],
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id", "actor_kind"],
+      "properties": {
+        "actor_id": {"$ref": "#/$defs/identifier"},
+        "actor_kind": {"enum": ["user", "agent", "worker", "adapter", "runtime"]}
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_kind", "record_ref"],
+      "properties": {
+        "record_kind": {"$ref": "#/$defs/identifier"},
+        "record_ref": {"$ref": "#/$defs/identifier"}
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "command_id", "idempotency_key", "expected_event_revision", "actor", "cycle_ref", "cycle_definition_ref", "cycle_definition_digest", "operation", "target", "payload", "payload_digest", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-coordination-command/v1"},
+        "command_id": {"type": "string", "pattern": "^evolution-coordination-command:[a-f0-9]{64}$"},
+        "idempotency_key": {"$ref": "#/$defs/identifier"},
+        "expected_event_revision": {"type": "integer", "minimum": 0},
+        "actor": {"$ref": "#/$defs/actor"},
+        "worker_ref": {"oneOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_digest": {"$ref": "#/$defs/sha256"},
+        "operation": {"enum": ["phase.admit", "work.lease", "work.settle", "coordination.recover", "handoff.offer", "handoff.accept", "capacity.reserve", "capacity.release", "capacity.recover", "assignment.record", "worker-result.record"]},
+        "target": {"$ref": "#/$defs/target"},
+        "payload": {"type": "object"},
+        "payload_digest": {"$ref": "#/$defs/sha256"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "event_id", "cycle_ref", "revision", "command_id", "event_type", "target", "payload_digest", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-coordination-event/v1"},
+        "event_id": {"type": "string", "pattern": "^evolution-coordination-event:[a-f0-9]{64}$"},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "revision": {"type": "integer", "minimum": 1},
+        "command_id": {"type": "string", "pattern": "^evolution-coordination-command:[a-f0-9]{64}$"},
+        "event_type": {"enum": ["phase-admitted", "work-leased", "work-settled", "leases-recovered", "handoff-offered", "handoff-accepted", "handoff-rejected", "capacity-reserved", "capacity-released", "capacity-recovered", "assignment-recorded", "worker-result-recorded"]},
+        "target": {"$ref": "#/$defs/target"},
+        "payload_digest": {"$ref": "#/$defs/sha256"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "receipt_id", "receipt_digest", "command_id", "command_digest", "idempotency_key", "cycle_ref", "cycle_definition_digest", "disposition", "previous_event_revision", "next_event_revision", "event_refs", "reason_codes", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-coordination-receipt/v1"},
+        "receipt_id": {"type": "string", "pattern": "^evolution-coordination-receipt:[a-f0-9]{64}$"},
+        "receipt_digest": {"$ref": "#/$defs/sha256"},
+        "command_id": {"type": "string", "pattern": "^evolution-coordination-command:[a-f0-9]{64}$"},
+        "command_digest": {"$ref": "#/$defs/sha256"},
+        "idempotency_key": {"$ref": "#/$defs/identifier"},
+        "cycle_ref": {"$ref": "#/$defs/identifier"},
+        "cycle_definition_digest": {"$ref": "#/$defs/sha256"},
+        "disposition": {"enum": ["accepted", "rejected"]},
+        "previous_event_revision": {"type": "integer", "minimum": 0},
+        "next_event_revision": {"type": "integer", "minimum": 0},
+        "event_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^evolution-coordination-event:[a-f0-9]{64}$"}},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "command_id", "disposition", "receipt", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.evolution-coordination-result/v1"},
+        "command_id": {"type": "string", "pattern": "^evolution-coordination-command:[a-f0-9]{64}$"},
+        "disposition": {"enum": ["accepted", "rejected"]},
+        "receipt": {"$ref": "#/$defs/receipt"},
+        "authority_effect": {"const": "none"}
+      }
+    }
+  }
+}

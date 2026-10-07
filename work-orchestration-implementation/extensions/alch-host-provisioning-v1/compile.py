@@ -6,7 +6,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parent
-REPO = ROOT.parents[3]
+REPO = ROOT.parents[2]
 
 
 def canonical(value):
@@ -48,9 +48,10 @@ def write():
     paths += list((ROOT / 'generated').glob('*.json')) + list((ROOT / 'bridge').glob('Cargo.*'))
     paths += list((ROOT / 'bridge/src').glob('*.rs')) + list((ROOT / 'tests').glob('*.py'))
     paths += list(ROOT.glob('*.md')) + list((ROOT / 'definitions').glob('*.md'))
+    paths += [ROOT / 'Dockerfile.test', ROOT / 'run-local-host-tests.sh']
     runtime = ROOT.parents[1] / 'runtime'
     paths += list((runtime / 'src').rglob('*.rs')) + [runtime / 'Cargo.toml']
-    core = REPO / 'projects/cyberalchemy-orchestrator/implementations/rwo-rust'
+    core = REPO / 'orchestrator/rwo'
     paths += list((core / 'src').rglob('*.rs')) + [core / 'Cargo.toml']
     excluded = {'source-manifest.json', 'validation.json'}
     manifest = {'status': 'test-candidate', 'authority_effect': 'none',

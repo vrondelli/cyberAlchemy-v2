@@ -90,7 +90,7 @@ export function planConfiguredRustMappings(graph: CompiledProjectGraph, boundary
       const next = property(type, ontology);
       // Interface contracts are structural structs with public fields; domain
       // values retain their generated accessor boundary.
-      if (next.name !== null) code = type.kind === 'contract' ? `(&(${code}).${rustSnake(next.name)})` : `${code}.${rustSnake(next.name)}()`;
+      if (next.name !== null) code = type.kind === 'contract' ? `&(${code}).${rustSnake(next.name)}` : `${code}.${rustSnake(next.name)}()`;
       type = next.type;
     }
     return {type, code: `Clone::clone(${code})`};

@@ -2,6 +2,7 @@ import { CompilationRejected, SFOL_PROFILE, type CompilerIssue, type ScalarType,
 import { parseSfolFormula } from "./predicate-parser.js";
 import { normalizeApplicationFormalSource } from "./formal-claim.js";
 import { applicationIntegrationKinds } from "./application-integration.js";
+import { selectAlchSourceProfile } from "./profile-architecture.js";
 
 type Row = { line: number; text: string; indent?: number };
 type Section = { kind: string; id: string; rows: Row[]; line: number };
@@ -55,6 +56,7 @@ function parseSfolUInt64Term(source: string, inputs: ReadonlySet<string>): SfolU
 
 export function parseDomainSource(markdown: string): ParsedDomainSource {
   const extracted = extractSource(markdown);
+  const rootProfile = selectAlchSourceProfile(extracted.text);
   const rows = extracted.text.split(/\r?\n/).map((text, index) => ({ line: index + 1, text: text.replace(/\s+$/, "") })).filter((row) => row.text.trim() && !row.text.trimStart().startsWith("#"));
   const issues: CompilerIssue[] = [];
   let domainId = ""; let title = ""; let owner = "";
@@ -93,7 +95,16 @@ export function parseDomainSource(markdown: string): ParsedDomainSource {
       current = null;
       continue;
     }
-    const header = /^(formal-claim|entity|value-object|enum|actor|states|rule|boundary|permission|action|operation|effect|event|example|query|calculation|mapping|policy|workflow|interface|subscription|publication|inbound-endpoint|outbound-call|persistence|runtime-profile|realization)\s+([A-Za-z_][\w.-]*):?$/.exec(row.text);
+    const enforcement = /^([A-Za-z_][\w.-]*)\s+--enforces-->\s+([A-Za-z_][\w.-]*)$/.exec(row.text);
+    if (enforcement) {
+      current = { kind: "rule-enforcement", id: enforcement[1]!, rows: [{ line: row.line, text: enforcement[2]!, indent: 0 }], line: row.line };
+      sections.push(current); continue;
+    }
+    if (/^guard\s+/.test(row.text)) {
+      issues.push({ code: "GUARD_RULE_REFERENCE", path: `$line:${row.line}`, message: "guard must occur in a declared consumer and reference one Rule" });
+      current = null; continue;
+    }
+    const header = /^(formal-claim|entity|value-object|enum|actor|states|state-machine|invariant|rule|boundary|permission|action|operation|effect|event|example|query|calculation|mapping|policy|workflow|interface|subscription|publication|inbound-endpoint|outbound-call|persistence|runtime-profile|realization|verification-profile)\s+([A-Za-z_][\w.-]*):?$/.exec(row.text);
     if (header) { current = { kind: header[1], id: header[2], rows: [], line: row.line }; sections.push(current); if (header[1] === "entity") latestEntity = header[2]; continue; }
     if (/^states?:$/.test(row.text) && latestEntity) { current = { kind: "states", id: latestEntity, rows: [], line: row.line }; sections.push(current); continue; }
     if (row.text === "rule:") { current = { kind: "rule", id: `anonymous-rule-${++anonymousRule}`, rows: [], line: row.line }; sections.push(current); continue; }
@@ -101,7 +112,7 @@ export function parseDomainSource(markdown: string): ParsedDomainSource {
   }
   if (!domainId) issues.push({ code: "TEXT_REQUIRED", path: "$", message: "missing: domain <id> \"<title>\"" });
   if (!owner) issues.push({ code: "MISSING_OWNER", path: "$", message: "missing explicit owner <route>" });
-  if (applicationProfile) {
+  if (rootProfile.profile.id === "application-v1") {
     if (compatibilityProfile) issues.push({ code: "ALCH_PROFILE_CONFLICT", path: "$", message: "target and compatibility profiles cannot be combined" });
     if (domainDeclarations !== 1 || ownerDeclarations !== 1) issues.push({ code: "APPLICATION_IDENTITY", path: "$", message: "application source requires exactly one domain and one owner" });
     if (logicDeclared) issues.push({ code: "ALCH_PROFILE_CONFLICT", path: "$", message: "application-v1 cannot select legacy inline logic" });
@@ -109,7 +120,7 @@ export function parseDomainSource(markdown: string): ParsedDomainSource {
     return { source_kind: extracted.source_kind, source_profile: "application-v1", profile_selection: "explicit", diagnostics: [], carrier: { ...normalizeApplicationFormalSource({ id: domainId, title, owner }, sections) } };
   }
   for (const section of sections.filter(s => s.kind === "formal-claim")) issues.push({ code: "ALCH_PROFILE_REQUIRED", path: `$line:${section.line}`, message: "FormalClaim declarations require profile application-v1" });
-  for (const section of sections.filter(s => applicationIntegrationKinds.has(s.kind) || s.kind === "runtime-profile" || s.kind === "realization")) issues.push({ code: "ALCH_PROFILE_REQUIRED", path: `$line:${section.line}`, message: "integration, runtime and realization declarations require profile application-v1" });
+  for (const section of sections.filter(s => applicationIntegrationKinds.has(s.kind) || s.kind === "runtime-profile" || s.kind === "realization" || s.kind === "verification-profile")) issues.push({ code: "ALCH_PROFILE_REQUIRED", path: `$line:${section.line}`, message: "integration, runtime, realization and verification declarations require profile application-v1" });
 
   const terms: any[] = []; const facts: any[] = []; const states: any[] = []; const transitions: any[] = [];
   const rules: any[] = []; const actions: any[] = []; const effects: any[] = []; const permissions: any[] = []; const events: any[] = []; const examples: any[] = []; const boundaries: any[] = []; const edges: any[] = [];
@@ -310,9 +321,9 @@ export function parseDomainSource(markdown: string): ParsedDomainSource {
   return {
     source_kind: extracted.source_kind,
     source_profile: "legacy-sfol-v1",
-    profile_selection: compatibilityProfile ? "explicit" : "historical-default",
-    diagnostics: [{ code: compatibilityProfile ? "ALCH_LEGACY_COMPATIBILITY" : "ALCH_LEGACY_DEFAULT", path: "$",
-      message: compatibilityProfile ? "Explicit legacy SFOL compatibility syntax; not application-v1." : "Historical SFOL compatibility default retained; declare profile legacy-sfol-v1 to make selection explicit. No migration was performed." }],
+    profile_selection: rootProfile.selection,
+    diagnostics: [{ code: rootProfile.selection === "explicit" ? "ALCH_LEGACY_COMPATIBILITY" : "ALCH_LEGACY_DEFAULT", path: "$",
+      message: rootProfile.selection === "explicit" ? "Explicit legacy SFOL compatibility syntax; not application-v1." : "Historical SFOL compatibility default retained; declare profile legacy-sfol-v1 to make selection explicit. No migration was performed." }],
     carrier: {
       schema_version: "cav2.alchlang.carrier/v2-candidate",
       logic_profile: logicProfile,

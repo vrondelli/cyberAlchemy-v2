@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
+
+import { exactRef } from "./derive.js";
 
 import {
   ACCEPTANCE_VECTOR,
@@ -10,7 +14,7 @@ import {
 } from "./types.js";
 
 export interface NegativeControlReceipt {
-  readonly schema_version: "evf.evolvable-validation-receipt/v1";
+  readonly schema_version: "evf.evolvable-validation-receipt/v2";
   readonly receipt_id: string;
   readonly receipt_class: "negative-control";
   readonly swu_id: "SWU-GCP-001";
@@ -24,8 +28,8 @@ export interface NegativeControlReceipt {
 }
 
 export interface PositiveProofReceipt {
-  readonly schema_version: "evf.evolvable-validation-receipt/v1";
-  readonly receipt_id: "evf.s1.positive-proof.v1";
+  readonly schema_version: "evf.evolvable-validation-receipt/v2";
+  readonly receipt_id: "evf.s1.positive-proof.v2";
   readonly receipt_class: "positive-proof";
   readonly swu_id: "SWU-GCP-001";
   readonly exact_refs: readonly ExactRef[];
@@ -62,8 +66,8 @@ export function buildNegativeReceipt(input: {
   exactRefs: readonly ExactRef[];
 }): NegativeControlReceipt {
   return {
-    schema_version: "evf.evolvable-validation-receipt/v1",
-    receipt_id: `evf.s1.negative-control.${input.mutantId}.v1`,
+    schema_version: "evf.evolvable-validation-receipt/v2",
+    receipt_id: `evf.s1.negative-control.${input.mutantId}.v2`,
     receipt_class: "negative-control",
     swu_id: "SWU-GCP-001",
     exact_refs: input.exactRefs,
@@ -81,8 +85,8 @@ export function buildPositiveReceipt(input: {
   observations: readonly [RuntimeObservation, RuntimeObservation];
 }): PositiveProofReceipt {
   return {
-    schema_version: "evf.evolvable-validation-receipt/v1",
-    receipt_id: "evf.s1.positive-proof.v1",
+    schema_version: "evf.evolvable-validation-receipt/v2",
+    receipt_id: "evf.s1.positive-proof.v2",
     receipt_class: "positive-proof",
     swu_id: "SWU-GCP-001",
     exact_refs: input.exactRefs,
@@ -114,7 +118,7 @@ export function verifyReceipt(
     fail("RECEIPT_TAMPERED", "receipt digest does not match the independently retained digest");
   }
   if (
-    receipt.schema_version !== "evf.evolvable-validation-receipt/v1" ||
+    receipt.schema_version !== "evf.evolvable-validation-receipt/v2" ||
     receipt.swu_id !== "SWU-GCP-001" ||
     receipt.release_admission !== "not-granted" ||
     receipt.claim_ceiling !== "candidate-local-SWU-GCP-001-causal-proof-only" ||
@@ -140,5 +144,53 @@ export function verifyReceipt(
     !/^[A-Z][A-Z0-9_]+$/.test(receipt.stable_code)
   ) {
     fail("RECEIPT_TAMPERED", "negative receipt contract is invalid");
+  }
+}
+
+function within(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === "" || (rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel));
+}
+
+export function verifyReceiptCurrent(
+  receipt: EvolvableValidationReceipt,
+  repoRoot: string,
+  expectedRefs: readonly ExactRef[],
+  expectedObservations?: readonly [RuntimeObservation, RuntimeObservation],
+  outputRoot?: string,
+): void {
+  verifyReceipt(receipt);
+  if (
+    expectedRefs.length === 0 ||
+    canonicalJson(receipt.exact_refs) !== canonicalJson(expectedRefs) ||
+    (receipt.receipt_class === "positive-proof" &&
+      (!expectedObservations ||
+        canonicalJson(receipt.runtime_observations) !== canonicalJson(expectedObservations)))
+  ) {
+    fail("RECEIPT_TAMPERED", "receipt does not match the independently selected S1 evidence");
+  }
+  const sourceRoot = realpathSync(resolve(repoRoot));
+  const evidenceRoot = outputRoot ? realpathSync(resolve(outputRoot)) : undefined;
+  for (const ref of receipt.exact_refs) {
+    if (isAbsolute(ref.path)) fail("ARTIFACT_STALE", "absolute receipt ref is forbidden");
+    const target = resolve(sourceRoot, ref.path);
+    let realTarget: string;
+    try {
+      realTarget = realpathSync(target);
+    } catch {
+      fail("ARTIFACT_STALE", `receipt ref is missing: ${ref.path}`);
+    }
+    if (!within(sourceRoot, realTarget) && (!evidenceRoot || !within(evidenceRoot, realTarget))) {
+      fail("ARTIFACT_STALE", `receipt ref escapes selected roots: ${ref.path}`);
+    }
+    let observed: ExactRef;
+    try {
+      observed = exactRef(sourceRoot, ref.path);
+    } catch {
+      fail("ARTIFACT_STALE", `receipt ref is missing: ${ref.path}`);
+    }
+    if (observed.sha256 !== ref.sha256 || observed.size_bytes !== ref.size_bytes) {
+      fail("ARTIFACT_STALE", `receipt ref is stale: ${ref.path}`);
+    }
   }
 }

@@ -8,7 +8,7 @@ const hash=x=>createHash('sha256').update(typeof x==='string'?x:stable(x)).diges
 const need=(v,m)=>{if(!v)throw Error('comparison-ledger.'+m);};
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 export function reconcileComparisonLedger({cell,task,result,ledger,expected_identity,driver_binding=null,events}){
- need(['ranked-source-hints'].includes(cell?.comparison_arm),'arm');
+ need(['ranked-source-hints','intent-anchor-convergence-r3','intent-anchor-source-neighborhood-r1','intent-anchor-search-followthrough-r1','intent-anchor-objective-search-r1','intent-anchor-api-search-r1','intent-anchor-api-search-r2','intent-anchor-api-search-r3','intent-anchor-terminal-shortlist-r1','intent-anchor-terminal-shortlist-cap12-r1','intent-anchor-terminal-shortlist-adaptive-r1','intent-anchor-terminal-shortlist-objective-r1','intent-anchor-terminal-shortlist-distinctive-r1','intent-anchor-terminal-shortlist-distinctive-early-r1','intent-anchor-terminal-shortlist-distinctive-conditional-r1','intent-anchor-terminal-shortlist-distinctive-identifier-r1','intent-anchor-terminal-shortlist-distinctive-reasoning-view-r1','intent-anchor-terminal-shortlist-distinctive-reasoning-fallback-r1'].includes(cell?.comparison_arm),'arm');
  need(cell.context_limit===8000&&cell.limits?.total_tokens===96000&&cell.limits?.maximum_calls===96,'limits');
  need(task?.instance_id===cell.instance_id&&result?.instance_id===task.instance_id&&result.cell_id===cell.cell_id,'task-cell');
  need(sha(expected_identity)&&ledger?.identity===expected_identity,'external-identity');

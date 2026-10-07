@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
+import { findDomainSpecSourceRoot } from "../repository-root.js";
 import { fail, type ExactRef, type L1ErrorCode } from "./types.js";
 
 function normalize(value: unknown): unknown {
@@ -42,18 +43,9 @@ export function stableBytes(value: unknown): string {
 }
 
 export function repositoryRoot(start = process.cwd()): string {
-  let cursor = resolve(start);
-  for (;;) {
-    if (
-      existsSync(resolve(cursor, "AGENTS.md")) &&
-      existsSync(resolve(cursor, "projects/domainspec-v2"))
-    ) return cursor;
-    const parent = dirname(cursor);
-    if (parent === cursor) {
-      fail("TARGET_BASELINE_DRIFT", "admission", "repository root could not be resolved", 2);
-    }
-    cursor = parent;
-  }
+  const sourceRoot = findDomainSpecSourceRoot(start);
+  if (sourceRoot !== null) return sourceRoot;
+  fail("TARGET_BASELINE_DRIFT", "admission", "repository root could not be resolved", 2);
 }
 
 export function safeRepositoryPath(repoRoot: string, path: string): string {

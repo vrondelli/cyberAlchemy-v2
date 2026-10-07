@@ -1,0 +1,1741 @@
+{
+  "schema_version": "domainspec-v2.business-meaning/v3-typed-definitions-candidate",
+  "meaning_id": "BusinessMeaning:auth-foundation.admit-authorization-command-boundary",
+  "version": "3-typed-definitions-candidate",
+  "owner": "projects/auth-foundation/formalization",
+  "status": "draft",
+  "supersedes": "BusinessMeaning:auth-foundation.admit-authorization-command-boundary@1-clarified-accepted",
+  "supersession_effect": "lineage-only-until-accepted",
+  "base_accepted_meaning_ref": {
+    "path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/BUSINESS-MEANING.v1-clarified-accepted.json",
+    "sha256": "ce6690c7028bdd1f26671b6d01498faed179340675fbb2cfcc9a55fd6ff109fb",
+    "size_bytes": 6364,
+    "current": true
+  },
+  "definition_source_ref": {
+    "path": "auth-foundation/implementation/command-boundary-business-ontology.json",
+    "sha256": "aa57d9cdacb8e874fdb61cd726b1f5ea6fe4600f8a21802e9fb084ccfe2e2210",
+    "size_bytes": 10622,
+    "current": true
+  },
+  "interpretation_model_ref": {
+    "path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/INTERPRETATION-MODEL.v1-occurrences-candidate.json",
+    "sha256": "76dc4d8e88f99a27cbc563b41158cf2e05b10d05bfb03bdec7d9bc55ca21c821",
+    "size_bytes": 9844,
+    "current": true
+  },
+  "definition_policy": {
+    "canonical_location": "inline-in-this-business-meaning",
+    "normative_voice": "typed_ir",
+    "explanatory_voices": [
+      "formal.definition",
+      "formal.operational_interpretation",
+      "plain_language",
+      "domain_context"
+    ],
+    "conflict_rule": "typed-ir-prevails"
+  },
+  "domain_context": "Pure admission of one mechanically constructed candidate authorization command from complete server-owned resolver outputs before downstream authorization. Resolver lists preserve multiplicity.",
+  "rule": "For a representable, fully supplied CommandBoundaryContext evaluated normally, return READY if and only if the inbound request_id is nonempty; exactly one authentication list entry has evidence_ref equal to the requested authentication_evidence_ref, nonempty evidence_ref and session_id, and trusted true; exactly one route list entry has route_id equal to the requested route_id, nonempty route_id and scope_evidence_ref, complete true, and nonempty required_permission resource, action and scope; and the candidate request_id equals the inbound request_id while its session_id, required_permission resource, action and scope, and scope_evidence_ref equal the values of those same unique qualifying rows. Exactly one counts list entries, including equal duplicates. Every other normally evaluated in-scope context returns DENY without a downstream authorization call.",
+  "applies_when": [
+    "one fully supplied CommandBoundaryContext contains complete authentication and route-binding resolver lists preserving multiplicity and a candidate command",
+    "the selected typed Rules and command-boundary Operation evaluate normally"
+  ],
+  "actors": [
+    "trusted application constructing the candidate command and resolver context",
+    "command-boundary evaluator"
+  ],
+  "inputs": [
+    "inbound request_id, authentication_evidence_ref and route_id",
+    "complete authentication-evidence and route-binding lists",
+    "candidate authorization command"
+  ],
+  "outcomes": [
+    "READY exactly when nonempty request identity, both unique qualifying rows, and exact same-row candidate provenance hold",
+    "DENY without downstream authorization call in every other normally evaluated in-scope context"
+  ],
+  "examples": [
+    {
+      "case_id": "AUTH-CB-READY-EXACT-UNIQUE",
+      "given": "A nonempty request ID, exactly one fully qualifying authentication row and one fully qualifying route row, with candidate fields copied exactly from the request and those rows.",
+      "when": "The boundary evaluates the complete context.",
+      "then": "READY is returned.",
+      "why": "Every qualifier and same-row provenance condition holds."
+    },
+    {
+      "case_id": "AUTH-CB-DENY-BLANK-REQUEST-ID",
+      "given": "Both resolver lists each contain exactly one qualifying row and the candidate matches every source, but request and candidate request IDs are empty.",
+      "when": "The boundary evaluates the complete context.",
+      "then": "DENY is returned without downstream authorization.",
+      "why": "The inbound request identity is empty."
+    }
+  ],
+  "counterexamples": [
+    {
+      "case_id": "AUTH-CB-BLANK-ID-READY-REJECT",
+      "given": "An otherwise valid context has empty request and candidate request IDs.",
+      "when": "An implementation returns READY.",
+      "then": "It contradicts this candidate meaning.",
+      "why": "READY requires nonempty inbound request identity."
+    },
+    {
+      "case_id": "AUTH-CB-NONQUALIFYING-PROVENANCE-REJECT",
+      "given": "A unique qualifying authentication row has session S1, while a second matching but nonqualifying row has an empty session.",
+      "when": "The candidate takes its session from the nonqualifying row and an implementation returns READY.",
+      "then": "It contradicts this candidate meaning.",
+      "why": "Provenance must use the same unique qualifying row."
+    },
+    {
+      "case_id": "AUTH-CB-DUPLICATE-COLLAPSE-REJECT",
+      "given": "Two equal qualifying entries occur in either resolver list.",
+      "when": "An implementation collapses them and returns READY.",
+      "then": "It contradicts this candidate meaning.",
+      "why": "Exactly-one counts list entries, not distinct values."
+    },
+    {
+      "case_id": "AUTH-CB-MISSING-QUALIFIER-REJECT",
+      "given": "A matching route row is complete but has an empty required_permission.action.",
+      "when": "An implementation treats it as qualifying and returns READY.",
+      "then": "It contradicts this candidate meaning.",
+      "why": "All three permission components must be nonempty."
+    },
+    {
+      "case_id": "AUTH-CB-VALID-DENY-REJECT",
+      "given": "Every READY condition holds in a normally evaluated context.",
+      "when": "An implementation returns DENY.",
+      "then": "It contradicts this candidate biconditional.",
+      "why": "The positive READY branch is required."
+    }
+  ],
+  "boundaries": [
+    "This draft concerns the command-boundary READY/DENY decision, not downstream authorization ALLOW/DENY.",
+    "No behavior is asserted for exceptions, nontermination, missing resolver outputs, or contexts outside the selected typed contract.",
+    "The predecessor draft and its historical v1 contradiction remain pinned evidence; this candidate does not retroactively repair or accept them.",
+    "Finite native witnesses and source-bound AST identity do not prove all-context preservation.",
+    "No production authentication, authorization, security, EVF pass, F5 satisfaction, or runtime_guarantees_observed is asserted."
+  ],
+  "definitions": [
+    {
+      "definition_id": "AUTH-CB-DEF-CONTEXT-V2",
+      "term": "CommandBoundaryContext",
+      "definition_kind": "value-object",
+      "formal": {
+        "definition": "One fully supplied typed request, complete finite ordered authentication and route resolver lists, and one candidate authorization command.",
+        "notation": [
+          {
+            "symbol": "c",
+            "meaning": "One complete command-boundary context."
+          }
+        ],
+        "operational_interpretation": "Evaluate the selected typed context without deduplicating, dropping, or supplementing resolver rows.",
+        "typed_ir_exports": [
+          {
+            "domain": "model",
+            "selector": "#/typed_model_ir/context"
+          }
+        ]
+      },
+      "plain_language": "The whole input to one boundary decision, including every resolver row in order.",
+      "domain_context": "Before downstream authorization.",
+      "depends_on": [],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/0"
+      ],
+      "interpretation_refs": [
+        "#/types/0"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-CONTEXT"
+      ],
+      "forbidden_collapses": [
+        "partial context treated as a complete evaluation",
+        "list converted to a set"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-IN-SCOPE-NORMAL-V2",
+      "term": "InScopeNormal",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "The fixed input-domain condition for the accepted normally evaluated rule, independent of the observed outcome; the Context carrier is already limited to complete representable finite-list inputs.",
+        "notation": [
+          {
+            "symbol": "InScopeNormal(c)",
+            "meaning": "Every c in the fixed Context carrier is in scope."
+          }
+        ],
+        "operational_interpretation": "Determine the Context carrier from the input contract before evaluation; establish selected evaluator normal completion by a separate correspondence proof, never by filtering out an incorrect result.",
+        "typed_ir_exports": [
+          {
+            "domain": "model",
+            "selector": "#/typed_model_ir/scope"
+          }
+        ]
+      },
+      "plain_language": "The rule applies to complete inputs the selected evaluator can normally evaluate.",
+      "domain_context": "Exceptions, missing outputs and nontermination remain outside the claim, not silent failures counted as DENY.",
+      "depends_on": [
+        "AUTH-CB-DEF-CONTEXT-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/applies_when/0",
+        "#/applies_when/1",
+        "#/boundaries/1"
+      ],
+      "interpretation_refs": [
+        "#/predicates/4",
+        "#/assumptions/2"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-CONTEXT",
+        "AUTH-CB-OP-ADMIT-AUTHORIZATION-COMMAND"
+      ],
+      "forbidden_collapses": [
+        "post-hoc scope narrowing after a wrong result",
+        "missing resolver output treated as an empty complete list"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-AUTH-OCCURRENCE-V2",
+      "term": "AuthenticationListOccurrence",
+      "definition_kind": "entity",
+      "formal": {
+        "definition": "One authentication resolver entry identified by its context and zero-based position, not by its row value.",
+        "notation": [
+          {
+            "symbol": "a=(c,i)",
+            "meaning": "Authentication entry at position i of c's list."
+          }
+        ],
+        "operational_interpretation": "Equal rows at two list positions remain two occurrences; field projections are total but ghosts and foreign positions are never members.",
+        "typed_ir_exports": [
+          {
+            "domain": "model",
+            "selector": "#/typed_model_ir/occurrences/0"
+          }
+        ]
+      },
+      "plain_language": "Count entries, even if two entries contain identical data.",
+      "domain_context": "Authentication resolver list ambiguity must not disappear through deduplication.",
+      "depends_on": [
+        "AUTH-CB-DEF-CONTEXT-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/counterexamples/2"
+      ],
+      "interpretation_refs": [
+        "#/types/1",
+        "#/predicates/0",
+        "#/equality_rules/0"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-CONTEXT#resolved_authentication_evidence",
+        "AUTH-CB-AUTHENTICATED-SESSION-EVIDENCE"
+      ],
+      "forbidden_collapses": [
+        "row-value equality used as occurrence identity",
+        "ghost occurrence qualifying as a list entry"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-ROUTE-OCCURRENCE-V2",
+      "term": "RouteListOccurrence",
+      "definition_kind": "entity",
+      "formal": {
+        "definition": "One route resolver entry identified by its context and zero-based position, not by its row value.",
+        "notation": [
+          {
+            "symbol": "r=(c,j)",
+            "meaning": "Route entry at position j of c's list."
+          }
+        ],
+        "operational_interpretation": "Equal rows at two list positions remain two occurrences; field projections are total but ghosts and foreign positions are never members.",
+        "typed_ir_exports": [
+          {
+            "domain": "model",
+            "selector": "#/typed_model_ir/occurrences/1"
+          }
+        ]
+      },
+      "plain_language": "Count every route entry, including equal duplicates.",
+      "domain_context": "Route resolver list ambiguity must not disappear through deduplication.",
+      "depends_on": [
+        "AUTH-CB-DEF-CONTEXT-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/counterexamples/2"
+      ],
+      "interpretation_refs": [
+        "#/types/2",
+        "#/predicates/1",
+        "#/equality_rules/0"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-CONTEXT#resolved_route_bindings",
+        "AUTH-CB-ROUTE-AUTHORIZATION-BINDING"
+      ],
+      "forbidden_collapses": [
+        "row-value equality used as occurrence identity",
+        "ghost occurrence qualifying as a list entry"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-QUALIFYING-AUTH-V2",
+      "term": "QualifyingAuthenticationOccurrence",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A member authentication occurrence meeting every accepted evidence-reference, trust and session qualifier.",
+        "notation": [
+          {
+            "symbol": "QA(c,a)",
+            "meaning": "a is one fully qualifying authentication list position for c."
+          }
+        ],
+        "operational_interpretation": "Check all four field conditions on the same resolver entry after membership; do not use a weaker matching row for provenance.",
+        "typed_ir_exports": [
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-QUALIFYING-AUTH-V2"
+          }
+        ]
+      },
+      "plain_language": "A trusted matching auth row with real evidence and session IDs.",
+      "domain_context": "One such list entry is necessary, and two equal qualifying entries are ambiguous.",
+      "depends_on": [
+        "AUTH-CB-DEF-AUTH-OCCURRENCE-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/counterexamples/1",
+        "#/counterexamples/2"
+      ],
+      "interpretation_refs": [
+        "#/predicates/0",
+        "#/predicates/2"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-RULE-UNIQUE-TRUSTED-AUTHENTICATION-EVIDENCE"
+      ],
+      "forbidden_collapses": [
+        "matching evidence reference alone treated as qualification",
+        "nonqualifying row used for candidate session provenance"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-QUALIFYING-ROUTE-V2",
+      "term": "QualifyingRouteOccurrence",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "A member route occurrence meeting every accepted route, completeness, scope-evidence and permission-component qualifier.",
+        "notation": [
+          {
+            "symbol": "QR(c,r)",
+            "meaning": "r is one fully qualifying route list position for c."
+          }
+        ],
+        "operational_interpretation": "Check all seven field conditions on the same route entry after membership; no missing permission component can qualify.",
+        "typed_ir_exports": [
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-QUALIFYING-ROUTE-V2"
+          }
+        ]
+      },
+      "plain_language": "A complete matching route row with real scope evidence and all three permission fields.",
+      "domain_context": "One such list entry is necessary, and two equal qualifying entries are ambiguous.",
+      "depends_on": [
+        "AUTH-CB-DEF-ROUTE-OCCURRENCE-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/counterexamples/2",
+        "#/counterexamples/3"
+      ],
+      "interpretation_refs": [
+        "#/predicates/1",
+        "#/predicates/3"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-RULE-UNIQUE-COMPLETE-ROUTE-BINDING",
+        "AUTH-CB-PERMISSION"
+      ],
+      "forbidden_collapses": [
+        "complete route treated as qualified despite empty permission component",
+        "matching route ID alone treated as qualification"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-EXACT-ONE-V2",
+      "term": "ExactlyOneQualifyingEntry",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "Existence and uniqueness over qualifying list positions within one context.",
+        "notation": [
+          {
+            "symbol": "ExactOneAuth(c,a), ExactOneRoute(c,r)",
+            "meaning": "a and r are their respective unique fully qualifying list positions."
+          }
+        ],
+        "operational_interpretation": "Count list entries, not distinct row values; retain the unique witnesses for provenance checks.",
+        "typed_ir_exports": [
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-EXACT-ONE-AUTH-V3"
+          },
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-EXACT-ONE-ROUTE-V3"
+          }
+        ]
+      },
+      "plain_language": "There is one and only one qualifying entry in each list.",
+      "domain_context": "Equal duplicate entries make exactly-one false.",
+      "depends_on": [
+        "AUTH-CB-DEF-QUALIFYING-AUTH-V2",
+        "AUTH-CB-DEF-QUALIFYING-ROUTE-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/counterexamples/2"
+      ],
+      "interpretation_refs": [
+        "#/quantifiers/1",
+        "#/witnesses/1"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-RULE-UNIQUE-TRUSTED-AUTHENTICATION-EVIDENCE",
+        "AUTH-CB-RULE-UNIQUE-COMPLETE-ROUTE-BINDING"
+      ],
+      "forbidden_collapses": [
+        "uniqueness over row values instead of list positions",
+        "existence without uniqueness"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-SAME-ROW-PROVENANCE-V2",
+      "term": "SameQualifyingRowCandidateProvenance",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "Candidate request fields equal the inbound request and the same unique qualifying authentication and route occurrences supply every candidate field.",
+        "notation": [
+          {
+            "symbol": "Provenance(c,a,r)",
+            "meaning": "Candidate fields copied from the request and the already bound unique a and r."
+          }
+        ],
+        "operational_interpretation": "Use the a and r that satisfy ExactOneAuth and ExactOneRoute; do not search again over weaker or different resolver rows.",
+        "typed_ir_exports": [
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-SAME-ROW-PROVENANCE-V2"
+          }
+        ]
+      },
+      "plain_language": "Copy candidate values from the exact rows that passed the uniqueness checks.",
+      "domain_context": "A different matching but nonqualifying row cannot supply a candidate field.",
+      "depends_on": [
+        "AUTH-CB-DEF-EXACT-ONE-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/counterexamples/1"
+      ],
+      "interpretation_refs": [
+        "#/quantifiers/2",
+        "#/equality_rules/2"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-RULE-CANDIDATE-COMMAND-PROVENANCE",
+        "AUTH-CB-AUTHORIZATION-COMMAND"
+      ],
+      "forbidden_collapses": [
+        "candidate provenance from an independently chosen row",
+        "permission triple partially copied from different route rows"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-READY-CONDITION-V2",
+      "term": "ReadyCondition",
+      "definition_kind": "predicate",
+      "formal": {
+        "definition": "The complete positive branch of the accepted command-boundary biconditional, with unique occurrence witnesses scoped over provenance.",
+        "notation": [
+          {
+            "symbol": "P(c)",
+            "meaning": "All owner-accepted READY conditions hold in c."
+          }
+        ],
+        "operational_interpretation": "Return READY exactly when this predicate holds; both absence and excess of qualifying entries make it false.",
+        "typed_ir_exports": [
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-READY-CONDITION-V2"
+          }
+        ]
+      },
+      "plain_language": "A real request ID, one qualifying row of each kind, and a candidate copied from those rows.",
+      "domain_context": "The command-boundary decision is pure and precedes downstream authorization.",
+      "depends_on": [
+        "AUTH-CB-DEF-IN-SCOPE-NORMAL-V2",
+        "AUTH-CB-DEF-EXACT-ONE-V2",
+        "AUTH-CB-DEF-SAME-ROW-PROVENANCE-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/outcomes/0",
+        "#/counterexamples/4"
+      ],
+      "interpretation_refs": [
+        "#/quantifiers/0",
+        "#/witnesses/0"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-RULE-ADMISSIBLE",
+        "AUTH-CB-OP-ADMIT-AUTHORIZATION-COMMAND"
+      ],
+      "forbidden_collapses": [
+        "always DENY despite a valid context",
+        "blank inbound request ID treated as READY"
+      ],
+      "status": "candidate"
+    },
+    {
+      "definition_id": "AUTH-CB-DEF-DECISION-V2",
+      "term": "CommandBoundaryDecision",
+      "definition_kind": "decision-value",
+      "formal": {
+        "definition": "One abstract pure command-boundary outcome in the distinct exhaustive set {READY,DENY}, tied to ReadyCondition by both biconditionals on every in-scope normal context.",
+        "notation": [
+          {
+            "symbol": "Decision(c)",
+            "meaning": "Abstract command-boundary outcome before downstream authorization."
+          }
+        ],
+        "operational_interpretation": "Compare the selected typed Operation result to this abstract decision only through a separate exact source/preservation binding.",
+        "typed_ir_exports": [
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-DECISION-DISTINCT-V3"
+          },
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-DECISION-EXHAUSTIVE-V3"
+          },
+          {
+            "domain": "logic",
+            "definition_id": "AUTH-CB-DEF-DECISION-BICONDITIONALS-V3"
+          }
+        ]
+      },
+      "plain_language": "READY exactly for valid contexts, otherwise DENY; never confuse it with the downstream decision.",
+      "domain_context": "A downstream DENY after READY does not mean the command boundary denied or skipped the call.",
+      "depends_on": [
+        "AUTH-CB-DEF-READY-CONDITION-V2"
+      ],
+      "business_fact_refs": [
+        "#/rule",
+        "#/outcomes/0",
+        "#/outcomes/1",
+        "#/counterexamples/4"
+      ],
+      "interpretation_refs": [
+        "#/types/5",
+        "#/predicates/5",
+        "#/equality_rules/3"
+      ],
+      "source_concept_refs": [
+        "AUTH-CB-DECISION",
+        "AUTH-CB-OP-ADMIT-AUTHORIZATION-COMMAND"
+      ],
+      "forbidden_collapses": [
+        "kernel DENY confused with downstream DENY",
+        "one-way implication replacing biconditional"
+      ],
+      "status": "candidate"
+    }
+  ],
+  "acceptance": {
+    "status": "not-requested",
+    "owner_ref": "projects/auth-foundation/formalization",
+    "acceptance_ref": null,
+    "acceptance_digest": null
+  },
+  "claim_ceiling": "Draft typed-definition candidate preserving the exact owner-accepted v1 business facts. Ten inline definition records map to checked logical/model IR exports and six candidate FOL clauses have an exact AST postimage. Full model/Lean correspondence, all-native no-call, current v4, TDE/F5/EVF and runtime_guarantees_observed remain unproved and non-current.",
+  "effect_obligations": [
+    {
+      "obligation_id": "AUTH-CB-NO-DOWNSTREAM-CALL-ALL-NATIVE",
+      "accepted_fact_refs": ["#/rule", "#/outcomes/1"],
+      "scope_decision_ref": {
+        "path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/AUTH-DOWNSTREAM-ENDPOINT-SCOPE.v1-owner-decision.md",
+        "sha256": "29cc5e08d369f04ec9dbccb9a5eb694cb43f78e920adbb059a93f11c9dc0a5ed",
+        "size_bytes": 2799,
+        "current": true
+      },
+      "formal_representation": "absent-from-six-pure-decision-clauses",
+      "discharge_status": "open",
+      "claim_boundary": "A full preservation or current runtime claim requires separate all-native-entrypoint evidence; zero calls at one adapter is insufficient."
+    }
+  ],
+  "authority_effect": "none",
+  "draft_provenance_ref": {
+    "path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/BUSINESS-MEANING.v2-definitions-candidate.json",
+    "sha256": "aae4a6a007b1cb61c70da6244bbbbcaa146ad27006125b09ef791a562df5c49a",
+    "size_bytes": 20964,
+    "current": true
+  },
+  "typed_logic_ir": {
+    "schema_version": "domainspec-v2.typed-definition-logic-ir/v1-candidate",
+    "signature": {
+      "sorts": [
+        "Context",
+        "AuthOccurrence",
+        "RouteOccurrence",
+        "String",
+        "DecisionValue"
+      ],
+      "functions": [
+        {
+          "name": "RequestID",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "RequestedEvidenceRef",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "RequestedRouteID",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "EvidenceRef",
+          "parameter_sorts": [
+            "AuthOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "SessionID",
+          "parameter_sorts": [
+            "AuthOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "RouteID",
+          "parameter_sorts": [
+            "RouteOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "ScopeEvidenceRef",
+          "parameter_sorts": [
+            "RouteOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "PermissionResource",
+          "parameter_sorts": [
+            "RouteOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "PermissionAction",
+          "parameter_sorts": [
+            "RouteOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "PermissionScope",
+          "parameter_sorts": [
+            "RouteOccurrence"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "CandidateRequestID",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "CandidateSessionID",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "CandidateResource",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "CandidateAction",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "CandidateScope",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "CandidateScopeEvidenceRef",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "String"
+        },
+        {
+          "name": "Decision",
+          "parameter_sorts": [
+            "Context"
+          ],
+          "result_sort": "DecisionValue"
+        }
+      ],
+      "predicates": [
+        {
+          "name": "AuthMember",
+          "parameter_sorts": [
+            "Context",
+            "AuthOccurrence"
+          ]
+        },
+        {
+          "name": "RouteMember",
+          "parameter_sorts": [
+            "Context",
+            "RouteOccurrence"
+          ]
+        },
+        {
+          "name": "Trusted",
+          "parameter_sorts": [
+            "AuthOccurrence"
+          ]
+        },
+        {
+          "name": "Complete",
+          "parameter_sorts": [
+            "RouteOccurrence"
+          ]
+        },
+        {
+          "name": "QA",
+          "parameter_sorts": [
+            "Context",
+            "AuthOccurrence"
+          ]
+        },
+        {
+          "name": "QR",
+          "parameter_sorts": [
+            "Context",
+            "RouteOccurrence"
+          ]
+        },
+        {
+          "name": "ReadyCondition",
+          "parameter_sorts": [
+            "Context"
+          ]
+        }
+      ],
+      "constants": [
+        {
+          "name": "empty",
+          "sort": "String"
+        },
+        {
+          "name": "READY",
+          "sort": "DecisionValue"
+        },
+        {
+          "name": "DENY",
+          "sort": "DecisionValue"
+        }
+      ]
+    },
+    "definitions": [
+      {
+        "definition_id": "AUTH-CB-DEF-QUALIFYING-AUTH-V2",
+        "symbol": "AuthQualifies",
+        "parameters": [
+          {
+            "name": "c",
+            "sort": "Context"
+          },
+          {
+            "name": "a",
+            "sort": "AuthOccurrence"
+          }
+        ],
+        "depends_on": [],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "and",
+            "left": {
+              "kind": "and",
+              "left": {
+                "kind": "and",
+                "left": {
+                  "kind": "predicate",
+                  "name": "AuthMember",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "c"
+                    },
+                    {
+                      "kind": "variable",
+                      "name": "a"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "function",
+                    "name": "EvidenceRef",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "a"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "function",
+                    "name": "RequestedEvidenceRef",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "c"
+                      }
+                    ]
+                  }
+                }
+              },
+              "right": {
+                "kind": "not",
+                "operand": {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "function",
+                    "name": "EvidenceRef",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "a"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "constant",
+                    "name": "empty"
+                  }
+                }
+              }
+            },
+            "right": {
+              "kind": "not",
+              "operand": {
+                "kind": "equal",
+                "left": {
+                  "kind": "function",
+                  "name": "SessionID",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "a"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "constant",
+                  "name": "empty"
+                }
+              }
+            }
+          },
+          "right": {
+            "kind": "predicate",
+            "name": "Trusted",
+            "arguments": [
+              {
+                "kind": "variable",
+                "name": "a"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-QUALIFYING-ROUTE-V2",
+        "symbol": "RouteQualifies",
+        "parameters": [
+          {
+            "name": "c",
+            "sort": "Context"
+          },
+          {
+            "name": "r",
+            "sort": "RouteOccurrence"
+          }
+        ],
+        "depends_on": [],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "and",
+            "left": {
+              "kind": "and",
+              "left": {
+                "kind": "and",
+                "left": {
+                  "kind": "and",
+                  "left": {
+                    "kind": "and",
+                    "left": {
+                      "kind": "and",
+                      "left": {
+                        "kind": "predicate",
+                        "name": "RouteMember",
+                        "arguments": [
+                          {
+                            "kind": "variable",
+                            "name": "c"
+                          },
+                          {
+                            "kind": "variable",
+                            "name": "r"
+                          }
+                        ]
+                      },
+                      "right": {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "function",
+                          "name": "RouteID",
+                          "arguments": [
+                            {
+                              "kind": "variable",
+                              "name": "r"
+                            }
+                          ]
+                        },
+                        "right": {
+                          "kind": "function",
+                          "name": "RequestedRouteID",
+                          "arguments": [
+                            {
+                              "kind": "variable",
+                              "name": "c"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "right": {
+                      "kind": "not",
+                      "operand": {
+                        "kind": "equal",
+                        "left": {
+                          "kind": "function",
+                          "name": "RouteID",
+                          "arguments": [
+                            {
+                              "kind": "variable",
+                              "name": "r"
+                            }
+                          ]
+                        },
+                        "right": {
+                          "kind": "constant",
+                          "name": "empty"
+                        }
+                      }
+                    }
+                  },
+                  "right": {
+                    "kind": "not",
+                    "operand": {
+                      "kind": "equal",
+                      "left": {
+                        "kind": "function",
+                        "name": "ScopeEvidenceRef",
+                        "arguments": [
+                          {
+                            "kind": "variable",
+                            "name": "r"
+                          }
+                        ]
+                      },
+                      "right": {
+                        "kind": "constant",
+                        "name": "empty"
+                      }
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "predicate",
+                  "name": "Complete",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "r"
+                    }
+                  ]
+                }
+              },
+              "right": {
+                "kind": "not",
+                "operand": {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "function",
+                    "name": "PermissionResource",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "r"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "constant",
+                    "name": "empty"
+                  }
+                }
+              }
+            },
+            "right": {
+              "kind": "not",
+              "operand": {
+                "kind": "equal",
+                "left": {
+                  "kind": "function",
+                  "name": "PermissionAction",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "r"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "constant",
+                  "name": "empty"
+                }
+              }
+            }
+          },
+          "right": {
+            "kind": "not",
+            "operand": {
+              "kind": "equal",
+              "left": {
+                "kind": "function",
+                "name": "PermissionScope",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "r"
+                  }
+                ]
+              },
+              "right": {
+                "kind": "constant",
+                "name": "empty"
+              }
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-EXACT-ONE-AUTH-V3",
+        "symbol": "ExactOneAuth",
+        "parameters": [
+          {
+            "name": "c",
+            "sort": "Context"
+          },
+          {
+            "name": "a",
+            "sort": "AuthOccurrence"
+          }
+        ],
+        "depends_on": [],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "predicate",
+            "name": "QA",
+            "arguments": [
+              {
+                "kind": "variable",
+                "name": "c"
+              },
+              {
+                "kind": "variable",
+                "name": "a"
+              }
+            ]
+          },
+          "right": {
+            "kind": "forall",
+            "variable": "a2",
+            "sort": "AuthOccurrence",
+            "body": {
+              "kind": "implies",
+              "left": {
+                "kind": "predicate",
+                "name": "QA",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "variable",
+                    "name": "a2"
+                  }
+                ]
+              },
+              "right": {
+                "kind": "equal",
+                "left": {
+                  "kind": "variable",
+                  "name": "a2"
+                },
+                "right": {
+                  "kind": "variable",
+                  "name": "a"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-EXACT-ONE-ROUTE-V3",
+        "symbol": "ExactOneRoute",
+        "parameters": [
+          {
+            "name": "c",
+            "sort": "Context"
+          },
+          {
+            "name": "r",
+            "sort": "RouteOccurrence"
+          }
+        ],
+        "depends_on": [],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "predicate",
+            "name": "QR",
+            "arguments": [
+              {
+                "kind": "variable",
+                "name": "c"
+              },
+              {
+                "kind": "variable",
+                "name": "r"
+              }
+            ]
+          },
+          "right": {
+            "kind": "forall",
+            "variable": "r2",
+            "sort": "RouteOccurrence",
+            "body": {
+              "kind": "implies",
+              "left": {
+                "kind": "predicate",
+                "name": "QR",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "variable",
+                    "name": "r2"
+                  }
+                ]
+              },
+              "right": {
+                "kind": "equal",
+                "left": {
+                  "kind": "variable",
+                  "name": "r2"
+                },
+                "right": {
+                  "kind": "variable",
+                  "name": "r"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-SAME-ROW-PROVENANCE-V2",
+        "symbol": "Provenance",
+        "parameters": [
+          {
+            "name": "c",
+            "sort": "Context"
+          },
+          {
+            "name": "a",
+            "sort": "AuthOccurrence"
+          },
+          {
+            "name": "r",
+            "sort": "RouteOccurrence"
+          }
+        ],
+        "depends_on": [],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "and",
+            "left": {
+              "kind": "and",
+              "left": {
+                "kind": "and",
+                "left": {
+                  "kind": "and",
+                  "left": {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "function",
+                      "name": "CandidateRequestID",
+                      "arguments": [
+                        {
+                          "kind": "variable",
+                          "name": "c"
+                        }
+                      ]
+                    },
+                    "right": {
+                      "kind": "function",
+                      "name": "RequestID",
+                      "arguments": [
+                        {
+                          "kind": "variable",
+                          "name": "c"
+                        }
+                      ]
+                    }
+                  },
+                  "right": {
+                    "kind": "equal",
+                    "left": {
+                      "kind": "function",
+                      "name": "CandidateSessionID",
+                      "arguments": [
+                        {
+                          "kind": "variable",
+                          "name": "c"
+                        }
+                      ]
+                    },
+                    "right": {
+                      "kind": "function",
+                      "name": "SessionID",
+                      "arguments": [
+                        {
+                          "kind": "variable",
+                          "name": "a"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "right": {
+                  "kind": "equal",
+                  "left": {
+                    "kind": "function",
+                    "name": "CandidateResource",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "c"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "function",
+                    "name": "PermissionResource",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "r"
+                      }
+                    ]
+                  }
+                }
+              },
+              "right": {
+                "kind": "equal",
+                "left": {
+                  "kind": "function",
+                  "name": "CandidateAction",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "c"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "function",
+                  "name": "PermissionAction",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "r"
+                    }
+                  ]
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "function",
+                "name": "CandidateScope",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "c"
+                  }
+                ]
+              },
+              "right": {
+                "kind": "function",
+                "name": "PermissionScope",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "r"
+                  }
+                ]
+              }
+            }
+          },
+          "right": {
+            "kind": "equal",
+            "left": {
+              "kind": "function",
+              "name": "CandidateScopeEvidenceRef",
+              "arguments": [
+                {
+                  "kind": "variable",
+                  "name": "c"
+                }
+              ]
+            },
+            "right": {
+              "kind": "function",
+              "name": "ScopeEvidenceRef",
+              "arguments": [
+                {
+                  "kind": "variable",
+                  "name": "r"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-READY-CONDITION-V2",
+        "symbol": "ReadyBody",
+        "parameters": [
+          {
+            "name": "c",
+            "sort": "Context"
+          }
+        ],
+        "depends_on": [
+          "AUTH-CB-DEF-EXACT-ONE-AUTH-V3",
+          "AUTH-CB-DEF-EXACT-ONE-ROUTE-V3",
+          "AUTH-CB-DEF-SAME-ROW-PROVENANCE-V2"
+        ],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "not",
+            "operand": {
+              "kind": "equal",
+              "left": {
+                "kind": "function",
+                "name": "RequestID",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "c"
+                  }
+                ]
+              },
+              "right": {
+                "kind": "constant",
+                "name": "empty"
+              }
+            }
+          },
+          "right": {
+            "kind": "exists",
+            "variable": "a",
+            "sort": "AuthOccurrence",
+            "body": {
+              "kind": "exists",
+              "variable": "r",
+              "sort": "RouteOccurrence",
+              "body": {
+                "kind": "and",
+                "left": {
+                  "kind": "and",
+                  "left": {
+                    "kind": "ref",
+                    "symbol": "ExactOneAuth",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "c"
+                      },
+                      {
+                        "kind": "variable",
+                        "name": "a"
+                      }
+                    ]
+                  },
+                  "right": {
+                    "kind": "ref",
+                    "symbol": "ExactOneRoute",
+                    "arguments": [
+                      {
+                        "kind": "variable",
+                        "name": "c"
+                      },
+                      {
+                        "kind": "variable",
+                        "name": "r"
+                      }
+                    ]
+                  }
+                },
+                "right": {
+                  "kind": "ref",
+                  "symbol": "Provenance",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "c"
+                    },
+                    {
+                      "kind": "variable",
+                      "name": "a"
+                    },
+                    {
+                      "kind": "variable",
+                      "name": "r"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-DECISION-DISTINCT-V3",
+        "symbol": "OutcomeDistinct",
+        "parameters": [],
+        "depends_on": [],
+        "body": {
+          "kind": "not",
+          "operand": {
+            "kind": "equal",
+            "left": {
+              "kind": "constant",
+              "name": "READY"
+            },
+            "right": {
+              "kind": "constant",
+              "name": "DENY"
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-DECISION-EXHAUSTIVE-V3",
+        "symbol": "OutcomeExhaustive",
+        "parameters": [],
+        "depends_on": [],
+        "body": {
+          "kind": "forall",
+          "variable": "d",
+          "sort": "DecisionValue",
+          "body": {
+            "kind": "or",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "variable",
+                "name": "d"
+              },
+              "right": {
+                "kind": "constant",
+                "name": "READY"
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "variable",
+                "name": "d"
+              },
+              "right": {
+                "kind": "constant",
+                "name": "DENY"
+              }
+            }
+          }
+        }
+      },
+      {
+        "definition_id": "AUTH-CB-DEF-DECISION-BICONDITIONALS-V3",
+        "symbol": "DecisionBiconditionals",
+        "parameters": [],
+        "depends_on": [],
+        "body": {
+          "kind": "forall",
+          "variable": "c",
+          "sort": "Context",
+          "body": {
+            "kind": "and",
+            "left": {
+              "kind": "iff",
+              "left": {
+                "kind": "equal",
+                "left": {
+                  "kind": "function",
+                  "name": "Decision",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "c"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "constant",
+                  "name": "READY"
+                }
+              },
+              "right": {
+                "kind": "predicate",
+                "name": "ReadyCondition",
+                "arguments": [
+                  {
+                    "kind": "variable",
+                    "name": "c"
+                  }
+                ]
+              }
+            },
+            "right": {
+              "kind": "iff",
+              "left": {
+                "kind": "equal",
+                "left": {
+                  "kind": "function",
+                  "name": "Decision",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "c"
+                    }
+                  ]
+                },
+                "right": {
+                  "kind": "constant",
+                  "name": "DENY"
+                }
+              },
+              "right": {
+                "kind": "not",
+                "operand": {
+                  "kind": "predicate",
+                  "name": "ReadyCondition",
+                  "arguments": [
+                    {
+                      "kind": "variable",
+                      "name": "c"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "roots": [
+      "AUTH-CB-DEF-DECISION-DISTINCT-V3",
+      "AUTH-CB-DEF-DECISION-EXHAUSTIVE-V3",
+      "AUTH-CB-DEF-QUALIFYING-AUTH-V2",
+      "AUTH-CB-DEF-QUALIFYING-ROUTE-V2",
+      "AUTH-CB-DEF-READY-CONDITION-V2",
+      "AUTH-CB-DEF-DECISION-BICONDITIONALS-V3"
+    ],
+    "authority_effect": "none"
+  },
+  "typed_model_ir": {
+    "schema_version": "domainspec-v2.typed-definition-model-ir/v1-candidate",
+    "context": {
+      "sort": "Context",
+      "carrier": "full-typed-record-with-finite-lists",
+      "fields": [
+        {
+          "name": "request",
+          "kind": "record",
+          "type": "Request"
+        },
+        {
+          "name": "candidate",
+          "kind": "record",
+          "type": "Command"
+        },
+        {
+          "name": "authRows",
+          "kind": "list",
+          "type": "Evidence"
+        },
+        {
+          "name": "routeRows",
+          "kind": "list",
+          "type": "RouteBinding"
+        }
+      ]
+    },
+    "scope": {
+      "kind": "entire-context-carrier",
+      "normal_completion": "separate-correspondence-obligation"
+    },
+    "occurrences": [
+      {
+        "sort": "AuthOccurrence",
+        "list_field": "authRows",
+        "row_type": "Evidence",
+        "carrier": "context-row-position-product",
+        "identity": "context-and-zero-based-position",
+        "membership": {
+          "kind": "tagged-zip-index",
+          "predicate": "AuthMember",
+          "start": 0,
+          "nonmembers": "ghost-and-foreign-excluded"
+        },
+        "projection": "total-tuple-row",
+        "qualifier_definition_id": "AUTH-CB-DEF-QUALIFYING-AUTH-V2"
+      },
+      {
+        "sort": "RouteOccurrence",
+        "list_field": "routeRows",
+        "row_type": "RouteBinding",
+        "carrier": "context-row-position-product",
+        "identity": "context-and-zero-based-position",
+        "membership": {
+          "kind": "tagged-zip-index",
+          "predicate": "RouteMember",
+          "start": 0,
+          "nonmembers": "ghost-and-foreign-excluded"
+        },
+        "projection": "total-tuple-row",
+        "qualifier_definition_id": "AUTH-CB-DEF-QUALIFYING-ROUTE-V2"
+      }
+    ],
+    "authority_effect": "none"
+  },
+  "typed_fol_lowering": {
+    "schema_version": "domainspec-v2.typed-definition-fol-bridge/v1-candidate",
+    "clauses": [
+      {
+        "kind": "assertion",
+        "clause_id": "outcomes-distinct",
+        "root_definition_id": "AUTH-CB-DEF-DECISION-DISTINCT-V3"
+      },
+      {
+        "kind": "assertion",
+        "clause_id": "outcomes-exhaustive",
+        "root_definition_id": "AUTH-CB-DEF-DECISION-EXHAUSTIVE-V3"
+      },
+      {
+        "kind": "definition",
+        "clause_id": "qualifying-authentication",
+        "root_definition_id": "AUTH-CB-DEF-QUALIFYING-AUTH-V2",
+        "predicate": "QA"
+      },
+      {
+        "kind": "definition",
+        "clause_id": "qualifying-route",
+        "root_definition_id": "AUTH-CB-DEF-QUALIFYING-ROUTE-V2",
+        "predicate": "QR"
+      },
+      {
+        "kind": "definition",
+        "clause_id": "ready-condition",
+        "root_definition_id": "AUTH-CB-DEF-READY-CONDITION-V2",
+        "predicate": "ReadyCondition"
+      },
+      {
+        "kind": "assertion",
+        "clause_id": "decision-biconditionals",
+        "root_definition_id": "AUTH-CB-DEF-DECISION-BICONDITIONALS-V3"
+      }
+    ],
+    "authority_effect": "none"
+  }
+}

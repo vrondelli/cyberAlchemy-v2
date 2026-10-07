@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useState} from 'react';
 import {OntologyCanvas} from './OntologyCanvas';
+import {CURRENT_ONTOLOGY_COVERAGE,CURRENT_ONTOLOGY_GRAPHS} from './current-graphs.generated';
 import {selectRuntimeGraph,type RuntimeSnapshot} from './runtime-views';
 import './runtime-ontology.css';
 
@@ -8,8 +9,10 @@ export default function RuntimeOntology() {
   const [error,setError]=useState('');const [loading,setLoading]=useState(true);
   const [refresh,setRefresh]=useState(0);const [packageKey,setPackage]=useState('');
   const [viewId,setView]=useState('all');const [documentId,setDocument]=useState('');
-  const [legacy,setLegacy]=useState(false);
+  const [mode,setMode]=useState<'current'|'events'|'workspace'>('current');
+  const [currentKey,setCurrentKey]=useState('ontology/product/profile.json');
   useEffect(()=>{
+    if(mode!=='events')return;
     const controller=new AbortController();setLoading(true);setError('');
     fetch('/api/ontology-v4',{signal:controller.signal,cache:'no-store'}).then(async r=>{
       if(!r.ok) throw new Error('v4 read model unavailable. Start the ontology integration preview and retry.');
@@ -19,7 +22,7 @@ export default function RuntimeOntology() {
       setSnapshot(s);setPackage(p=>s.packages.some(x=>x.key===p)?p:(s.packages.find(x=>x.ontologyId==='cal.ontology-package.ontology-product-foundation')?.key??s.packages[0]?.key??''));
     }).catch(e=>{if(!controller.signal.aborted){setSnapshot(null);setError(String(e.message));}}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return ()=>controller.abort();
-  },[refresh]);
+  },[refresh,mode]);
   const views=snapshot?.views.filter(v=>v.packageKey===packageKey)??[];
   const view=views.find(v=>v.id===viewId);
   const docs=snapshot?.documents.filter(d=>d.packageKey===packageKey)??[];
@@ -29,12 +32,15 @@ export default function RuntimeOntology() {
     if(!snapshot||!packageKey||view?.kind==='document')return {};
     try{return {graph:selectRuntimeGraph(snapshot,packageKey,viewId)};}catch(e){return {error:(e as Error).message};}
   },[snapshot,packageKey,viewId,view?.kind]);
+  const current=CURRENT_ONTOLOGY_GRAPHS.find(graph=>graph.key===currentKey)??CURRENT_ONTOLOGY_GRAPHS[0];
   return <section className="runtime-ontology" aria-label="Event-calculated ontology browser">
-    <header className="runtime-controls"><div><h1>Ontology &amp; views</h1><p>Read-only v4 event projection · prototype, not admission</p></div>
-      <button onClick={()=>setLegacy(x=>!x)}>{legacy?'Show v4 runtime':'Show Workspace graph'}</button>
-      <button disabled={loading} onClick={()=>setRefresh(n=>n+1)}>Refresh from events</button>
+    <header className="runtime-controls"><div><h1>Ontology &amp; views</h1><p>Source-backed, read-only projections · not admission</p></div>
+      <button aria-pressed={mode==='current'} onClick={()=>setMode('current')}>Current repository packages</button>
+      <button aria-pressed={mode==='workspace'} onClick={()=>setMode('workspace')}>Workspace graph</button>
+      <button aria-pressed={mode==='events'} onClick={()=>setMode('events')}>v4 event view</button>
+      {mode==='events'&&<button disabled={loading} onClick={()=>setRefresh(n=>n+1)}>Refresh from events</button>}
     </header>
-    {legacy ? <OntologyCanvas/> : <>
+    {mode==='current' ? <>{current?<><div className="runtime-controls"><label>Source ontology package<select aria-label="Source ontology package" value={current.key} onChange={event=>setCurrentKey(event.target.value)}>{CURRENT_ONTOLOGY_GRAPHS.map(graph=><option key={graph.key} value={graph.key}>{graph.label} — {graph.profilePath}</option>)}</select></label></div><div className="runtime-provenance"><span>{CURRENT_ONTOLOGY_COVERAGE.profiles} profiled packages · {CURRENT_ONTOLOGY_COVERAGE.graphable} graphable · selected: {current.source.nodes.length} nodes · {current.source.relations.length} relations</span><p>Working-tree source epoch <code>{current.source.sourceEpoch.slice(0,16)}</code>. Status: {current.status}. Profile: <code>{current.profilePath}</code>. Package visibility is not registration or semantic admission.</p><p>{CURRENT_ONTOLOGY_COVERAGE.profiles-CURRENT_ONTOLOGY_COVERAGE.graphable} profiles are listed in Explore but have no supported graph projection.</p></div><OntologyCanvas key={current.key} source={current.source}/></>:<p role="status">No source ontology registries were available for this projection.</p>}</> : mode==='workspace' ? <OntologyCanvas/> : <>
       {loading&&<p role="status">Replaying the committed ontology events…</p>}
       {error&&<p role="alert">{error}</p>}
       {!loading&&snapshot&&<>

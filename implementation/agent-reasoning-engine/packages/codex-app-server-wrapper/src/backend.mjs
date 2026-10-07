@@ -3,6 +3,7 @@ import {EventEmitter} from "node:events";
 import {PassThrough} from "node:stream";
 
 import {freezeResult, isRecord, nonEmptyString} from "./canonical.mjs";
+import {backendEnvironment} from "./backend-environment.mjs";
 
 const MODES = new Set(["direct-stdio", "daemon-proxy", "websocket"]);
 
@@ -13,13 +14,18 @@ export function resolveBackendCommand(configuration = {}) {
   const prefix = Array.isArray(configuration.command_prefix_args)
     ? configuration.command_prefix_args.filter(nonEmptyString)
     : [];
+  const appServerArgs = Array.isArray(configuration.command_app_server_args)
+    ? configuration.command_app_server_args.filter(nonEmptyString) : [];
+  if (appServerArgs.length > 0 && mode !== "direct-stdio") {
+    throw new TypeError("App Server launch arguments require direct stdio mode.");
+  }
   if (mode === "websocket") {
     if (!nonEmptyString(configuration.url) || !configuration.url.startsWith("ws://")) throw new TypeError("A loopback ws:// URL is required for the WebSocket backend.");
     return freezeResult({mode, url: configuration.url, authority_effect: "none"});
   }
   const args = mode === "daemon-proxy"
     ? [...prefix, "app-server", "proxy", ...(nonEmptyString(configuration.socket_path) ? ["--sock", configuration.socket_path] : [])]
-    : [...prefix, "app-server", "--listen", "stdio://"];
+    : [...prefix, "app-server", ...appServerArgs, "--listen", "stdio://"];
   return freezeResult({mode, command, args, authority_effect: "none"});
 }
 
@@ -81,5 +87,6 @@ export function spawnCodexBackend(configuration = {}, spawnImpl = spawn, WebSock
   if (!isRecord(configuration)) throw new TypeError("Codex backend configuration must be an object.");
   const resolved = resolveBackendCommand(configuration);
   if (resolved.mode === "websocket") return createWebSocketBackend(resolved, WebSocketImpl);
-  return spawnImpl(resolved.command, resolved.args, {stdio: ["pipe", "pipe", "pipe"]});
+  return spawnImpl(resolved.command, resolved.args, {stdio: ["pipe", "pipe", "pipe"],
+    env: backendEnvironment()});
 }

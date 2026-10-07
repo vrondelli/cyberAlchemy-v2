@@ -1,0 +1,175 @@
+{
+  "schema_version": "domainspec.persistence-composition/v2-candidate",
+  "composition_id": "persistence-composition:commerce-derived-v1",
+  "integration_kernel": {
+    "schema_version": "domainspec.integration-kernel/v2-candidate",
+    "kernel_id": "integration-kernel:commerce-persistence-derived-v1",
+    "definition_pack_sha256": "cc93b59b68cbb016fdab6b0b4a476e69d1e0e6df99df1d94ca1c48fb7ff16c2a",
+    "integration_bindings": [
+      {
+        "binding_id": "binding:orders-persistence",
+        "concern": "persistence",
+        "direction": "bidirectional",
+        "logical_boundary_ref": "commerce:order",
+        "contract_ref": "contract:orders-store",
+        "provider_realization_ref": "provider-realization:commerce-postgresql",
+        "policy_refs": [
+          "transaction-binding:orders"
+        ],
+        "serialization_profile_ref": null,
+        "failure_mapping_ref": "failure-mapping:orders-persistence",
+        "evidence_boundary": "derived-formation-only-no-database-contact",
+        "authority_effect": "none"
+      }
+    ],
+    "provider_profiles": [
+      {
+        "profile_id": "provider-profile:postgresql-v1",
+        "concern": "persistence",
+        "provider_kind": "postgresql",
+        "capability_set": [
+          "local-transaction",
+          "typed-query"
+        ],
+        "configuration_schema_ref": "schema:postgresql-configuration-v1",
+        "secret_slot_refs": [
+          "credential-slot:database-url"
+        ],
+        "compatibility_constraints": [
+          "postgresql:version-16-or-newer"
+        ],
+        "authority_effect": "none"
+      }
+    ],
+    "provider_realizations": [
+      {
+        "realization_id": "provider-realization:commerce-postgresql",
+        "provider_profile_ref": "provider-profile:postgresql-v1",
+        "adapter_ref": "adapter:commerce-postgresql",
+        "resource_ref": "resource:commerce-database",
+        "configuration_ref": "configuration:commerce-postgresql",
+        "credential_binding_ref": "credential-binding:commerce-database",
+        "deployment_ref": null,
+        "evidence_boundary": "configuration-reference-only",
+        "runtime_observed": false,
+        "authority_effect": "none"
+      }
+    ],
+    "serialization_profiles": [],
+    "failure_mappings": [
+      {
+        "mapping_id": "failure-mapping:orders-persistence",
+        "boundary_ref": "contract:orders-store",
+        "cases": [
+          {
+            "provider_failure_matcher": "postgresql:connection-unavailable",
+            "failure_outcome_ref": "commerce:submit-order",
+            "outcome_class": "retryable"
+          },
+          {
+            "provider_failure_matcher": "postgresql:unique-violation",
+            "failure_outcome_ref": "commerce:submit-order",
+            "outcome_class": "non-retryable"
+          }
+        ],
+        "unknown_failure_outcome_ref": "commerce:submit-order",
+        "continuation_owner_ref": "owner:fixture-owner",
+        "evidence_boundary": "classification-only",
+        "authority_effect": "none"
+      }
+    ],
+    "runtime_receipts": [],
+    "runtime_guarantees_observed": false,
+    "authority_effect": "none"
+  },
+  "persistence_bindings": [
+    {
+      "binding_id": "persistence-binding:orders",
+      "integration_binding_ref": "binding:orders-persistence",
+      "logical_subject_refs": [
+        "commerce:order"
+      ],
+      "dependency_contract_ref": "contract:orders-store",
+      "adapter_ref": "adapter:commerce-postgresql",
+      "resource_ref": "resource:commerce-database",
+      "implementation_profile_ref": "provider-profile:postgresql-v1",
+      "logical_physical_mapping_ref": "persistence-mapping:orders",
+      "evidence_boundary": "typed-derived-formation-only",
+      "authority_effect": "none"
+    }
+  ],
+  "persistence_mappings": [
+    {
+      "mapping_id": "persistence-mapping:orders",
+      "logical_subject_refs": [
+        "commerce:order"
+      ],
+      "physical_models": [
+        {
+          "model_id": "physical-model:order",
+          "model_kind": "relational-table",
+          "physical_name": "order",
+          "version": "v1"
+        }
+      ],
+      "identity_mappings": [
+        {
+          "logical_property_ref": "commerce:order#id",
+          "physical_field_ref": "physical:order/id",
+          "conversion_ref": null
+        }
+      ],
+      "field_mappings": [
+        {
+          "logical_property_ref": "commerce:order#id",
+          "logical_shape": "scalar",
+          "physical_field_ref": "physical:order/id",
+          "storage_shape": "scalar",
+          "collection_semantics": "not-applicable",
+          "conversion_ref": null
+        },
+        {
+          "logical_property_ref": "commerce:order#accepted",
+          "logical_shape": "scalar",
+          "physical_field_ref": "physical:order/accepted",
+          "storage_shape": "scalar",
+          "collection_semantics": "not-applicable",
+          "conversion_ref": null
+        }
+      ],
+      "relation_mappings": [],
+      "index_mappings": [],
+      "conversion_rules": [],
+      "version": "v1",
+      "authority_effect": "none"
+    }
+  ],
+  "transaction_guarantees": [
+    {
+      "binding_id": "transaction-binding:orders",
+      "unit_of_work_contract_ref": "contract:orders-unit-of-work",
+      "persistence_binding_refs": [
+        "persistence-binding:orders"
+      ],
+      "participant_refs": [
+        "participant:order-row",
+        "participant:outbox-row"
+      ],
+      "atomicity_scope": "single-resource-local",
+      "local_commit_boundary_ref": "commit-boundary:commerce-database",
+      "selected_guarantees": [
+        "atomicity",
+        "durability",
+        "rollback-restoration"
+      ],
+      "implementation_profile_ref": "provider-profile:postgresql-v1",
+      "failure_mapping_ref": "failure-mapping:orders-persistence",
+      "evidence_boundary": "declared-local-commit-boundary-no-runtime-proof",
+      "runtime_guarantees_observed": false,
+      "authority_effect": "none"
+    }
+  ],
+  "migrations": [],
+  "runtime_guarantees_observed": false,
+  "authority_effect": "none"
+}

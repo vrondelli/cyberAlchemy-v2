@@ -40,7 +40,7 @@ x-payments: &payments
   KELD_PAYPAL_SECRET_FILE: /run/secrets/paypal_secret
 services:
   edge:
-    image: keld-caddy:2.11.4-security-candidate
+    image: keld-caddy:2.11.4-security-plan-20260920-r2
     build: {context: ., dockerfile: Caddy.Dockerfile}
     user: "1001:1001"
     read_only: true
@@ -54,6 +54,7 @@ services:
     environment:
       KELD_DOMAIN: ${KELD_DOMAIN:?set KELD_DOMAIN}
       AUTH_DOMAIN: ${AUTH_DOMAIN:?set AUTH_DOMAIN}
+      ARE_DOMAIN: ${ARE_DOMAIN:?set ARE_DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -94,6 +95,10 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
     entrypoint: ["/bin/bash", "/opt/keld-entrypoint.sh"]
+    user: "1000:0"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -107,12 +112,18 @@ services:
     volumes:
       - ./keycloak-entrypoint.sh:/opt/keld-entrypoint.sh:ro
       - ./.runtime/keld-realm.json:/opt/keycloak/data/import/keld-realm.json:ro
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     depends_on:
       postgres: {condition: service_healthy}
     networks: [backend, egress]
     restart: unless-stopped
     mem_limit: 2g
     logging: *logging
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q 'HTTP/1.1 200' <&3"]
+      interval: 10s
+      timeout: 3s
+      retries: 18
   web:
     <<: *app
     environment:
@@ -125,7 +136,7 @@ services:
     secrets: [stripe, mercadopago, paypal_client_id, paypal_secret, oidc, session_database_url, session_key, stripe_webhook, mp_webhook]
     depends_on:
       postgres: {condition: service_healthy}
-      keycloak: {condition: service_started}
+      keycloak: {condition: service_healthy}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -138,6 +149,12 @@ services:
     secrets: [stripe, mercadopago, paypal_client_id, paypal_secret]
     depends_on:
       web: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');try{const h=JSON.parse(fs.readFileSync('/scratch/worker-health.json','utf8'));process.exit(h.schema==='keld-worker-health/v1'&&h.healthy===true&&Date.now()/1000-h.observedAt<180?0:1)}catch{process.exit(1)}"]
+      interval: 30s
+      timeout: 3s
+      retries: 6
+      start_period: 90s
   are-production-inputs:
     image: keld-sandbox:${KELD_VERSION:-candidate}
     build: {context: .bundle, dockerfile: Dockerfile}
@@ -170,7 +187,7 @@ services:
     image: "${ARE_EDGE_IMAGE:?set ARE_EDGE_IMAGE to a digest-pinned ARE edge image reference}"
     environment:
       ARE_CHAT_ACCESS_MODE: "anonymous-public"
-      ARE_CHAT_PUBLIC_HOST: "${KELD_DOMAIN:?set KELD_DOMAIN}"
+      ARE_CHAT_PUBLIC_HOST: "${ARE_DOMAIN:?set ARE_DOMAIN}"
     networks: [are-edge, are-chat-ingress]
     depends_on:
       are-production-inputs: {condition: service_completed_successfully}
@@ -184,7 +201,7 @@ services:
     <<: *are-runtime
     image: "${ARE_PUBLIC_CHAT_IMAGE:?set ARE_PUBLIC_CHAT_IMAGE to a digest-pinned ARE public-chat image reference}"
     environment:
-      ARE_CHAT_PUBLIC_ORIGIN: "https://${KELD_DOMAIN:?set KELD_DOMAIN}"
+      ARE_CHAT_PUBLIC_ORIGIN: "https://${ARE_DOMAIN:?set ARE_DOMAIN}"
       ARE_CHAT_IDLE_RETENTION_SECONDS: "${ARE_CHAT_IDLE_RETENTION_SECONDS:?set the owner-approved idle retention in seconds}"
     networks:
       are-chat-ingress:

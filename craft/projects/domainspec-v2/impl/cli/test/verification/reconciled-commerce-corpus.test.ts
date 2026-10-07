@@ -15,11 +15,11 @@ import {
 } from '../../src/input/compiled-field-model.ts';
 import {getReconciledSource} from '../../src/generation/reconciled-sources.ts';
 
-const node = '/home/vrondelli/.nvm/versions/node/v26.8.1/bin/node';
-const tsc = '/home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/projects/domainspec-v2/impl/node_modules/.bin/tsc';
-const typeRoots = '/home/vrondelli/.cache/domainspec-locked-deps-rIAeDq/projects/domainspec-v2/impl/node_modules/@types';
+const node = process.execPath;
+const tsc = path.resolve(import.meta.dirname, '../../../node_modules/.bin/tsc');
+const typeRoots = path.resolve(import.meta.dirname, '../../../node_modules/@types');
 const python = '/usr/bin/python3';
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 
 function workspace(t: test.TestContext, prefix: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));

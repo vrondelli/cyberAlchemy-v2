@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { deriveUnit, L1_PATHS } from "./derive.js";
-import { exactRef, repositoryRoot } from "./exact-ref.js";
-import { buildUnitReceipt, verifyUnitReceipt } from "./receipt.js";
+import { deriveUnit } from "./derive.js";
+import { readJson, repositoryRoot } from "./exact-ref.js";
+import { verifyUnitReceipt } from "./receipt.js";
 import { L1Error, type UnitReceipt } from "./types.js";
 import { assertExactTargetList, schemaValidate } from "./verify-p4.js";
 
@@ -16,32 +16,29 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, `${JSON.stringify(value)}\n`, "utf8");
 }
 
-function receipt(): UnitReceipt {
-  const derivation = deriveUnit(repoRoot, "P4");
-  return buildUnitReceipt({
-    unit: "P4",
-    graphHandle: derivation.graph_handle,
-    evidenceRefs: [
-      exactRef(repoRoot, L1_PATHS.p4Semantic),
-      exactRef(repoRoot, L1_PATHS.p4Obligation),
-      exactRef(repoRoot, L1_PATHS.p4Runtime),
-      exactRef(repoRoot, L1_PATHS.p4Fixture),
-      exactRef(repoRoot, L1_PATHS.p4Binding),
-    ],
-    acceptanceVector: { mutants_required: 16, mutants_killed: 16, writes: 1, events: 1 },
-  });
+const HISTORICAL_RECEIPT =
+  "projects/domainspec-v2/development/evolvable-validation-framework/evidence/SWU-GCP-002-P4/attempt-001/evolvable-validation-receipt.json";
+
+function historicalReceipt(): UnitReceipt {
+  return readJson<UnitReceipt>(repoRoot, HISTORICAL_RECEIPT);
 }
 
 describe("EVF L1 P4 receipt", () => {
-  it("replays a bounded non-admitting receipt", () => {
-    const candidate = receipt();
-    expect(() => verifyUnitReceipt(repoRoot, candidate)).not.toThrow();
+  it("rejects the predecessor manifest against current authored source", () => {
+    expect(() => deriveUnit(repoRoot, "P4"))
+      .toThrowError(expect.objectContaining({ code: "SOURCE_MANIFEST_INCOMPLETE" }));
+  });
+
+  it("rejects the persisted v1 receipt against the changed graph source", () => {
+    const candidate = historicalReceipt();
+    expect(() => verifyUnitReceipt(repoRoot, candidate))
+      .toThrowError(expect.objectContaining({ code: "SOURCE_GRAPH_DIGEST_STALE" }));
     expect(candidate.release_admission).toBe("not-granted");
     expect(candidate.authority_effect).toBe("none");
   });
 
-  it("rejects a digest-preserving claim mutation", () => {
-    const candidate = structuredClone(receipt()) as UnitReceipt & { claim_ceiling: string };
+  it("rejects a claim-inflating mutation before stale graph evidence", () => {
+    const candidate = structuredClone(historicalReceipt()) as UnitReceipt & { claim_ceiling: string };
     candidate.claim_ceiling = "full-financial-settlement-correctness";
     try {
       verifyUnitReceipt(repoRoot, candidate);

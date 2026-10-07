@@ -57,7 +57,7 @@ export function normalizeApplicationInterface(section: ApplicationSourceSection,
     }
     if (type.kind === "declaration" && contracts.some(c => c.id === type.ref)) return { kind: "contract", ref: type.ref };
     if (type.kind === "optional" || type.kind === "list" || type.kind === "set") return { kind: type.kind, element: publicType(type.element) };
-    if (type.kind === "scalar" || type.kind === "declaration" || type.kind === "reference") return type;
+    if (type.kind === "scalar" || type.kind === "declaration" || type.kind === "reference" || type.kind === "sum") return type;
     return fail(section.line, "unsupported public type");
   };
   return { kind: "interface", id: section.id, source_line: section.line, boundary_kind: boundary!, version: version!, compatibility: compatibility!,

@@ -135,10 +135,12 @@ relative to the config file. For this launcher, use a local HTTPS origin with an
 explicit port of at least 1024 and a trusted localhost/127.0.0.1 certificate.
 
 The explicit sandbox quote policy is a positive integer numerator/denominator,
-reference and future expiry. It converts USD cents to BRL cents with nearest-cent
+reference, and either a future Unix expiry or `expiresAt: null` for an explicitly
+fixed merchant rate. It converts USD cents to BRL cents with nearest-cent
 rounding; the template supplies no default rate. Expired policy blocks new quotes;
-saved checkout retries continue using their frozen quote. A live FX/pricing policy
-is still a commercial requirement before production.
+fixed policy remains active until an operator deliberately replaces it, and saved
+checkout retries continue using their frozen quote. A live FX/pricing policy is
+still a commercial requirement before production.
 
 Starting binds `127.0.0.1`, then explicitly migrates the session schema. Until
 initialization completes, the listener answers 503. Port conflicts do not trigger

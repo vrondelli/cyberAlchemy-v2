@@ -45,12 +45,51 @@ npm run reconcile -- /absolute/path/to/config.json
 
 This explicitly contacts merchant sandbox APIs to retrieve payment status and may
 update the local ledger. It does not create payments, capture approved PayPal
-orders, issue refunds or initialize the session database. Each batch checks up to
-20 records; pass the returned `next` order ID as a second argument for the next
-batch. Start without a cursor on the next sweep. Mixed failures return a nonzero
-exit code while preserving completed results. Nothing is scheduled automatically.
+orders, issue refunds or initialize the session database. Each batch claims up to
+20 due records from the durable reconciliation queue. Deferred work is left for a
+later cycle; expired leases can be reclaimed and stale generations cannot finish
+newer work. Mixed failures return a nonzero exit code while preserving completed
+results. The deployed worker runs the same bounded operation on its configured
+maintenance interval.
 The same app configuration and local preflight are required; an expired quote
 policy is allowed because reconciliation uses the order's frozen amount.
+
+Inspect the complete durable reconciliation queue without contacting a provider:
+
+```sh
+npm run inspect-reconciliation -- /absolute/path/to/config.local.json
+npm run inspect-reconciliation -- /absolute/path/to/config.local.json review
+```
+
+The optional third argument is the numeric `next` cursor returned by the prior
+page. Output includes order/provider identifiers, state, generation, attempts,
+lease/backoff timing and the bounded reason code, but no buyer identity or
+provider response payload. Exit zero proves inspection succeeded; review items
+still require an explicit provider/recovery or policy decision.
+
+Inspect local late-payment refund intents without claiming work or contacting a
+payment provider:
+
+```sh
+npm run inspect-refunds -- /absolute/path/to/config.local.json
+npm run inspect-refunds -- /absolute/path/to/config.local.json review
+```
+
+An optional third argument is the numeric `next` cursor. This candidate CLI
+returns only allowlisted queue counts, work identifiers, state and bounded
+reason codes. Its ledger path opens the existing database read-only before
+normal schema setup; missing or older schemas fail instead of migrating. It
+does not issue, confirm, or retry a refund, and it is not enabled in staging.
+
+`resolve-reconciliation` is temporarily fail-closed. Even with a matching
+generation and provider-specific reason, it returns
+`reconciliation-terminal-evidence-required` and leaves the item in `review`.
+The previous command accepted an operator label without binding conclusive
+provider evidence, so it could hide an unresolved payment from the queue.
+Do not use a provider lookup that returns no payment, a local expiry clock, or
+an order-level 404 as proof that late settlement is impossible. A separately
+reviewed provider-finality contract and migration for historical closures are
+required before enabling terminal-unpaid resolution.
 
 See [integration contract and next tasks](../docs/SDK-INTEGRATION.md) for mounting,
 configuration, verification and the Open Questions owned by that document.
@@ -102,7 +141,8 @@ npm run maintain -- /absolute/path/to/config.local.json once
 npm run maintain -- /absolute/path/to/config.local.json watch 60
 ```
 
-One cycle processes an event batch, one reconciliation page and queue inspection.
+One cycle processes an event batch, up to 20 due reconciliation claims and both
+queue inspections.
 Watch mode waits after each cycle and handles SIGINT/SIGTERM without taking new
 work. No service is installed. Run one instance per ledger and inspect pending,
 review and failed counts; a cycle result is not full lifecycle acceptance.

@@ -15,7 +15,7 @@ import type {PlannedArtifact} from './contracts.js';
 import {MINIMAL_VALUE_CONTEXT_SHA256} from './reconciled-sources.js';
 export const CONFIGURED_PUBLIC_BOUNDARIES_VERSION='domainspec.configured-public-boundaries-selection/v1-candidate';
 export const PUBLIC_BOUNDARY_GENERATION_SHA256='686852a3615345f8ae2f66957d0b6c0ce825007b0e7c5d41492644b880aac0b9';
-const CONFIGURATION_SHA256='c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d';
+const CONFIGURATION_SHA256='9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317';
 export interface PublicBoundarySelection {readonly schema_version:typeof CONFIGURED_PUBLIC_BOUNDARIES_VERSION;readonly language:'typescript';readonly value_profile:typeof EXACT_UINT64_PROFILE;readonly module_root:string;readonly roots:readonly string[];}
 export interface PublicBoundarySources {readonly configuration:string;readonly base:string;readonly typescript:string;readonly generation_contract:string;readonly public_mapping_contract:string;readonly interface_contract:string;}
 const fail=(message:string):never=>{throw new TypeError('DS_PUBLIC_BOUNDARIES:'+message);};

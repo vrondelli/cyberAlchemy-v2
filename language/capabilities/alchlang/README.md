@@ -66,8 +66,8 @@ old campaign is not silently refreshed.
 From the repository root:
 
 ```bash
-python3 cyberAlchemy-v2/language/capabilities/alchlang/scripts/validate.py
-python3 cyberAlchemy-v2/language/capabilities/alchlang/tests/test_negative_mutations.py
+python3 language/capabilities/alchlang/scripts/validate.py
+python3 language/capabilities/alchlang/tests/test_negative_mutations.py
 ```
 
 Validation is read-only. It proves the current candidate shape, exact

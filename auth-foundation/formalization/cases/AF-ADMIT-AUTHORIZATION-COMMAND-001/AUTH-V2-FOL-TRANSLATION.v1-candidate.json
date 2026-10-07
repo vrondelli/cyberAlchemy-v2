@@ -1,0 +1,71 @@
+{
+  "schema_version": "auth-foundation.command-boundary-fol-translation/v1-candidate",
+  "status": "draft-translation-not-current-claim",
+  "authority_effect": "none",
+  "accepted_meaning_ref": {"path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/BUSINESS-MEANING.v1-clarified-accepted.json", "sha256": "ce6690c7028bdd1f26671b6d01498faed179340675fbb2cfcc9a55fd6ff109fb", "size_bytes": 6364, "current": true},
+  "draft_definitions_ref": {"path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/BUSINESS-MEANING.v2-definitions-candidate.json", "sha256": "aae4a6a007b1cb61c70da6244bbbbcaa146ad27006125b09ef791a562df5c49a", "size_bytes": 20964, "current": true},
+  "draft_interpretation_ref": {"path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/INTERPRETATION-MODEL.v1-occurrences-candidate.json", "sha256": "76dc4d8e88f99a27cbc563b41158cf2e05b10d05bfb03bdec7d9bc55ca21c821", "size_bytes": 9844, "current": true},
+  "profile": "fol-core/1-candidate",
+  "representation_media_type": "text/x-alchlang-fol",
+  "composition": "parenthesized-conjunction-in-clause-order",
+  "formal_signature": {
+    "sorts": [{"name":"Context"},{"name":"AuthOccurrence"},{"name":"RouteOccurrence"},{"name":"String"},{"name":"DecisionValue"}],
+    "functions": [
+      {"name":"RequestID","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"RequestedEvidenceRef","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"RequestedRouteID","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"EvidenceRef","parameter_sorts":["AuthOccurrence"],"result_sort":"String"},
+      {"name":"SessionID","parameter_sorts":["AuthOccurrence"],"result_sort":"String"},
+      {"name":"RouteID","parameter_sorts":["RouteOccurrence"],"result_sort":"String"},
+      {"name":"ScopeEvidenceRef","parameter_sorts":["RouteOccurrence"],"result_sort":"String"},
+      {"name":"PermissionResource","parameter_sorts":["RouteOccurrence"],"result_sort":"String"},
+      {"name":"PermissionAction","parameter_sorts":["RouteOccurrence"],"result_sort":"String"},
+      {"name":"PermissionScope","parameter_sorts":["RouteOccurrence"],"result_sort":"String"},
+      {"name":"CandidateRequestID","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"CandidateSessionID","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"CandidateResource","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"CandidateAction","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"CandidateScope","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"CandidateScopeEvidenceRef","parameter_sorts":["Context"],"result_sort":"String"},
+      {"name":"Decision","parameter_sorts":["Context"],"result_sort":"DecisionValue"}
+    ],
+    "predicates": [
+      {"name":"AuthMember","parameter_sorts":["Context","AuthOccurrence"]},
+      {"name":"RouteMember","parameter_sorts":["Context","RouteOccurrence"]},
+      {"name":"Trusted","parameter_sorts":["AuthOccurrence"]},
+      {"name":"Complete","parameter_sorts":["RouteOccurrence"]},
+      {"name":"QA","parameter_sorts":["Context","AuthOccurrence"]},
+      {"name":"QR","parameter_sorts":["Context","RouteOccurrence"]},
+      {"name":"ReadyCondition","parameter_sorts":["Context"]}
+    ],
+    "constants": [{"name":"empty","sort":"String"},{"name":"READY","sort":"DecisionValue"},{"name":"DENY","sort":"DecisionValue"}]
+  },
+  "clauses": [
+    {"clause_id":"outcomes-distinct", "source":"not (READY=DENY)"},
+    {"clause_id":"outcomes-exhaustive", "source":"forall d:DecisionValue: (d=READY or d=DENY)"},
+    {"clause_id":"qualifying-authentication", "source":"forall c:Context: (forall a:AuthOccurrence: (QA(c,a) iff (AuthMember(c,a) and EvidenceRef(a)=RequestedEvidenceRef(c) and not (EvidenceRef(a)=empty) and not (SessionID(a)=empty) and Trusted(a))))"},
+    {"clause_id":"qualifying-route", "source":"forall c:Context: (forall r:RouteOccurrence: (QR(c,r) iff (RouteMember(c,r) and RouteID(r)=RequestedRouteID(c) and not (RouteID(r)=empty) and not (ScopeEvidenceRef(r)=empty) and Complete(r) and not (PermissionResource(r)=empty) and not (PermissionAction(r)=empty) and not (PermissionScope(r)=empty))))"},
+    {"clause_id":"ready-condition", "source":"forall c:Context: (ReadyCondition(c) iff (not (RequestID(c)=empty) and (exists a:AuthOccurrence: (exists r:RouteOccurrence: (QA(c,a) and QR(c,r) and (forall a2:AuthOccurrence: (QA(c,a2) implies a2=a)) and (forall r2:RouteOccurrence: (QR(c,r2) implies r2=r)) and CandidateRequestID(c)=RequestID(c) and CandidateSessionID(c)=SessionID(a) and CandidateResource(c)=PermissionResource(r) and CandidateAction(c)=PermissionAction(r) and CandidateScope(c)=PermissionScope(r) and CandidateScopeEvidenceRef(c)=ScopeEvidenceRef(r))))))"},
+    {"clause_id":"decision-biconditionals", "source":"forall c:Context: ((Decision(c)=READY iff ReadyCondition(c)) and (Decision(c)=DENY iff not ReadyCondition(c)))"}
+  ],
+  "interpretation_obligations": [
+    "Every Context represents one complete finite-list input; all such contexts are quantified without an outcome-dependent scope predicate.",
+    "AuthMember and RouteMember map every valid list position injectively to a distinct occurrence, preserve equal duplicate rows, and exclude ghosts and foreign positions.",
+    "Every field function is total, and its member values project the exact field from that same list position; nonmember values cannot qualify without membership.",
+    "Trusted and Complete mean exactly the corresponding true-valued source fields; empty is the exact empty string.",
+    "Decision maps only to the pure command-boundary result under separately checked normal-completion and source-correspondence assumptions."
+  ],
+  "witness_expectations": [
+    {"case_id":"AUTH-CB-READY-EXACT-UNIQUE","expected":"READY"},
+    {"case_id":"AUTH-CB-DENY-BLANK-REQUEST-ID","expected":"DENY"},
+    {"case_id":"AUTH-CB-DUPLICATE-COLLAPSE-REJECT","expected":"DENY"},
+    {"case_id":"AUTH-CB-NONQUALIFYING-PROVENANCE-REJECT","expected":"DENY"}
+  ],
+  "claim_ceiling": "Non-current formation design sketch only. Typed parsing and exact-source controls do not prove equivalence to the draft definitions, interpretation-model satisfaction, accepted v2 meaning, a current v4 FormalClaim, full no-downstream-call preservation, admission, TDE, F5, EVF or runtime_guarantees_observed.",
+  "open_questions": [
+    "How will the candidate translation be independently reviewed against every accepted business fact and all ten inline definitions?",
+    "What exact theory and axiom identity contract will govern a future current v4 claim without a second canonical meaning source?",
+    "Which external correspondence evidence will prove occurrence membership, total projections, fixed Context scope and normal completion?",
+    "Which all-path source-bound proof will establish the accepted DENY-without-downstream-call fact?"
+  ]
+}

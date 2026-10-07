@@ -46,7 +46,7 @@ def _worker():
 
     def git(args, maximum):
         child = subprocess.Popen(["git", "--no-optional-locks", "-c", "core.hooksPath=/dev/null",
-                                  "-c", "core.fsmonitor=false", "-C", str(repo), *args],
+                                  "-c", "core.fsmonitor=false", "-c", f"safe.directory={repo}", "-C", str(repo), *args],
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         try:
             value = child.stdout.read(maximum + 1)

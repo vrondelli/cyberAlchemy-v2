@@ -7,12 +7,13 @@ import {
   type MintedGraph,
   type MintedProjectCompileOptions,
   type MintedSourceManifest,
-} from "./compiler";
+} from "./compiler.js";
 import {
   resolveMintedProjectSources,
   type ResolvedMintedProjectSources,
-} from "./resolver";
-import { validateJsonSchema, type JsonObject } from "./schema-validator";
+} from "./resolver.js";
+import { validateJsonSchema, type JsonObject } from "./schema-validator.js";
+import { localImplRoot } from "../lib/local-impl-root.js";
 
 export const MINTED_PROJECT_GENERATOR_VERSION = "minted-project-tools/v1";
 
@@ -281,8 +282,5 @@ export function verifyMintedProjectBuild(
 }
 
 function resolveSchema(file: string): string {
-  return resolve(
-    new URL("../../spec/minted-project/", import.meta.url).pathname,
-    file,
-  );
+  return resolve(localImplRoot(import.meta.url), "spec/minted-project", file);
 }

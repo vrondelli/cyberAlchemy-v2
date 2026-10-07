@@ -151,6 +151,15 @@ same 208-byte artifact with SHA-256
 
 Evidence:
 
+The screenshot and JSON paths below are historical capture references and are
+not present in the current workspace. Current authoritative evidence is the
+private mode-`0600` receipt
+`provider-paid-delivery-r23-20260920T162129Z.json`, SHA-256
+`3111ba20f7cbbbea4c920d3a164b85ca6dec75bd864cfc850165db779f370cbb`,
+bound by schema-v3 r23. It confirms one provider-paid PayPal journey and one
+consumed exact-artifact grant, but does not prove browser rendering or genuine
+PayPal webhook delivery.
+
 - [`paypal-probe-evidence.json`](../../output/playwright/journeys/paypal-probe-evidence.json)
 - [`paypal-cancel-evidence.json`](../../output/playwright/journeys/paypal-cancel-evidence.json)
 - [`paypal-complete-evidence.json`](../../output/playwright/presentation/paypal-complete-evidence.json)

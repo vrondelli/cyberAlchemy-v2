@@ -34,7 +34,7 @@ flowchart LR
 
 ## Implementation contract
 
-The server imports ARE conversation and request-intent runtimes. GLM proposes a structured objective and optional exact preference quote; host validation rejects malformed fields or quotes absent from the current user message. The verified ARE router evaluates the inferred objective. ARE selects matching curated context; the host adds a recent-message suffix capped by bytes and up to eight current-session preference quotes. GLM generates the reply. ARE records events and a process-memory completion checkpoint.
+The server imports ARE conversation and request-intent runtimes. GLM proposes a structured objective and optional exact preference quote; host validation rejects malformed fields or quotes absent from the current user message. The verified ARE router evaluates the user request, with inferred objective recorded but not promoted into route-selection authority. A healthy `selection.no-match` verdict permits only a real, no-tool conversational reply and is explicitly retained as no route selected; ambiguity, unavailable evidence, or other blocks do not. ARE selects matching curated context; the host adds a recent-message suffix capped by bytes and up to eight current-session preference quotes. GLM generates the reply. ARE records events and a process-memory completion checkpoint.
 
 The browser displays operational receipts, not hidden model reasoning. Model input/output token counts include both calls per successful turn. This measures overhead but does not establish savings. No actual tool execution is available, even for an implementation or publication route; routing never grants authority. Language adaptation is model-assisted contextual preference reuse, not global learning or model training.
 

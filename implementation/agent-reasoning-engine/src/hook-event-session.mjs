@@ -11,6 +11,9 @@ export function createHookEventSession(options = {}) {
   const turns = new Map();
   const engine = options.decide ?? decide;
   const maxTurns = options.max_turns ?? 32, maxTools = options.max_tools_per_turn ?? 64;
+  if (options.enforce_supported_tool_blocks !== undefined
+    && typeof options.enforce_supported_tool_blocks !== "boolean") throw new Error("events.invalid-tool-block-mode");
+  const enforceSupportedToolBlocks = options.enforce_supported_tool_blocks === true;
   if (!Number.isInteger(maxTurns) || maxTurns < 1 || maxTurns > 128 || !Number.isInteger(maxTools) || maxTools < 1 || maxTools > 128) throw new Error("events.invalid-limits");
   const key = (session, turn) => digestValue({session, turn});
   const result = material => freezeResult({...material, authority_effect: "none", observation_digest: digestValue(material)});
@@ -73,8 +76,22 @@ export function createHookEventSession(options = {}) {
           item_id: event.tool_use_id, proposal: {tool_name: event.tool_name, tool_input: event.tool_input}}});
         const evidence = {schema_version: "are.bound-tool-evidence/v1", binding_digest: state.binding_digest, event_digest: eventDigest,
           kind: decision.kind, result_digest: decision.result_digest ?? null, reason_codes: decision.reason_codes ?? decision.result?.value?.reason_codes ?? [], authority_effect: "none"};
-        const stdout = {hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext:
-          "ARE evaluated this exact proposal against its originating request. This is advisory evidence, not permission. Preserve existing user authorization and host approval rules; unavailable bindings never authorize a fallback.\n" + JSON.stringify(evidence)}};
+        // A gate is not an approval. Until an exact approval is bound to this
+        // proposal, the strict hosted path must not let the host execute it.
+        const denied = enforceSupportedToolBlocks && decision.ok
+          && (decision.kind === "block" || decision.kind === "gate");
+        const hookSpecificOutput = {hookEventName: "PreToolUse", additionalContext:
+          (denied
+            ? "ARE withheld this exact bound tool proposal. The host's supported tool-hook path must enforce the denial; other tool paths remain unverified.\n"
+            : "ARE evaluated this exact proposal against its originating request. This is advisory evidence, not permission. Preserve existing user authorization and host approval rules; unavailable bindings never authorize a fallback.\n")
+          + JSON.stringify(evidence)};
+        if (denied) {
+          hookSpecificOutput.permissionDecision = "deny";
+          hookSpecificOutput.permissionDecisionReason = decision.kind === "gate"
+            ? "ARE requires a separate decision for this bound tool proposal."
+            : "ARE blocked this bound tool proposal.";
+        }
+        const stdout = {hookSpecificOutput};
         const observed = {ok: decision.ok, kind: decision.kind, phase: "tool", binding_digest: state.binding_digest, event_digest: eventDigest,
           decision, stdout, replayed: Boolean(previous)};
         state.tools.set(event.tool_use_id, {event_digest: eventDigest});

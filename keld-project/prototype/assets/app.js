@@ -1,4 +1,4 @@
-/* Keld static site. No analytics. The optional film loads YouTube only after Play.
+/* Synvora static site. No analytics.
    Set contactEmail below to a real, authorized studio inbox before launch.
    A mailto link prepares a draft in the visitor's mail app; it does not send it. */
 window.KELD_CONFIG = Object.assign({ contactEmail: '' }, window.KELD_CONFIG || {});
@@ -215,13 +215,13 @@ window.KELD_CONFIG = Object.assign({ contactEmail: '' }, window.KELD_CONFIG || {
     const interest = String(data.get('interest') || '').trim();
     const message = String(data.get('message') || '').trim();
     if (!name || message.length < 12) { notify('Please include your name and a little more about your question.'); return; }
-    const subject = `Keld inquiry — ${interest}`;
-    const draft = `To: ${validStudioEmail ? contactEmail : '[studio address not connected]'}\nSubject: ${subject}\nFrom: ${name} <${email}>\n\nHello Keld,\n\n${message}\n\n${name}\n${email}`;
+    const subject = `Synvora inquiry — ${interest}`;
+    const draft = `To: ${validStudioEmail ? contactEmail : '[studio address not connected]'}\nSubject: ${subject}\nFrom: ${name} <${email}>\n\nHello Synvora,\n\n${message}\n\n${name}\n${email}`;
     $('#draft-content').value = draft;
     $('#copy-status').textContent = '';
     const mailLink = $('#email-draft');
     mailLink.hidden = !validStudioEmail;
-    if (validStudioEmail) mailLink.href = 'mailto:' + encodeURIComponent(contactEmail).replace('%40', '@') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(`Hello Keld,\n\n${message}\n\n${name}\n${email}`);
+    if (validStudioEmail) mailLink.href = 'mailto:' + encodeURIComponent(contactEmail).replace('%40', '@') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(`Hello Synvora,\n\n${message}\n\n${name}\n${email}`);
     openDialog('inquiry-draft');
   });
   $('#copy-draft').addEventListener('click', async () => {

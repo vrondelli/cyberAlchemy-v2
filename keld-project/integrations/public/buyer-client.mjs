@@ -36,6 +36,7 @@ export function createBuyerClient({fetch:request=globalThis.fetch,storage=global
   const session=()=>json('/api/session');
   async function post(url,body){
     const s=await session();
+    if(s.authenticated===false)throw new BuyerError('authentication-required');
     return request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'content-type':'application/json','x-csrf-token':s.csrf},body:JSON.stringify(body)});
   }
   async function operation(url,body){const r=await post(url,body);const value=await r.json();if(!r.ok)throw new BuyerError(r.status===401?'authentication-required':value.error||'request-not-completed');return value;}

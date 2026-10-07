@@ -424,20 +424,24 @@ export function compareExactSets(
     ...validateExactSet(expected).diagnostics,
     ...validateExactSet(actual).diagnostics,
   ];
-  const expectedMembers = new Set(
-    expected.members.map(({ logical_identity }) => logicalIdentityKey(logical_identity)),
+  const expectedMembers = new Map(
+    expected.members.map(({ logical_identity, content_sha256 }) => [logicalIdentityKey(logical_identity), content_sha256]),
   );
-  const actualMembers = new Set(
-    actual.members.map(({ logical_identity }) => logicalIdentityKey(logical_identity)),
+  const actualMembers = new Map(
+    actual.members.map(({ logical_identity, content_sha256 }) => [logicalIdentityKey(logical_identity), content_sha256]),
   );
-  for (const member of expectedMembers) {
+  for (const [member, expectedDigest] of expectedMembers) {
     if (!actualMembers.has(member)) {
       diagnostics.push(
         diagnostic("BTE_RECOMPOSITION_MISSING", member, "expected member is absent"),
       );
+    } else if (actualMembers.get(member) !== expectedDigest) {
+      diagnostics.push(
+        diagnostic("BTE_DIGEST_MISMATCH", member, "member content digest differs from expected"),
+      );
     }
   }
-  for (const member of actualMembers) {
+  for (const member of actualMembers.keys()) {
     if (!expectedMembers.has(member)) {
       diagnostics.push(
         diagnostic("BTE_RECOMPOSITION_EXTRA", member, "unexpected member is present"),

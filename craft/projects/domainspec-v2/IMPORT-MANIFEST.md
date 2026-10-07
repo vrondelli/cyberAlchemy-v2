@@ -90,7 +90,7 @@ staging readiness; manifest verdict/status retain the import vocabulary above.
 ## Genuine net-new IMPORTs (carried, or still to build)
 - Spec→test **executor** (row 1) + `obligation_key` seam (row 2) — present in the engine fork.
 - DCB concurrency/TOCTOU edge (row 3) — net-new for everyone; **not built yet** (tracked in the `dcb-correctness` tower), not in this fork.
-- **`impl/spec/DEFINITIONS.md` (DS-D1 meta-types + DS-D2 edge verbs)** — **net-new; the 6-doc Batch-1 set omitted a domain-vocabulary home** (v1 kept definitions under `research/.../definitions/`). Built by reformulation **R7** (aggregates R2 TAXONOMY + R3 RELATIONSHIPS); owner `definitions-governance`. Distinct from the governance/synthesis vocabulary in `definitions/DEFINITIONS.md` (`domainspec-v2-D3/D4/D5`, consolidated 2026-07-01).
+- **`impl/spec/DEFINITIONS.md` (historical destination for DS-D1 meta-types + DS-D2 edge verbs)** — **net-new at the time of this import plan; the 6-doc Batch-1 set omitted a domain-vocabulary home** (v1 kept definitions under `research/.../definitions/`). Built by reformulation **R7** (aggregates R2 TAXONOMY + R3 RELATIONSHIPS); owner `definitions-governance`. The active vocabulary now lives under `definitions/`; this path is retained only as historical import provenance, not a current file lookup. Distinct from the governance/synthesis vocabulary in `definitions/DEFINITIONS.md` (`domainspec-v2-D3/D4/D5`, consolidated 2026-07-01).
 
 ## Freeze gate
 `implementation/domainspec/` becomes a FROZEN evidence source once v2 is self-contained — all

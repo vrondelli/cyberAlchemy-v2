@@ -38,6 +38,7 @@
 // deterministic order. The classifier is best-effort: anything it cannot classify
 // becomes a counted, content-addressed needs_formal obligation — never an interpreted guess.
 
+import { createHash } from "node:crypto";
 import type {
   ConceptGraph,
   Node,
@@ -334,7 +335,6 @@ function deriveCalculations(graph: ConceptGraph): Obligation[] {
   for (const c of byType(graph, "Calculation")) {
     const id = s(c.fields.id);
     const formula = s(c.fields.formula).trim();
-    const isTernary = /\?[^?]*:/.test(formula);
     // Provenance guard (SWU-COB-005): a CLOSED-FORM Formal (a recognized fold like
     // `sum(records.profit)` or a piecewise/arith like `max(0, debt - profit ...)`)
     // is derivable -> a `calculation` obligation. An OPAQUE bare call the AST
@@ -348,9 +348,7 @@ function deriveCalculations(graph: ConceptGraph): Obligation[] {
       ast.kind === "num" ||
       ast.kind === "var" ||
       ast.kind === "piecewise";
-    const isBareCall = /^[A-Za-z_][\w]*\s*\(.*\)$/.test(formula); // applyMakeupPolicy(...)
-    const isSimpleExpr = formula !== "" && (isClosedForm || !isBareCall);
-    if (isTernary) {
+    if (ast.kind === "ternary") {
       for (const branch of ["true-branch", "false-branch"]) {
         out.push(
           mk(
@@ -361,7 +359,7 @@ function deriveCalculations(graph: ConceptGraph): Obligation[] {
           ),
         );
       }
-    } else if (isSimpleExpr) {
+    } else if (isClosedForm) {
       out.push(
         mk(
           "calculation",
@@ -695,7 +693,7 @@ function deriveSpecAttributes(graph: ConceptGraph): Obligation[] {
  */
 export function derive(
   graph: ConceptGraph,
-  _rules: RuleSet = DEFAULT_RULE_SET,
+  rules: RuleSet = DEFAULT_RULE_SET,
 ): Obligation[] {
   const all: Obligation[] = [
     ...deriveValidTransitions(graph),
@@ -718,12 +716,51 @@ export function derive(
     ...deriveSpecFields(graph),
     ...deriveSpecAttributes(graph),
   ];
-  all.sort((a, b) =>
+  // A current obligation is a semantic occurrence: source anchor and params
+  // identify its shape, while the rule version and authored source bytes guard
+  // against replaying evidence derived under a different interpretation.
+  const canonicalNode = (node: Node): string => JSON.stringify({
+    type: node.type,
+    needs_formal: node.needs_formal ?? false,
+    fields: Object.fromEntries(Object.entries(node.fields).sort(([a], [b]) => a.localeCompare(b))),
+  });
+  const sourceFingerprints = new Map(graph.nodes.map((node) => {
+    // A relation is part of the local semantic source of either endpoint. An
+    // unrelated graph addition must not retire this node's obligation key.
+    const incidentEdges = graph.edges
+      .filter((edge) => edge.from === node.id || edge.to === node.id || edge.from === node.source_anchor || edge.to === node.source_anchor)
+      .map((edge) => {
+        const neighborId = edge.from === node.id || edge.from === node.source_anchor ? edge.to : edge.from;
+        const neighbor = graph.nodes.find((candidate) => candidate.id === neighborId || candidate.source_anchor === neighborId);
+        return [edge.from, edge.type, edge.to, neighbor ? canonicalNode(neighbor) : null];
+      })
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    return [node.source_anchor, createHash("sha256")
+      .update(JSON.stringify({ node: canonicalNode(node), incidentEdges }))
+      .digest("hex")];
+  }));
+  const graphFingerprint = createHash("sha256").update(JSON.stringify({
+    nodes: [...graph.nodes].sort((a, b) => a.source_anchor.localeCompare(b.source_anchor)).map((node) => [node.source_anchor, canonicalNode(node)]),
+    edges: [...graph.edges].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  })).digest("hex");
+  const current = all.map((obligation) => ({
+    ...obligation,
+    obligation_key: obligationKey(
+      obligation.source_anchor,
+      obligation.rule_type,
+      obligation.canonical_params,
+      {
+        ruleSetVersion: rules.version,
+        semanticSourceFingerprint: sourceFingerprints.get(obligation.source_anchor) ?? graphFingerprint,
+      },
+    ),
+  }));
+  current.sort((a, b) =>
     a.obligation_key < b.obligation_key
       ? -1
       : a.obligation_key > b.obligation_key
         ? 1
         : 0,
   );
-  return all;
+  return current;
 }

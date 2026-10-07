@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {loadBenchmark} from "../src/corpus.mjs";
-import {packageRoot} from "../src/common.mjs";
+import {loadRuntime, packageRoot} from "../src/common.mjs";
 import {runCompactionLiveBenchmark} from "../src/compaction-live.mjs";
 
 function fakeClient() {
@@ -29,9 +29,10 @@ function fakeClient() {
 }
 
 test("live compaction runner keeps baseline and treatment paired through native compaction", async () => {
-  const result = await runCompactionLiveBenchmark(loadBenchmark(packageRoot), {
+  const benchmark = loadBenchmark(packageRoot);
+  const result = await runCompactionLiveBenchmark(benchmark, {
     client: fakeClient(),
-    observed_version: "codex-cli 0.153.0-alpha.5",
+    observed_version: loadRuntime(benchmark.profile).value.protocol_binding.observed_codex_version,
     model: "gpt-5.6-luna",
   });
   assert.equal(result.status, "PASS", JSON.stringify(result.summary));

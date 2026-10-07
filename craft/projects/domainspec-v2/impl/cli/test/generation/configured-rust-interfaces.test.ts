@@ -14,7 +14,7 @@ import {rustSelectorModule} from '../../src/generation/configured-rust-values.ts
 import {sha256} from '../../src/input/source-manifest.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const packagePath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation');
 function source(name: string, hash: string): string {const value = fs.readFileSync(path.join(packagePath, name), 'utf8'); assert.equal(getReconciledSource(name === 'named-interface-contract.json' ? 'interface' : 'interface_version'), value); assert.equal(sha256(value), hash); return value;}
 

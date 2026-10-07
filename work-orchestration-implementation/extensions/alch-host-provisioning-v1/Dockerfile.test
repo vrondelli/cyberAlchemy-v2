@@ -1,0 +1,12 @@
+FROM node:26.8.1-bookworm-slim AS locked-node
+
+FROM ubuntu:26.04
+
+# Test-only environment for the package's fixed /usr/bin/ansible-playbook binding.
+# The checkout is mounted read-only at run time; no deployment image is produced.
+ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ansible-core python3-jsonschema bubblewrap binutils libstdc++6 libatomic1 libmpfr6 libgmp10 zlib1g libzstd1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=locked-node /usr/local/bin/node /usr/local/bin/node

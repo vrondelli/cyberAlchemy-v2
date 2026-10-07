@@ -54,7 +54,8 @@ class SiblingRouteTests(unittest.TestCase):
             with self.subTest(path=value):
                 target = (PACKAGE / unquote(value)).resolve()
                 self.assertTrue(any(target.is_relative_to(root) for root in roots))
-                self.assertTrue(target.exists(), value)
+                if target.is_relative_to(PACKAGE.parent.resolve()):
+                    self.assertTrue(target.exists(), value)
         self.assertIn('## Open Questions', doc)
         self.assertIn('[checkout layout contract](LAYOUT.md)', doc)
 

@@ -29,7 +29,7 @@ export const EXACT_LITERAL_RULE_VERSION = 'domainspec.configured-rules-selection
 export const EXACT_LITERAL_RULE_CONTRACT_SHA256 = 'b89f26b8e82f501b94c625fd027ff088d2c130ccbd0b19c8cf792ea88b4e7381';
 export const STRUCTURED_RULE_VERSION = 'domainspec.configured-rules-selection/v8-candidate';
 export const STRUCTURED_RULE_CONTRACT_SHA256 = 'dbb0b403c041a453382b84f24ad1d0e26e66150380286c74a3dcbfc8dc818d59';
-export const RULE_CONFIGURATION_SHA256 = 'c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d';
+export const RULE_CONFIGURATION_SHA256 = '9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317';
 export interface ConfiguredRuleSelection {
   readonly schema_version: typeof CONFIGURED_RULE_VERSION | typeof STRING_ORDER_RULE_VERSION | typeof COLLECTION_VALUE_RULE_VERSION | typeof COLLECTION_PREDICATE_RULE_VERSION | typeof NUMERIC_RULE_VERSION | typeof EXACT_RULE_VERSION | typeof EXACT_LITERAL_RULE_VERSION | typeof STRUCTURED_RULE_VERSION;
   readonly value_profile?: typeof NUMERIC_RULE_VALUE_PROFILE | typeof EXACT_UINT64_PROFILE;

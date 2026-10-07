@@ -10,7 +10,7 @@ import type {PlannedArtifact} from './contracts.js';
 
 export const CONFIGURED_MAPPING_VERSION='domainspec.configured-mappings-selection/v1-candidate';
 export const MAPPING_CONTRACT_SHA256='626f05cb4fe01ec0552e1c2c939abf712235ed84fee319ac38a81148e6449c73';
-const CONFIGURATION_SHA256='c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d';
+const CONFIGURATION_SHA256='9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317';
 export interface ConfiguredMappingSelection {
   readonly schema_version:typeof CONFIGURED_MAPPING_VERSION;
   readonly language:'typescript';

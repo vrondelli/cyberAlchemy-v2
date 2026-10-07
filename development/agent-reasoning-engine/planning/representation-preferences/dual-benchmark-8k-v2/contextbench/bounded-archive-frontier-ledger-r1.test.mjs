@@ -47,3 +47,21 @@ test('confirmed metadata cannot invent source extent or disagree with requested 
   assert.throws(()=>buildCoverageLedger(f),/source-extent-mismatch|revision-arguments/);
  }
 });
+test('compact archived recovery inherits its origin-bound revision without inventing a request argument',()=>{
+ const f=revisedFixture(['base','base']),p=JSON.parse(f.captures[0].prompt),call=p.messages[0].tool_calls[0];
+ const archive_sha256='b'.repeat(64),observation_index=0;
+ call.function.name='recover_archived_read';
+ call.function.arguments=JSON.stringify({archive_sha256,observation_index});
+ const output=JSON.parse(p.messages[1].content);
+ output.archive_origin={archive_sha256,observation_index};
+ p.messages[1].content=JSON.stringify(output);
+ const prompt=stable(p);f.captures=[{prompt,prompt_sha256:hash(prompt)}];
+ f.receipts[0].request_sha256=hash(stable(bodyForReceipt(prompt,f.receipts[0])));
+ const ledger=buildCoverageLedger(f);
+ assert.equal(ledger.entries.length,1);
+ assert.equal(ledger.entries[0].source_revision,'base');
+ const full=JSON.parse(prompt),fullCall=full.messages[0].tool_calls[0];
+ fullCall.function.arguments=JSON.stringify({archive_sha256,observation_index,path:'source.txt',revision:'current',start_line:1,line_count:2});
+ const mismatched=stable(full),bad={...f,captures:[{prompt:mismatched,prompt_sha256:hash(mismatched)}],receipts:[{...f.receipts[0],request_sha256:hash(stable(bodyForReceipt(mismatched,f.receipts[0])))}]};
+ assert.throws(()=>buildCoverageLedger(bad),/recovery\.arguments-output-mismatch|unmapped-delivery|revision-arguments/);
+});

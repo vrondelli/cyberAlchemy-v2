@@ -1,0 +1,10 @@
+BEGIN;
+CREATE TABLE IF NOT EXISTS domainspec_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS "domainspec_dead_letter" ("id" TEXT PRIMARY KEY, "source_channel_ref" TEXT NOT NULL, "message_type_ref" TEXT NOT NULL, "payload" JSONB NOT NULL, "failure_class" TEXT NOT NULL, "failed_at" TIMESTAMP WITH TIME ZONE NOT NULL, "redriven_at" TIMESTAMP WITH TIME ZONE);
+CREATE TABLE IF NOT EXISTS "domainspec_inbox" ("id" TEXT PRIMARY KEY, "subscription_id" TEXT NOT NULL, "message_type_ref" TEXT NOT NULL, "channel_ref" TEXT NOT NULL, "payload" JSONB NOT NULL, "received_at" TIMESTAMP WITH TIME ZONE NOT NULL, "completed_at" TIMESTAMP WITH TIME ZONE);
+CREATE TABLE IF NOT EXISTS "domainspec_outbox" ("id" TEXT PRIMARY KEY, "publication_id" TEXT NOT NULL, "message_type_ref" TEXT NOT NULL, "channel_ref" TEXT NOT NULL, "payload" JSONB NOT NULL, "status" TEXT NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL, "accepted_at" TIMESTAMP WITH TIME ZONE);
+CREATE TABLE IF NOT EXISTS "order" ("accepted" TEXT NOT NULL, "id" TEXT PRIMARY KEY);
+CREATE INDEX IF NOT EXISTS "domainspec_dead_letter_channel_idx" ON "domainspec_dead_letter" ("source_channel_ref", "failed_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "domainspec_inbox_subscription_idx" ON "domainspec_inbox" ("subscription_id", "id");
+CREATE INDEX IF NOT EXISTS "domainspec_outbox_pending_idx" ON "domainspec_outbox" ("status", "created_at");
+COMMIT;

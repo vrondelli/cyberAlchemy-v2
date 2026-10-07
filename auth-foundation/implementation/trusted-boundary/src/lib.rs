@@ -1,59 +1,22 @@
-//! Fail-closed trusted boundary from untrusted identifiers to the existing authorization service.
+//! Legacy v1 boundary fixture, isolated from the selected public Auth request.
+//!
+//! The generic resolver and downstream callback are not an all-path no-call
+//! proof. This crate deliberately has no concrete SQLite decision-service
+//! implementation; use the transaction-bound READY composition instead.
 
 use auth_command_boundary_kernel as boundary_kernel;
 
-pub use auth_foundation_runtime_adapter::{
-    AuthorizationCommand, BinaryAuthorizationDecision, Permission, PortFailure,
+pub use auth_foundation_authorization_state_model::{
+    AuthenticatedSessionEvidence, AuthenticationEvidenceResolver, RouteAuthorizationBinding,
+    RouteAuthorizationBindingResolver,
 };
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InboundAuthorizationRequest {
-    pub request_id: String,
-    pub authentication_evidence_ref: String,
-    pub route_id: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AuthenticatedSessionEvidence {
-    pub evidence_ref: String,
-    pub session_id: String,
-    pub trusted: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RouteAuthorizationBinding {
-    pub route_id: String,
-    pub required_permission: Permission,
-    pub scope_evidence_ref: String,
-    pub complete: bool,
-}
-
-pub trait AuthenticationEvidenceResolver {
-    fn resolve_authentication_evidence(
-        &self,
-        evidence_ref: &str,
-    ) -> Result<Vec<AuthenticatedSessionEvidence>, PortFailure>;
-}
-
-pub trait RouteAuthorizationBindingResolver {
-    fn resolve_route_authorization_bindings(
-        &self,
-        route_id: &str,
-    ) -> Result<Vec<RouteAuthorizationBinding>, PortFailure>;
-}
+pub use auth_foundation_authorization_state_model::{
+    AuthorizationCommand, BinaryAuthorizationDecision, InboundAuthorizationRequest, Permission,
+    PortFailure,
+};
 
 pub trait AuthorizationDecisionService {
     fn authorize(&mut self, command: AuthorizationCommand) -> BinaryAuthorizationDecision;
-}
-
-impl<C> AuthorizationDecisionService
-    for auth_foundation_sqlite_provider::SqliteAuthorizationService<C>
-where
-    C: auth_foundation_runtime_adapter::DecisionClock,
-{
-    fn authorize(&mut self, command: AuthorizationCommand) -> BinaryAuthorizationDecision {
-        auth_foundation_sqlite_provider::SqliteAuthorizationService::authorize(self, command)
-    }
 }
 
 pub struct TrustedAuthorizationBoundary<A, R, D> {

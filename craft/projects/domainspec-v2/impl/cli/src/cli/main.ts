@@ -432,12 +432,16 @@ function isInstantiationTarget(root: string): boolean {
 }
 
 function errorEnvelope(error: unknown): Record<string, unknown> {
-  const candidate = error as Partial<Error> & { code?: unknown; pointer?: unknown };
+  const candidate = error as Partial<Error> & { code?: unknown; pointer?: unknown;
+    retained_stage?: unknown; retained_evidence_directory?: unknown };
   return {
     result: "fail",
     code: typeof candidate.code === "string" ? candidate.code : "MTCLI_UNEXPECTED",
     pointer: typeof candidate.pointer === "string" ? candidate.pointer : "$",
     message: error instanceof Error ? error.message : "unexpected failure",
+    ...(candidate.retained_stage ? { retained_stage: candidate.retained_stage } : {}),
+    ...(typeof candidate.retained_evidence_directory === "string" ?
+      { retained_evidence_directory: candidate.retained_evidence_directory } : {}),
     authority_effect: "none",
   };
 }

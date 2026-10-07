@@ -27,12 +27,22 @@ x-payments: &payments
   KELD_PAYPAL_SECRET_FILE: /run/secrets/paypal_secret
 services:
   edge:
-    image: caddy:2.11.2-alpine@sha256:834468128c7696cec0ceea6172f7d692daf645ae51983ca76e39da54a97c570d
+    image: keld-caddy:2.11.4-security-plan-20260920-r2
+    build: {context: ., dockerfile: Caddy.Dockerfile}
+    user: "1001:1001"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
       KELD_DOMAIN: ${KELD_DOMAIN:?set KELD_DOMAIN}
+      SYNVORA_DOMAIN: ${SYNVORA_DOMAIN:-synvora.solutions}
       AUTH_DOMAIN: ${AUTH_DOMAIN:?set AUTH_DOMAIN}
+      ARE_DOMAIN: ${ARE_DOMAIN:-are.keld.studio}
     volumes:
       - ./Caddyfile.staging-candidate:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -41,8 +51,15 @@ services:
     logging: *logging
     depends_on:
       web: {condition: service_healthy}
+      web-synvora: {condition: service_healthy}
   postgres:
-    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    image: keld-postgres:16-security-plan-20260920-r2
+    build: {context: ., dockerfile: Postgres.Dockerfile}
+    user: "70:70"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
@@ -50,6 +67,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./.runtime/init-databases.sql:/docker-entrypoint-initdb.d/10-keld.sql:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/run/postgresql:size=16m,uid=70,gid=70,mode=3775
     networks: [backend]
     restart: unless-stopped
     healthcheck:
@@ -60,8 +80,12 @@ services:
     mem_limit: 768m
     logging: *logging
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.3@sha256:ff4257d0d64efbe99ed1ddfaf07765cc3c36dc7518bf8324d41961327f441c54
+    image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
     entrypoint: ["/bin/bash", "/opt/keld-entrypoint.sh"]
+    user: "1000:0"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -75,12 +99,18 @@ services:
     volumes:
       - ./keycloak-entrypoint.sh:/opt/keld-entrypoint.sh:ro
       - ./.runtime/keld-realm.json:/opt/keycloak/data/import/keld-realm.json:ro
+    tmpfs: ["/tmp:size=64m,mode=1777"]
     depends_on:
       postgres: {condition: service_healthy}
     networks: [backend, egress]
     restart: unless-stopped
     mem_limit: 2g
     logging: *logging
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q 'HTTP/1.1 200' <&3"]
+      interval: 10s
+      timeout: 3s
+      retries: 18
   web:
     <<: *app
     environment:
@@ -93,7 +123,41 @@ services:
     secrets: [stripe, mercadopago, paypal_client_id, paypal_secret, oidc, session_database_url, session_key, stripe_webhook, mp_webhook]
     depends_on:
       postgres: {condition: service_healthy}
-      keycloak: {condition: service_started}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+  web-synvora:
+    image: keld-sandbox:${SYNVORA_VERSION:?set SYNVORA_VERSION}
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 768m
+    restart: unless-stopped
+    stop_grace_period: 135s
+    logging: *logging
+    networks: [backend, egress]
+    tmpfs: ["/tmp:size=16m,mode=1777", "/scratch:size=600m,mode=1777"]
+    volumes:
+      - ./.runtime/synvora.json:/config/keld.json:ro
+      - ./.runtime/commerce:/data
+      - ./.runtime/artifacts:/artifacts:ro
+    environment:
+      <<: *payments
+      KELD_OIDC_SECRET_FILE: /run/secrets/oidc
+      KELD_DATABASE_URL_FILE: /run/secrets/session_database_url
+      KELD_SESSION_KEY_FILE: /run/secrets/session_key
+      KELD_STRIPE_WEBHOOK_SECRET_FILE: /run/secrets/stripe_webhook
+      KELD_MP_WEBHOOK_SECRET_FILE: /run/secrets/mp_webhook
+    secrets: [stripe, mercadopago, paypal_client_id, paypal_secret, oidc, session_database_url, session_key, stripe_webhook, mp_webhook]
+    depends_on:
+      postgres: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -106,6 +170,12 @@ services:
     secrets: [stripe, mercadopago, paypal_client_id, paypal_secret]
     depends_on:
       web: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');try{const h=JSON.parse(fs.readFileSync('/scratch/worker-health.json','utf8'));process.exit(h.schema==='keld-worker-health/v1'&&h.healthy===true&&Date.now()/1000-h.observedAt<180?0:1)}catch{process.exit(1)}"]
+      interval: 30s
+      timeout: 3s
+      retries: 6
+      start_period: 90s
 secrets:
   stripe: {file: ./.runtime/secrets/stripe}
   mercadopago: {file: ./.runtime/secrets/mercadopago}

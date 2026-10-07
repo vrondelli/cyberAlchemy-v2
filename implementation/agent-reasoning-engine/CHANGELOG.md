@@ -32,7 +32,42 @@ candidate source-available license direction. Exact legal terms and rights/notic
 remain release gates, so this record does not itself license or sell Candidate
 018.
 
-## Unreleased documentation work
+## 0.10.0-rc.1 — Candidate 020
+
+- Corrected the frozen product README and release-process wording before the
+  Candidate 020 freeze.
+- Froze `ARE-PRODUCT-CANDIDATE-020` with a 988-file, 8,129,533-byte closure
+  and 1,247 passing isolated product cases across 158 test files.
+- Candidate digest: `1a4ecd01f82523614f7e04b5f1d12f9c751a1586f00e6b36e659379376ef5e77`.
+- Source closure digest: `91aceea4c9a1ecb551935c9478d41dd29fa54fdbb681c15751d6d77b7a0cf744`.
+
+Candidate 020 is an immutable tested product candidate, not an accepted
+release. Legal clearance, trusted signing, tagging, publication, delivery,
+deployment, and support activation remain unperformed.
+
+## 0.10.0-rc.1 — Candidate 019
+
+- Selected the first customer-facing successor version in package and product
+  metadata.
+- Added the local stdio ARE MCP component to the declared product closure and
+  its complete owned test coverage.
+- Reconciled the live release documentation with an explicit historical
+  Candidate 018 baseline.
+- Bound a 988-file, 8,129,671-byte working closure and 1,247 passing isolated
+  product cases across 158 test files in the RC1 preparation receipt.
+- Froze `ARE-PRODUCT-CANDIDATE-019` with a 988-file, 8,129,671-byte closure
+  and 1,247 passing isolated product cases across 158 test files.
+- Kept legal clearance, trusted signing, tagging, publication, delivery,
+  deployment, and support activation unperformed.
+
+Candidate digest: `b5bc61a7e7dd936a94e68a60c32c1d756e7e4b37f2bfcaa9674821f6d1453095`.
+Source closure digest: `320f4c0838662c3811317a5bc710604d2e15328faa019014d2a384fe0f628224`.
+This is an immutable tested product candidate, not an accepted release.
+Its frozen product README and release-process guide retain pre-freeze wording.
+Candidate 020 corrects that documentation defect without rewriting Candidate
+019 evidence.
+
+## Earlier unreleased documentation work
 
 - Added an integrated ARE manual and release-readiness documentation contract.
 - Added visibly inactive deployment, migration, security, service, and

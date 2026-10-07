@@ -39,13 +39,14 @@ def observe(data,m,overrides=None):
         body=''.join(('\\u%04x' % ord(c)) if 0xD800 <= ord(c) <= 0xDFFF else c for c in body).encode()
         require(r['kind']==node['kind'] and r['body_sha256']==hashlib.sha256(body).hexdigest() and r['semantics']=='reference-not-embedding','reference meaning')
     fields=sorted(source['payload'],key=lambda f:f['field_id']);generated=source['occurred_at_policy']=='generated'
+    def reference(selector): return next(r for r in m['reference_imports'] if r['selector']==selector)
     def type_of(f, input=False):
         t=f['type_ref']
-        if t['kind']=='reference':return 'str' if input else '_Ref'+str(refs.index(t['selector']))
+        if t['kind']=='reference':return ('int | str' if reference(t['selector'])['identity']['scalar']=='UInt64' else 'str') if input else '_Ref'+str(refs.index(t['selector']))
         return {'string':'str','boolean':'bool','integer':'int | str' if input else 'int','decimal':'int | float' if input else 'float','timestamp':'str','uuid':'str'}[t['name']]
     def normalize(f,expr):
         t=f['type_ref']
-        if t['kind']=='reference':return '_Ref'+str(refs.index(t['selector']))+'(_e.text('+expr+'))'
+        if t['kind']=='reference':return '_Ref'+str(refs.index(t['selector']))+'('+('_event_ref_uint64' if reference(t['selector'])['identity']['scalar']=='UInt64' else '_e.text')+'('+expr+'))'
         fn={'string':'string','boolean':'boolean','integer':'integer','decimal':'decimal','timestamp':'text','uuid':'text'}[t['name']]
         return '_e.'+fn+'('+expr+')'
     def shape(name,fs):
@@ -68,13 +69,26 @@ from RUNTIME import event_values as _e
     require([r['selector'] for r in m['reference_imports']]==refs,'reference type imports')
     for i,r in enumerate(m['reference_imports']):
         content=read(r['relative_path'])
-        declaration='from typing import NewType as _NewType\nEventRef = _NewType('+repr(r['selector'])+', str)\n'
+        require(r['identity']['selector']==r['selector'] and r['identity']['scalar'] in ('String','UInt64'),'reference identity binding')
+        declaration='from typing import NewType as _NewType\nEventRef = _NewType('+repr(r['selector'])+', '+('int' if r['identity']['scalar']=='UInt64' else 'str')+')\n'
         require(dump(ast.parse(content))==dump(ast.parse(declaration)),'shared reference type semantics')
         bound=next(x for x in d['references'] if x['selector']==r['selector'])
         require(hashlib.sha256(content).hexdigest()==r['sha256']==bound['type_artifact']['sha256'],'reference type digest')
         actual_module=relative_module(m['provider_path'],r['relative_path'][:-3])
         require(r['module']==actual_module,'reference import binding')
         expected+='from '+actual_module+' import EventRef as _Ref'+str(i)+'\n'
+    if any(r['identity']['scalar']=='UInt64' for r in m['reference_imports']):
+        expected+='''def _event_ref_uint64(value):
+    if type(value) is int:
+        number = value
+    elif type(value) is str and 1 <= len(value) <= 20 and (value == "0" or value[0] != "0" and value.isascii() and value.isdecimal()):
+        number = int(value)
+    else:
+        return _e.fail()
+    if number < 0 or number > 18446744073709551615:
+        return _e.fail()
+    return number
+'''
     expected+=shape('_Occurrence',[source['occurrence_id']])+shape('_Payload',fields)
     expected+='EventInput = _TypedDict("EventInput", {"occurrence": _OccurrenceInput, '+('' if generated else '"occurredAt": str, ')+'"payload": _PayloadInput})\n'
     expected+='@_dataclass(frozen=True, slots=True)\nclass EventValue:\n    type: _Literal['+repr(source['event_type'])+']\n    version: _Literal['+repr(source['version'])+']\n    occurrence: _Occurrence\n    occurredAt: str\n    payload: _Payload\n'

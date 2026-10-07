@@ -85,11 +85,17 @@ export function lowerApplicationDomain(source: string, input: unknown, sources: 
     if (value.kind === "declaration") return { kind: "named", selector: selector(value.ref) };
     if (value.kind === "public-contract") return { kind: "contract", interface_selector: selector(value.interface), contract_id: symbol(value.contract) };
     if (value.kind === "reference") return { kind: "reference", selector: selector(value.entity), projection: [symbol(value.field, "_")] };
+    if (value.kind === "sum") {
+      const declaration = model.declarations.find(item => item.id === value.enum);
+      if (declaration?.kind !== "enum") return reject("APPLICATION_SUM", value.enum, "sum must select a declared Enum");
+      const variants = object(object(metadata[declaration.id], value.enum).variants, value.enum);
+      return { kind: "sum", variants: declaration.values.map(variant => ({ name: variant.name, ontology_variant: text(variants[variant.name], value.enum), payload: null })) };
+    }
     return { kind: value.kind, element: type(value.element) };
   };
   const qualifyPublic = (value: ApplicationPublicType, owner: string): ApplicationType => {
     if (value.kind === "contract") return { kind: "public-contract", interface: owner, contract: value.ref };
-    if (value.kind === "scalar" || value.kind === "declaration" || value.kind === "reference") return value;
+    if (value.kind === "scalar" || value.kind === "declaration" || value.kind === "reference" || value.kind === "sum") return value;
     return { kind: value.kind, element: qualifyPublic(value.element, owner) };
   };
   const mappingData = (value: ApplicationType, at: string) => {
@@ -161,6 +167,7 @@ export function lowerApplicationDomain(source: string, input: unknown, sources: 
         if (value.kind === "scalar") return value;
         if (value.kind === "declaration") return { kind: "named", selector: selector(value.ref) };
         if (value.kind === "reference") return reject("APPLICATION_INTERFACE_TYPE", at, "public identity references require an explicit supported representation");
+        if (value.kind === "sum") return type(value);
         return { kind: value.kind, element: publicType(value.element) };
       };
       const publicContracts = declaration.contracts.map(contract => {
@@ -244,6 +251,34 @@ export function lowerApplicationDomain(source: string, input: unknown, sources: 
       add(declaration.id, "Mapping", { description: meaning, target: selector(targetOwner!), typed_contract: contract }, declaration.source_line);
       edge(declaration.id, "maps", targetOwner!);
       Object.assign(trace.at(-1)!, { fields: declaration.fields, return_semantics: "field-projection-not-construction", dependency_contract: "declared-inputs-only" });
+    } else if (declaration.kind === "calculation") {
+      const inputs = declaration.inputs.map(input => ({ name: symbol(input.name, "_"), type: type(input.type) }));
+      add(declaration.id, "Calculation", { description: meaning, inputs: inputs.map(input => input.name), typed_contract: {
+        schema_version: "domainspec.typed-calculation/v2", ontology_calculation: ontology, inputs, result: declaration.result,
+        division_rounding: declaration.rounding, expression: declaration.expression,
+      } }, declaration.source_line);
+      Object.assign(trace.at(-1)!, { inputs: declaration.inputs, result: declaration.result, expression: declaration.expression, rounding: declaration.rounding });
+    } else if (declaration.kind === "policy") {
+      const targets = [...new Set([...declaration.cases.map(item => item.target), declaration.default_target])];
+      add(declaration.id, "Policy", { description: meaning, strategies: targets.map(target => symbols[target]),
+        decisions: declaration.cases.map(item => ({ rule_ref: selector(item.rule), strategy: symbols[item.target] })), default_strategy: symbols[declaration.default_target] }, declaration.source_line);
+      targets.forEach(target => edge(declaration.id, "applies", target));
+      Object.assign(trace.at(-1)!, { inputs: declaration.inputs.map(input => ({ name: input.name, type: type(input.type), source_line: input.source_line })),
+        input_names: declaration.input_names, cases: declaration.cases, bindings: declaration.bindings, default_target: declaration.default_target, formal_consumer_projection: "required" });
+    } else if (declaration.kind === "workflow") {
+      const steps = declaration.steps.map(step => symbols[step]!);
+      add(declaration.id, "Workflow", { description: meaning, steps, compensations: [] }, declaration.source_line);
+      declaration.steps.forEach(step => edge(declaration.id, "orchestrates", step));
+      Object.assign(trace.at(-1)!, { scope: declaration.scope, ordered_steps: declaration.steps,
+        inputs: declaration.inputs.map(input => ({ name: input.name, type: type(input.type), source_line: input.source_line })),
+        rules: declaration.rules, bindings: declaration.bindings, formal_consumer_projection: "required" });
+    } else if (declaration.kind === "state-machine") {
+      const transitions = declaration.transitions.map(item => ({ transition_id: symbol(item.id), source_state: symbol(item.from), target_state: symbol(item.to),
+        guard_ref: item.rule ? selector(item.rule) : null, effect_event_ref: item.result_event ? selector(item.result_event) : null }));
+      add(declaration.id, "State Machine", { description: meaning, states: declaration.states.map(state => symbol(state)), initial: symbol(declaration.initial), transitions }, declaration.source_line);
+      for (const item of declaration.transitions) for (const event of [item.trigger_event, item.result_event]) if (event) edge(event, "transitions", declaration.id);
+      Object.assign(trace.at(-1)!, { subject: declaration.subject, inputs: declaration.inputs.map(input => ({ name: input.name, type: type(input.type), source_line: input.source_line })),
+        transitions: declaration.transitions, formal_consumer_projection: "required" });
     } else if (declaration.kind === "event") {
       if (!declaration.event_type || !declaration.version || !declaration.occurrence_id || !declaration.occurred_at_policy) {
         reject("APPLICATION_EVENT_REALIZATION", at, "Event requires explicit event-type, version, occurrence-id and occurred-at clauses");
@@ -293,7 +328,7 @@ export function lowerApplicationDomain(source: string, input: unknown, sources: 
       Object.assign(trace.at(-1)!, { claim_ref: declaration.claim_ref, condition_binding: bindingId, executable_projection: "required" });
     } else if (declaration.kind === "operation") {
       const guards = [...new Set([...declaration.requires, ...model.rules.filter(rule => rule.enforces.includes(declaration.id)).map(rule => rule.id)])];
-      if (guards.length !== 1) reject("APPLICATION_GUARD_REALIZATION", at, "L0 lowering requires one explicit guard Rule; compound guard realization remains C03 work");
+      if (guards.length !== 1) reject("APPLICATION_GUARD_REALIZATION", at, "Operation lowering requires exactly one declared Rule; compose compound meaning inside that Rule's FormalClaim");
       add(declaration.id, "Operation", { description: meaning, reads: declaration.reads.map(selector), writes: declaration.writes.map(selector), effects: declaration.produces.map(selector),
         guard: selector(guards[0]!), failure_continuation: text(binding.failure_continuation, at) }, declaration.source_line);
       guards.forEach(rule => edge(rule, "enforces", declaration.id));

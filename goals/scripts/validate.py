@@ -145,6 +145,81 @@ def exact_keys(value: dict[str, Any], expected: set[str], label: str, errors: li
         errors.append(f"{label} unknown keys: {', '.join(extra)}")
 
 
+def validate_goal_evidence_reference(
+    item: Any,
+    *,
+    label: str,
+    evidence_ids: set[str],
+    condition_ids: set[str],
+    source_ids: set[str],
+    errors: list[str],
+    repository_root: Path = REPOSITORY_ROOT,
+) -> None:
+    """Validate current Goal evidence bindings and bounded legacy references."""
+    if isinstance(item, str):
+        if item in evidence_ids:
+            return
+        candidate = Path(item)
+        if candidate.is_absolute() or ".." in candidate.parts:
+            errors.append(f"{label} legacy reference is not repository-local: {item}")
+            return
+        checkout_relative = PACKAGE_ROOT.parent / candidate
+        if not (repository_root / candidate).is_file() and not checkout_relative.is_file():
+            errors.append(f"{label} has unknown legacy evidence {item}")
+        return
+
+    if not isinstance(item, dict):
+        errors.append(f"{label} must be a string or object")
+        return
+
+    condition_shape = {
+        "evidence_id", "source_id", "supports_conditions", "claim_limit"
+    }
+    selector_shape = {
+        "evidence_id", "source_id", "selector", "supports", "claim_limit"
+    }
+    if set(item) == condition_shape:
+        condition_refs = item.get("supports_conditions")
+        if (
+            not isinstance(condition_refs, list)
+            or not condition_refs
+            or any(not isinstance(ref, str) or not ref for ref in condition_refs)
+            or len(condition_refs) != len(set(condition_refs))
+        ):
+            errors.append(f"{label} supports_conditions must be a non-empty unique string array")
+            condition_refs = []
+        for condition_ref in condition_refs:
+            if condition_ref not in condition_ids:
+                errors.append(f"{label} points to unknown condition {condition_ref}")
+    elif set(item) == selector_shape:
+        for key in ("selector", "supports"):
+            if not isinstance(item.get(key), str) or not item.get(key):
+                errors.append(f"{label} {key} must be a non-empty string")
+    else:
+        errors.append(f"{label} has an invalid object shape")
+        return
+
+    if item.get("evidence_id") not in evidence_ids:
+        errors.append(f"{label} has unknown Project evidence {item.get('evidence_id')}")
+    if item.get("source_id") not in source_ids:
+        errors.append(f"{label} uses unknown source {item.get('source_id')}")
+    if not isinstance(item.get("claim_limit"), str) or not item.get("claim_limit"):
+        errors.append(f"{label} claim_limit must be a non-empty string")
+
+
+def resolved_goal_evidence_reference(ref: Any, evidence_ids: set[str]) -> bool:
+    if not isinstance(ref, str) or not ref:
+        return False
+    if ref in evidence_ids:
+        return True
+    candidate = Path(ref)
+    return (
+        not candidate.is_absolute()
+        and ".." not in candidate.parts
+        and (PACKAGE_ROOT.parent / candidate).is_file()
+    )
+
+
 def discover_record_paths(pattern: str) -> tuple[str, ...]:
     return tuple(
         sorted(path.relative_to(PACKAGE_ROOT).as_posix() for path in PACKAGE_ROOT.glob(pattern))
@@ -376,7 +451,9 @@ def main() -> int:
         "exactDigestRef", "exactPathRef", "prototypeConstructionStageStates",
         "operationalTask", "twoLaneConstructionPlan", "constructionBinding",
         "constructionBindingRegistry", "constructionBindingSchemaAmendment",
-        "prototypeConstructionSchemaAmendment", "twoLanePlanningSchemaAmendment"
+        "prototypeConstructionSchemaAmendment", "twoLanePlanningSchemaAmendment",
+        "goalEvidenceReference", "goalEvidenceReferenceByConditions",
+        "goalEvidenceReferenceBySelector"
     }
     if "$defs" not in schema or not required_defs.issubset(schema.get("$defs", {})):
         errors.append("schema is missing required definitions")
@@ -1784,24 +1861,22 @@ def main() -> int:
             if condition.get("status") != "met":
                 all_met = False
             for ref in condition.get("evidence_refs", []):
-                if ref not in evidence_ids:
+                if not resolved_goal_evidence_reference(ref, evidence_ids):
                     errors.append(f"Goal {goal_id} condition {condition_id} has unknown evidence {ref}")
         total_condition_ids += len(condition_ids)
         if goal.get("lifecycle_state") == "achieved" and (not all_met or goal.get("achievement_state") != "proved"):
             errors.append(f"Goal {goal_id} achieved requires every condition met and achievement_state proved")
         if goal.get("lifecycle_state") != "achieved" and goal.get("achievement_state") == "proved":
             errors.append(f"Goal {goal_id} achievement_state proved requires lifecycle_state achieved")
-        for item in goal.get("evidence_refs", []):
-            if not isinstance(item, dict):
-                errors.append(f"Goal {goal_id} evidence_refs contains a non-object")
-                continue
-            if item.get("evidence_id") not in evidence_ids:
-                errors.append(f"Goal {goal_id} has unknown Project evidence {item.get('evidence_id')}")
-            for condition_ref in item.get("supports_conditions", []):
-                if condition_ref not in condition_ids:
-                    errors.append(f"Goal {goal_id} evidence points to unknown condition {condition_ref}")
-            if item.get("source_id") not in source_ids:
-                errors.append(f"Goal {goal_id} evidence uses unknown source {item.get('source_id')}")
+        for index, item in enumerate(goal.get("evidence_refs", [])):
+            validate_goal_evidence_reference(
+                item,
+                label=f"Goal {goal_id} evidence_refs[{index}]",
+                evidence_ids=evidence_ids,
+                condition_ids=condition_ids,
+                source_ids=source_ids,
+                errors=errors,
+            )
         thesis_node_ids = {
             ref.get("ontology_node_id")
             for ref in goal.get("thesis_refs", [])

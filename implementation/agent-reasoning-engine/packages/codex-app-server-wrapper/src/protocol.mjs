@@ -22,6 +22,9 @@ export const CACHE_AFFINITY_KEY = "cyberalchemy.are.cache-affinity";
 export const DIRECTIVE_NOTIFICATION = "cyberalchemy/decision";
 export const SUCCESSOR_NOTIFICATION = "cyberalchemy/successor";
 export const SEMANTIC_NOTIFICATION = "cyberalchemy/semantic";
+export const CONTINUITY_NOTIFICATION = "cyberalchemy/continuity";
+export const HOSTED_EFFECT_ASSESS = "cyberalchemy/hostedEffect/assess";
+export const HOSTED_EFFECT_EXECUTE = "cyberalchemy/hostedEffect/execute";
 
 export function classifyMessage(message) {
   if (!isRecord(message) || (message.jsonrpc !== undefined && message.jsonrpc !== PROTOCOL_VERSION)) return "invalid";
@@ -62,6 +65,10 @@ export function successorNotification(payload) {
 
 export function semanticNotification(payload) {
   return freezeResult({jsonrpc: PROTOCOL_VERSION, method: SEMANTIC_NOTIFICATION, params: payload});
+}
+
+export function continuityNotification(payload) {
+  return freezeResult({jsonrpc: PROTOCOL_VERSION, method: CONTINUITY_NOTIFICATION, params: payload});
 }
 
 export function extractTurnIdentity(message) {

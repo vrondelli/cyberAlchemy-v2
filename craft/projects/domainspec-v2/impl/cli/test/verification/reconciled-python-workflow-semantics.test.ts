@@ -22,7 +22,7 @@ for (const kind of ['scalar', 'constrained', 'no-compensations', 'owned-events']
     field_bindings: s.field_bindings, factories: s.factories, operations: s.operations, workflows: s.workflows});
   const controls = createPythonSemanticControls(f.graph, plan), row = controls.rows.find(r => r.kind === 'Workflow') as any;
   assert.equal(row.state, 'ready', row.reason); assert.equal(row.adapter, 'python-workflow');
-  assert.equal(row.cases.filter((c: any) => c.mode === 'workflow').length, kind === 'owned-events' ? 396 : 133);
+  assert.equal(row.cases.filter((c: any) => c.mode === 'workflow').length, kind === 'owned-events' ? 408 : 133);
   for (const step of row.workflow.steps) for (const phase of ['begin', 'commit']) assert.ok(row.cases.some((c: any) => c.id === 'native-cancel-' + step.step_id + '-' + phase));
   assert.equal(canonicalJson(row).includes('"artifacts"'), false);
   const before = fs.readdirSync(f.root), report = execute(f.graph, plan, {python_executable: '/usr/bin/python3', temporary_parent: f.root});

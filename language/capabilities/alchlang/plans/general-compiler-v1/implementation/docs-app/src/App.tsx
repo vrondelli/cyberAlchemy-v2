@@ -413,11 +413,11 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
 }
 
 function MiniWorkspace() {
-  const [source, setSource] = useState(defaultWorkspaceSource);
+  const source = defaultWorkspaceSource;
   const [command, setCommand] = useState<string>(workspaceCommands.check);
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<WorkspaceResult[]>([
-    { command: "", status: "info", output: "Browser sandbox ready. Choose a command or type help." },
+    { command: "", status: "info", output: "Fixed-example simulation ready. No source is compiled or action executed here. Choose a preview or type help." },
   ]);
 
   async function execute(nextCommand: string) {
@@ -437,19 +437,19 @@ function MiniWorkspace() {
     <div className="workspace-shell" data-theme="console">
       <div className="workspace-bar">
         <div><span className="workspace-lights"><i /><i /><i /></span><strong>AlchLang workspace</strong></div>
-        <div className="sandbox-badge"><span /> Browser sandbox · no external effects</div>
+        <div className="sandbox-badge"><span /> Fixed-example simulation · no compiler or runtime</div>
       </div>
       <div className="workspace-grid">
-        <section className="workspace-editor" aria-label="AlchLang source editor">
+        <section className="workspace-editor" aria-label="Fixed AlchLang example source">
           <div className="pane-head">
             <span className="file-icon">A</span>
             <strong>workspace.alch</strong>
-            <button type="button" onClick={() => setSource(defaultWorkspaceSource)}>Reset</button>
+            <span>Read-only example</span>
           </div>
           <textarea
-            aria-label="workspace.alch source"
+            aria-label="Read-only workspace.alch example source"
             value={source}
-            onChange={(event) => setSource(event.target.value)}
+            readOnly
             spellCheck={false}
           />
         </section>
@@ -463,7 +463,7 @@ function MiniWorkspace() {
                 <pre>{entry.output}</pre>
               </div>
             ))}
-            {running && <p className="terminal-running"><span /> evaluating workspace…</p>}
+            {running && <p className="terminal-running"><span /> preparing illustration…</p>}
           </div>
           <form className="terminal-command" onSubmit={(event) => { event.preventDefault(); void execute(command); }}>
             <span>$</span>
@@ -474,16 +474,16 @@ function MiniWorkspace() {
               placeholder="Type help"
               autoComplete="off"
             />
-            <button type="submit" disabled={running || !command.trim()}>Run ↵</button>
+            <button type="submit" disabled={running || !command.trim()}>Preview ↵</button>
           </form>
         </section>
       </div>
       <div className="workspace-actions" role="group" aria-label="Example commands">
         <span>Try a command</span>
-        <button type="button" onClick={() => void execute(workspaceCommands.check)}>Check source</button>
-        <button type="button" onClick={() => void execute(workspaceCommands.build)}>Build artifacts</button>
+        <button type="button" onClick={() => void execute(workspaceCommands.check)}>Preview check</button>
+        <button type="button" onClick={() => void execute(workspaceCommands.build)}>Preview artifacts</button>
         <button type="button" onClick={() => void execute(workspaceCommands.patterns)}>Inspect patterns</button>
-        <button type="button" onClick={() => void execute(workspaceCommands.run)}>Run action</button>
+        <button type="button" onClick={() => void execute(workspaceCommands.run)}>Preview action</button>
       </div>
     </div>
   );
@@ -604,7 +604,7 @@ export function App() {
           {variant === "task-first" ? <>
             <p className="eyebrow">ALCHLANG WORKING TUTORIAL <span>·</span> START WITH SOURCE</p>
             <h1 id="page-title">Build the domain.<br /><em>Inspect every step.</em></h1>
-            <p className="lede">Edit a complete <code>.alch</code> source, validate it in the browser, then follow the guide to understand each declaration and runtime boundary.</p>
+            <p className="lede">Inspect a complete <code>.alch</code> example and preview fixed outcomes in the browser, then follow the guide to run real checks with the installed CLI.</p>
             <div id="workspace" className="task-first-workspace"><MiniWorkspace /></div>
           </> : <>
             <p className="eyebrow">ALCHLANG + CRAFT <span>·</span> COMPLETE GUIDE</p>
@@ -629,7 +629,7 @@ export function App() {
         {variant !== "task-first" && <section id="workspace" className="doc-section workspace-section">
           <p className="section-kicker">02 — Try it</p>
           <h2>Run a mini workspace</h2>
-          <p>Edit the source, choose a command, and inspect the result. This deterministic browser sandbox demonstrates the command contract in memory; install the core package for native parsing and generated files.</p>
+          <p>Inspect the read-only source, choose a preview, and inspect the illustrated result. This fixed browser simulation does not parse, compile, generate files, or execute an action; install the core package for those operations.</p>
           <MiniWorkspace />
         </section>}
 
@@ -840,7 +840,7 @@ export function App() {
               <p>Queries preserve tie order and supplied values, with one sort key and explicit projection. Multiple keys and overlapping row/parameter names reject. Numeric predicate/default literals must be safe integers. Effects and additional backend kinds remain outside this profile.</p>
             </div>
           </details>
-          <p>The browser mini workspace is an in-memory demonstration of the command contract; it does not invoke the external compiler.</p>
+          <p>The browser mini workspace is a fixed-example simulation. It does not validate edited source, invoke the compiler, generate files, or execute actions.</p>
         </section>
 
         <section id="compiler" className="doc-section">

@@ -1,0 +1,87 @@
+{
+  "schema_version": "are.benchmark-hypothesis-selection/v1",
+  "selection_id": "HEN-11-HYPOTHESIS-SELECTION-001",
+  "objective_ref": "objective:glm8k-contextbench-context-selection",
+  "parent_evidence": {
+    "results_path": "implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/hen-10-contextbench-live-v7-recovery/score-r4/RESULTS.json",
+    "results_sha256": "473cfeacf2d466f5e36f26da5553d991bd87867919e1755cbd97253224f845a2",
+    "review_path": "implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/hen-10-contextbench-live-v7-recovery/INDEPENDENT-POSTRUN-REVIEW.json",
+    "review_sha256": "19fb7200ce58586570d6001a36a9450dcb70de7d6e54731a52e9262d8632bddb"
+  },
+  "observations": [
+    {
+      "task_id": "contextbench-1",
+      "model_calls": 26,
+      "trajectory_steps": 53,
+      "file_f1": 0.28571428571428575,
+      "span_f1": 0,
+      "diagnosis": "Long exploration converged on two files and one correct file identity, but none of the selected spans intersected the labeled spans. This is primarily a localization and convergence failure."
+    },
+    {
+      "task_id": "contextbench-4",
+      "model_calls": 21,
+      "trajectory_steps": 20,
+      "file_f1": 0.6153846153846153,
+      "span_f1": 0.14654367554244316,
+      "span_precision": 0.14049409237379162,
+      "diagnosis": "The trajectory found four of six labeled files but exported broad source ranges and explicitly reported that it could not create new files. Precision and execution capability are distinct failure modes."
+    }
+  ],
+  "candidate_hypotheses": [
+    {
+      "hypothesis_ref": "hypothesis:H-EN-R3-intent-anchor-convergence",
+      "predicted_benefit": "Improve task-derived retrieval and prevent long searches from terminating on weakly supported spans.",
+      "cost": "Low to moderate: bounded query planning and one terminal evidence-selection pass; no new repository effect class.",
+      "risk": "Terminal pruning may reduce recall if the convergence criterion is too strict.",
+      "priority": 1
+    },
+    {
+      "hypothesis_ref": "hypothesis:H-EN-R4-create-file-capability",
+      "predicted_benefit": "Remove the explicit inability to create fixture files observed on task 4.",
+      "cost": "Moderate: new mutation primitive, validation, and sandbox tests.",
+      "risk": "May improve patch completion without improving context localization; introduces a new effect surface.",
+      "priority": 2
+    },
+    {
+      "hypothesis_ref": "hypothesis:H-EN-R5-terminal-span-pruning",
+      "predicted_benefit": "Reduce broad exported spans and improve precision on task 4.",
+      "cost": "Low.",
+      "risk": "Could regress task 3, whose precision is already high but recall is limited.",
+      "priority": 3
+    }
+  ],
+  "selected_hypothesis": {
+    "hypothesis_ref": "hypothesis:H-EN-R3-intent-anchor-convergence",
+    "rationale": "It directly addresses the zero-overlap task, can also reduce task-4 breadth, requires no new mutation authority, and has the best expected quality gain per implementation and provider cost.",
+    "mechanism": [
+      "Derive a bounded set of distinct issue anchors before repository exploration.",
+      "Issue diverse targeted rank queries from those anchors instead of repeatedly refining one lexical neighborhood.",
+      "Track path and span support across independent evidence observations.",
+      "Before finalization, require a compact relevance pass that selects only evidence supported by the issue anchors and confirmed base reads."
+    ]
+  },
+  "next_experiment": {
+    "scope": "The same exposed development tasks 1 and 4 only; no control arm and no untouched-set claim.",
+    "comparison": "Compare the new candidate against the frozen HEN-10 selected results for tasks 1 and 4; do not spend provider calls rerunning an unchanged control.",
+    "maximum_workers": 2,
+    "context_limit": 8000,
+    "model": "glm-5.3-flash",
+    "pre_dispatch_requirements": [
+      "Freeze exact source, prompts, task denominator, budgets, and historical comparison hashes.",
+      "Add focused tests for query diversity, evidence convergence, and terminal selection bounds.",
+      "Obtain an independent prelaunch review."
+    ],
+    "acceptance_direction": [
+      "Task 1 Span-F1 must become greater than zero.",
+      "The two-task mean Span-F1 must exceed the frozen HEN-10 value 0.07327183777122158.",
+      "Task 4 Span-F1 must not regress by more than 0.02 absolute.",
+      "All validity, 8K-window, settlement, reconciliation, and complete-accounting gates must pass."
+    ]
+  },
+  "claim_ceiling": "Hypothesis selection from two exposed development failures only. It does not establish improvement, generalization, benchmark clearance, release, deployment, or scientific acceptance.",
+  "authority_effect": "none",
+  "open_questions": [
+    "What is the smallest query-diversity representation that fits the existing HEN candidate view without repeating the full audit payload?",
+    "Should create-file capability be tested immediately after R3 or only if task 4 still reports the same execution constraint?"
+  ]
+}

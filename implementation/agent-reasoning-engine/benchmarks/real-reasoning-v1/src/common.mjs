@@ -18,11 +18,11 @@ export function loadRuntime(profile) {
 }
 
 export function requestContext(rawRequest, objectiveKind = null, requestId = "benchmark") {
-  return {schema_version: "are.request-context/v1", request_id: requestId, raw_request: rawRequest, objective_kind: objectiveKind, requested_effects: [], target_refs: [], constraints: [], evidence_refs: ["benchmark:fixture"]};
+  return {schema_version: "are.request-context/v1", request_id: requestId, raw_request: rawRequest, objective_kind: objectiveKind, requested_effects: [], target_refs: [], constraints: [], evidence_refs: ["benchmark:fixture"], field_postures: {request_id: "explicit", raw_request: "explicit", objective_kind: objectiveKind === null ? "absent" : "explicit", requested_effects: "absent", target_refs: "absent", constraints: "absent", evidence_refs: "explicit"}};
 }
 
 export function contextHint(rawRequest, objectiveKind = null) {
-  return {[REQUEST_CONTEXT_KEY]: {kind: "application", value: JSON.stringify({schema_version: "are.request-context-hint/v1", raw_request: rawRequest, objective_kind: objectiveKind})}};
+  return {[REQUEST_CONTEXT_KEY]: {kind: "application", value: JSON.stringify({schema_version: "are.request-context-hint/v1", raw_request: rawRequest, objective_kind: objectiveKind, field_postures: {objective_kind: objectiveKind === null ? "absent" : "explicit"}})}};
 }
 
 export function turnMessage(id, threadId, rawRequest, objectiveKind = null) {

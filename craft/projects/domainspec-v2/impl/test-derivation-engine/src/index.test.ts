@@ -14,15 +14,17 @@ import {
   parseCommittedSpec2,
   semanticRoundTrip,
 } from "./roundtrip/index.js";
+import { verifyHistoricalPokerTeamCorpus } from "./historical-corpus.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const HISTORICAL_FEATURES_DIR = verifyHistoricalPokerTeamCorpus();
 const FEATURE_DIR = resolve(
   __dirname,
-  "../../../../../validation/poker-team/docs/features/financial-settlement",
+  "../__fixtures__/financial-settlement",
 );
 const AUTH_DIR = resolve(
-  __dirname,
-  "../../../../../validation/poker-team/docs/features/auth-access-control",
+  HISTORICAL_FEATURES_DIR,
+  "auth-access-control",
 );
 
 describe("engine skeleton (SWU-ENG-000)", () => {
@@ -561,10 +563,7 @@ describe("irreducibility classifier distinguishes residue from δ gaps", () => {
 // --- Corpus PASS bar (P3): 4/5 column-typed + 2/2 rv-ct anchors ----------------
 
 describe("corpus round-trip PASS bar (P3)", () => {
-  const featuresDir = resolve(
-    __dirname,
-    "../../../../../validation/poker-team/docs/features",
-  );
+  const featuresDir = HISTORICAL_FEATURES_DIR;
   const run = (feature: string) => {
     const dir = join(featuresDir, feature);
     const { graph } = parse(dir);

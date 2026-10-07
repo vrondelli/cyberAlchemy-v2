@@ -9,6 +9,7 @@ import {
   spawnGatewayBackend,
   validateGatewayBackendAdapter,
 } from "../index.mjs";
+import {backendEnvironment, GATEWAY_PRIVATE_ENV_KEYS} from "../src/backend-environment.mjs";
 
 function fakeChild() {
   const child = new EventEmitter();
@@ -30,7 +31,42 @@ test("Codex is the backward-compatible default implementation of the gateway bac
     },
   });
   assert.equal(child.stdin.writable, true);
-  assert.deepEqual(invocation, {command: "codex", args: ["app-server", "--listen", "stdio://"], options: {stdio: ["pipe", "pipe", "pipe"]}});
+  assert.equal(invocation.command, "codex");
+  assert.deepEqual(invocation.args, ["app-server", "--listen", "stdio://"]);
+  assert.deepEqual(invocation.options.stdio, ["pipe", "pipe", "pipe"]);
+  for (const key of GATEWAY_PRIVATE_ENV_KEYS) assert.equal(Object.hasOwn(invocation.options.env, key), false);
+});
+
+test("Codex backend environment excludes gateway credentials without dropping ordinary runtime variables", () => {
+  const source = {PATH: "/fixture/bin", HOME: "/fixture/home",
+    ARE_GATEWAY_CONNECTION_TOKEN: "gateway-secret",
+    ARE_ADAPTER_OBSERVATION_TOKEN: "observation-secret",
+    ARE_HOSTED_INPUT_ATTESTATION_KEY: "attestation-secret"};
+  assert.deepEqual(backendEnvironment(source), {PATH: "/fixture/bin", HOME: "/fixture/home"});
+  assert.equal(source.ARE_GATEWAY_CONNECTION_TOKEN, "gateway-secret");
+});
+
+test("Codex spawn receives no gateway credentials even when the gateway process has them", () => {
+  const previous = new Map(GATEWAY_PRIVATE_ENV_KEYS.map((key) => [key, process.env[key]]));
+  let childEnvironment;
+  try {
+    for (const key of GATEWAY_PRIVATE_ENV_KEYS) process.env[key] = `fixture-${key}`;
+    spawnGatewayBackend(createCodexGatewayBackendAdapter(), {mode: "direct-stdio"}, {
+      spawn_impl: (_command, _args, options) => {
+        childEnvironment = options.env;
+        return fakeChild();
+      },
+    });
+    for (const key of GATEWAY_PRIVATE_ENV_KEYS) assert.equal(Object.hasOwn(childEnvironment, key), false);
+    const pathKey = Object.keys(childEnvironment).find((key) => key.toLowerCase() === "path");
+    assert.ok(pathKey, "backend process must retain the platform PATH");
+    assert.equal(childEnvironment[pathKey], process.env[pathKey]);
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("a model-neutral JSON-lines process can satisfy the same gateway backend contract", () => {

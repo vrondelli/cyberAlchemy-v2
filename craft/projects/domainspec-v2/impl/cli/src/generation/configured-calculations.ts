@@ -8,7 +8,7 @@ import type {PlannedArtifact} from './contracts.js';
 // Candidate construction; not a source-profile amendment or public default.
 export const CONFIGURED_CALCULATION_VERSION='domainspec.configured-calculations-selection/v1-candidate';
 export const CALCULATION_CONTRACT_SHA256='6475ec98ba166abca42c25d99f519639d23e6f92fda22de0839139b99118699b';
-const CONFIGURATION_SHA256='c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d';
+const CONFIGURATION_SHA256='9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317';
 export interface ConfiguredCalculationSelection {
   readonly schema_version:typeof CONFIGURED_CALCULATION_VERSION;
   readonly language:'typescript';

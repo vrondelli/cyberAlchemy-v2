@@ -75,8 +75,10 @@ export function renderNamedInterfaceSource(graph: CompiledProjectGraph, selector
     'export type PublicContracts=Readonly<{' + contracts.map((c, i) => 'readonly ' + q(c.contract_id) + ':' + publicTypes[i]!.native).join(';') + '}>;\n' +
     'export type Interface=Readonly<{' + operations.map((o, i) => 'readonly ' + q(o.operation_id) + ':(request:' + endpoints[i]!.request.native + ')=>Promise<' + endpoints[i]!.result.native + '>').join(';') + '}>;\n' +
     'export const publicContracts=Object.freeze({' + contracts.map((c, i) => '[' + q(c.contract_id) + ']:' + publicTypes[i]!.protocol).join(',') + '});\n' +
-    'export const endpointValues=Object.freeze({' + operations.map((o, i) => '[' + q(o.operation_id) + ']:Object.freeze({request:' + endpoints[i]!.request.protocol + ',result:' + endpoints[i]!.result.protocol + '})').join(',') + '});\n' +
+    'export const endpointValues=Object.freeze({' + operations.map((o, i) => '[' + q(o.operation_id) + ']:Object.freeze({request:' + endpoints[i]!.request.protocol + ',result:' + endpoints[i]!.result.protocol + '})').join(',') + '});\n';
+  // Rewrite only compiler-owned runtime diagnostics. Descriptor prose is
+  // authored domain language and must remain byte-for-byte intact.
+  const content = values.source(body).replaceAll('RULE_INPUT', 'INTERFACE_VALUE') +
     'export const descriptor=' + frozenLiteral(descriptor) + ';\n';
-  const content = values.source(body).replaceAll('RULE_INPUT', 'INTERFACE_VALUE');
   return freeze({content, sha256: sha256(content), descriptor});
 }

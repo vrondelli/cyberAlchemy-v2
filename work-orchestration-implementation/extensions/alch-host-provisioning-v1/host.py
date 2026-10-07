@@ -67,7 +67,7 @@ def safe_tree(root):
 
 def open_root(value):
     root = Path(value)
-    if not re.fullmatch(r'/tmp/alch-provision-[A-Za-z0-9_-]+', str(root)):
+    if not re.fullmatch(r'/(?:var/)?tmp/alch-provision-[A-Za-z0-9_-]+', str(root)):
         raise RuntimeError('ROOT_MUST_BE_PRIVATE_TMP_FIXTURE')
     if not root.exists():
         root.mkdir(mode=0o700)

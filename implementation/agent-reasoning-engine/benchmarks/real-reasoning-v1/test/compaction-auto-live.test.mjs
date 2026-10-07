@@ -3,7 +3,7 @@ import {EventEmitter} from "node:events";
 import test from "node:test";
 
 import {loadBenchmark} from "../src/corpus.mjs";
-import {packageRoot} from "../src/common.mjs";
+import {loadRuntime, packageRoot} from "../src/common.mjs";
 import {generateCompactionDistractor, renderPinnedReasoningState, runCompactionAutoLiveBenchmark} from "../src/compaction-auto-live.mjs";
 
 function fakeClient(facts) {
@@ -36,7 +36,7 @@ test("automatic compaction runner counterbalances arms and requires measurable g
   const facts = scenario.facts.map((fact) => fact.exact_value);
   const result = await runCompactionAutoLiveBenchmark(benchmark, {
     client: fakeClient(facts),
-    observed_version: "codex-cli 0.153.0-alpha.5",
+    observed_version: loadRuntime(benchmark.profile).value.protocol_binding.observed_codex_version,
     model: "gpt-5.6-luna",
     repetitions: 1,
   });

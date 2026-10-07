@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explicit umbrella/sibling source mounts; no search, redirects, or routing fallback."""
+"""Explicit umbrella/Craft source mounts; no search, redirects, or routing fallback."""
 from __future__ import annotations
 import json
 from pathlib import Path, PurePosixPath
@@ -14,11 +14,13 @@ class Layout:
         if self.package_root.name != 'agent-routing' or self.local_root.name != 'cyberAlchemy-v2':
             raise ValueError('unsupported routing package location')
         parent = self.local_root.parent
-        self.mode = 'umbrella' if parent.name == 'domainspec-core' else 'sibling'
-        self.core_root = parent if self.mode == 'umbrella' else parent / 'domainspec-core'
+        self.mode = 'umbrella' if parent.name == 'domainspec-core' else 'craft'
+        self.source_root = parent if self.mode == 'umbrella' else self.local_root / 'craft'
         # Do not accept a mount silently redirected to a different checkout.
-        if self.core_root.resolve() != self.core_root:
-            raise ValueError('domainspec-core mount must not be a symlink')
+        if self.source_root.resolve() != self.source_root:
+            raise ValueError('DomainSpec source mount must not be a symlink')
+        if self.mode == 'craft' and not (self.source_root / 'projects/domainspec-v2/impl/package.json').is_file():
+            raise ValueError('standalone checkout requires craft/projects/domainspec-v2')
         self.agents_ref = 'AGENTS.md' if self.mode == 'umbrella' else 'cyberAlchemy-v2/AGENTS.md'
 
     @staticmethod
@@ -40,9 +42,12 @@ class Layout:
         if value.startswith('cyberAlchemy-v2/'):
             return self.bounded(self.local_root, value[len('cyberAlchemy-v2/'):])
         if value == 'AGENTS.md':
-            return self.bounded(self.core_root if self.mode == 'umbrella' else self.local_root, value)
-        if value == 'SUBMODULE-DISCIPLINE.md' or value.startswith('projects/domainspec-v2/') or value.startswith('toolchains/node-typescript/'):
-            return self.bounded(self.core_root, value)
+            return self.bounded(self.source_root if self.mode == 'umbrella' else self.local_root, value)
+        if value == 'SUBMODULE-DISCIPLINE.md':
+            root = self.source_root if self.mode == 'umbrella' else self.source_root / 'support/core'
+            return self.bounded(root, value)
+        if value.startswith('projects/domainspec-v2/') or value.startswith('toolchains/node-typescript/'):
+            return self.bounded(self.source_root, value)
         raise ValueError(f'undeclared routing source mount: {value}')
 
     def build_paths(self) -> dict:

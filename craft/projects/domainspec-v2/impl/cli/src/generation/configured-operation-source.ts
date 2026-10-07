@@ -44,7 +44,11 @@ function renderOperationSource(action:CheckedOperationAction|CheckedComposedOper
     const args=g.arguments.map(a=>'['+q(a.parameter)+']:'+value(a.value,scope).code).join(',');
     return '    if(!'+rule.local+'({'+args+'}))return abort("rejected",'+q('RULE_REJECTED:'+g.selector)+');\n';
   }).join('');
-  const writes=action.writes.map((w,i)=>'    const write'+i+'='+writeTypes[i]!.protocol+'.normalize('+value(w.value,scope).code+');\n    '+owned.ensure({kind:'named',selector:w.target})+'(write'+i+');\n').join('');
+  const writes=action.writes.map((w,i)=>{
+    const readIndex=w.mode==='replace'?action.reads.findIndex(r=>r.slot===w.slot&&r.target===w.target):-1;
+    const identityCheck=readIndex<0?'':'    if('+keyTypes[readIndex]!.protocol+'.key(write'+i+'['+q(action.reads[readIndex]!.identity.name)+'])!=='+keyTypes[readIndex]!.protocol+'.key(key'+readIndex+'))return abort("failed","WRITE_IDENTITY_MISMATCH");\n';
+    return '    const write'+i+'='+writeTypes[i]!.protocol+'.normalize('+value(w.value,scope).code+');\n    '+owned.ensure({kind:'named',selector:w.target})+'(write'+i+');\n'+identityCheck;
+  }).join('');
   const eventIndex=(selector:string)=>events.findIndex(e=>e.selector===selector);
   const eventCalls=action.events.map((e,i)=>{
     const index=eventIndex(e.target);if(index<0)return fail('missing Event import');

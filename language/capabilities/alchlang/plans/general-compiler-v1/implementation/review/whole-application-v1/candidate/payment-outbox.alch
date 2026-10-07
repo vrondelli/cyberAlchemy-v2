@@ -1,0 +1,66 @@
+domain commerce-payment "Synthetic Commerce payment outbox"
+profile application-v1
+owner fixture-owner
+enum Currency:
+  value USD "Synthetic review currency"
+enum PaymentStatus:
+  value Pending "Awaiting payment authorization"
+  value Authorized "Provider explicitly authorized"
+  value Declined "Provider explicitly declined"
+  value Unresolved "Provider outcome requires reconciliation"
+value-object Money:
+  amountMinor UInt64
+  currency Currency
+entity PaymentIntent:
+  submissionId String
+  identity submissionId
+  orderId UInt64
+  amount Money
+  status sum<PaymentStatus>
+event PaymentAuthorizationRequested:
+  event-type payment-authorization-requested
+  version 1
+  occurrence-id eventId String
+  occurred-at generated
+  submissionId -> PaymentIntent.submissionId
+event PaymentAuthorized:
+  event-type payment-authorized
+  version 1
+  occurrence-id eventId String
+  occurred-at generated
+  submissionId -> PaymentIntent.submissionId
+event PaymentDeclined:
+  event-type payment-declined
+  version 1
+  occurrence-id eventId String
+  occurred-at generated
+  submissionId -> PaymentIntent.submissionId
+event PaymentOutcomeUnknown:
+  event-type payment-outcome-unknown
+  version 1
+  occurrence-id eventId String
+  occurred-at generated
+  submissionId -> PaymentIntent.submissionId
+states PaymentLifecycle:
+  subject PaymentIntent
+  initial Pending
+  transition Authorize:
+    from Pending
+    to Authorized
+    on PaymentAuthorized
+  transition Decline:
+    from Pending
+    to Declined
+    on PaymentDeclined
+  transition Unknown:
+    from Pending
+    to Unresolved
+    on PaymentOutcomeUnknown
+  transition ReconcileAuthorized:
+    from Unresolved
+    to Authorized
+    on PaymentAuthorized
+  transition ReconcileDeclined:
+    from Unresolved
+    to Declined
+    on PaymentDeclined

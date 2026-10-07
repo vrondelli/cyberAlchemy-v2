@@ -23,6 +23,19 @@ test('projects only observed unchanged fragments and records omitted changed lin
   assert.throws(()=>projectObservationsToBase([{...read,body:'unseen'}],snapshots,root),/body-mismatch/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+test('preserves a UTF-8 BOM in an exact first-line observation',()=>{
+ const root=mkdtempSync(join(tmpdir(),'are-cb-bom-'));
+ try{
+  const source='\uFEFFvar a = 1;\nvar b = 2;\n';
+  writeFileSync(join(root,'a.js'),source);
+  const read={id:'bom-read',path:'a.js',source_sha256:hash(source),start_line:1,end_line:2,
+   body:'\uFEFFvar a = 1;\nvar b = 2;',first_confirmed_receipt:0};
+  const projection=projectObservationsToBase([read],[{path:'a.js',source_sha256:hash(source),utf8:source}],root);
+  assert.deepEqual(projection.events.map(event=>[event.start_line,event.end_line,event.body]),[[1,2,read.body]]);
+  assert.deepEqual(projection.projections[0].unmapped_current_lines,[]);
+  assert.throws(()=>projectObservationsToBase([{...read,body:read.body.slice(1)}],[],root),/body-mismatch/);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
 test('empty and fully replaced source have no unchanged lines',()=>{
  assert.equal(unchangedLineMap('','new\n').size,0);
  assert.equal(unchangedLineMap('old\n','new\n').size,0);

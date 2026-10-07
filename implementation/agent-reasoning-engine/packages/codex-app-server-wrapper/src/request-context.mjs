@@ -3,6 +3,30 @@ import {digestIntentMaterial, verifyObjectiveState} from "../../request-intent-r
 
 export const REQUEST_CONTEXT_KEY = "cyberalchemy.request-context";
 
+// A seed is caller data until the gateway verifies the hosted client's
+// signature over the entire turn/start params (including this hint).
+export function hostedRequirementSeed(message, hostedInputVerified = false) {
+  const hint = contextHint(message?.params ?? {});
+  if (!hint.ok) return hint;
+  const requirements = hint.value?.requirement_seed;
+  if (requirements === undefined) return {ok: true, value: null};
+  if (!hostedInputVerified) return fail("objective-resolution", ["requirements.seed-unverified"]);
+  const inputText = message.params.input?.filter(item => isRecord(item) && item.type === "text"
+    && typeof item.text === "string").map(item => item.text.trim()).join("\n");
+  if (!nonEmptyString(inputText) || hint.value.raw_request.trim() !== inputText) {
+    return fail("objective-resolution", ["requirements.seed-request-mismatch"]);
+  }
+  if (!Array.isArray(requirements) || requirements.length > 64
+    || requirements.some(item => !nonEmptyString(item) || item !== item.trim()
+      || Buffer.byteLength(item, "utf8") > 2048)
+    || new Set(requirements).size !== requirements.length
+    || Buffer.byteLength(canonicalJson(requirements), "utf8") > 16384) {
+    return fail("objective-resolution", ["requirements.seed-invalid"]);
+  }
+  return freezeResult({ok: true, value: {requirements,
+    source_ref: `hosted-requirement-seed:${digestValue(hint.value)}`}});
+}
+
 function contextHint(params) {
   const entry = params.additionalContext?.[REQUEST_CONTEXT_KEY];
   if (entry === undefined) return {ok: true, value: null};
@@ -52,15 +76,27 @@ export function buildRequestContext(message, turnBinding, objectiveResolution = 
   const requestId = nonEmptyString(turnBinding.request_id)
     ? turnBinding.request_id.trim()
     : `codex-request:${digestValue({rpc_id: message.id ?? null, thread_id: message.params.threadId, input})}`;
+  const hintedPostures = isRecord(hint.value?.field_postures) ? hint.value.field_postures : {};
+  const objectiveKind = nonEmptyString(hint.value?.objective_kind) ? hint.value.objective_kind.trim() : nonEmptyString(turnBinding.objective_kind) ? turnBinding.objective_kind.trim() : null;
+  const posture = (field, present) => present ? (hintedPostures[field] === "explicit" ? "explicit" : "inferred") : "absent";
   const value = freezeResult({
     schema_version: "are.request-context/v1",
     request_id: requestId,
     raw_request: objectiveResolution?.next_state?.active_objective?.description ?? rawRequest,
-    objective_kind: nonEmptyString(hint.value?.objective_kind) ? hint.value.objective_kind.trim() : nonEmptyString(turnBinding.objective_kind) ? turnBinding.objective_kind.trim() : null,
+    objective_kind: objectiveKind,
     requested_effects: uniqueStrings([...(turnBinding.requested_effects ?? []), ...(hint.value?.requested_effects ?? [])]),
     target_refs: uniqueStrings([...(turnBinding.target_refs ?? []), ...(hint.value?.target_refs ?? [])]),
     constraints: uniqueStrings([...(turnBinding.constraints ?? []), ...(hint.value?.constraints ?? [])]),
     evidence_refs: uniqueStrings([...(turnBinding.evidence_refs ?? []), ...(hint.value?.evidence_refs ?? []), `codex-input:${digestValue(input)}`, ...(objectiveResolution ? [`objective-resolution:${objectiveResolution.resolution_digest}`, `original-request:${digestValue(rawRequest)}`] : []), ...(hint.value ? [`request-context-hint:${digestValue(hint.value)}`] : [])]),
+    field_postures: {
+      request_id: "inferred",
+      raw_request: "explicit",
+      objective_kind: posture("objective_kind", objectiveKind !== null),
+      requested_effects: posture("requested_effects", (turnBinding.requested_effects ?? []).length > 0 || (hint.value?.requested_effects ?? []).length > 0),
+      target_refs: posture("target_refs", (turnBinding.target_refs ?? []).length > 0 || (hint.value?.target_refs ?? []).length > 0),
+      constraints: posture("constraints", (turnBinding.constraints ?? []).length > 0 || (hint.value?.constraints ?? []).length > 0),
+      evidence_refs: "inferred",
+    },
   });
   return freezeResult({
     ok: true,

@@ -10,7 +10,7 @@ import type {PlannedArtifact} from './contracts.js';
 
 export const CONFIGURED_QUERY_VERSION='domainspec.configured-queries-selection/v1-candidate';
 export const QUERY_CONTRACT_SHA256='c37a4381968da074391f78fc0abdb60c0edfe8fcb0bec0c3efc55a55f85c51f6';
-const CONFIGURATION_SHA256='c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d';
+const CONFIGURATION_SHA256='9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317';
 export interface ConfiguredQuerySelection {
   readonly schema_version:typeof CONFIGURED_QUERY_VERSION;
   readonly language:'typescript';

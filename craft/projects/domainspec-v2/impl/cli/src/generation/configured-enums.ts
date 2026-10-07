@@ -8,7 +8,7 @@ import type {PlannedArtifact} from './contracts.js';
 // in development/reconciliation-v1/profile-compiler-reconciliation.
 export const CONFIGURED_ENUM_VERSION = 'domainspec.configured-enums-selection/v1-candidate';
 export const EXACT_CONFIGURED_ENUM_VERSION = 'domainspec.configured-enums-selection/v2-candidate';
-export const ENUM_CONFIGURATION_SHA256 = 'c82035da6f30d440bb9d37960569b5ab8d10ae9d8bdb77ef6de0e7fe52d9dd5d';
+export const ENUM_CONFIGURATION_SHA256 = '9ac018e42080483f373219049b466d8a515cb3e7748181ea8e635b1162af8317';
 export const ENUM_PROVIDER_SHA256 = '378e09358713b431e4a24e664e484feae0122462e47aabfa653ae21a17315fcc';
 export interface ConfiguredEnumSelection {
   readonly schema_version: typeof CONFIGURED_ENUM_VERSION | typeof EXACT_CONFIGURED_ENUM_VERSION;

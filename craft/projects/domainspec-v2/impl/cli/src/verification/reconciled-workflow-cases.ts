@@ -75,8 +75,8 @@ export function createWorkflowSemanticCases(graph: CompiledProjectGraph, oracle:
     const result = [...valid, ...structural]; sampleCache.set(key, result); return result;
   }
   const eventSamples = (f: any, name: string): FactRecipe[] => {
-    const type = f.type_ref.kind === 'reference' ? 'reference' : f.type_ref.name;
-    return (type === 'integer' ? ['0', '1', '-1', '-9223372036854775808', '9223372036854775807', 0, 1, -1, 0n, 1n, -1n] : type === 'decimal' ? [0, 1.5, -1.5] : type === 'boolean' ? [false, true] : type === 'string' ? ['', name, 'β😀'] : [name, 'β😀']).map(operationValueRecipe);
+    const type = f.type_ref.kind === 'reference' ? (owned.eventReferenceScalar(f.type_ref.selector) === 'UInt64' ? 'uint64' : 'reference') : f.type_ref.name;
+    return (type === 'integer' ? ['0', '1', '-1', '-9223372036854775808', '9223372036854775807', 0, 1, -1, 0n, 1n, -1n] : type === 'uint64' ? ['0', '1', '9007199254740992', '18446744073709551615', 0, 1, 0n, 1n] : type === 'decimal' ? [0, 1.5, -1.5] : type === 'boolean' ? [false, true] : type === 'string' ? ['', name, 'β😀'] : [name, 'β😀']).map(operationValueRecipe);
   };
   const eventInputs = Object.fromEntries(w.event_inputs.map(e => [e.name, {tag: 'fields', fields: {
     occurrence: {tag: 'fields', fields: {[e.contract.occurrence_id.field_id]: eventSamples(e.contract.occurrence_id, e.name)[0]!}},

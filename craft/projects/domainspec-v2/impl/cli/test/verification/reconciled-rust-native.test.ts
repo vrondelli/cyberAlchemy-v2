@@ -9,7 +9,7 @@ import {RESOLVED_ARTIFACT_LAYOUT} from '../../src/generation/resolved-artifact-p
 import {executeReconciledRustVerification, RUST_NATIVE_VERIFICATION_CONTRACT_SHA256, validateRustVerificationOptions} from '../../src/verification/reconciled-rust-native.ts';
 import {pythonAllTypesFixture} from '../generation/reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 function fixture(t: any) {const source = pythonAllTypesFixture(t), graph = loadCompiledProjectGraph(source.source), selection = {schema_version: RECONCILED_RUST_COMPILATION_VERSION, profile_id: RECONCILED_RUST_PROFILE, language: 'rust' as const, module_root: 'generated/domain', layout_version: RESOLVED_ARTIFACT_LAYOUT, field_bindings: [], factories: source.factories, operations: source.operations, workflows: source.workflows}, plan = planCompiledReconciledRustProject(graph, selection); return {...source, graph, selection, plan};}
 
 test('Rust native verifier independently inspects and compiles the complete crate then removes its workspace', t => {

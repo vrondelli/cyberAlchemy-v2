@@ -1,5 +1,27 @@
 # Interaction learning prototype validation
 
+The approved objective-cycle definition is in
+[`CYCLE-DEFINITION.md`](CYCLE-DEFINITION.md). The bounded ingestion and baseline
+construction plan is in [`IMPLEMENTATION-PLAN.md`](IMPLEMENTATION-PLAN.md).
+The executed baseline, four-hypothesis evolution, accepted bounded candidate,
+and claim limits are in [`RESULTS.md`](RESULTS.md).
+
+There are now two evidence lanes:
+
+- the original 48-episode synthetic lifecycle fixture described below; and
+- the real Codex-history lane, which streams the selected 73 Windows plus 2 WSL
+  sessions through the evolution runtime without copying raw logs or persisting
+  message text, tool payloads, environment values, encrypted reasoning, or
+  credentials.
+
+The real lane uses `packages/evolution-runtime/bin/interaction-learning.mjs`.
+`scan` emits privacy-safe evaluator tasks; `baseline` accepts independent labels
+and freezes the chronological objective-grouped baseline. Later operations
+freeze hypotheses, offline screens, independent live verdicts, and versioned
+learning packages. `close` binds an owner-approved supported package and records
+objective closure without activation. It intentionally does not infer final
+episode boundaries or causal labels from keywords alone.
+
 Run `node runner.mjs --mode mock`, `--mode local-benchmark`, or `--mode live-canary`
 from this directory with Node v26.8.1. No package installation is needed.
 
@@ -25,3 +47,8 @@ Live PASS means the smoke-test requests completed, not that model quality improv
 Production hosts must attest the feedback source, prior completed episode, target,
 retention scope, correction class, and finite literal output checks. The prototype
 does not claim to infer those meanings reliably from arbitrary language.
+
+## Open Questions
+
+The real-cycle open questions are owned by
+[`CYCLE-DEFINITION.md`](CYCLE-DEFINITION.md#open-questions).

@@ -38,7 +38,9 @@ export function projectObservationsToBase(reads,snapshots,repoRoot){
     need(typeof r.path==='string'&&!isAbsolute(r.path)&&!r.path.includes('\\')&&!r.path.split('/').some(x=>['..','.',''].includes(x)),'invalid-path');
     const path=realpathSync(resolve(root,r.path)),rel=relative(root,path);
     need(rel&&rel!=='..'&&!rel.startsWith('../')&&!isAbsolute(rel),'path-escape');
-    const baseBytes=readFileSync(path),base=new TextDecoder('utf-8',{fatal:true}).decode(baseBytes),baseHash=hash(baseBytes);
+    // Preserve an initial UTF-8 BOM: repository reads and snapshots expose it
+    // as U+FEFF, so dropping it would reject an otherwise exact first-line read.
+    const baseBytes=readFileSync(path),base=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(baseBytes),baseHash=hash(baseBytes);
     let current=base;
     if(r.source_sha256!==baseHash){
       const candidates=snapshots.filter(s=>s.path===r.path&&s.source_sha256===r.source_sha256);

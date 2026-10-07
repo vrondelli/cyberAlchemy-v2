@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Extract pinned desktop dependencies without system installation. Questions: README.md."""
 import concurrent.futures, hashlib, json, os, platform, subprocess, tempfile, urllib.request
+from urllib.error import HTTPError
 from pathlib import Path
 here=Path(__file__).resolve().parent
 lock_bytes=(here/'desktop-lock.json').read_bytes();lock=json.loads(lock_bytes)
@@ -37,11 +38,19 @@ if root.exists():
     bind_host_libraries(root)
     print(root);raise SystemExit(0)
 cache=base/'desktop-downloads';cache.mkdir(exist_ok=True)
+snapshot_base='https://snapshot.ubuntu.com/ubuntu/20260910T000000Z/'
 def download(p):
     archive=cache/p['filename']
     if archive.exists() and hashlib.sha256(archive.read_bytes()).hexdigest()==p['sha256']:return archive
     url=p['uri'].replace('http://','https://',1)
-    with urllib.request.urlopen(url,timeout=120) as response: payload=response.read()
+    try:
+        with urllib.request.urlopen(url,timeout=120) as response: payload=response.read()
+    except HTTPError as error:
+        prefix='https://archive.ubuntu.com/ubuntu/'
+        if error.code!=404 or not url.startswith(prefix):raise
+        # The archive can remove superseded packages. The fixed Ubuntu snapshot
+        # preserves the lock's bytes; the SHA-256 check below remains mandatory.
+        with urllib.request.urlopen(snapshot_base+url[len(prefix):],timeout=120) as response:payload=response.read()
     assert hashlib.sha256(payload).hexdigest()==p['sha256'],p['package']
     archive.write_bytes(payload);return archive
 with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:

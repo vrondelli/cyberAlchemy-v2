@@ -10,13 +10,15 @@ the path that matches your work:
 | Agent integrator | [Architecture](ARCHITECTURE.md) → [API and data contracts](API-AND-DATA-CONTRACTS.md) → [Gateway and agents](GATEWAY-AND-AGENTS.md) |
 | Operator | [Deployment readiness](DEPLOYMENT.md) → [Configuration](CONFIGURATION.md) → [Privacy and retention](PRIVACY-AND-RETENTION.md) → [Operations and security](OPERATIONS-AND-SECURITY.md) → [Service runbook](SERVICE-RUNBOOK.md) → [Troubleshooting](TROUBLESHOOTING.md) |
 | Contributor | [Architecture](ARCHITECTURE.md) → [API and data contracts](API-AND-DATA-CONTRACTS.md) → [Contributing](CONTRIBUTING.md) → [Source map](SOURCE-MAP.md) |
-| Release reviewer | [Release note](releases/0.10.0-self-contained-candidate.7.md) → [Changelog](../CHANGELOG.md) → [Migration and upgrade](MIGRATION-AND-UPGRADE.md) → [Release and evidence](RELEASE-AND-EVIDENCE.md) |
+| Release reviewer | [RC1 Candidate 020 note](releases/0.10.0-rc.1.md) → [rights/license handoff](releases/0.10.0-rc.1-rights-license-review-handoff.md) → [Candidate 018 release note](releases/0.10.0-self-contained-candidate.7.md) → [Changelog](../CHANGELOG.md) → [Migration and upgrade](MIGRATION-AND-UPGRADE.md) → [Release and evidence](RELEASE-AND-EVIDENCE.md) |
 | Security, reliability, or compliance reviewer | [Security policy status](SECURITY-POLICY.md) → [Service-level objectives](SERVICE-LEVEL-OBJECTIVES.md) → [Compliance guide](COMPLIANCE.md) |
 | Researcher or reviewer | [Research program](RESEARCH-PROGRAM.md) → [Evaluation and research](EVALUATION-AND-RESEARCH.md) → [Release and evidence](RELEASE-AND-EVIDENCE.md) → [Source map](SOURCE-MAP.md) |
 | Documentation maintainer | [Documentation contract](DOCUMENTATION-CONTRACT.md) → [Writing style](WRITING-STYLE.md) → [Documentation coverage](DOCUMENTATION-COVERAGE.md) → [Source map](SOURCE-MAP.md) → [Contributing](CONTRIBUTING.md) |
 
-The manual documents version `0.10.0-self-contained-candidate.7`, frozen as
-`ARE-PRODUCT-CANDIDATE-018`. Prose is explanatory. The linked source contracts
+The manual preserves `0.10.0-rc.1` / `ARE-PRODUCT-CANDIDATE-020` as frozen
+history while documenting the later unfrozen working prototype. It also
+preserves version `0.10.0-self-contained-candidate.7`, frozen as
+`ARE-PRODUCT-CANDIDATE-018`, as its historical baseline. Prose is explanatory. The linked source contracts
 and evidence own exact behavior and claims.
 
 ## Manual contents
@@ -52,7 +54,8 @@ and evidence own exact behavior and claims.
 29. [Service-level objectives](SERVICE-LEVEL-OBJECTIVES.md)
 30. [Service runbook](SERVICE-RUNBOOK.md)
 31. [Changelog](../CHANGELOG.md)
-32. [Candidate 018 release note](releases/0.10.0-self-contained-candidate.7.md)
+32. [RC1 preparation note](releases/0.10.0-rc.1.md)
+33. [Candidate 018 release note](releases/0.10.0-self-contained-candidate.7.md)
 33. [Historical Candidate 017 release note](releases/0.10.0-self-contained-candidate.6.md)
 34. [Historical Candidate 015 release note](releases/0.10.0-self-contained-candidate.4.md)
 35. [Historical Candidate 013 release note](releases/0.10.0-signed-envelope-candidate.2.md)

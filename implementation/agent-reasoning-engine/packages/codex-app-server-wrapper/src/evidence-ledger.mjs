@@ -60,6 +60,7 @@ export function createEvidenceLedger(options = {}) {
       successor_proposal_id: event.successor_proposal_id ?? null,
       reasoning_epoch_id: event.reasoning_epoch_id ?? null,
       reasoning_epoch_digest: event.reasoning_epoch_digest ?? null,
+      plan_context_digest: event.plan_context_digest ?? null,
       checkpoint_kind: event.checkpoint_kind ?? null,
       checkpoint_digest: event.checkpoint_digest ?? null,
       dispatch_digest: event.dispatch_digest ?? null,

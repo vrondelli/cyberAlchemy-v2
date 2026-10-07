@@ -280,7 +280,7 @@ def message(reader, sink):
 
 def record(reader, sink):
     reader.expect('{'); sink.put('{'); keys = set(); emitted = 0
-    qid = None; dates = []; session_count = None; turns = 0
+    qid = None; question_type = None; dates = []; session_count = None; turns = 0
     while True:
         key = reader.string(capture=True, capture_limit=256)
         if key in keys: raise ProjectionError('duplicate record key')
@@ -295,6 +295,9 @@ def record(reader, sink):
             if key == 'question_id':
                 qid = reader.string(capture=True, capture_limit=256)
                 sink.put(json.dumps(qid))
+            elif key == 'question_type':
+                question_type = reader.string(capture=True, capture_limit=256)
+                sink.put(json.dumps(question_type))
             elif key == 'haystack_dates':
                 sink.put('[')
                 def date(index):
@@ -329,20 +332,23 @@ def record(reader, sink):
     if session_count != len(dates) or not dates: raise ProjectionError('date/session cardinality mismatch')
     # Upstream order is authoritative; dates remain attached without sorting.
     sink.put('}\n')
-    return {'question_id': qid, 'sessions': session_count, 'turns': turns,
+    return {'question_id': qid, 'question_type': question_type, 'sessions': session_count, 'turns': turns,
             'history_dates_nondecreasing': all(a[:10] + a[-5:] <= b[:10] + b[-5:] for a, b in zip(dates, dates[1:]))}
 
 
 def project_stream(stream, destination, *, expected_sha256=SOURCE_SHA256,
                    expected_bytes=SOURCE_BYTES, expected_records=500,
                    question_ids=QUESTION_IDS, row_limit=8*1024**2,
-                   output_limit=32*1024**2, disk_floor=128*1024**2, before_write=None):
+                   output_limit=32*1024**2, disk_floor=128*1024**2, before_write=None,
+                   expected_selection_size=4):
     """Publish source-only directory iff the *whole* binary stream verifies."""
     if not re.fullmatch('[a-f0-9]{64}', expected_sha256): raise ProjectionError('invalid SHA binding')
     if any(not isinstance(n, int) or n <= 0 for n in (expected_bytes, expected_records, row_limit, output_limit)):
         raise ProjectionError('invalid bounds')
     ids = tuple(question_ids)
-    if len(ids) != 4 or len(set(ids)) != 4 or any(not re.fullmatch('[a-zA-Z0-9_-]+', x) for x in ids):
+    if (not isinstance(expected_selection_size, int) or not 1 <= expected_selection_size <= 500 or
+            len(ids) != expected_selection_size or len(set(ids)) != expected_selection_size or
+            any(not re.fullmatch('[a-zA-Z0-9_-]+', x) for x in ids)):
         raise ProjectionError('exact four safe question IDs required')
     dest = Path(destination); dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists(): raise ProjectionError('destination already exists; no retry/overwrite')

@@ -14,7 +14,7 @@ adds documentation metadata without changing Candidate 018 validation schemas.
 | --- | --- | --- |
 | Product boundary | [`../product.json`](../product.json) | Product version and closure digest |
 | Command dispatch | [`../bin/are.mjs`](../bin/are.mjs) | Command plus input schema |
-| Decision CLI | [CLI contract](../../../agent-routing/capabilities/are-cli/README.md) | `are.cli-request/v1`, result schema, route receipt |
+| Decision CLI | [ARE runtime request schema](../schemas/cli-request.schema.json), [repository-facing CLI contract](../../../agent-routing/capabilities/are-cli/README.md) | `are.cli-request/v1`, result schema, route receipt |
 | JavaScript packages | Each package's `index.mjs` | Export name plus record schema version |
 | Gateway backend | [`backend-adapter.mjs`](../packages/codex-app-server-wrapper/src/backend-adapter.mjs) | `are.gateway-backend-adapter/v1` |
 | Gateway wire | Gateway and RPC source in `codex-app-server-wrapper` | JSON-RPC 2.0 over JSON lines plus runtime epoch |

@@ -28,26 +28,33 @@ const composeEnvironment = {
 };
 
 export function verifyKeycloakVex({
-  composePath = join(here, 'compose.yaml'),
-  caddyPath = join(here, 'Caddyfile'),
+  targets = [
+    {composePath: join(here, 'compose.yaml'), caddyPath: join(here, 'Caddyfile')},
+    {composePath: join(here, 'compose.staging-candidate.yaml'), caddyPath: join(here, 'Caddyfile.staging-candidate')},
+    {composePath: join(here, 'compose.infrastructure.yaml'), caddyPath: join(here, 'Caddyfile.infrastructure')},
+  ],
   vexPath = join(here, 'keycloak-26.7.4.openvex.json'),
 } = {}) {
-  const rendered = JSON.parse(execFileSync('docker', [
-    'compose', '-f', composePath, 'config', '--format', 'json',
-  ], {encoding: 'utf8', env: composeEnvironment}));
-  const service = rendered.services?.keycloak;
-  assert.ok(service, 'keycloak-service-required');
-  assert.equal(service.image, image, 'keycloak-image-digest-changed');
-  assert.equal(service.environment?.KC_DB, 'postgres', 'postgres-backend-required');
-  assert.match(service.environment?.KC_DB_URL ?? '', /^jdbc:postgresql:\/\//, 'postgres-url-required');
-  assert.equal(service.environment?.KC_HTTP_ENABLED, 'true', 'keycloak-http-only-required');
-  assert.equal(service.ports ?? null, null, 'keycloak-host-port-forbidden');
-  assert.notEqual(service.network_mode, 'host', 'keycloak-host-network-forbidden');
-  assert.ok(!Object.keys(service.environment ?? {}).some(key => key.startsWith('KC_HTTPS_')), 'keycloak-https-configuration-forbidden');
+  assert.ok(Array.isArray(targets)&&targets.length===3,'all-compose-targets-required');
+  for(const {composePath,caddyPath} of targets){
+    const rendered = JSON.parse(execFileSync('docker', [
+      'compose', '-f', composePath, 'config', '--format', 'json',
+    ], {encoding: 'utf8', env: composeEnvironment}));
+    const service = rendered.services?.keycloak;
+    assert.ok(service, 'keycloak-service-required');
+    assert.equal(service.image, image, 'keycloak-image-digest-changed');
+    assert.equal(service.environment?.KC_DB, 'postgres', 'postgres-backend-required');
+    assert.match(service.environment?.KC_DB_URL ?? '', /^jdbc:postgresql:\/\//, 'postgres-url-required');
+    assert.equal(service.environment?.KC_HTTP_ENABLED, 'true', 'keycloak-http-only-required');
+    assert.equal(service.ports ?? null, null, 'keycloak-host-port-forbidden');
+    assert.notEqual(service.network_mode, 'host', 'keycloak-host-network-forbidden');
+    assert.ok(!Object.keys(service.environment ?? {}).some(key => key.startsWith('KC_HTTPS_')), 'keycloak-https-configuration-forbidden');
+    assert.ok(service.healthcheck?.test?.length,'keycloak-healthcheck-required');
 
-  const caddy = readFileSync(caddyPath, 'utf8');
-  assert.match(caddy, /reverse_proxy\s+keycloak:8080(?:\s|$)/, 'caddy-http-keycloak-upstream-required');
-  assert.doesNotMatch(caddy, /reverse_proxy\s+https:\/\/keycloak(?::8080)?(?:\s|$)/, 'caddy-tls-keycloak-upstream-forbidden');
+    const caddy = readFileSync(caddyPath, 'utf8');
+    assert.match(caddy, /reverse_proxy\s+keycloak:8080(?:\s|$)/, 'caddy-http-keycloak-upstream-required');
+    assert.doesNotMatch(caddy, /reverse_proxy\s+https:\/\/keycloak(?::8080)?(?:\s|$)/, 'caddy-tls-keycloak-upstream-forbidden');
+  }
 
   const vex = JSON.parse(readFileSync(vexPath, 'utf8'));
   assert.equal(vex['@context'], 'https://openvex.dev/ns/v0.2.0', 'openvex-context-required');
@@ -62,7 +69,7 @@ export function verifyKeycloakVex({
     assert.deepEqual(statement.products?.map(item => item['@id']), [product], `exact-image-product-required:${id}`);
     assert.deepEqual(statement.products?.[0]?.subcomponents?.map(item => item['@id']), [expected.get(id)], `exact-subcomponent-required:${id}`);
   }
-  return {ok: true, image, product, statements: [...expected.keys()]};
+  return {ok: true, image, product, targets: targets.length, statements: [...expected.keys()]};
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -9,6 +9,16 @@ signature proves the verifier mechanics only: it is not a release signature,
 does not establish an identity or custody chain, and cannot make an envelope
 release-eligible.
 
+Packaged-artifact verification requires the binary's filesystem mode to match
+the signed `0555` mode exactly. Git records only whether a regular file is
+executable, so a normal checkout materializes that tracked binary as `0755`.
+Callers validating the repository checkout may explicitly select
+`verification_context: "git-checkout"`. That context accepts only this exact
+`0555` to `0755` representation and only when Git confirms that the file is a
+tracked executable whose working-tree bytes still match the index. It does not
+relax signature, digest, size, path, regular-file, or symlink checks, and it
+does not assert that the checkout has packaged-artifact permissions.
+
 Run:
 
 ```sh

@@ -17,7 +17,7 @@ const featureRoot = resolve(
   process.env.FSTG_FEATURE_ROOT ??
     resolve(
       here,
-      "../../../../../../validation/poker-team/docs/features/financial-settlement",
+      "../../__fixtures__/financial-settlement",
     ),
 );
 const bindingsPath = resolve(
@@ -31,7 +31,7 @@ describe("Financial Settlement structural emitter", () => {
     bindingsPath,
   );
 
-  it("materializes the exact 52-case catalogue union and the one declared red", () => {
+  it("detects that the historical declared red is stale after maps becomes legal", () => {
     expect(emission.projection.census).toEqual({
       nodes: 10,
       kinds: 9,
@@ -43,15 +43,17 @@ describe("Financial Settlement structural emitter", () => {
       .toBe(52);
     expect(emission.report.structural).toMatchObject({
       generated: 52,
-      passed: 51,
-      failed: 1,
+      passed: 52,
+      failed: 0,
       todo: 0,
       skipped: 0,
     });
-    expect(emission.report.structural.failed_cases).toEqual([
-      expect.objectContaining(FINANCIAL_SETTLEMENT_EXPECTED_RED),
-    ]);
-    expect(emission.report.result).toBe("expected-red");
+    expect(emission.report.structural.failed_cases).toEqual([]);
+    expect(emission.report.expected_red).toEqual({
+      ...FINANCIAL_SETTLEMENT_EXPECTED_RED,
+      observed: false,
+    });
+    expect(emission.report.result).toBe("unexpected");
   });
 
   it("keeps behavioral evidence separate and unchanged", () => {

@@ -110,7 +110,7 @@ test('current archive page advances prompt availability without prematurely conf
 
 
 test('compact guidance removes redundant instruction bytes while preserving prompt evidence',async t=>{
- const baseline=JSON.parse(readFileSync(new URL('./evidence/prompt-overhead-baseline.json',import.meta.url),'utf8'));
+ const baseline=JSON.parse(readFileSync(new URL('./fixtures/prompt-overhead-baseline.json',import.meta.url),'utf8'));
  let checked=false;
  const x=await setup(t,({tokenizer,body,candidate})=>{
   if(tokenizer)return {usage:{prompt_tokens:100}};
@@ -662,4 +662,3 @@ for(const maximum_model_retries of [0,2])test(`v20 terminal native submission su
  const paused=await runGlmAgent({...config,client:client(),pause_after_steps:13});assert.equal(paused.status,'PAUSED',JSON.stringify(paused.reason_codes));
  const r=await runGlmAgent({...config,client:client()});assert.equal(r.status,'AWAITING_APPROVAL',JSON.stringify(r.reason_codes));assert.equal(r.completion_gate.passed,true);assert.equal(r.receipts.filter(x=>x.kind==='model').at(-1).timeout_ms,60000);assert.equal(n,16);assert.equal(r.receipts.filter(r=>r.kind==='model').length,16+maximum_model_retries);assert.equal(r.paging_budget.maximum_requests,16);assert.ok(r.recycling.recycles>0);assert.equal(r.history.at(-1).messages.length,1);assert.equal(r.history.at(-1).calls,undefined);const resumed=await runGlmAgent({...config,client:client()});assert.equal(resumed.status,'BLOCK');
 });
-

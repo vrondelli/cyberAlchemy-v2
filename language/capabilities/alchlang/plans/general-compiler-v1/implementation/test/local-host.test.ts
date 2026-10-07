@@ -17,7 +17,7 @@ const work = mkdtempSync(path.join(tmpdir(), 'alch-host-build-'));
 const bundle = path.join(work, 'bundle');
 const roots: string[] = [];
 const running = new Set<ChildProcess>();
-const root = () => { const value = mkdtempSync('/tmp/alch-provision-'); roots.push(value); return value; };
+const root = () => { const value = mkdtempSync(path.join(tmpdir(), 'alch-provision-')); roots.push(value); return value; };
 
 async function start(runRoot: string, extra: Record<string,string> = {}) {
   const proc = spawn('/usr/bin/python3', [path.join(bundle, 'serve.py'), '--run-root', runRoot], {
@@ -73,7 +73,7 @@ test('unsupported exposure, arbitrary grants, duplicate fields and invalid limit
 
 test('real provisioning and loopback Rust invocation survive host restart', async () => {
   const runRoot = root(); const first = await start(runRoot);
-  assert.equal(first.status, 'listening'); assert.match(first.url, /^http:\/\/127\.0\.0\.1:/);
+  assert.equal(first.status, 'listening', first.error ?? 'HOST_NOT_LISTENING'); assert.match(first.url, /^http:\/\/127\.0\.0\.1:/);
   const response = await call(first, body()); assert.equal(response.status,200); assert.equal((await response.json()).status,'committed');
   assert.ok(existsSync(path.join(runRoot,'history.sqlite')));
   await stop(first.proc);
@@ -92,6 +92,7 @@ test('host credentials required before provisioning and authored roles cannot se
 
 test('HTTP rejects unauthorized calls, context injection and internal transport commands', async () => {
   const server = await start(root());
+  assert.equal(server.status, 'listening', server.error ?? 'HOST_NOT_LISTENING');
   assert.equal((await call(server,body(),'wrong')).status,401);
   assert.equal((await call(server,{...body(),context:fixture.context})).status,400);
   assert.equal((await call(server,{command:'claim'})).status,400);
@@ -103,6 +104,7 @@ test('HTTP rejects unauthorized calls, context injection and internal transport 
 
 test('request size and business rules are enforced before a commit', async () => {
   const server = await start(root());
+  assert.equal(server.status, 'listening', server.error ?? 'HOST_NOT_LISTENING');
   assert.equal((await call(server,{facts:{payload:'x'.repeat(70000)},expected_version:0})).status,413);
   const invalid = body(); invalid.facts.status='committed';
   assert.equal((await call(server,invalid)).status,422);

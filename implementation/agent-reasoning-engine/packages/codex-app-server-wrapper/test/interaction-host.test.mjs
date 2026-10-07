@@ -27,7 +27,13 @@ test('exact user span and completed response are required and scope is explicit'
   const request = validateInteractionHostRequest(input(text, {feedback: feedback(text, {instruction_span: {start: 0, end: 19}, retention_scope: 'current-product'})}));
   assert.throws(() => materializeInteractionHostInput(request, {lessons: {}, turns: {}}), /completed-response-required/);
   assert.throws(() => materializeInteractionHostInput(request, {lessons: {}, turns: {earlier: {outcome: {}, interaction_ref: 'other'}}}), /completed-response-required/);
-  const supplied = materializeInteractionHostInput(request, {lessons: {}, turns: {earlier: {outcome: {}, interaction_ref: 't'}}});
+  const prior = {outcome: {}, interaction_ref: 't', completion_status: 'completed', response_present: true, turn_ref: 'turn:answered'};
+  for (const invalid of [{...prior, response_present: false}, {...prior, response_present: undefined},
+    {...prior, completion_status: 'noncompleted'}, {...prior, completion_status: undefined},
+    {...prior, turn_ref: null}, {...prior, turn_ref: '   '}, {...prior, interaction_ref: 'other'}]) {
+    assert.throws(() => materializeInteractionHostInput(request, {lessons: {}, turns: {earlier: invalid}}), /completed-response-required/);
+  }
+  const supplied = materializeInteractionHostInput(request, {lessons: {}, turns: {earlier: prior}});
   assert.equal(supplied.feedback.instruction, text.slice(0, 19));
   assert.equal(supplied.feedback.user_selected, true);
   assert.equal(supplied.feedback.posture, 'explicit');

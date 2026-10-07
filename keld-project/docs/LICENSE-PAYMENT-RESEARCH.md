@@ -1,14 +1,27 @@
 # KELD license and payment choices
 
-Date: 2026-09-17. Candidate research and interpretation of the owner's latest
-answers; not an executed license, account eligibility finding, or release approval.
+**Owner revision (2026-09-22):** The owner's later
+[resale and share-back decision](decisions/ARE-RESALE-SHAREBACK-2026-09-21.md)
+replaces the earlier “one connection or new function qualifies” resale
+interpretation. Resale now requires substantive new functionality or a material
+functional improvement, and the reseller has a proposed no-charge obligation
+to verified ARE purchasers for the qualifying version's source code only,
+not binaries,
+future upgrades, or human support. Purchase verification and final legal terms remain
+open; this research is not an operative license or current customer offer. See
+the [candidate clauses](ARE-LICENSE-CANDIDATE.md).
+
+Original research: 2026-09-17; license policy revised 2026-09-22. Candidate
+research only; not an executed license, account eligibility finding, or release approval.
 No ontology-runtime record or selector dependency is required for this comparison.
 
 ## Owner intent
 
 The owner wants recipients to use, share and change the software freely, including
-commercial use, but not sell an unchanged copy. Adding a connection or a new
-function should permit resale. The owner requests Stripe, PayPal, USDC and Pix.
+commercial use, but paid resale requires substantive new functionality or a
+material improvement of existing functionality. A qualifying reseller must
+make its modified version's source code available at no charge to verified
+ARE purchasers. The owner requests Stripe, PayPal, USDC and Pix.
 These answers supersede the previous unanswered binary license/provider questions.
 Merchant country has been requested and remains unresolved in this record.
 
@@ -26,9 +39,11 @@ to sell. [OSI definition](https://opensource.org/osd).
 
 Candidate plain-language intent, not final legal wording: use, copy, modify and
 share ARE, including in commercial work; selling a redistributed software copy
-requires an added function or integration. The owner's threshold does not require
-a large rewrite. A working new connector or function qualifies. Cosmetic edits,
-renaming and bug fixes alone do not qualify a redistributed copy for resale.
+requires substantive new functionality or a material functional improvement.
+Cosmetic edits, renaming and bug fixes alone do not qualify a redistributed
+copy for resale. The qualifying reseller must offer the corresponding source
+code of its modified version at no charge to verified ARE purchasers; the rule does
+not require free binaries, future upgrades or direct human support.
 Hosted access and paid support are service activities outside this redistributed-
 copy resale rule; they neither satisfy nor violate its modification threshold.
 Downstream licensing remains an interpretation question. Final wording needs

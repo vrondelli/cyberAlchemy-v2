@@ -163,8 +163,8 @@ export interface EnforcesEdge {
 }
 
 export interface KeyDoorBindingContract {
-  readonly schema_version: "evf.key-door-binding-contract/v1";
-  readonly binding_id: "evf.key-door.binding.v1";
+  readonly schema_version: "evf.key-door-binding-contract/v2";
+  readonly binding_id: "evf.key-door.binding.v2";
   readonly obligation_id: "evf.s1.enforces.has-key.unlock-door.v1";
   readonly edge: EnforcesEdge;
   readonly predicate_ref: ExactRef;
@@ -184,6 +184,7 @@ export interface KeyDoorBindingContract {
     readonly pre_state: "absent";
     readonly postimage_digest_owner: "task-session-material-reconciliation";
     readonly postimage_digest_required_before_execution: true;
+    readonly postimage_ref: ExactRef;
   };
   readonly cardinality: "exactly-one-binding-per-obligation";
 }
@@ -200,7 +201,7 @@ export interface KeyDoorRuntimeContract {
 export interface GeneratedObligation extends EnforcesEdge {
   readonly obligation_id: "evf.s1.enforces.has-key.unlock-door.v1";
   readonly predicate_id: "evf.key-door.has-key.v1";
-  readonly binding_id: "evf.key-door.binding.v1";
+  readonly binding_id: "evf.key-door.binding.v2";
 }
 
 export interface RuntimeObservation {
@@ -245,11 +246,11 @@ export const EVF_RELATIVE_ROOT =
 export const EVF_PATHS = {
   predicate: `${EVF_RELATIVE_ROOT}/semantic-source/key-door-predicate.v1.json`,
   fixture: `${EVF_RELATIVE_ROOT}/fixtures/SWU-GCP-001/key-door-input.v1.json`,
-  binding: `${EVF_RELATIVE_ROOT}/fixtures/SWU-GCP-001/key-door-binding.v1.json`,
+  binding: `${EVF_RELATIVE_ROOT}/fixtures/SWU-GCP-001/key-door-binding.v2.json`,
+  bindingSchema: `${EVF_RELATIVE_ROOT}/fixtures/SWU-GCP-001/key-door-binding.v2.schema.json`,
   runtimeContract: `${EVF_RELATIVE_ROOT}/contracts/key-door-runtime.v1.json`,
-  ospec: `${EVF_RELATIVE_ROOT}/contracts/key-door-obligations.v1.json`,
-  receiptSchema: `${EVF_RELATIVE_ROOT}/contracts/evolvable-validation-receipt.v1.schema.json`,
-  validationContract:
-    `${EVF_RELATIVE_ROOT}/refreshes/20260820T104601Z-option-b-postimage-materialization/` +
-    `staging/${EVF_RELATIVE_ROOT}/work-pack/validation-contract.s1.json`,
+  ospec: `${EVF_RELATIVE_ROOT}/contracts/key-door-obligations.v2.json`,
+  ospecSchema: `${EVF_RELATIVE_ROOT}/contracts/key-door-obligations.v2.schema.json`,
+  receiptSchema: `${EVF_RELATIVE_ROOT}/contracts/evolvable-validation-receipt.s1.v2.schema.json`,
+  validationContract: `${EVF_RELATIVE_ROOT}/work-pack/validation-contract.s1.v3.json`,
 } as const;

@@ -13,11 +13,13 @@ export interface ApplicationRuntimeProfile {
   requirements: Record<string, string>;
   providers: Record<string, string>;
   environment: Array<{ name: string; classification: "secret-reference" | "endpoint-reference"; required: true }>;
+  messaging_destinations: Array<{ channel_ref: string; environment_name: string }>;
 }
 const fail = (code: string, line: number, message: string): never => {
   throw new CompilationRejected([{ code, path: `$line:${line}`, message }]);
 };
 const roles = ["persistence", "messaging", "outbound-http", "inbound-http"] as const;
+const baseEnvironmentOrder = ["DATABASE_URL", "INBOUND_BIND_ADDRESS", "NATS_URL", "PAYMENT_BASE_URL", "WEBHOOK_SECRET"];
 const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 /** Runtime declarations are selections, never domain nodes or executable instructions. */
@@ -29,6 +31,7 @@ export function normalizeApplicationRuntimeProfiles(sections: ApplicationSourceS
     const requirements: Record<string, string> = Object.create(null);
     const providers: ApplicationRuntimeProfile["providers"] = Object.create(null);
     const environment: ApplicationRuntimeProfile["environment"] = [];
+    const messagingDestinations: ApplicationRuntimeProfile["messaging_destinations"] = [];
     for (const row of section.rows) {
       let m: RegExpExecArray | null;
       if ((m = /^target (typescript|python|rust)$/.exec(row.text))) {
@@ -51,16 +54,25 @@ export function normalizeApplicationRuntimeProfiles(sections: ApplicationSourceS
         const name = m[1]!;
         if (environment.some(e => e.name === name)) fail("APPLICATION_RUNTIME_DUPLICATE", row.line, "environment reference is already declared");
         environment.push({ name: m[1]!, classification: m[2] as "secret-reference" | "endpoint-reference", required: true });
-      } else fail("APPLICATION_RUNTIME_SYNTAX", row.line, "expected an explicit runtime/provider selection or environment reference; values and executable clauses are forbidden");
+      } else if ((m = /^messaging-destination (channel:[a-z0-9]+(?:-[a-z0-9]+)*) ([A-Z][A-Z0-9_]*)$/.exec(row.text))) {
+        if (messagingDestinations.some(destination => destination.channel_ref === m![1] || destination.environment_name === m![2])) fail("APPLICATION_RUNTIME_DUPLICATE", row.line, "messaging destination channel and environment names must be unique");
+        messagingDestinations.push({ channel_ref: m[1]!, environment_name: m[2]! });
+      } else fail("APPLICATION_RUNTIME_SYNTAX", row.line, "expected an explicit runtime/provider selection, environment reference, or messaging destination; values and executable clauses are forbidden");
     }
-    if (!target || !selection || !pack || !Object.keys(requirements).length || roles.some(role => !Object.hasOwn(providers, role.replaceAll("-", "_"))) || !environment.length) {
-      fail("APPLICATION_RUNTIME_INCOMPLETE", section.line, "target, selection, pack, runtime, all provider roles and environment references must be explicit");
+    if (!target || !selection || !pack || !Object.keys(requirements).length || roles.some(role => !Object.hasOwn(providers, role.replaceAll("-", "_"))) || !environment.length || !messagingDestinations.length) {
+      fail("APPLICATION_RUNTIME_INCOMPLETE", section.line, "target, selection, pack, runtime, all provider roles, environment references, and messaging destinations must be explicit");
     }
     const key = symbol(section.id);
     if (paths.has(key) || selections.has(selection!)) fail("APPLICATION_RUNTIME_COLLISION", section.line, "profile paths and selection identities must be unique");
     paths.add(key); selections.add(selection!);
+    const environmentOrder = (name: string) => {
+      const index = baseEnvironmentOrder.indexOf(name);
+      return index < 0 ? baseEnvironmentOrder.length : index;
+    };
+    environment.sort((a, b) => environmentOrder(a.name) - environmentOrder(b.name) || compare(a.name, b.name));
+    messagingDestinations.sort((a, b) => compare(a.channel_ref, b.channel_ref));
     return { id: section.id, source_line: section.line, target: target!, selection_id: selection!, pack_id: pack!,
-      requirements, providers, environment: environment.sort((a, b) => compare(a.name, b.name)) };
+      requirements, providers, environment, messaging_destinations: messagingDestinations };
   });
 }
 
@@ -78,7 +90,7 @@ export function lowerApplicationRuntimeProfiles(source: string, profileId: strin
       schema_version: "domainspec.provider-profile-request/v1-candidate",
       selection_id: profile.selection_id, pack_id: profile.pack_id, language: profile.target,
       capabilities: [...roles], providers: profile.providers,
-      configuration: { environment: profile.environment }, authority_effect: "none",
+      configuration: { environment: profile.environment, messaging_destinations: profile.messaging_destinations }, authority_effect: "none",
     }, profile.requirements);
     const prefix = `runtime-profiles/${symbol(profile.id)}`;
     files[`${prefix}/providers.json`] = json(compiled.selection);

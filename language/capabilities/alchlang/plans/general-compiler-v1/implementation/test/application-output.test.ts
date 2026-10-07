@@ -34,7 +34,8 @@ test("output validation rejects traversal, portable aliases and file/directory c
     assert.throws(() => writeApplicationOutput(out, { ...files, [name]: "x" }, () => {}), /unsafe output path/);
     assert.equal(fs.existsSync(out), false);
   }
-  const collisions: Record<string, string>[] = [{ "SRC/other.ts": "x" }, { "é/x": "x", "e\u0301/y": "x" }, { src: "x" }];
+  const collisions: Record<string, string>[] = [{ "SRC/other.ts": "x" }, { "é/x": "x", "e\u0301/y": "x" },
+    { "ＳＲＣ/other.ts": "x" }, { src: "x" }];
   for (const extra of collisions) {
     assert.throws(() => validateApplicationOutput({ ...files, ...extra }), /collision/);
   }

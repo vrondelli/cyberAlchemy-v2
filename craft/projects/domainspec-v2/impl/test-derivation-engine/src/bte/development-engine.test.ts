@@ -100,6 +100,16 @@ describe("BTE development successor build", () => {
     }
   });
 
+  it("accepts the authority's Mapping to Value Object endpoint but rejects an unrelated target", () => {
+    const valueObjectTarget = createCompleteDevelopmentProject();
+    valueObjectTarget.edges.find(({ family }) => family === "maps")!.to = "core.Money";
+    expect(() => compileDevelopmentProject(valueObjectTarget)).not.toThrow();
+
+    const unrelatedTarget = createCompleteDevelopmentProject();
+    unrelatedTarget.edges.find(({ family }) => family === "maps")!.to = "core.AccountChanged";
+    expectCode(() => compileDevelopmentProject(unrelatedTarget), "BTE_DEV_EDGE_ENDPOINT_KIND");
+  });
+
   it("compiles and replays an exact declared subset", () => {
     const project = createDeclaredSubsetProject();
     const build = compileDevelopmentProject(project);

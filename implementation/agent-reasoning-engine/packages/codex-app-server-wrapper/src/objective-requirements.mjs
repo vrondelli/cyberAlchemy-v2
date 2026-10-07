@@ -4,6 +4,7 @@ import {
   verifyObjectiveState, verifyRequirementSnapshot,
 } from '../../request-intent-runtime/index.mjs';
 import {canonicalJson, digestValue, freezeResult, isRecord} from './canonical.mjs';
+import {verifyReasoningPlanContext} from '../../reasoning-state-runtime/plan-context.mjs';
 
 const SCHEMA = 'are.objective-requirement-continuity/v1';
 const MAX_BYTES = 32768;
@@ -89,6 +90,117 @@ export function verifyRequirementContinuityReplay(record, previous, resolution) 
     return verifyRequirementContinuity(record, resolution.next_state)
       && canonicalJson(record) === canonicalJson(materializeRequirementContinuity({previous, resolution, seed_snapshot: record.seed_snapshot}));
   } catch { return false; }
+}
+
+// A Host plan replacement is not a user prompt or an objective transition.
+// This pure primitive accounts for EVERY retained objective, including suspended
+// ones. The caller must separately bind the thread and checkpoint the successor
+// plan and this receipt together before publishing next_continuity.
+export function normalizePlanMigrationAccounting(accounting) {
+  if (!Array.isArray(accounting) || accounting.length > 17) throw Error('requirements.migration-accounting-invalid');
+  const compact = accounting.some(row => isRecord(row) && Object.hasOwn(row, 'retained_indices'));
+  const keys = compact ? ['objective_id', 'snapshot_digest', 'retained_indices', 'removed_indices', 'added_obligation_ids', 'added_requirements']
+    : ['objective_id', 'snapshot_digest', 'retained', 'added', 'removed'];
+  const normalize = (values, indices = false, limit = 2048) => {
+    if (!Array.isArray(values) || values.length > 64 || new Set(values).size !== values.length
+      || values.some(value => indices ? !Number.isSafeInteger(value) || value < 0 || value >= 64
+        : typeof value !== 'string' || !value.length || value.trim() !== value || Buffer.byteLength(value) > limit)) {
+      throw Error('requirements.migration-set-invalid');
+    }
+    return [...values].sort(indices ? (a, b) => a - b : undefined);
+  };
+  const rows = accounting.map(row => {
+    if (!closed(row, keys) || Object.keys(row).length !== keys.length
+      || typeof row.objective_id !== 'string' || !row.objective_id.length
+      || !/^[a-f0-9]{64}$/.test(row.snapshot_digest ?? '')) throw Error('requirements.migration-accounting-invalid');
+    return compact ? {objective_id: row.objective_id, snapshot_digest: row.snapshot_digest,
+      retained_indices: normalize(row.retained_indices, true), removed_indices: normalize(row.removed_indices, true),
+      added_obligation_ids: normalize(row.added_obligation_ids, false, 128), added_requirements: normalize(row.added_requirements)}
+      : {objective_id: row.objective_id, snapshot_digest: row.snapshot_digest,
+        retained: normalize(row.retained), added: normalize(row.added), removed: normalize(row.removed)};
+  });
+  if (new Set(rows.map(row => row.objective_id)).size !== rows.length) throw Error('requirements.migration-accounting-invalid');
+  return {compact, rows: sorted(rows)};
+}
+
+export function materializePlanRequirementMigration({previous, state, previous_plan_context,
+  plan_context, accounting, source_ref}) {
+  if (!verifyRequirementContinuity(previous, state)) throw Error('requirements.migration-predecessor-invalid');
+  if (!verifyReasoningPlanContext(previous_plan_context).ok || !verifyReasoningPlanContext(plan_context).ok
+    || previous_plan_context.thread_ref !== plan_context.thread_ref
+    || plan_context.previous_plan_context_digest !== previous_plan_context.plan_context_digest
+    || plan_context.plan_context_digest === previous_plan_context.plan_context_digest) {
+    throw Error('requirements.migration-plan-predecessor-invalid');
+  }
+  if (typeof source_ref !== 'string' || !source_ref.length || source_ref.trim() !== source_ref
+    || Buffer.byteLength(source_ref) > 512) throw Error('requirements.migration-source-invalid');
+  if (!Array.isArray(accounting) || accounting.length !== previous.snapshots.length
+    || Buffer.byteLength(canonicalJson(accounting)) > MAX_BYTES) throw Error('requirements.migration-accounting-invalid');
+  const rows = new Map();
+  const normalized = [];
+  const encoded = normalizePlanMigrationAccounting(accounting);
+  const normalizeSet = values => {
+    if (!Array.isArray(values) || values.length > 64 || values.some(value => typeof value !== 'string'
+      || !value.length || value.trim() !== value || Buffer.byteLength(value) > 2048)
+      || new Set(values).size !== values.length) throw Error('requirements.migration-set-invalid');
+    return [...values].sort();
+  };
+  for (const encodedRow of encoded.rows) {
+    let row = encodedRow;
+    if (encoded.compact) {
+      const snapshot = previous.snapshots.find(value => value.objective_id === row.objective_id);
+      if (!snapshot || snapshot.snapshot_digest !== row.snapshot_digest) throw Error('requirements.migration-snapshot-mismatch');
+      const indices = [...row.retained_indices, ...row.removed_indices];
+      if (indices.length !== snapshot.requirements.length || new Set(indices).size !== indices.length
+        || indices.some(index => index >= snapshot.requirements.length)) throw Error('requirements.migration-unaccounted-change');
+      const obligations = new Map(plan_context.feature_obligations.map(value => [value.obligation_id, value.summary]));
+      if (row.added_obligation_ids.some(id => !obligations.has(id))
+        || row.added_requirements.some(value => [...obligations.values()].includes(value))) {
+        throw Error('requirements.migration-obligation-reference-invalid');
+      }
+      row = {objective_id: row.objective_id, snapshot_digest: row.snapshot_digest,
+        retained: row.retained_indices.map(index => snapshot.requirements[index]),
+        removed: row.removed_indices.map(index => snapshot.requirements[index]),
+        added: [...row.added_obligation_ids.map(id => obligations.get(id)), ...row.added_requirements]};
+    }
+    const keys = ['objective_id', 'snapshot_digest', 'retained', 'added', 'removed'];
+    if (!closed(row, keys) || Object.keys(row).length !== keys.length
+      || rows.has(row.objective_id)) throw Error('requirements.migration-accounting-invalid');
+    const before = previous.snapshots.find(snapshot => snapshot.objective_id === row.objective_id);
+    if (!before || before.snapshot_digest !== row.snapshot_digest) throw Error('requirements.migration-snapshot-mismatch');
+    const retained = normalizeSet(row.retained), added = normalizeSet(row.added), removed = normalizeSet(row.removed);
+    if (added.some(value => before.requirements.includes(value))
+      || removed.some(value => !before.requirements.includes(value))
+      || canonicalJson(retained) !== canonicalJson(before.requirements.filter(value => !removed.includes(value)))) {
+      throw Error('requirements.migration-unaccounted-change');
+    }
+    const resulting = normalizeSet([...retained, ...added]);
+    if (plan_context.feature_obligations.some(obligation => !resulting.includes(obligation.summary))) {
+      throw Error('requirements.migration-plan-obligation-missing');
+    }
+    const next = materializeRequirementSnapshot({...fields(before), requirements: resulting,
+      source_refs: [...new Set([...before.source_refs, source_ref])]});
+    rows.set(row.objective_id, next);
+    normalized.push({objective_id: row.objective_id, snapshot_digest: row.snapshot_digest, retained, added, removed});
+  }
+  const continuityMaterial = {schema_version: SCHEMA, objective_state_digest: state.state_digest,
+    previous_continuity_digest: previous.continuity_digest, resolution_digest: previous.resolution_digest,
+    seed_snapshot: null, snapshots: sorted([...rows.values()]), authority_effect: 'none'};
+  const next_continuity = {...continuityMaterial, continuity_digest: digestValue(continuityMaterial)};
+  if (!verifyRequirementContinuity(next_continuity, state)) throw Error('requirements.migration-continuity-invalid-or-over-budget');
+  const material = {schema_version: encoded.compact ? 'are.plan-requirement-migration/v2' : 'are.plan-requirement-migration/v1',
+    previous_continuity_digest: previous.continuity_digest, objective_state_digest: state.state_digest,
+    previous_plan_context_digest: previous_plan_context.plan_context_digest,
+    plan_context_digest: plan_context.plan_context_digest, thread_ref: plan_context.thread_ref,
+    source_ref, accounting: encoded.compact ? encoded.rows : sorted(normalized), next_continuity, authority_effect: 'none'};
+  const result = {...material, migration_digest: digestValue(material)};
+  if (Buffer.byteLength(canonicalJson(result)) > MAX_BYTES) throw Error('requirements.migration-budget-exceeded');
+  return freezeResult(result);
+}
+
+export function verifyPlanRequirementMigrationReplay(record, input) {
+  try { return canonicalJson(record) === canonicalJson(materializePlanRequirementMigration(input)); }
+  catch { return false; }
 }
 
 // The optional model remains behind the existing resolver's deadline and

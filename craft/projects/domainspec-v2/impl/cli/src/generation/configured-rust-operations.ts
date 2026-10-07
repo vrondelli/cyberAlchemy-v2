@@ -34,6 +34,16 @@ function rustType(type: TypedType): string {
   if (type.kind === 'set') return `std::collections::BTreeSet<${rustType(type.element)}>`;
   return fail('anonymous sum Operation inputs require a named declaration');
 }
+/** Operation slots are semantic identities. Existing portable local slots keep
+ * their native spelling; an exact qualified selector receives the same
+ * collision-resistant module encoding used elsewhere in the Rust backend. */
+function rustSlot(value: string): string {
+  try { return rustSnake(value); }
+  catch {
+    if (value.split(':').length === 2) return rustSelectorModule(value);
+    return fail('portable local or qualified slot required:' + value);
+  }
+}
 export function rustOperationPath(moduleRoot: string, selector: string): string {return `${moduleRoot}/src/application/operations/${rustSelectorModule(selector)}.rs`;}
 
 export function planConfiguredRustOperations(graph: CompiledProjectGraph, boundary: CompiledCompositionBoundary, fields: CompiledProjectFields, selection: RustOperationSelection, sources: RustOperationSources) {
@@ -79,7 +89,7 @@ export function planConfiguredRustOperations(graph: CompiledProjectGraph, bounda
     };
     const rollback = (status: 'Rejected' | 'Failed', stage: string, code: string) => `{ let cleanup_failed = transaction.rollback().await.is_err(); return ${outcome}::${status} { stage: ${rustString(stage)}, code: ${rustString(code)}, cleanup_failed }; }`;
     const reads = action.reads.map((read, index) => {
-      const key = expression(read.key, new Map(action.bindings.inputs.map(input => [input.name, scope.get(input.name)!]))), variable = rustSnake(read.parameter), method = `read_${rustSnake(read.slot)}`;
+      const key = expression(read.key, new Map(action.bindings.inputs.map(input => [input.name, scope.get(input.name)!]))), variable = rustSnake(read.parameter), method = `read_${rustSlot(read.slot)}`;
       return `    let key${index}: ${rustType(read.identity.type)} = ${key.owned};\n    let ${variable} = match transaction.${method}(&key${index}).await {\n        Ok(Some(value)) => value,\n        Ok(None) => ${rollback('Failed', 'read', 'READ_NOT_FOUND')},\n        Err(_) => ${rollback('Failed', 'read', 'READ_FAILED')},\n    };\n    if ${variable}.${rustSnake(read.identity.name)}() != &key${index} ${rollback('Failed', 'read', 'READ_IDENTITY_MISMATCH')}\n`;
     }).join('');
     const guards = action.guards.map(guard => {
@@ -100,11 +110,11 @@ export function planConfiguredRustOperations(graph: CompiledProjectGraph, bounda
     }).join('');
     const resultValue = expression(action.bindings.result.value, scope), resultType = action.bindings.result.type;
     const result = `    let result: ${rustType(resultType)} = ${resultValue.owned};\n${validate(resultType, 'result', 'result')} `;
-    const writeFields = action.writes.map((write, index) => `    pub ${rustSnake(write.slot)}: WriteIntent<${rustSelectorType(write.target)}>,`).join('\n');
-    const eventFields = action.events.map(event => {const module = eventModules.get(event.target)!; return `    pub ${rustSnake(event.slot)}: EventIntent<crate::domain::events::${rustSelectorModule(event.target)}::${module.value}>,`;}).join('\n');
-    const batchValues = [...action.writes.map((write, index) => `        ${rustSnake(write.slot)}: WriteIntent { target: ${rustString(write.target)}, mode: WriteMode::${rustPascal(write.mode)}, value: write${index} },`), ...action.events.map((event, index) => `        ${rustSnake(event.slot)}: EventIntent { target: ${rustString(event.target)}, value: event${index} },`)].join('\n');
-    const readMethods = action.reads.map(read => `    async fn read_${rustSnake(read.slot)}(&mut self, key: &${rustType(read.identity.type)}) -> Result<Option<${rustSelectorType(read.target)}>, OperationPortError>;`).join('\n');
-    const functionInputs = action.bindings.inputs.map(input => `${rustSnake(input.name)}: &${rustType(input.type)}`), eventInputs = action.events.map(event => {const module = eventModules.get(event.target)!; return `${rustSnake(event.parameter)}: crate::domain::events::${rustSelectorModule(event.target)}::${module.input}`;}), clocks = action.events.filter(event => eventModules.get(event.target)!.occurred_at_policy === 'generated').map(event => `clock_${rustSnake(event.slot)}: &impl Fn() -> String`);
+    const writeFields = action.writes.map((write, index) => `    pub ${rustSlot(write.slot)}: WriteIntent<${rustSelectorType(write.target)}>,`).join('\n');
+    const eventFields = action.events.map(event => {const module = eventModules.get(event.target)!; return `    pub ${rustSlot(event.slot)}: EventIntent<crate::domain::events::${rustSelectorModule(event.target)}::${module.value}>,`;}).join('\n');
+    const batchValues = [...action.writes.map((write, index) => `        ${rustSlot(write.slot)}: WriteIntent { target: ${rustString(write.target)}, mode: WriteMode::${rustPascal(write.mode)}, value: write${index} },`), ...action.events.map((event, index) => `        ${rustSlot(event.slot)}: EventIntent { target: ${rustString(event.target)}, value: event${index} },`)].join('\n');
+    const readMethods = action.reads.map(read => `    async fn read_${rustSlot(read.slot)}(&mut self, key: &${rustType(read.identity.type)}) -> Result<Option<${rustSelectorType(read.target)}>, OperationPortError>;`).join('\n');
+    const functionInputs = action.bindings.inputs.map(input => `${rustSnake(input.name)}: &${rustType(input.type)}`), eventInputs = action.events.map(event => {const module = eventModules.get(event.target)!; return `${rustSnake(event.parameter)}: crate::domain::events::${rustSelectorModule(event.target)}::${module.input}`;}), clocks = action.events.filter(event => eventModules.get(event.target)!.occurred_at_policy === 'generated').map(event => `clock_${rustSlot(event.slot)}: &impl Fn() -> String`);
     const requestFields = [...action.bindings.inputs.map(input => `    pub ${rustSnake(input.name)}: ${rustType(input.type)},`), ...action.events.map(event => {const module = eventModules.get(event.target)!; return `    pub ${rustSnake(event.parameter)}: crate::domain::events::${rustSelectorModule(event.target)}::${module.input},`;})];
     const requestNames = [...action.bindings.inputs.map(input => rustSnake(input.name)), ...action.events.map(event => rustSnake(event.parameter))];
     const requestArguments = [...action.bindings.inputs.map(input => `&${rustSnake(input.name)}`), ...action.events.map(event => rustSnake(event.parameter)), ...clocks.map(clock => clock.split(':')[0]!.trim()), 'store'];

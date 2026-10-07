@@ -57,6 +57,32 @@ test('Orders SDK → asynchronous QR refresh → paid ledger → owned download,
   assert.equal((await service.download(req,a.orderId)).sha256,digest);await assert.rejects(()=>service.download(other,a.orderId));
   me();nock('https://api.mercadopago.com').get('/v1/orders/'+oid).reply(200,paid(frozen));
   assert.equal((await service.confirm(req,a.orderId)).status,'paid');assert.ok(nock.isDone());
+  const partial=paid(frozen);
+  partial.processing_mode='automatic';partial.live_mode=false;
+  partial.status_detail='partially_refunded';
+  partial.transactions.refunds=[{id:'REF'+'P'.repeat(29),transaction_id:pid,amount:'50.00',status:'processed'}];
+  partial.transactions.chargebacks=[];
+  const partialRequestId='partial-1',partialHeaders={'x-request-id':partialRequestId,
+    'x-signature':`ts=${now*1000},v1=${createHmac('sha256',secret).update(`id:${oid};request-id:${partialRequestId};ts:${now*1000};`).digest('hex')}`};
+  await inbox.receive('mercadopago',Buffer.from('{}'),partialHeaders,'/?data.id='+oid);
+  me();nock('https://api.mercadopago.com').get('/v1/orders/'+oid).reply(200,partial);
+  assert.equal((await processEvents({repository,adapters,clock:()=>now})).review.length,1);
+  assert.equal((await service.download(req,a.orderId)).sha256,digest);
+  const refunded=paid(frozen),refundId='REF'+'R'.repeat(29);
+  refunded.processing_mode='automatic';
+  refunded.status='refunded';refunded.status_detail='refunded';
+  refunded.transactions.payments[0].status='refunded';
+  refunded.transactions.payments[0].status_detail='refunded';
+  refunded.transactions.refunds=[{id:refundId,transaction_id:pid,amount:'250.00',status:'processed'}];
+  refunded.transactions.chargebacks=[];
+  const refundRequestId='refund-1',refundHeaders={'x-request-id':refundRequestId,
+    'x-signature':`ts=${now*1000},v1=${createHmac('sha256',secret).update(`id:${oid};request-id:${refundRequestId};ts:${now*1000};`).digest('hex')}`};
+  await inbox.receive('mercadopago',Buffer.from('{}'),refundHeaders,'/?data.id='+oid);
+  me();nock('https://api.mercadopago.com').get('/v1/orders/'+oid).reply(200,refunded);
+  assert.equal((await processEvents({repository,adapters,clock:()=>now})).done,1);
+  assert.equal((await service.restore(req,a.orderId)).state,'revoked');
+  await assert.rejects(()=>service.download(req,a.orderId),{code:'delivery-not-authorized'});
+  assert.ok(nock.isDone());
 });
 
 test('non-test or wrong seller cannot create an order',async()=>{
@@ -85,6 +111,94 @@ test('bounded Orders discovery and paid verification use the order, never numeri
   assert.equal(await a.verify(oid,terms),pid);assert.equal(await a.localOrderFor(oid),terms.orderId);
 });
 
+test('Orders refund inspection binds a final REF to the exact paid Pix PAY using GET only',async()=>{
+  const observed=()=>{
+    const o=paid(terms);o.processing_mode='automatic';
+    o.transactions.refunds=[];o.transactions.chargebacks=[];return o;
+  };
+  const adapterFor=o=>bindOrdersAdapter({user:{get:async()=>seller},orders:{get:async()=>o}},c);
+  const missingPayment=order(terms,{status:'processing',transactions:{}});
+  await assert.rejects(()=>adapterFor(missingPayment).inspectRecordedRefund(oid,terms),
+    {code:'orders-refund-payment-missing'});
+  const clean=observed();
+  assert.deepEqual(await adapterFor(clean).inspectRefund(oid,terms,pid),
+    {kind:'unrefunded',provider:'mercadopago'});
+  const full=observed();full.status='refunded';full.status_detail='refunded';
+  full.transactions.payments[0].status='refunded';
+  full.transactions.payments[0].status_detail='refunded';
+  const refund={id:'REF'+'R'.repeat(29),transaction_id:pid,amount:'250.00',status:'processed'};
+  full.transactions.refunds=[refund];
+  assert.deepEqual(await adapterFor(full).inspectRefund(oid,terms,pid),
+    {kind:'full-refund',provider:'mercadopago',providerRef:pid+':'+refund.id});
+  assert.deepEqual(await adapterFor(full).inspectRecordedRefund(oid,terms),
+    {paymentId:pid,kind:'full-refund',provider:'mercadopago',providerRef:pid+':'+refund.id});
+  const postExample=structuredClone(full);postExample.status='processed';
+  assert.equal((await adapterFor(postExample).inspectRefund(oid,terms,pid)).kind,'review');
+  const partial=observed();partial.status_detail='partially_refunded';
+  partial.transactions.refunds=[{...refund,amount:'50.00'}];
+  assert.equal((await adapterFor(partial).inspectRefund(oid,terms,pid)).kind,'review');
+  assert.equal((await adapterFor(partial).inspectRecordedRefund(oid,terms)).kind,'review');
+  for(const edit of [
+    o=>{delete o.transactions.refunds;},o=>{delete o.transactions.chargebacks;},
+    o=>{o.transactions.chargebacks=[{id:'chargeback'}];},
+    o=>{o.status_detail='partially_refunded';},o=>{o.transactions.payments[0].status='pending';},
+    o=>{o.transactions.refunds=[{...refund,status:'pending'}];},
+    o=>{o.transactions.refunds=[{...refund},{...refund,id:'REF'+'S'.repeat(29)}];},
+  ]){const o=observed();edit(o);assert.equal((await adapterFor(o).inspectRefund(oid,terms,pid)).kind,'review');}
+  const mixed=structuredClone(full);mixed.transactions.payments[0].status_detail='accredited';
+  assert.equal((await adapterFor(mixed).inspectRefund(oid,terms,pid)).kind,'review');
+  for(const edit of [
+    o=>{o.id='ORD'+'Z'.repeat(29);},o=>{o.user_id='999';},
+    o=>{o.integration_data.application_id='999';},o=>{o.live_mode=true;},
+    o=>{o.external_reference='wrong';},o=>{o.currency='USD';},
+    o=>{o.transactions.payments[0].id='PAY'+'Z'.repeat(29);},
+    o=>{o.transactions.payments[0].payment_method.type='card';},
+  ]){const o=observed();edit(o);await assert.rejects(()=>adapterFor(o).inspectRefund(oid,terms,pid),
+    {code:'orders-refund-proof-invalid'});}
+  for(const edit of [
+    o=>{o.transactions.refunds[0].transaction_id='PAY'+'Z'.repeat(29);},
+    o=>{o.transactions.refunds[0].id='bad';},
+    o=>{o.transactions.refunds[0].amount='251.00';},
+  ]){const o=structuredClone(full);edit(o);await assert.rejects(()=>adapterFor(o).inspectRefund(oid,terms,pid),
+    {code:'orders-refund-proof-invalid'});}
+  const adapters=createPaymentAdapters({environment:'sandbox',stripe:{secret:'sk_test_fixture',account:'acct_test'},mercadopago:c,paypal:{clientId:'fixture',secret:'fixture',account:'MERCHANT'}});
+  me();nock('https://api.mercadopago.com').get('/v1/orders/'+oid).reply(200,full);
+  assert.deepEqual(await adapters.mercadopago.inspectRefund(oid,terms,pid),
+    {kind:'full-refund',provider:'mercadopago',providerRef:pid+':'+refund.id});
+  assert.ok(nock.isDone());
+});
+
+test('Orders finality requires a matching terminal Pix transaction and zero credited amount',async()=>{
+  const terminal=()=>{
+    const o=order(terms,{processing_mode:'automatic',status:'expired',status_detail:'expired',total_paid_amount:'0.00'});
+    Object.assign(o.transactions.payments[0],{status:'expired',status_detail:'expired',paid_amount:'0.00'});
+    return o;
+  };
+  const cases=[
+    [()=>{},'terminal-unpaid'],
+    [o=>{o.status='processing';o.status_detail='in_process';},'unresolved'],
+    [o=>{o.transactions.payments[0].status='processing';},'unresolved'],
+    [o=>{o.total_paid_amount='1.00';},'unresolved'],
+    [o=>{o.transactions.payments[0].paid_amount='1.00';},'unresolved'],
+    [o=>{o.processing_mode='manual';},'unresolved'],
+  ];
+  for(const [change,expected] of cases){
+    const o=terminal();change(o);
+    const a=bindOrdersAdapter({user:{get:async()=>seller},orders:{get:async()=>o}},c);
+    assert.deepEqual(await a.terminalUnpaid(oid,terms),
+      {kind:expected,provider:'mercadopago',providerApi:'orders-v1',remoteId:oid});
+  }
+  for(const change of [o=>{o.external_reference='wrong';},o=>{o.transactions.refunds=[{}];},o=>{o.transactions.payments.push(o.transactions.payments[0]);}]){
+    const o=terminal();change(o);
+    const a=bindOrdersAdapter({user:{get:async()=>seller},orders:{get:async()=>o}},c);
+    await assert.rejects(()=>a.terminalUnpaid(oid,terms),{code:'pix-order-invalid'});
+  }
+  const adapters=createPaymentAdapters({environment:'sandbox',stripe:{secret:'sk_test_fixture',account:'acct_test'},mercadopago:c,paypal:{clientId:'fixture',secret:'fixture',account:'MERCHANT'}});
+  me();nock('https://api.mercadopago.com').get('/v1/orders/'+oid).reply(200,terminal());
+  assert.equal((await adapters.mercadopago.terminalUnpaid(oid,terms)).providerApi,'orders-v1');
+  assert.ok(nock.isDone());
+});
+
 test('Orders discovery fails closed on malformed pages and caps provider work',async()=>{
  for(const page of [{data:[],paging:{total:null,total_pages:null}},{data:[order(),order()],paging:{total:'2',total_pages:'1'}},{data:[{...order(),external_reference:'wrong'}],paging:{total:'1',total_pages:'1'}}]){
   const a=bindOrdersAdapter({user:{get:async()=>seller},orders:{search:async()=>page}},c);
@@ -92,6 +206,17 @@ test('Orders discovery fails closed on malformed pages and caps provider work',a
  }
  let calls=0;const a=bindOrdersAdapter({user:{get:async()=>seller},orders:{search:async()=>{calls++;return {data:[{...order(),id:'ORD'+String(calls).padStart(26,'0')}],paging:{total:'6',total_pages:'6'}};}}},c);
  const scan=await a.discover(terms,{begin:now-10,end:now});assert.equal(calls,5);assert.equal(scan.complete,false);
+});
+
+test('Orders discovery preserves two distinct resources for one reference so replacement can reject both',async()=>{
+  const otherId='ORD'+'Z'.repeat(29);
+  const a=bindOrdersAdapter({user:{get:async()=>seller},orders:{search:async()=>({
+    data:[order(),{...order(),id:otherId}],paging:{total:'2',total_pages:'1'},
+  })}},c);
+  const scan=await a.discover(terms,{begin:now-10,end:now});
+  assert.deepEqual(scan,{ids:[oid,otherId],total:2,complete:true,pages:1,interval:{begin:now-10,end:now}});
+  // The checkout service accepts only complete discovery with exactly one ID.
+  assert.equal(scan.complete&&scan.total===1&&scan.ids.length===1&&scan.ids[0]===oid,false);
 });
 
 test('bound operator resume succeeds, replay cannot downgrade ready, and stale first binding is rejected',async t=>{

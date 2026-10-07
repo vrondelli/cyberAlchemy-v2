@@ -1,4 +1,4 @@
-/* Keld storefront: local preview by default. No SDK, card fields, or payment secrets. */
+/* Synvora storefront: local preview by default. No SDK, card fields, or payment secrets. */
 (() => {
   'use strict';
   const $ = (s, p = document) => p.querySelector(s);
@@ -48,7 +48,9 @@
     } catch { return ''; }
   })();
   const live = raw.mode === 'live' && raw.approvedForSale === true && raw.fulfillmentReady === true &&
-    raw.currency === 'USD' && raw.licenseId === 'Apache-2.0' && raw.earlySupporter?.entitlementReady === true && Boolean(checkoutEndpoint) &&
+    raw.currency === 'USD' && raw.licenseApprovedForSale === true &&
+    typeof raw.licenseId === 'string' && raw.licenseId !== 'unpublished' && validUrl(raw.licenseUrl) &&
+    raw.earlySupporter?.entitlementReady === true && Boolean(checkoutEndpoint) &&
     [raw.deliverySummary, raw.releaseSummary].every(v => typeof v === 'string' && v.trim()) &&
     [raw.termsUrl, raw.privacyUrl, raw.refundUrl].every(validUrl) && priced('release');
   const storageKey = 'keld-bag-flexible-usd-' + (live ? 'live' : 'preview') + '-v1';
@@ -103,31 +105,31 @@
     $('#bag-secret-note').hidden = !lowerUnlocked;
     $('.price-choice').classList.toggle('shelf-unlocked', lowerUnlocked);
     $('#price-help').textContent = lowerUnlocked
-      ? 'Choose any amount from ' + formatMoney(MIN) + ' to ' + formatMoney(MAX) + '. Same release. Same license.'
-      : 'Start at ' + formatMoney(BASE) + '. Set your price, up to ' + formatMoney(MAX) + '. Same release. Same license.';
-    $('#bag-secret-note').textContent = 'The hidden shelf is open. Choose from ' + formatMoney(MIN) + '; the release and license stay the same.';
+      ? 'Choose any amount from ' + formatMoney(MIN) + ' to ' + formatMoney(MAX) + '. Same sandbox test artifact at every price.'
+      : 'Start at ' + formatMoney(BASE) + '. Set your price, up to ' + formatMoney(MAX) + '. Same sandbox test artifact at every price.';
+    $('#bag-secret-note').textContent = 'The hidden shelf is open. Choose from ' + formatMoney(MIN) + '; the sandbox test artifact is the same at every accepted price.';
     $('#faq-pricing').textContent = 'The base price is ' + formatMoney(BASE) + ' USD. ' + (lowerUnlocked
       ? 'You found the hidden shelf: choose any amount from ' + formatMoney(MIN) + ' to ' + formatMoney(MAX) + '. '
       : 'Set your amount using the price selector, up to ' + formatMoney(MAX) + '. ')
-      + 'Every price buys the same downloadable release under Apache 2.0, with no subscription or license tiers. For the first 100 customers, the purchase also includes one year of ongoing ARE upgrades and direct support from the maker, at every accepted price. Applicable taxes will be shown at checkout.';
+      + 'Every accepted price uses the same sandbox test artifact. No ARE engine release is delivered, and final license terms are under review. The proposed first-100 offer would include one year of ongoing ARE upgrades and direct support from the maker. Applicable taxes will be shown at checkout.';
   }
   function unlockLower() {
     if (lowerUnlocked || MIN >= BASE) return;
     lowerUnlocked = true;
     updatePricingCopy();
     $('#hidden-shelf').classList.add('just-discovered');
-    announce('You found the hidden shelf. Prices from ' + formatMoney(MIN) + ' are now available. Same release. Same license.');
+    announce('You found the hidden shelf. Prices from ' + formatMoney(MIN) + ' are now available. Same sandbox test artifact.');
   }
   function syncSelected() {
     const valid = validAmount(selectedCents);
     put('[data-selected-price]', valid ? formatMoney(selectedCents) : 'Enter price');
-    put('[data-mobile-price-label]', 'Alpha · Apache 2.0');
+    put('[data-mobile-price-label]', 'Terms pending');
     $('#add-to-bag').disabled = !valid;
     $('#mobile-add').disabled = !valid;
     $('#reset-price').disabled = valid && selectedCents === BASE;
     $('#price-decrease').disabled = valid && lowerUnlocked && selectedCents === MIN;
     $('#price-increase').disabled = valid && selectedCents === MAX;
-    $('#add-to-bag').setAttribute('aria-label', valid ? 'Add downloadable alpha release to bag for ' + formatMoney(selectedCents) + ' USD' : 'Enter a valid price to add to bag');
+    $('#add-to-bag').setAttribute('aria-label', valid ? 'Add sandbox test offer to bag for ' + formatMoney(selectedCents) + ' USD' : 'Enter a valid price to add to bag');
     $$('[data-price-preset]').forEach(button => button.setAttribute('aria-pressed', String(valid && Number(button.dataset.pricePreset) === selectedCents)));
     if (valid) {
       // A typed draft is not committed until blur, change or Enter. This prevents
@@ -153,7 +155,7 @@
     $('#open-bag').setAttribute('aria-label', `Open shopping bag, ${bagId ? '1 item' : 'empty'}`);
     if (bagId) {
       put('[data-bag-price]', bagDraftValid ? formatMoney(bagCents) : '—');
-      put('[data-bag-license]', 'Apache License 2.0');
+      put('[data-bag-license]', 'Terms pending');
       if (resetInput) {
         $('#bag-price').value = fieldValue(bagCents);
         fieldError($('#bag-price'), 'bag-price-error');
@@ -298,7 +300,7 @@
     $('#shop-view').hidden = next !== 'shop';
     $('#studio-view').hidden = next !== 'studio';
     document.body.classList.toggle('shop-active', next === 'shop');
-    document.title = next === 'shop' ? 'The Keld Shop — ARE Alpha · First 100' : 'Keld — Agent gear. Even minds need tools.';
+    document.title = next === 'shop' ? 'The Synvora Shop — ARE Alpha · First 100' : 'Synvora — Agent gear. Even minds need tools.';
     const shopNav = $('.shop-link');
     if (next === 'shop') shopNav.setAttribute('aria-current', 'page'); else shopNav.removeAttribute('aria-current');
     requestAnimationFrame(updateMobileBar);
@@ -306,7 +308,7 @@
   function getHash() { try { return decodeURIComponent(location.hash.slice(1)); } catch { return ''; } }
   function route() {
     const id = getHash();
-    const next = id.startsWith('shop') ? 'shop' : ['top','gear','legend','studio','notes','contact'].includes(id) ? 'studio' : view;
+    const next = id.startsWith('shop') ? 'shop' : ['top','gear','studio','notes','contact'].includes(id) ? 'studio' : view;
     const changed = view !== next;
     setView(next);
     if (changed) requestAnimationFrame(() => {
@@ -324,7 +326,7 @@
   $$('a[href^="#"]').forEach(a => a.addEventListener('click', () => {
     const id = a.getAttribute('href').slice(1);
     if (id.startsWith('shop')) setView('shop');
-    else if (['top','gear','legend','studio','notes','contact'].includes(id)) setView('studio');
+    else if (['top','gear','studio','notes','contact'].includes(id)) setView('studio');
   }));
   function closeModal(restore = true) {
     const current = activeModal;
@@ -419,14 +421,14 @@
   });
   $('#download-summary').addEventListener('click', () => {
     if (!bagId || live) return;
-    const text = `KELD — DOWNLOADABLE RELEASE PREVIEW\n\nNOT AN ORDER, RECEIPT, LICENSE GRANT, OR ENGINE PACKAGE\n\nProduct: Agent Reasoning Engine (ARE)\nRelease status: alpha\nFormat: downloadable software\nPlanned software license: Apache License 2.0\nChosen price: ${formatMoney(bagCents)}${currency ? ' ' + currency : ''}\nBase price: ${formatMoney(BASE)} USD\n${lowerUnlocked ? 'Discovered range: ' + formatMoney(MIN) + '–' + formatMoney(MAX) + ' USD' : 'Maximum price: ' + formatMoney(MAX) + ' USD'}\nBilling: one-time purchase\nTaxes: not calculated\nPayment: not made\nOrder: not placed\nEngine file: not delivered\n\nApache 2.0 permits use, modification and redistribution, including commercial use and resale, subject to its terms. There are no Individual/Team software-rights tiers.\nRelease maturity: alpha; bugs and breaking changes are possible.\nEarly-supporter offer: first 100 customers.\nIncluded: 12 months of ongoing ARE updates and upgrades as released, plus direct maker support for the same period from purchase.\nSupport: setup and usage questions, troubleshooting, reporting issues, feedback, and discussion of improvements.\nThe benefits are the same at every accepted price within the first 100 customers.\nNo fixed release cadence, response-time guarantee, or commitment to implement every request.\nEligibility: not confirmed in this preview. No place reserved, no entitlement granted, and no support period started.\nNo automatic renewal. Later update/support arrangements are not defined.\n\nAuthoritative license: https://www.apache.org/licenses/LICENSE-2.0\n`;
+    const text = `SYNVORA — SANDBOX DEMONSTRATION\n\nNOT AN ORDER, RECEIPT, LICENSE GRANT, OR ENGINE PACKAGE\n\nProduct: Agent Reasoning Engine (ARE)\nPlanned release: downloadable alpha\nChosen price: ${formatMoney(bagCents)}${currency ? ' ' + currency : ''}\nBase price: ${formatMoney(BASE)} USD\n${lowerUnlocked ? 'Discovered range: ' + formatMoney(MIN) + '–' + formatMoney(MAX) + ' USD' : 'Maximum price: ' + formatMoney(MAX) + ' USD'}\nPayment: not made in this preview\nOrder: not placed in this preview\nEngine file: not delivered\n\nSandbox demonstration only. No ARE engine release is delivered. Final license terms are under review.\n\nProposed early-supporter offer: first 100 qualifying customers may receive 12 months of updates and direct maker support from purchase. Eligibility, release contents, and support channel are not confirmed by this preview.\n`;
     const url = URL.createObjectURL(new Blob([text], {type:'text/plain;charset=utf-8'}));
-    const link = document.createElement('a'); link.href = url; link.download = 'keld-store-preview-summary.txt';
+    const link = document.createElement('a'); link.href = url; link.download = 'synvora-store-preview-summary.txt';
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   });
   const galleryButtons = $$('[data-gallery]');
-  const captions = { artifact: 'CONCEPT ART / NOT PHYSICAL HARDWARE', schematic: 'CONCEPT STUDY / NOT A TECHNICAL ARCHITECTURE', seal: 'THE MAKER’S MARK / KELD' };
+  const captions = { artifact: 'CONCEPT ART / NOT PHYSICAL HARDWARE', schematic: 'CONCEPT STUDY / NOT A TECHNICAL ARCHITECTURE', seal: 'THE STUDIO MARK / SYNVORA' };
   function selectGallery(id, focus = false) {
     galleryId = id;
     galleryButtons.forEach(button => {
@@ -494,7 +496,7 @@
     $$('[data-preview-label]').forEach(el => { el.hidden = true; });
     put('[data-total-label]', 'Subtotal');
     put('[data-tax-note]', 'Calculated at hosted checkout');
-    put('[data-mobile-price-label]', 'Alpha · Apache 2.0');
+    put('[data-mobile-price-label]', 'Terms pending');
     put('[data-currency-label]', currency + ' · taxes calculated at checkout');
     $('#release-fact').textContent = raw.releaseSummary;
     $('#purchase-note').textContent = 'Final total and payment are handled at hosted checkout.';

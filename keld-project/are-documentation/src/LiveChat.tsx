@@ -11,13 +11,24 @@ type SessionState = {preferences: string[]; routes: {route_id: string | null}[];
 type ResetScope = 'language' | 'routing' | 'all';
 const freshState: SessionState = {preferences: [], routes: [], learned_route_rules: 0, turns_remaining: 20, context_messages: 0};
 const storageKey = 'are.live-chat/v1', maximumBrowserRetentionMs = 30 * 60_000;
-type StoredChat = {savedAt:number;session:{id:string;token:string};turns:Turn[];draft:string;state:SessionState;boundary:number};
+const tabStateKey = '__areLiveChatTabId';
+function bindTabId(): string | null {
+  try {
+    const state = window.history.state;
+    if (state && typeof state === 'object' && typeof state[tabStateKey] === 'string' && /^[a-f0-9-]{36}$/.test(state[tabStateKey])) return state[tabStateKey];
+    const id = window.crypto.randomUUID();
+    window.history.replaceState({...((state && typeof state === 'object' && !Array.isArray(state)) ? state : {}), [tabStateKey]: id}, '');
+    return id;
+  } catch {return null;}
+}
+const tabId = bindTabId();
+type StoredChat = {savedAt:number;tabId:string;session:{id:string;token:string};turns:Turn[];draft:string;state:SessionState;boundary:number};
 function restoreChat(): StoredChat | null {
   try {
     const value = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
     const validState = value?.state && Array.isArray(value.state.preferences) && value.state.preferences.every((item:unknown) => typeof item === 'string') && Array.isArray(value.state.routes) && Number.isSafeInteger(value.state.learned_route_rules) && Number.isSafeInteger(value.state.turns_remaining) && Number.isSafeInteger(value.state.context_messages);
     const validTurns = Array.isArray(value?.turns) && value.turns.every((turn:unknown) => {const item=turn as Turn;return item && Number.isSafeInteger(item.id) && typeof item.user === 'string' && typeof item.answer === 'string' && Array.isArray(item.activity) && (item.error === undefined || typeof item.error === 'string');});
-    if (!value || typeof value !== 'object' || !Number.isSafeInteger(value.savedAt) || Date.now() - value.savedAt < 0 || Date.now() - value.savedAt >= maximumBrowserRetentionMs || !validTurns || typeof value.draft !== 'string' || !validState || !Number.isSafeInteger(value.boundary) || !/^[a-f0-9-]{36}$/.test(value.session?.id) || !/^[a-f0-9]{64}$/.test(value.session?.token)) throw new Error();
+    if (!value || typeof value !== 'object' || !tabId || value.tabId !== tabId || !Number.isSafeInteger(value.savedAt) || Date.now() - value.savedAt < 0 || Date.now() - value.savedAt >= maximumBrowserRetentionMs || !validTurns || typeof value.draft !== 'string' || !validState || !Number.isSafeInteger(value.boundary) || !/^[a-f0-9-]{36}$/.test(value.session?.id) || !/^[a-f0-9]{64}$/.test(value.session?.token)) throw new Error();
     return value;
   } catch {try {sessionStorage.removeItem(storageKey);} catch {} return null;}
 }
@@ -38,7 +49,8 @@ function retentionCopy(seconds: number | null) {
 }
 function activityLabel(event: Activity) {
   if (event.kind === 'validation') return 'Request interpretation did not validate';
-  if (event.kind === 'route') return `Route · ${String(event.route_id ?? event.decision_kind).replace('CA2-ROUTE-', '').toLowerCase()}`;
+  if (event.kind === 'route') return event.route_id ? `Route · ${String(event.route_id).replace('CA2-ROUTE-', '').toLowerCase()}` : `Route · ${Array.isArray(event.reason_codes) && event.reason_codes.includes('selection.no-match') ? 'no match' : String(event.decision_kind)}`;
+  if (event.kind === 'conversation-mode') return 'Conversation only · no ARE route selected';
   if (event.kind === 'context') return `Context · ${event.messages_included} messages · ${(event.preferences as string[]).length} preferences`;
   if (event.kind === 'preference') return 'Language or explanation preference retained';
   if (event.kind === 'checkpoint') return 'ARE state checkpoint saved for this conversation';
@@ -66,6 +78,19 @@ export function LiveChat({active}:{active:boolean}) {
   const controller = useRef<AbortController | null>(null);
   const generation = useRef(0), sequence = useRef(Math.max(0, ...(restored.current?.turns ?? []).map(turn => turn.id)));
   const log = useRef<HTMLDivElement>(null), composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!tabId) return;
+    const preserveTabBinding = () => {
+      try {
+        const state = window.history.state;
+        if (state?.[tabStateKey] !== tabId) window.history.replaceState({...((state && typeof state === 'object' && !Array.isArray(state)) ? state : {}), [tabStateKey]: tabId}, '');
+      } catch {} // Failed history binding disables restoration on a later load.
+    };
+    preserveTabBinding();
+    window.addEventListener('hashchange', preserveTabBinding);
+    window.addEventListener('popstate', preserveTabBinding);
+    return () => {window.removeEventListener('hashchange', preserveTabBinding); window.removeEventListener('popstate', preserveTabBinding);};
+  }, []);
   useLayoutEffect(() => {
     if (!active) {setHost(null); return;}
     const connect = () => setHost(current => {
@@ -94,8 +119,8 @@ export function LiveChat({active}:{active:boolean}) {
   }, []);
   useEffect(() => {
     const current = session.current;
-    if (!current) {try {sessionStorage.removeItem(storageKey);} catch {} return;}
-    try {sessionStorage.setItem(storageKey, JSON.stringify({savedAt: Date.now(), session: current, turns, draft, state: areState, boundary} satisfies StoredChat));} catch {}
+    if (!current || !tabId) {try {sessionStorage.removeItem(storageKey);} catch {} return;}
+    try {sessionStorage.setItem(storageKey, JSON.stringify({savedAt: Date.now(), tabId, session: current, turns, draft, state: areState, boundary} satisfies StoredChat));} catch {}
   }, [turns, draft, areState, boundary]);
   useEffect(() => {
     const current = session.current;
@@ -206,7 +231,7 @@ export function LiveChat({active}:{active:boolean}) {
       </div>
       <div className="live-state-detail">
         {areState.preferences.length ? <ul>{areState.preferences.map((quote, i) => <li key={i}>{quote}</li>)}</ul> : <p>No language or explanation preferences retained.</p>}
-        <p>Routing is chosen from each request. This demo does not learn new routing rules; resetting routing clears its decision history and prior intent.</p>
+        <p>Routing is evaluated for each request. A conversation-only reply may have no selected route. This demo does not learn new routing rules; resetting routing clears its decision history and prior intent.</p>
         <p>Forgetting also clears the model context. Usage allowances stay the same. This browser tab keeps the conversation across refreshes and revalidates it with the server. {retentionCopy(idleRetentionSeconds)}</p><button className="live-start-fresh" onClick={() => void reset('all')} disabled={resetting}>Start fresh</button>
       </div></details>
       {notice && <p className="live-reset-notice" role="status">{notice}</p>}

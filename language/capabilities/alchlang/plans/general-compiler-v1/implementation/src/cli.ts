@@ -27,6 +27,9 @@ import { buildService, compileService } from "./service-builder.js";
 import {buildSemanticContract,checkSemanticContract,compileSemanticContract} from './semantic-contract.js';
 import {buildModuleConfiguration,checkModuleConfiguration,compileModuleConfiguration} from './module-configuration.js';
 import {runCli, requireOptionalFeature} from './optional-features.js';
+import {selectAlchSourceProfile} from './profile-architecture.js';
+import {qualifyBehavioralClaim, type BehavioralClaim} from './behavioral-qualification.js';
+import {checkFormalClaimSourceIntake,rejectFormalClaimFormationRequest} from './formal-claim-source-intake.js';
 
 function option(args: string[], name: string): string | undefined { const index = args.indexOf(name); return index === -1 ? undefined : args[index + 1]; }
 function positiveInteger(value: string | undefined, fallback: number): number {
@@ -36,20 +39,59 @@ function positiveInteger(value: string | undefined, fallback: number): number {
   return parsed;
 }
 function usage(): never {
-  console.error("Application profile:\n  alchlang check <application.alch> [--application-bindings <relative-file>]\n  alchlang build|verify <application.alch> --out <directory> [--application-bindings <relative-file>]");
+  console.error("FormalClaim formation:\n  alchlang check-formal-claim < request.json (exact claim_ref, root_directory, selected_profile)");
+  console.error("Application profile:\n  alchlang check <application.alch> [--application-bindings <relative-file>] [--entry <id>]\n  alchlang build|verify <application.alch> --out <directory> [--application-bindings <relative-file>] [--entry <id>]");
+  console.error("Behavioral qualification:\n  alchlang qualify <source.alch> --claim closed-state-model|executable-runtime");
   console.error("Usage:\n  alchlang check|build <service.alch> [--out <new-directory>]\n  alchlang check|ontology <semantic-contract.alch>\n  alchlang build <semantic-contract.alch> --out <new-directory>\n  alchlang conformance <file.alch> --fixtures <file.json> --out <new-directory>\n  alchlang trace <file.alch> --input <input.json>\n  alchlang ontology <file.alch>\n  alchlang explain <file.alch> <declaration>\n  alchlang check <domain.alch> --profile domainspec-1.0.0 [--bindings file]\n  alchlang emit-domainspec <domain.alch> --out <new-directory> [--bindings file]\n  alchlang build <domain.alch> --backend domainspec --language typescript --out <new-directory> [--bindings file]\n  alchlang domainspec <compiler-command> [arguments]\n  domainspec check <domain.alch> --backend local-compat\n  domainspec build <domain.alch> --backend local-compat [--out generated] [--force]\n  domainspec run <domain.alch> <action> --actor <actor> --facts '<json>' --grant <boundary> --adapter memory\n  domainspec run <domain.alch> <action> --actor <actor> --facts '<json>' --grant <boundary> --binding sqlite-transactional-outbox --database <path> --effect-request-file <json>\n  domainspec outbox pending|status --database <path> [--status pending|leased|published|dead]\n  domainspec outbox dispatch --database <path> --transport stdout --worker-id <id> [--now <ISO>]\n  domainspec outbox dispatch --database <path> --transport http --worker-id <id> --endpoint <url> --allow-origin <origin> --confirm-network-dispatch <origin>\n  domainspec outbox requeue-dead --database <path> --message-id <id> --now <ISO>\n  domainspec registry build --config <registry-compiler.config.json>\n  domainspec patterns [--available|--blocked]\n  domainspec pattern <pattern-id>\n\nCanonical source files use .alch. A fenced .md file is supported only for legacy compatibility.");
   process.exit(2);
 }
 
 export async function main(): Promise<void> {
   const [, , command, ...args] = process.argv;
-  if (["check", "build", "verify"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile application-v1\r?$/m.test(readFileSync(args[0], "utf8"))) {
-    const allowed = new Set(["--application-bindings", ...(command === "check" ? [] : ["--out"])]), seen = new Set<string>();
+  if (command === "check-formal-claim") {
+    if (args.length) {
+      console.log(JSON.stringify(rejectFormalClaimFormationRequest("FORMATION_REQUEST_ARGUMENT")));
+      process.exitCode = 2;
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of process.stdin) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += bytes.length;
+      if (size > 1048576) {
+        console.log(JSON.stringify(rejectFormalClaimFormationRequest("FORMATION_REQUEST_SIZE")));
+        process.exitCode = 2;
+        return;
+      }
+      chunks.push(bytes);
+    }
+    let request: unknown;
+    try { request = JSON.parse(new TextDecoder("utf-8", {fatal:true}).decode(Buffer.concat(chunks))); }
+    catch { request = null; }
+    const formation = checkFormalClaimSourceIntake(request);
+    console.log(JSON.stringify(formation));
+    if (formation.status !== "checked") process.exitCode = formation.status === "unsupported" ? 3 : 2;
+    return;
+  }
+  const sourceText=args[0]&&!args[0].startsWith("--")&&[".alch",".md"].includes(path.extname(args[0]).toLowerCase())?readFileSync(args[0],"utf8"):undefined;
+  const sourceProfile=sourceText===undefined?undefined:selectAlchSourceProfile(sourceText);
+  const profileIs=(...ids:string[])=>sourceProfile!==undefined&&ids.includes(sourceProfile.profile.id);
+  if (command === "qualify") {
+    if (args.length !== 3 || !sourceText || args[1] !== "--claim"
+      || !["closed-state-model", "executable-runtime"].includes(args[2]!)) throw Error("ALCH_BEHAVIOR_ARGUMENT");
+    console.log(JSON.stringify(qualifyBehavioralClaim(sourceText, args[2] as BehavioralClaim), null, 2));
+    return;
+  }
+  const sourceCommands=new Set(["check","build","verify","trace","ontology","explain","conformance"]);
+  if(sourceProfile&&sourceCommands.has(command!)&&!sourceProfile.profile.commands.includes(command!))throw Error(`ALCH_PROFILE_COMMAND_UNSUPPORTED:${sourceProfile.profile.id}:${command}`);
+  if (["check", "build", "verify"].includes(command) && args[0] && !args[0].startsWith("--") && profileIs("application-v1")) {
+    const allowed = new Set(["--application-bindings", "--entry", ...(command === "check" ? [] : ["--out"])]), seen = new Set<string>();
     for (let i = 1; i < args.length; i += 2) {
       if (!allowed.has(args[i]!) || seen.has(args[i]!) || !args[i + 1] || args[i + 1]!.startsWith("--")) throw Error("APPLICATION_FILE_ARGUMENT");
       seen.add(args[i]!);
     }
-    const options = { companion: option(args, "--application-bindings") };
+    const options = { companion: option(args, "--application-bindings"), entry: option(args, "--entry") };
     const { checkApplicationFile } = await import("./application-file-check.js");
     if (command === "check") console.log(JSON.stringify(await checkApplicationFile(args[0], options), null, 2));
     else {
@@ -59,35 +101,35 @@ export async function main(): Promise<void> {
     }
     return;
   }
-  if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && /^profile module-configuration-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && profileIs('module-configuration-v1', 'module-configuration-v2')){
     if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('MODULE_CONFIGURATION_ARGUMENT: build <file.alch> --out <new-directory>');console.log(JSON.stringify(buildModuleConfiguration(args[0],args[2]),null,2));}
     else {if(args.length!==1)throw Error('MODULE_CONFIGURATION_ARGUMENT');console.log(JSON.stringify(command==='ontology'?compileModuleConfiguration(args[0]).ontology:checkModuleConfiguration(args[0]),null,2));}
     return;
   }
-  if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && /^profile bound-application-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && profileIs('bound-application-v1')){
     if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('APPLICATION_ARGUMENT');console.log(JSON.stringify(await buildApplication(args[0],args[2])));}
     else {if(args.length!==1)throw Error('APPLICATION_ARGUMENT');const result=await checkApplication(args[0]);console.log(JSON.stringify(command==='ontology'?result.plan:result,null,2));}return;
   }
 
-  if(['check','build'].includes(command)&&args[0]&&!args[0].startsWith('--')&&/^profile request-custody-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build'].includes(command)&&args[0]&&!args[0].startsWith('--')&&profileIs('request-custody-v1')){
     if(command==='check'){if(args.length!==1)throw Error('CUSTODY_ARGUMENT');console.log(JSON.stringify(await checkCustody(args[0])));}
     else {if(args.length!==3||args[1]!=='--out')throw Error('CUSTODY_ARGUMENT');console.log(JSON.stringify(await buildCustody(args[0],args[2])));}return;
   }
-  if(['check','build'].includes(command)&&args[0]&&!args[0].startsWith('--')&&/^profile response-stream-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build'].includes(command)&&args[0]&&!args[0].startsWith('--')&&profileIs('response-stream-v1')){
     if(command==='check'){if(args.length!==1)throw Error('STREAM_ARGUMENT');console.log(JSON.stringify(await checkStream(args[0])));}
     else {if(args.length!==3||args[1]!=='--out')throw Error('STREAM_ARGUMENT');console.log(JSON.stringify(await buildStream(args[0],args[2])));}return;
   }
-  if(['check','build','ontology'].includes(command)&&args[0]&&!args[0].startsWith('--')&&/^profile semantic-contract-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build','ontology'].includes(command)&&args[0]&&!args[0].startsWith('--')&&profileIs('semantic-contract-v1')){
     if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('SEMANTIC_CONTRACT_ARGUMENT: build <file.alch> --out <new-directory>');console.log(JSON.stringify(await buildSemanticContract(args[0],args[2]),null,2));}
     else {if(args.length!==1)throw Error('SEMANTIC_CONTRACT_ARGUMENT');console.log(JSON.stringify(command==='ontology'?(await compileSemanticContract(args[0])).ontology:await checkSemanticContract(args[0]),null,2));}
     return;
   }
-  if(['check','build'].includes(command)&&args[0]&&!args[0].startsWith('--')&&/^profile outbound-invocation-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build'].includes(command)&&args[0]&&!args[0].startsWith('--')&&profileIs('outbound-invocation-v1')){
     if(command==='check'){if(args.length!==1)throw Error('OUTBOUND_ARGUMENT');console.log(JSON.stringify(await checkOutbound(args[0])));}
     else {if(args.length!==3||args[1]!=='--out')throw Error('OUTBOUND_ARGUMENT');console.log(JSON.stringify(await buildOutbound(args[0],args[2])));}return;
   }
-  if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && /^profile service-v1$/m.test(readFileSync(args[0],'utf8'))){
-    if(/^assembly public-routes-v1$/m.test(readFileSync(args[0],'utf8'))){
+  if(['check','build','ontology'].includes(command) && args[0] && !args[0].startsWith('--') && profileIs('service-v1')){
+    if(/^assembly public-routes-v1$/m.test(sourceText!)){
       const {buildServiceRoutes,checkServiceRoutes}=await import('./service-routes.js');
       if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('SERVICE_ARGUMENT');console.log(JSON.stringify(await buildServiceRoutes(args[0],args[2])));}
       else {if(command!=='check'||args.length!==1)throw Error('SERVICE_ARGUMENT: public routes support check/build');console.log(JSON.stringify(await checkServiceRoutes(args[0])));}return;
@@ -96,28 +138,28 @@ export async function main(): Promise<void> {
     else {if(args.length!==1)throw Error('SERVICE_ARGUMENT');const compiled=compileService(args[0]);console.log(JSON.stringify(command==='ontology'?compiled.ontology:{status:'valid',profile:'service-v1',service:compiled.service.id,entries:compiled.entries.map(entry=>({id:entry.id,...entry.route,input:entry.input,output:entry.output})),authority_effect:'none'},null,2));}
     return;
   }
-  if (['check','build','ontology','explain'].includes(command) && args[0] && !args[0].startsWith('--') && /^profile semantic-host-v1$/m.test(readFileSync(args[0],'utf8'))) {
+  if (['check','build','ontology','explain'].includes(command) && args[0] && !args[0].startsWith('--') && profileIs('semantic-host-v1')) {
     requireOptionalFeature('rust');
     const {buildSemanticHost,compileSemanticHost}=await import('./semantic-host.js');
     if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('SEMANTIC_ARGUMENT');console.log(JSON.stringify(await buildSemanticHost(args[0],args[2])));}
     else {if(args.length!==1)throw Error('SEMANTIC_ARGUMENT');const plan=await compileSemanticHost(readFileSync(args[0],'utf8'));console.log(JSON.stringify(command==='check'?{status:'valid',profile:'semantic-host-v1',authority_effect:'none'}:plan.ontology,null,2));}return;
   }
 
-  if (["check","build","ontology"].includes(command) && args[0] && !args[0].startsWith('--') && /^profile ontology-host-v1$/m.test(readFileSync(args[0],'utf8'))) {
+  if (["check","build","ontology"].includes(command) && args[0] && !args[0].startsWith('--') && profileIs('ontology-host-v1')) {
     requireOptionalFeature('local-host');
     const {buildOntologyHost,compileOntologyHost}=await import('./ontology-host.js');
     if(command==='build'){if(args.length!==3||args[1]!=='--out')throw Error('ONTOLOGY_HOST_ARGUMENT');console.log(JSON.stringify(await buildOntologyHost(args[0],args[2])));}
     else {if(args.length!==1)throw Error('ONTOLOGY_HOST_ARGUMENT');const plan=await compileOntologyHost(readFileSync(args[0],'utf8'));console.log(JSON.stringify(command==='ontology'?plan.ontology:{status:'valid',profile:'ontology-host-v1',schemas:plan.schemas,authority_effect:'none'},null,2));}
     return;
   }
-  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile local-host-migration-v1$/m.test(readFileSync(args[0], "utf8"))) {
+  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && profileIs('local-host-migration-v1')) {
     requireOptionalFeature('local-host');
     const {buildStateMigration,compileStateMigration}=await import('./state-migration.js');
     if(command==='check') {if(args.length!==1)throw Error('MIGRATION_ARGUMENT');console.log(JSON.stringify({status:'valid',...(await compileStateMigration(readFileSync(args[0],'utf8'))).manifest}));}
     else {if(args.length!==3||args[1]!=='--out')throw Error('MIGRATION_ARGUMENT');console.log(JSON.stringify(await buildStateMigration(args[0],args[2])));}
     return;
   }
-  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile local-host-v1$/m.test(readFileSync(args[0], "utf8"))) {
+  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && profileIs('local-host-v1')) {
     requireOptionalFeature('local-host');
     const {buildLocalHost,compileLocalHost}=await import('./local-host.js');
     if (command === 'check') {
@@ -129,14 +171,14 @@ export async function main(): Promise<void> {
     }
     return;
   }
-  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile event-execution-v1$/m.test(readFileSync(args[0],"utf8"))) {
+  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && profileIs('event-execution-v1')) {
     requireOptionalFeature('rust');
     const {buildEventExecution,compileEventExecution}=await import('./event-execution.js');
     if (command === "check") {if(args.length!==1)throw Error("EVENT_ARGUMENT");await compileEventExecution(readFileSync(args[0],"utf8"));console.log(JSON.stringify({status:"valid",profile:"event-execution-v1"}));}
     else {if(args.length!==3||args[1]!=="--out")throw Error("EVENT_ARGUMENT");console.log(JSON.stringify(await buildEventExecution(args[0],args[2])));}
     return;
   }
-  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile event-function-v1$/m.test(readFileSync(args[0], "utf8"))) {
+  if (["check", "build"].includes(command) && args[0] && !args[0].startsWith("--") && profileIs('event-function-v1')) {
     if (command === "check") {
       if (args.length !== 1) throw Error("EVENT_ARGUMENT");
       const result = await compileEventProfile(readFileSync(args[0], "utf8"));
@@ -163,11 +205,11 @@ export async function main(): Promise<void> {
     if(args.length!==(command==='ontology'?1:2)||args.some(a=>a.startsWith('--')))throw Error('ONTOLOGY_ARGUMENT: ontology <file.alch> | explain <file.alch> <declaration>');
     console.log(JSON.stringify(await inspectFunctionOntology(args[0],command==='explain'?args[1]:undefined),null,2));return;
   }
-  if (['check','build'].includes(command) && args[0] && !args[0].startsWith('--') && /^profile query-iteration-v1$/m.test(readFileSync(args[0],'utf8'))) {
+  if (['check','build'].includes(command) && args[0] && !args[0].startsWith('--') && profileIs('query-iteration-v1')) {
     if(command==='check'){if(args.length!==1)throw Error('QUERY_ITERATION_ARGUMENT');console.log(JSON.stringify(await checkQueryIteration(args[0])));}
     else {if(args.length!==3||args[1]!=='--out')throw Error('QUERY_ITERATION_ARGUMENT');console.log(JSON.stringify(await buildQueryIteration(args[0],args[2])));}return;
   }
-  if (["check","build"].includes(command) && args[0] && !args[0].startsWith("--") && /^profile (?:function-v1|declarative-function-v1)$/m.test(readFileSync(args[0],"utf8"))) {
+  if (["check","build"].includes(command) && args[0] && !args[0].startsWith("--") && profileIs('function-v1','declarative-function-v1')) {
     const allowed=new Set(command==="build"?["--out","--target"]:["--target"]),seen=new Set<string>();
     for(let i=1;i<args.length;i+=2){if(!allowed.has(args[i])||seen.has(args[i])||!args[i+1]||args[i+1].startsWith("--"))throw Error("FUNCTION_ARGUMENT");seen.add(args[i]);}
     if(option(args,"--target") && !["node-http","rust-http"].includes(option(args,"--target")!))throw Error("FUNCTION_TARGET");

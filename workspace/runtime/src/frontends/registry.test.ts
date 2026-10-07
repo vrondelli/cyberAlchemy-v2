@@ -9,8 +9,9 @@ describe('frontend routing',()=>{
   expect(frontendRoute('#/chat')).toBeNull();
  });
  it('keeps old dashboard and Runs links',()=>{
-  expect(frontendRoute('#/dashboard/result/runtime%2Flaunch%2Fid')?.path).toBe('/runs/runtime%2Flaunch%2Fid');
+  expect(frontendRoute('#/dashboard/result/runtime%2Flaunch%2Fid')).toBeNull();
   expect(frontendRoute('#/runs')?.path).toBe('/runs');
+  expect(frontendRoute('#/runs/old-workspace-id')?.path).toBe('/runs');
  });
  it('rejects routes that could escape the app mount',()=>{
   expect(()=>frontendHref(frontends[0],'https://example.com')).toThrow();

@@ -80,7 +80,11 @@ test('consent survives provider failure once the lesson has been durably saved',
   const f = setup(t), o = await f.offer(); f.fail(true);
   assert.equal((await f.accept(o)).disposition, 'delivery-unknown'); f.app.close(); f.fail(false); f.open();
   assert.equal(f.app.inspect().lessons.length, 1); assert.deepEqual(f.app.inspect().preference_offers, []);
-  assert.equal((await f.send('Plan picnic')).selected_lessons.length, 1);
+  const unsettled = await f.send('Plan picnic');
+  assert.deepEqual(unsettled.reason_codes, ['reasoning.prior-turn-unsettled']);
+  const otherThread = await f.send('Plan picnic', {thread_id: 'other', requirements: []});
+  assert.equal(otherThread.ok, true, JSON.stringify(otherThread));
+  assert.equal(otherThread.selected_lessons.length, 1);
 });
 test('twenty-request window includes failures and unknown requests', () => {
   const events = []; const state = {policy: {mode: 'apply-scoped'}, lessons: {}, disabled: []};
@@ -130,9 +134,33 @@ test('runtime rejects conflicting typed lessons and current explicit format reso
   const dag = reseal(original, {lesson_id: 'dag', preference: reseal(original.preference, {representation: {task: 'plan', format: 'dag'}})});
   const table = reseal(original, {lesson_id: 'table', preference: reseal(original.preference, {representation: {task: 'plan', format: 'table'}})});
   const binding = {participant_ref: 'review:user', product_ref: 'review:are', interaction_ref: 'legacy'};
-  const state = reseal(createInteractionState(binding), {lessons: {dag, table}});
+  const state = reseal(createInteractionState(binding), {lessons: {dag, table},
+    feedback_refs: [dag.preference.grounding.source.request_ref]});
   const policy = materializeLearningPolicy({mode: 'apply-scoped'});
   const request = {...binding, request_ref: 'current', request: 'Plan', target: 'response', representation: {task: 'plan', format: null}};
   assert.throws(() => projectInteractionContext(state, request, policy), /representation-conflict/);
   assert.equal(projectInteractionContext(state, {...request, representation: {task: 'plan', format: 'dag'}}, policy).items[0].lesson_id, 'dag');
+});
+
+test('learning projection follows durable feedback order, not generated lesson IDs', async () => {
+  const {sealed} = await import('../../request-intent-runtime/src/canonical.mjs');
+  const {createInteractionState, materializeLearningPolicy, projectInteractionContext} = await import('../../request-intent-runtime/src/learning-loop.mjs');
+  const rows = gunzipSync(readFileSync(new URL('./fixtures/preference-legacy.jsonl.gz', import.meta.url))).toString().trim().split('\n').map(JSON.parse);
+  const original = rows.find(r => r.value?.content?.event?.kind === 'lesson').value.content.event.lesson;
+  const reseal = (record, fields) => {const {record_digest, ...rest} = record;
+    return sealed(rest.schema_version, {...rest, ...fields}, 'record_digest');};
+  const lesson = (id, sourceRef, instruction) => reseal(original, {lesson_id: id,
+    preference: reseal(original.preference, {instruction, representation: {task: 'plan', format: 'dag'},
+      grounding: reseal(original.preference.grounding, {source: {
+        ...original.preference.grounding.source, request_ref: sourceRef}})})});
+  const early = lesson('z-early', 'feedback:early', 'Use plain language.');
+  const late = lesson('a-late', 'feedback:late', 'Include one example.');
+  const binding = {participant_ref: 'review:user', product_ref: 'review:are', interaction_ref: 'legacy'};
+  const state = reseal(createInteractionState(binding), {lessons: {'a-late': late, 'z-early': early},
+    feedback_refs: ['feedback:early', 'feedback:late']});
+  const view = projectInteractionContext(state, {...binding, request_ref: 'current', request: 'Plan',
+    target: 'response', representation: {task: 'plan', format: 'dag'}},
+  materializeLearningPolicy({mode: 'apply-scoped'}));
+  assert.deepEqual(view.items.map(item => item.instruction),
+    ['Use plain language.', 'Include one example.']);
 });

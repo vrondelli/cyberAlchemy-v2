@@ -1,4 +1,4 @@
-# Candidate 018 threat model
+# ARE local-package threat model
 
 **Lifecycle status:** CANDIDATE_INTERNAL
 
@@ -6,9 +6,11 @@
 
 **Owner:** ARE security and runtime owners. No accountable security owner is assigned.
 
-**Last reviewed:** 2026-09-17.
+**Last reviewed:** 2026-09-25.
 
-**Applies to:** Candidate 018 as a single-user local source package on Linux x64 with Node.js `26.8.1`.
+**Applies to:** Candidate 018 and Candidate 020 are frozen historical baselines.
+This model covers the later unfrozen working prototype as a single-user local source package
+on Linux x64 with Node.js `26.8.1`. Any new topology requires a successor review.
 
 **Claim ceiling:** Identifies threats, current controls, and open residue for the tested local package. It is not risk acceptance, a penetration-test result, a public security policy, or evidence for a network or multi-tenant service.
 
@@ -55,21 +57,20 @@ those boundaries requires a successor threat model.
 | TM-02 | Path, mode, or unexpected-file manipulation during packaging | Materializer confines paths to an empty destination, preserves modes, verifies every digest, and the lifecycle drill compares the complete extracted inventory | The tested archive contains only regular files. A future closure with links or special files needs new extraction tests |
 | TM-03 | Malicious repository content or prompt injection attempts to grant authority | Request text is evidence, route/context receipts are non-authorizing, tool/effect boundaries remain host-owned, and unknown consequences gate or block | Model and host-specific prompt-injection resistance is not qualified across arbitrary tasks |
 | TM-04 | Duplicate execution after disconnect, timeout, or crash | Stable request identities, authenticated resume tokens, acknowledgements, replay tests, and fail-closed unknown-outcome handling | External tools must supply trustworthy outcome evidence. Provider-side effects may remain unknowable |
-| TM-05 | Local socket or state disclosure to another process | Unix-socket topology, resume credentials, bounded clients, and user-private-path guidance | No installed filesystem-owner/mode profile or hostile same-host isolation test |
-| TM-06 | Secret leakage into prompts, receipts, source, logs, or fixtures | Secret-reference boundary, scoped resolution, closure secret-pattern scan, and exclusion from documented context/state records | Pattern scanning is incomplete. Stderr, provider behavior, and operator-added telemetry need a deployment policy |
+| TM-05 | Local socket or state disclosure to another process | Unix-socket topology, resume credentials, bounded clients, private-root owner/mode diagnostics, and user-private-path guidance | No hostile same-host isolation or installed service profile |
+| TM-06 | Secret leakage into prompts, receipts, source, logs, or fixtures | Secret-reference boundary, closed child-environment allowlist, bounded stderr redaction/digest records, and exclusion from documented context/state records | Pattern redaction is incomplete. Provider behavior and operator-added telemetry still need a deployment policy |
 | TM-07 | Backend or provider sends malformed, stale, oversized, or adversarial protocol data | Adapter validation, message and buffer limits, source/profile bindings, request timeouts, and stale-binding rejection | Arbitrary third-party agent protocols are not qualified. Semantic manipulation remains possible |
-| TM-08 | Durable state corruption, truncation, or rollback | Append-only/hash-bound records, checkpoints, recovery validation, source rollback, and passing gateway-session/Reasoning-State backup, corruption-detection and restore drills | Recovery is proven only for disposable local paths, not an owner-selected managed deployment profile |
-| TM-09 | Resource exhaustion consumes disk, memory, handles, or context budget | Profile limits for clients, buffers, retained bytes, idle/detach expiry, journal events, and reasoning logs | No service-level quotas, disk alert, cgroup/container limit, or sustained-load baseline exists |
+| TM-08 | Durable state corruption, truncation, or rollback | Append-only/hash-bound records, checkpoints, crash-safe gateway compaction, recovery validation, exact-byte backup/restore, and stale-lock inspection | Recovery is proven only for disposable local paths, not an owner-selected managed deployment profile |
+| TM-09 | Resource exhaustion consumes disk, memory, handles, or context budget | Profile limits for clients, buffers, retained bytes, session-store bytes, idle/detach expiry, journal events, DSH histories, and attached-session reasoning logs | No OS CPU/RSS/FD limit, disk alert, or sustained-load baseline exists |
 | TM-10 | Compromised optional SOPS/age executable or vault source exposes secrets | Optional provider is process-bounded and Candidate 018 carries its bridge source locally | Executable provenance, vault ownership, rotation, revocation, and incident handling are deployment decisions |
 | TM-11 | A static ontology record is mistaken for an active external compiler dependency | Closure rejects `domainspec-core` and Alch toolchain paths. Release tests run from the isolated closure | ARE-owned records retain a historical `domainspec/` directory name and require clear inventory wording |
 | TM-12 | Passing tests are treated as approval, safe deployment, or permission to act | Candidate, release, documentation, and lifecycle receipts all state `authority_effect: none` and explicit claim limits | Human or host integrations can still misrepresent evidence unless they preserve those boundaries |
 
 ## Security gates before broader distribution
 
-The selected release policy binds the first accepted successor to
-`0.10.0-rc.1` and the decision CLI plus JSON-lines process-adapter contracts.
-Candidate 018 remains the exact modeled private baseline. Before activating
-support for that successor, refresh this model against its exact closure and
+Candidate 018 and Candidate 020 remain exact historical private baselines.
+The current working prototype has no accepted successor release. Before
+freezing or activating any successor, refresh this model against its exact closure and
 record the security owner's disposition for every residual risk.
 
 1. Apply the selected release and version policy to a frozen successor. Then

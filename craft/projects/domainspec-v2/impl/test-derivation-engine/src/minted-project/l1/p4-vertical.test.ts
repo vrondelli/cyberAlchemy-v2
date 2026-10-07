@@ -7,17 +7,18 @@ import { runP4, type P4FixtureDocument } from "./p4.js";
 const repoRoot = repositoryRoot();
 
 describe("EVF L1 Financial Settlement P4 vertical", () => {
-  it("keeps O_spec and O_gen equal over one exact enforces edge", () => {
-    const derivation = deriveUnit(repoRoot, "P4");
-    expect(derivation.comparison).toBe("equal");
-    expect(derivation.O_spec).toEqual(derivation.O_gen);
-    expect(derivation.identity.rule_id).toBe("financial-settlement.PayoutEligibilityRule");
-    expect(derivation.identity.edge_id).toBe("financial-settlement.edge.payout-rule-enforces-generation");
+  it("rejects predecessor graph derivation with its stale source manifest", () => {
+    expect(() => deriveUnit(repoRoot, "P4"))
+      .toThrowError(expect.objectContaining({ code: "SOURCE_MANIFEST_INCOMPLETE" }));
   });
 
-  it("resolves every P4 binding ref exactly", () => {
+  it("rejects the old P4 binding path even though historical source is imported as a fixture", () => {
     const binding = readJson<Record<string, unknown>>(repoRoot, L1_PATHS.p4Binding);
-    expect(() => assertBindingRefs(repoRoot, binding, "P4")).not.toThrow();
+    expect((binding.runtime_source_ref as { path: string }).path).toBe(
+      "validation/poker-team/backend/src/domain/__derived__/financial-settlement.sfol.adapter.ts",
+    );
+    expect(() => assertBindingRefs(repoRoot, binding, "P4"))
+      .toThrowError(expect.objectContaining({ code: "TARGET_BASELINE_DRIFT" }));
   });
 
   it("executes the real use case and observes one ordered payout write and event", async () => {

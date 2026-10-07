@@ -76,6 +76,34 @@ The [Solana toolchain](solana/README.md) supplies pinned SBF build tools through
 `tools/toolchain/run tools/toolchain/solana/run`. It preserves the native compiler
 and global Rust selection.
 
+## Optional pinned Defects4J tooling
+
+```sh
+bash tools/toolchain/bootstrap-defects4j
+bash tools/toolchain/run-defects4j checkout -p JxPath -v 8b -w /exact/private/preparation/path
+```
+
+The bootstrap installs checksum-verified Temurin Java 11.0.32.1+1 and
+App-cpanminus 1.7048 under `/home/vlad_/.local/share/are-toolchains/defects4j-v3`.
+Perl dependencies use that user-owned prefix and the existing native compiler
+launcher, with pinned extracted Ubuntu `unzip`6.0-29ubuntu1 and
+libcrypt development/runtime4.5.1-1 packages supplying missing tools and headers.
+Perl's local-lib option resets compiler overrides; explicit local-lib environment
+configuration preserves both the install prefix and the shared compiler selection.
+No system packages or shell profiles are changed. The framework runtime
+is a separate clone under `/home/vlad_/are-benchmark-archive/defects4j-runtime-v3.0.1`
+at commit `6d54320e0db5a357f9ab38a8e4d2e5aead7e1c09`; the original metadata checkout
+is preserved. Official initialization downloads framework resources once.
+Java, cpanminus and native archives are content-pinned; transitive CPAN packages and
+upstream initialization payloads are not yet a fully reproducible dependency lock.
+`INSTALLATION.json` records observed Perl-module versions and verified payload
+digests after framework smoke success. This validates Git-backed JxPath tooling,
+not every project build; Subversion-backed projects have a separate missing-runtime
+dependency. Logs remain private. Never expose framework checkouts directly to a model: they
+contain fixed/history and gold-derived build metadata. The Java-only projection
+boundary and remaining fidelity questions are owned by
+[G01's fixture audit](../../implementation/agent-reasoning-engine/packages/evolution-runtime/evidence/G01-DEFECTS4J-TRACE-SOURCE-AUDIT-R1.md).
+
 ## Optional Linux desktop dependencies
 
 The user-owned [desktop lock](desktop-lock.json) provides GTK 3, WebKitGTK 4.1,
@@ -95,6 +123,10 @@ system package changes. Payloads are cached under the user's shared toolchain
 directory. Each lock selects a separate immutable installation path; a matching
 installation receipt is reused. The wrapper scopes library and pkg-config paths
 to its child command and invokes the existing `tools/toolchain/run` launcher.
+If Ubuntu's moving archive returns 404 for a superseded locked package, the
+bootstrap retries that same package path at Ubuntu's fixed
+`20260910T000000Z` archive snapshot. It still requires the original lock hash;
+the fallback does not select or accept a newer package version.
 Nested Rust pins and the compiler lock remain unchanged. Exact installed runtime
 filenames needed by extracted development symlinks are linked into the private
 overlay and recorded in `host-library-bindings.json`; no host library is edited.

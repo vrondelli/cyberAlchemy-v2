@@ -15,7 +15,7 @@ import {planConfiguredRustWorkflow, RUST_WORKFLOW_CONTRACT_SHA256, RUST_WORKFLOW
 import {rustSelectorModule} from '../../src/generation/configured-rust-values.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo', packagePath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation');
+const cargo = process.env.CARGO ?? 'cargo', packagePath = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation');
 const read = (name: string) => fs.readFileSync(path.join(packagePath, name), 'utf8');
 function fixture(t: any) {
   const source = pythonAllTypesFixture(t), graph = loadCompiledProjectGraph(source.source), certificate = createCompiledProjectCertificate(graph);

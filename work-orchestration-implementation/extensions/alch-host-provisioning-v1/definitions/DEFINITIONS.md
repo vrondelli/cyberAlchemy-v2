@@ -8,7 +8,8 @@ evidence meanings remain CAV2-D65 and CAV2-D84 in
 ## AHP-D01 ProvisioningTarget
 
 Formal: one host-selected absolute private directory with exact owner and no
-symlink or hardlink redirection; v1 permits only `/tmp/alch-provision-*`.
+symlink or hardlink redirection; v1 permits only direct children matching
+`/tmp/alch-provision-*` or `/var/tmp/alch-provision-*`.
 
 Plain language: the disposable place we are configuring.
 

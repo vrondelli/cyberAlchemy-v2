@@ -4,11 +4,11 @@ import {createRepository} from './repository.mjs';
 import {createCheckoutService} from './checkout.mjs';
 import {createEventVerifiers,createEventInbox} from './events.mjs';
 import {pipeline} from 'node:stream/promises';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 const publicFiles=new Map([['/buyer.css',['buyer.css','text/css']],['/buyer.mjs',['buyer.mjs','text/javascript']],['/buyer-client.mjs',['buyer-client.mjs','text/javascript']]]);
-const buyerPages=new Set(['/','/purchase/return','/purchase/cancel','/signed-out']);
-const reactPreviewPages=new Set(['/','/react-preview','/react-preview/','/purchase/return','/purchase/cancel','/signed-out']);
+const buyerPages=new Set(['/','/checkout','/purchase/return','/purchase/cancel','/signed-out']);
+const reactPreviewPages=new Set(['/','/checkout','/react-preview','/react-preview/','/purchase/return','/purchase/cancel','/signed-out']);
 
 export async function loadAppBundle(base=new URL('../public-app/',import.meta.url)) {
   let manifest;
@@ -24,13 +24,13 @@ export async function loadAppBundle(base=new URL('../public-app/',import.meta.ur
   return {index,assets};
 }
 
-export async function createKeldIntegrations({auth: authConfig,payments,ledger,quoteBrl,diagnostic,events}) {
+export async function createKeldIntegrations({auth: authConfig,payments,ledger,quoteBrl,diagnostic,events,automaticReplacement=false}) {
   const adapters=createPaymentAdapters(payments);
   const verifiers=events?createEventVerifiers(events):undefined;
   const repository=createRepository(ledger);
   const inbox=verifiers?createEventInbox({verifiers,repository}):undefined;
   const auth=await createKeldAuth(authConfig);
-  const checkout=createCheckoutService({auth,adapters,repository,origin:authConfig.profile.origin,quoteBrl});
+  const checkout=createCheckoutService({auth,adapters,repository,origin:authConfig.profile.origin,quoteBrl,automaticReplacement});
   const app=await loadAppBundle();
   return {auth,checkout,handler:createHandler({auth,checkout,origin:authConfig.profile.origin,diagnostic,inbox,app}),
     initialize:()=>auth.store.migrate(),close:()=>auth.store.close()};
@@ -40,9 +40,9 @@ export async function createKeldIntegrations({auth: authConfig,payments,ledger,q
 export function createHandler({auth,checkout,origin,inbox,app=null,diagnostic=event=>console.error(JSON.stringify(event))}) {
   const host=new URL(origin).host;let activeDownloads=0;
   return async(req,res)=>{
-    const json=(status,value)=>{res.writeHead(status,{'content-type':'application/json','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(JSON.stringify(value));};
-    const page=(content,type='text/html',cache='no-store')=>{res.writeHead(200,{'content-type':type+'; charset=utf-8','cache-control':cache,'x-content-type-options':'nosniff',
-      'referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});res.end(content);};
+    const json=(status,value)=>{const content=Buffer.from(JSON.stringify(value));res.writeHead(status,{'content-type':'application/json','content-length':content.length,'cache-control':'no-store','x-content-type-options':'nosniff'});res.end(req.method==='HEAD'?undefined:content);};
+    const page=(content,type='text/html',cache='no-store')=>{const body=Buffer.isBuffer(content)?content:Buffer.from(content);res.writeHead(200,{'content-type':type+'; charset=utf-8','content-length':body.length,'cache-control':cache,'x-content-type-options':'nosniff',
+      'referrer-policy':'no-referrer','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"});res.end(req.method==='HEAD'?undefined:body);};
     try {
       if(req.headers.host!==host)throw new Rejected('host-rejected');
       const url=new URL(req.url,origin);
@@ -56,12 +56,12 @@ export function createHandler({auth,checkout,origin,inbox,app=null,diagnostic=ev
         return json(202,await inbox.receive(provider,Buffer.concat(chunks),req.headers,req.url));
       }
       if(await auth.handle(req,res))return;
-      if(req.method==='GET'&&app&&reactPreviewPages.has(url.pathname))return page(app.index);
-      if(req.method==='GET'&&app?.assets.has(url.pathname)){
+      if(['GET','HEAD'].includes(req.method)&&app&&reactPreviewPages.has(url.pathname))return page(app.index);
+      if(['GET','HEAD'].includes(req.method)&&app?.assets.has(url.pathname)){
         const asset=app.assets.get(url.pathname);
         return page(asset.content,asset.type,asset.immutable?'public, max-age=31536000, immutable':'no-cache');
       }
-      if(req.method==='GET'&&(buyerPages.has(url.pathname)||publicFiles.has(url.pathname))){
+      if(['GET','HEAD'].includes(req.method)&&(buyerPages.has(url.pathname)||publicFiles.has(url.pathname))){
         const [file,type]=publicFiles.get(url.pathname)??['buyer.html','text/html'];
         const content=await readFile(new URL('../public/'+file,import.meta.url));
         return page(content,type);
@@ -72,7 +72,16 @@ export function createHandler({auth,checkout,origin,inbox,app=null,diagnostic=ev
       }
       if(url.search)throw new Rejected('query-rejected');
       if(req.method==='GET'&&url.pathname==='/api/session'){
-        const identity=await auth.identity(req);return json(200,{authenticated:true,csrf:identity.csrf});
+        try{
+          const identity=await auth.identity(req);
+          return json(200,{authenticated:true,csrf:identity.csrf,buyerRef:createHash('sha256').update(identity.customer).digest('hex')});
+        }catch(error){
+          // Anonymous storefront discovery is public state, not an authorization
+          // decision. Keep expired/revoked sessions as errors so renewal and
+          // revocation remain fail closed.
+          if(error instanceof Rejected&&error.code==='authentication-required')return json(200,{authenticated:false});
+          throw error;
+        }
       }
       if(req.method!=='POST')return json(404,{error:'not-found'});
       if(req.headers['content-type']?.split(';')[0]!=='application/json')throw new Rejected('json-required');
@@ -80,6 +89,7 @@ export function createHandler({auth,checkout,origin,inbox,app=null,diagnostic=ev
       for await(const chunk of req){size+=chunk.length;if(size>16384)throw new Rejected('body-too-large');chunks.push(chunk);}
       let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new Rejected('json-invalid');}
       if(url.pathname==='/api/checkout')return json(200,await checkout.create(req,body));
+      if(url.pathname==='/api/checkout/lookup')return json(200,await checkout.lookup(req,body));
       if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).length!==1||typeof body.orderId!=='string')throw new Rejected('order-fields');
       if(url.pathname==='/api/restore')return json(200,await checkout.restore(req,body.orderId));
       if(url.pathname==='/api/confirm')return json(200,await checkout.confirm(req,body.orderId));

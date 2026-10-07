@@ -1,24 +1,8 @@
 import {createImprovementSignal, createImprovementTarget, createResearchHypothesis, createResearchExperiment,
   createHypothesisObservation, createLearningDecision, createVariantComparison, runResearchScout} from '../index.mjs';
 import {createEvolutionScheduler} from './scheduler.mjs';
-import {digest, sealed} from '../../request-intent-runtime/src/canonical.mjs';
 import {verifyLearningRecord} from '../../request-intent-runtime/src/learning-loop.mjs';
-
-export function assessInteractionLearningProgress(state, policy) {
-  if (!verifyLearningRecord(state, 'interaction-state') || !verifyLearningRecord(policy, 'interaction-learning-policy')) throw Error('learning.progress-input-invalid');
-  const turns = Object.values(state.turns).filter(t => t.outcome).slice(-policy.episode_window);
-  const eligible = turns.filter(t => t.outcome.disposition !== 'inconclusive');
-  const failed = new Set(turns.filter(t => t.outcome.disposition === 'contradicted').map(t => t.request_ref));
-  for (const l of Object.values(state.lessons)) if (l.reflection.improvement_eligible && turns.some(t => t.request_ref === l.episode_ref)) failed.add(l.episode_ref);
-  for (const a of state.applications) if (a.disposition === 'contradicted' && turns.some(t => t.request_ref === a.request_ref)) failed.add(a.request_ref);
-  const triggerId = `interaction-target:${digest([state.participant_ref, state.product_ref, 'attributed-interaction-failure'])}`;
-  const prior = state.evolution[triggerId];
-  return sealed('are.interaction-learning-progress/v1', {participant_ref: state.participant_ref, product_ref: state.product_ref,
-    cohort_refs: turns.map(t => t.request_ref), evaluated_count: eligible.length, inconclusive_count: turns.length - eligible.length,
-    supported_count: eligible.filter(t => t.outcome.disposition === 'supported').length, failure_refs: [...failed].sort(),
-    metric: 'episode_success_rate', evaluator_id: 'are.literal-output-checks/v1', baseline_ref: 'V0', policy_digest: policy.record_digest,
-    trigger_id: triggerId, disposition: prior ? prior.disposition : failed.size >= policy.recurrence_limit ? 'research-required' : 'observe'}, 'record_digest');
-}
+export {assessInteractionLearningProgress} from '../../request-intent-runtime/src/learning-loop.mjs';
 export function projectInteractionLearningToHypothesis(progress, implementationBinding) {
   if (!verifyLearningRecord(progress, 'interaction-learning-progress') || progress.disposition !== 'research-required') throw Error('learning.progress-not-eligible');
   if (!implementationBinding?.path || !/^[a-f0-9]{64}$/.test(implementationBinding.sha256)) throw Error('learning.implementation-binding-required');

@@ -26,6 +26,8 @@ const ts = `runtime-profile Production:
   environment NATS_URL endpoint-reference required
   environment PAYMENT_BASE_URL endpoint-reference required
   environment WEBHOOK_SECRET secret-reference required
+  environment ORDER_EVENTS_TOPIC endpoint-reference required
+  messaging-destination channel:order-events-topic ORDER_EVENTS_TOPIC
 `;
 const python = ts.replaceAll("typescript", "python").replace('node "26.8.1"', 'python ">=3.11"');
 const rust = ts.replaceAll("typescript", "rust").replace('node "26.8.1"', 'rust-edition "2024"');
@@ -49,8 +51,10 @@ test("runtime authoring rejects incomplete, duplicate, executable and credential
   const compiler = await loadDomainSpecCompiler();
   for (const bad of [
     ts.replace("  target typescript\n", ""), ts.replace("  provider messaging nats:jetstream\n", ""),
+    ts.replace("  messaging-destination channel:order-events-topic ORDER_EVENTS_TOPIC\n", ""),
     ts + "  target typescript\n", ts + "  environment DATABASE_URL secret-reference required\n",
     ts + "  runtime node \"26.8.1\"\n", ts + "  provider persistence postgresql:16\n",
+    ts + "  messaging-destination channel:order-events-topic ANOTHER_TOPIC\n",
     ts.replace("provider persistence postgresql:16", "provider persistence postgresql:16 library pg version 8.23.0"),
     ts + "  password \"never-echo-this\"\n", ts + "  environment DATABASE_URL = \"never-echo-this\"\n",
     ts + "  do ConnectDatabase\n", ts + "  provider-pack another/pack\n",

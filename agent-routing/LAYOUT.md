@@ -6,13 +6,14 @@ Status: candidate construction revision, 2026-09-07. Authority effect: none.
 
 `scripts/layout.py` owns physical source selection for validation and building.
 Logical `cyberAlchemy-v2/` references always mean this local checkout. If its
-parent is named `domainspec-core`, the layout is umbrella; otherwise the sole
-DomainSpec mount is the literal sibling `../domainspec-core`. No search or
-missing-file fallback selects another checkout. Symlink redirects of that mount,
-traversal, absolute paths, public/generated instruction sources, and symlinks
-escaping a selected source root are rejected.
+parent is named `domainspec-core`, the compatibility layout is umbrella;
+otherwise DomainSpec v2 and the Node/TypeScript toolchain resolve only through
+the in-repository `craft/` source. No search or missing-file fallback selects
+another checkout. Symlink redirects of that mount, traversal, absolute paths,
+public/generated instruction sources, and symlinks escaping a selected source
+root are rejected.
 
-Umbrella `AGENTS.md` means the umbrella instruction file. Sibling instructions
+Umbrella `AGENTS.md` means the umbrella instruction file. Standalone instructions
 come from this checkout's `AGENTS.md`, never the unrelated parent directory.
 Both instruction formats enforce the same routing markers and forbidden routing
 directives. The local ontology read-model link is allowed as evidence only.

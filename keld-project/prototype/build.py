@@ -1,6 +1,4 @@
-"""Build the Keld studio, shop, illustrated-legend entry and offline editions.
-Python standard library only; the optimized artwork is already in assets/legend.
-"""
+"""Build the Synvora studio, shop, compatibility entry and offline editions."""
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 import os
@@ -25,16 +23,12 @@ def namespace_svg(svg: str, prefix: str) -> str:
 
 def inline_assets(html: str, assets: Path) -> str:
     scripts = []
-    for filename in ['styles.css', 'shop.css', 'alpha.css', 'legend.css', 'ui-review.css']:
+    for filename in ['styles.css', 'shop.css', 'alpha.css', 'ui-review.css']:
         html = html.replace(f'<link rel="stylesheet" href="assets/{filename}">', '<style>\n'+(assets/filename).read_text()+'\n</style>')
-    for filename in ['shop-config.js', 'shop.js', 'app.js', 'legend.js']:
+    for filename in ['shop-config.js', 'shop.js', 'app.js']:
         html = html.replace(f'<script src="assets/{filename}" defer></script>', '')
         scripts.append((assets/filename).read_text())
     html = html.replace('href="assets/favicon.svg"', 'href="data:image/svg+xml,'+quote((assets/'favicon.svg').read_text(), safe='')+'"')
-    # Inline each referenced WebP so the complete edition works offline or file://.
-    for path in sorted((assets/'legend').glob('*.webp')):
-        uri = 'data:image/webp;base64,' + base64.b64encode(path.read_bytes()).decode('ascii')
-        html = html.replace(f'src="assets/legend/{path.name}"', f'src="{uri}"')
     # SVG image references must also be embedded in the standalone editions.
     for path in sorted((assets/'are-icons').glob('*.webp')):
         uri = 'data:image/webp;base64,' + base64.b64encode(path.read_bytes()).decode('ascii')
@@ -52,21 +46,10 @@ def build() -> None:
     shop = (ROOT/'shop.fragment.html').read_text().replace('{{SHOP_ARTIFACT}}', namespace_svg(artifact, 'shop-art-'))
     html = (ROOT/'index.template.html').read_text().replace('{{SYMBOLS}}', (assets/'symbols.txt').read_text()).replace('{{ARTIFACT}}', artifact).replace('{{SHOP}}', shop).replace('{{SHOP_DIALOGS}}', (ROOT/'shop.dialogs.html').read_text())
     html = html.replace('{{ARE_PAGE_URL}}', escape(are_page_url, quote=True))
-    # One source for complete prose: the illustrated reader in the template.
-    prose = re.findall(r'<div class="story-prose">(.*?)</div>', html, re.S)
-    if len(prose) != 6:
-        raise ValueError('Expected six complete legend chapters')
-    for i, chapter in enumerate(prose):
-        token = '{{LEGEND_PROSE_' + str(i) + '}}'
-        if html.count(token) != 1:
-            raise ValueError('Missing or duplicate legend prose slot')
-        html = html.replace(token, '<div class="legend-full-prose">' + chapter + '</div>')
-    for entry, view, section in [('index.html', 'studio', ''), ('shop.html', 'shop', ''), ('legend.html', 'studio', 'legend')]:
+    for entry, view in [('index.html', 'studio'), ('shop.html', 'shop'), ('legend.html', 'studio')]:
         output = html.replace('{{INITIAL_VIEW}}', view)
-        if section:
-            output = output.replace('window.KELD_INITIAL_VIEW = "studio";', 'window.KELD_INITIAL_VIEW = "studio"; window.KELD_INITIAL_SECTION = "legend";')
         if view == 'shop':
-            output = output.replace('<title>Keld — Agent gear. Even minds need tools.</title>', '<title>The Keld Shop — ARE Alpha · First 100</title>')
+            output = output.replace('<title>Synvora — Agent gear. Even minds need tools.</title>', '<title>The Synvora Shop — ARE Alpha · First 100</title>')
         # Bind the stylesheet URL to its bytes so refreshed HTML cannot reuse stale layout CSS.
         style_version = hashlib.sha256((assets/'ui-review.css').read_bytes()).hexdigest()[:12]
         hosted_output = output.replace('href="assets/ui-review.css"', f'href="assets/ui-review.css?v={style_version}"')
@@ -74,7 +57,7 @@ def build() -> None:
         if entry in ('index.html', 'legend.html', 'shop.html'):
             name = {'index.html': 'keld-illustrated-standalone.html', 'legend.html': 'keld-legend-standalone.html', 'shop.html': 'keld-shop-standalone.html'}[entry]
             (ROOT/name).write_text(inline_assets(output, assets))
-    print('Built studio, shop, legend and all three offline editions.')
+    print('Built Synvora studio, shop, compatibility page and all three offline editions.')
 
 if __name__ == '__main__':
     build()

@@ -1,0 +1,84 @@
+{
+  "schema_version": "domainspec-v2.interpretation-model/v1-candidate",
+  "model_id": "InterpretationModel:auth-foundation.admit-authorization-command-boundary",
+  "version": "1-occurrences-candidate",
+  "owner": "projects/auth-foundation/formalization",
+  "status": "draft",
+  "business_meaning_ref": {
+    "path": "auth-foundation/formalization/cases/AF-ADMIT-AUTHORIZATION-COMMAND-001/BUSINESS-MEANING.v1-clarified-accepted.json",
+    "sha256": "ce6690c7028bdd1f26671b6d01498faed179340675fbb2cfcc9a55fd6ff109fb",
+    "size_bytes": 6364
+  },
+  "types": [
+    {"name": "Context", "meaning": "One representable, fully supplied CommandBoundaryContext with finite ordered authentication and route resolver lists and a candidate command.", "domain": "The owner-accepted normally evaluated command-boundary input domain."},
+    {"name": "AuthOccurrence", "meaning": "A nonempty global carrier containing one distinct pair (context, zero-based list position) for every valid authentication-list entry, plus nonmember ghost elements when needed for ordinary nonempty FOL sorts.", "domain": "All interpreted Context values; position identity does not collapse equal row values."},
+    {"name": "RouteOccurrence", "meaning": "A nonempty global carrier containing one distinct pair (context, zero-based list position) for every valid route-list entry, plus nonmember ghost elements when needed for ordinary nonempty FOL sorts.", "domain": "All interpreted Context values; position identity does not collapse equal row values."},
+    {"name": "String", "meaning": "Exact string values including the empty string; no trimming, case folding, wildcard or coercion.", "domain": "The selected typed command-boundary string fields."},
+    {"name": "Bool", "meaning": "Exactly true or false for trust and completeness fields.", "domain": "The selected typed resolver fields."},
+    {"name": "DecisionValue", "meaning": "Exactly two distinct values READY and DENY for the pure command-boundary outcome.", "domain": "Not the downstream authorization service's outcome."}
+  ],
+  "predicates": [
+    {"name": "AuthMember(c,a)", "meaning": "True exactly when a denotes one valid position in c's complete authentication resolver list; false for ghosts and foreign-context positions.", "domain": "Context x AuthOccurrence."},
+    {"name": "RouteMember(c,r)", "meaning": "True exactly when r denotes one valid position in c's complete route resolver list; false for ghosts and foreign-context positions.", "domain": "Context x RouteOccurrence."},
+    {"name": "QA(c,a)", "meaning": "AuthMember(c,a) and evidence_ref(a) equals c.request.authentication_evidence_ref, evidence_ref(a) and session_id(a) are nonempty, and trusted(a) is true; every field belongs to the same a.", "domain": "Context x AuthOccurrence; must be expanded or constrained by exact typed biconditional axioms in the canonical claim."},
+    {"name": "QR(c,r)", "meaning": "RouteMember(c,r) and route_id(r) equals c.request.route_id, route_id(r) and scope_evidence_ref(r) are nonempty, complete(r) is true, and required_permission resource, action and scope are each nonempty; every field belongs to the same r.", "domain": "Context x RouteOccurrence; must be expanded or constrained by exact typed biconditional axioms in the canonical claim."},
+    {"name": "InScopeNormal(c)", "meaning": "True for every Context in the fixed fully supplied representable finite-list carrier; never chosen after observing an implementation result. Normal completion of the selected evaluator is a separate correspondence obligation, not a filter on Context.", "domain": "Context; extension is the entire Context carrier."},
+    {"name": "Decision(c)", "meaning": "Abstract pure command-boundary outcome function into DecisionValue; an external correspondence binding may map it to selected typed evalOperation only under exact source and proof assumptions.", "domain": "Context -> DecisionValue."}
+  ],
+  "equality_rules": [
+    "Authentication and route occurrence identity is (context identity, list position), so equal row values at different positions are unequal occurrences.",
+    "String and Bool comparisons use exact typed equality; nonempty means unequal to the exact empty string.",
+    "Candidate permission provenance compares resource, action and scope separately against the same unique qualifying route occurrence; candidate session compares against the same unique qualifying authentication occurrence.",
+    "READY and DENY are distinct and exhaust DecisionValue. A final downstream DENY is not the pure kernel DENY."
+  ],
+  "quantifiers": [
+    "The decision proposition quantifies over every Context in the fixed complete finite-list carrier; InScopeNormal is true throughout that carrier, not an arbitrary subdomain.",
+    "Exactly one qualifying authentication or route row quantifies over occurrence positions, with existence and universal uniqueness over the same typed carrier.",
+    "The same bound qualifying occurrences witness candidate provenance inside their quantifier scopes; a separate nonqualifying row cannot supply values.",
+    "The occurrence carriers are nonempty even when one or both lists are empty; ghosts are excluded by membership, and field projections are total with arbitrary nonmember values that cannot affect qualification."
+  ],
+  "time_model": "One pure command-boundary evaluation; the accepted rule has no clock, expiry, temporal transition, or changing resolver snapshot inside that evaluation.",
+  "currentness_rules": [
+    "Complete resolver lists and the candidate belong to one evaluation context; later or stale resolver outputs cannot be silently spliced into it.",
+    "The source-bound typed/Rust/wrapper correspondence and its assumptions are separate from this business interpretation; source drift invalidates that evidence, not the business meaning.",
+    "Changing any qualifier, occurrence identity, scope condition or decision codomain requires a new reviewed meaning/model version."
+  ],
+  "applicability": [
+    "fully supplied representable CommandBoundaryContext with complete finite resolver lists preserving multiplicity",
+    "normally evaluated pure command-boundary decision before downstream authorization"
+  ],
+  "assumptions": [
+    "Each valid list position maps injectively to exactly one occurrence and all valid entries are represented; ghosts and foreign-context positions are nonmembers.",
+    "All formal field projection functions are total on their nonempty carriers; values on nonmembers cannot satisfy a qualifying predicate without membership.",
+    "The selected pure typed evaluator's totality for the representable finite-list domain is a separate correspondence proof obligation and does not narrow InScopeNormal after observing implementation behavior.",
+    "QA and QR may be abbreviations only when their complete defining formulae are included in the exact canonical claim theory or expanded in the proposition.",
+    "The abstract Decision function is not defined by the generated Rust, selected Lean evaluator, or downstream authorization result.",
+    "The accepted DENY-without-downstream-call business fact is unqualified; the selected R5 proof counts only one direct wrapper call site and is insufficient by itself to establish the full no-call fact."
+  ],
+  "excluded_cases": [
+    "missing resolver output, partial context, exceptions and nontermination outside the selected normal-evaluation claim",
+    "downstream authorization ALLOW or DENY semantics; direct-call-count proof alone does not establish the full no-downstream-call business fact",
+    "set conversion, deduplication, or value-based uniqueness of resolver rows",
+    "production deployment, provider behavior, EVF pass, F5 satisfaction and runtime_guarantees_observed"
+  ],
+  "witnesses": [
+    "A nonempty request ID, one fully qualifying authentication position, one fully qualifying route position and candidate fields copied from those same positions yield pure READY.",
+    "Two equal qualifying authentication entries at positions 0 and 1 yield pure DENY; equal values do not merge occurrence identities.",
+    "A context with both resolver lists empty remains in scope and yields pure DENY while formal occurrence sorts remain nonempty via nonmembers."
+  ],
+  "counterexamples": [
+    "Treating a qualifying row value as the uniqueness identity collapses equal duplicate entries and wrongly permits READY.",
+    "Using a second matching but nonqualifying row to satisfy candidate provenance wrongly permits READY.",
+    "Defining InScopeNormal from observed successful results makes an incorrect or nonterminating implementation disappear from the obligation.",
+    "Interpreting Decision(c) as the downstream authorization result confuses kernel READY followed by downstream DENY with kernel DENY and zero direct calls.",
+    "Replacing the accepted no-downstream-call fact with a count of one direct wrapper call site silently weakens the business meaning."
+  ],
+  "vacuity_checks": [
+    "Exhibit at least one in-scope READY context and one in-scope DENY context under the exact interpretation.",
+    "Exhibit an in-scope empty-list context, an equal-duplicate context, and a wrong-provenance context without narrowing InScopeNormal.",
+    "Check that READY and DENY are distinct/exhaustive and that both biconditional directions reject always-READY and always-DENY behavior."
+  ],
+  "acceptance": {"status": "not-requested", "owner_ref": "projects/auth-foundation/formalization", "acceptance_ref": null, "acceptance_digest": null},
+  "claim_ceiling": "Candidate occurrence-based InterpretationModel against the accepted v1 Auth meaning. No model acceptance, definitions-bearing v2 acceptance, current FormalClaim, admitted projection, TDE result, EVF/F5 pass or runtime_guarantees_observed.",
+  "authority_effect": "none"
+}

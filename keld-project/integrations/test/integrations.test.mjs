@@ -63,6 +63,31 @@ test('Stripe SDK → durable ledger → exact fixture; replay and cross-buyer de
   assert.ok(nock.isDone());
 });
 
+test('Stripe terminal-unpaid evidence is card-only and never inferred from an open or processing session',async t=>{
+  const {adapters}=await fixture(t);
+  const terms={orderId:'a'.repeat(32),releaseDigest:digest,currency:'USD',amountCents:20000,expiresAt:1800003600};
+  const cases=[
+    [{status:'expired',payment_status:'unpaid',payment_intent:null,payment_method_types:['card']},'terminal-unpaid'],
+    [{status:'open',payment_status:'unpaid',payment_intent:null,payment_method_types:['card']},'unresolved'],
+    [{status:'complete',payment_status:'unpaid',payment_intent:'pi_pending',payment_method_types:['card']},'unresolved'],
+    [{status:'expired',payment_status:'unpaid',payment_intent:'pi_existing',payment_method_types:['card']},'unresolved'],
+    [{status:'expired',payment_status:'paid',payment_intent:'pi_paid',payment_method_types:['card']},'unresolved'],
+    [{status:'expired',payment_status:'unpaid',payment_intent:null,payment_method_types:['card','link']},'unresolved'],
+    [{status:'expired',payment_status:'unpaid',payment_intent:null,payment_method_types:['card'],expires_at:terms.expiresAt+1},'unresolved'],
+    [{status:'expired',payment_status:'unpaid',payment_intent:null},'unresolved'],
+  ];
+  for(const [state,expected] of cases){
+    stripeAccount();
+    nock('https://api.stripe.com').get('/v1/checkout/sessions/cs_test_fixture').reply(200,stripeSession(terms.orderId,state));
+    assert.deepEqual(await adapters.stripe.terminalUnpaid('cs_test_fixture',terms),
+      {kind:expected,provider:'stripe',remoteId:'cs_test_fixture'});
+  }
+  stripeAccount();
+  nock('https://api.stripe.com').get('/v1/checkout/sessions/cs_test_fixture').reply(200,stripeSession('wrong-order',cases[0][0]));
+  await assert.rejects(()=>adapters.stripe.terminalUnpaid('cs_test_fixture',terms),{code:'stripe-terms-mismatch'});
+  assert.ok(nock.isDone());
+});
+
 function pix(orderId,extra={}) {return {id:567,live_mode:false,collector_id:123,external_reference:orderId,metadata:{release:digest},currency_id:'BRL',transaction_amount:1000,payment_method_id:'pix',status:'pending',point_of_interaction:{transaction_data:{qr_code:'000201-fixture'}},...extra};}
 test('Mercado Pago SDK preserves BRL quote and verifies approved payment before delivery',async t=>{
   const {service}=await fixture(t);let orderId;
@@ -75,6 +100,31 @@ test('Mercado Pago SDK preserves BRL quote and verifies approved payment before 
   assert.equal((await service.confirm(request(),orderId)).status,'awaiting-payment');await assert.rejects(()=>service.download(request(),orderId));
   nock('https://api.mercadopago.com').get('/v1/payments/567').reply(200,pix(orderId,{status:'approved',status_detail:'accredited',transaction_amount_refunded:0}));
   assert.equal((await service.confirm(request(),orderId)).status,'paid');assert.equal((await service.download(request(),orderId)).sha256,digest);assert.ok(nock.isDone());
+});
+
+test('Mercado Pago Payments finality requires exact canceled Pix terms and no approval',async t=>{
+  const {adapters}=await fixture(t);
+  const terms={orderId:'a'.repeat(32),releaseDigest:digest,currency:'BRL',amountCents:100000,expiresAt:1800003600};
+  const base={status:'cancelled',status_detail:'expired',date_of_expiration:new Date(terms.expiresAt*1000).toISOString(),
+    transaction_amount_refunded:0,date_approved:null};
+  const cases=[
+    [{},'terminal-unpaid'],
+    [{status:'pending',status_detail:'pending_waiting_transfer'},'unresolved'],
+    [{status:'approved',status_detail:'accredited'},'unresolved'],
+    [{status_detail:'unknown'},'unresolved'],
+    [{date_approved:'2027-01-01T00:00:00Z'},'unresolved'],
+    [{transaction_amount_refunded:1},'unresolved'],
+    [{transaction_amount_refunded:null},'unresolved'],
+    [{date_of_expiration:new Date((terms.expiresAt+1)*1000).toISOString()},'unresolved'],
+  ];
+  for(const [change,expected] of cases){
+    nock('https://api.mercadopago.com').get('/v1/payments/567').reply(200,pix(terms.orderId,{...base,...change}));
+    assert.deepEqual(await adapters.mercadopago.terminalUnpaid('567',terms),
+      {kind:expected,provider:'mercadopago',providerApi:'payments-v1',remoteId:'567'});
+  }
+  nock('https://api.mercadopago.com').get('/v1/payments/567').reply(200,pix('wrong-order',base));
+  await assert.rejects(()=>adapters.mercadopago.terminalUnpaid('567',terms),{code:'pix-terms-mismatch'});
+  assert.ok(nock.isDone());
 });
 
 function paypalOrder(orderId,extra={},currency='USD',value='200.00') {return {id:'ORDER123',intent:'CAPTURE',status:'PAYER_ACTION_REQUIRED',purchase_units:[{reference_id:orderId,custom_id:digest,payee:{merchant_id:'MERCHANT123'},amount:{currency_code:currency,value}}],links:[{rel:'payer-action',href:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER123',method:'GET'}],...extra};}
@@ -103,6 +153,263 @@ test('PayPal BRL presentment freezes the shared quote while preserving the USD c
   const result=await service.create(request(),{provider:'paypal',amountCents:20000,requestKey:'paypal-brl'});
   assert.equal(result.currency,'BRL');assert.equal(result.amountCents,100000);assert.equal(result.usdAmountCents,20000);
   assert.equal(result.quoteReference,'fixture-rate-not-for-sale');assert.ok(nock.isDone());
+});
+
+test('PayPal missing remote order remains unresolved after reconciliation',async t=>{
+  const {reconcileBatch}=await import('../src/reconcile.mjs');const f=await fixture(t);let orderId;
+  nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,{access_token:'fixture-access',token_type:'Bearer',expires_in:3600});
+  nock('https://api-m.sandbox.paypal.com').post('/v2/checkout/orders',body=>{orderId=body.purchase_units[0].reference_id;return true;}).reply(()=>[201,paypalOrder(orderId)]);
+  await f.service.create(request(),{provider:'paypal',amountCents:20000,requestKey:'paypal-missing'});
+  f.state.now+=3601;
+  nock('https://api-m.sandbox.paypal.com').get('/v2/checkout/orders/ORDER123').reply(404,{name:'RESOURCE_NOT_FOUND',message:'The specified resource does not exist.'});
+  const result=await reconcileBatch({...f,clock:()=>f.state.now});
+  assert.equal(result.checked,1);assert.equal(result.review,1);assert.deepEqual(result.failed,[{orderId,code:'paypal-order-missing'}]);
+  const review=await f.repository('reconcile-inspect',{state:'review',after:0,now:f.state.now});
+  assert.equal(review.orders.length,1);assert.equal(review.orders[0].reason,'paypal-order-missing');
+  await assert.rejects(()=>f.service.create(request(),{provider:'stripe',amountCents:20000,requestKey:'fresh-tab-after-expiry'}),
+    error=>error.code==='customer-checkout-unresolved'&&error.status===409);
+  const enabled=createCheckoutService({auth:f.auth,repository:f.repository,adapters:f.adapters,
+    origin,clock:()=>f.state.now,automaticReplacement:true});
+  assert.equal((await enabled.restore(request(),orderId)).replacementCheckAvailable,false);
+  await assert.rejects(()=>enabled.create(request(),{provider:'stripe',amountCents:20000,
+    requestKey:'paypal-missing-enabled-fresh-key'}),{code:'customer-checkout-unresolved'});
+  await assert.rejects(()=>enabled.create(request(),{provider:'stripe',amountCents:20000,
+    requestKey:'paypal-missing-explicit-replacement',replaceOldOrderId:orderId}),
+  {code:'replacement-review-required'});
+  assert.equal(await f.repository('lookup',{customer:(await f.auth.identity(request())).customer,
+    now:f.state.now,requestKey:'paypal-missing-explicit-replacement'}),null);
+  await assert.rejects(()=>f.repository('reconcile-resolve',{work:{orderId,generation:review.orders[0].generation},reason:'paypal-missing-unpaid',now:f.state.now}),error=>error.code==='reconciliation-terminal-evidence-required'&&error.status===409);
+  assert.equal((await f.repository('reconcile-inspect',{state:'review',after:0,now:f.state.now})).counts.review,1);
+  assert.ok(nock.isDone());
+});
+
+test('PayPal order state and missing-order response cannot automatically release checkout',async t=>{
+  const {adapters}=await fixture(t);
+  const terms={orderId:'a'.repeat(32),releaseDigest:digest,currency:'USD',amountCents:20000};
+  nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,{access_token:'fixture-access',token_type:'Bearer',expires_in:3600});
+  for(const status of ['CREATED','PAYER_ACTION_REQUIRED','APPROVED','VOIDED']){
+    nock('https://api-m.sandbox.paypal.com').get('/v2/checkout/orders/ORDER123').reply(200,paypalOrder(terms.orderId,{status}));
+    assert.deepEqual(await adapters.paypal.terminalUnpaid('ORDER123',terms),
+      {kind:'unresolved',provider:'paypal',remoteId:'ORDER123'});
+  }
+  nock('https://api-m.sandbox.paypal.com').get('/v2/checkout/orders/ORDER123').reply(404,{name:'RESOURCE_NOT_FOUND'});
+  await assert.rejects(()=>adapters.paypal.terminalUnpaid('ORDER123',terms),{code:'paypal-order-missing'});
+  assert.ok(nock.isDone());
+});
+
+test('expired PayPal payer-action order stays in review and blocks a fresh payment key',async t=>{
+  const {reconcileBatch}=await import('../src/reconcile.mjs');const f=await fixture(t);let orderId;
+  nock('https://api-m.sandbox.paypal.com').post('/v1/oauth2/token').reply(200,
+    {access_token:'fixture-access',token_type:'Bearer',expires_in:3600});
+  nock('https://api-m.sandbox.paypal.com').post('/v2/checkout/orders',body=>{
+    orderId=body.purchase_units[0].reference_id;return true;
+  }).reply(()=>[201,paypalOrder(orderId)]);
+  await f.service.create(request(),{provider:'paypal',amountCents:20000,requestKey:'paypal-payer-action'});
+  f.state.now+=3601;
+  nock('https://api-m.sandbox.paypal.com').get('/v2/checkout/orders/ORDER123')
+    .reply(()=>[200,paypalOrder(orderId)]);
+  const result=await reconcileBatch({...f,clock:()=>f.state.now});
+  assert.deepEqual([result.checked,result.pending,result.review],[1,1,1]);
+  await assert.rejects(()=>f.service.create(request(),{
+    provider:'stripe',amountCents:20000,requestKey:'new-after-payer-action'}),
+  error=>error.code==='customer-checkout-unresolved'&&error.status===409);
+  const enabled=createCheckoutService({auth:f.auth,repository:f.repository,adapters:f.adapters,
+    origin,clock:()=>f.state.now,automaticReplacement:true});
+  assert.equal((await enabled.restore(request(),orderId)).replacementCheckAvailable,false);
+  await assert.rejects(()=>enabled.create(request(),{provider:'stripe',amountCents:20000,
+    requestKey:'paypal-payer-action-enabled-fresh-key'}),{code:'customer-checkout-unresolved'});
+  await assert.rejects(()=>enabled.create(request(),{provider:'stripe',amountCents:20000,
+    requestKey:'paypal-payer-action-explicit-replacement',replaceOldOrderId:orderId}),
+  {code:'replacement-review-required'});
+  assert.equal(await f.repository('lookup',{customer:(await f.auth.identity(request())).customer,
+    now:f.state.now,requestKey:'paypal-payer-action-explicit-replacement'}),null);
+  assert.ok(nock.isDone());
+});
+
+test('default-disabled replacement stays locked; enabled proof closes and creates one successor',async t=>{
+  const f=await fixture(t),customer=(await f.auth.identity(request(),{mutation:true})).customer;
+  const old=await f.repository('prepare',{customer,now:f.state.now,requestKey:'old-key',provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD',payerEmail:null,returnUrl:origin+'/purchase/return',cancelUrl:origin+'/purchase/cancel'}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:old.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:old.id,generation:claim.generation,remoteId:'cs_old',
+    response:{remoteId:'cs_old',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_old'}});
+  f.state.now+=3601;
+  const input={provider:'stripe',amountCents:20000,requestKey:'new-key',replaceOldOrderId:old.id};
+  assert.equal((await f.service.restore(request(),old.id)).replacementCheckAvailable,false);
+  await assert.rejects(()=>f.service.create(request(),input),{code:'replacement-disabled'});
+  await assert.rejects(()=>f.service.create(request(),{...input,replaceOldOrderId:undefined}),{code:'customer-checkout-unresolved'});
+  let discovered=0,checked=0,created=0;
+  const stripe={...f.adapters.stripe,
+    async discover(terms,interval){discovered++;assert.equal(terms.orderId,old.id);return {ids:['cs_old'],total:1,complete:true,interval};},
+    async terminalUnpaid(id,terms){checked++;assert.equal(id,'cs_old');assert.equal(terms.orderId,old.id);return {kind:'terminal-unpaid',provider:'stripe',remoteId:id};},
+    async create(){created++;return {remoteId:'cs_new',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_new'};}};
+  const candidate=createCheckoutService({auth:f.auth,repository:f.repository,adapters:{...f.adapters,stripe},origin,clock:()=>f.state.now,automaticReplacement:true});
+  await assert.rejects(()=>candidate.create(request(),{...input,replaceOldOrderId:undefined}),{code:'customer-checkout-unresolved'});
+  await assert.rejects(()=>candidate.create(request(),{...input,replaceOldOrderId:'a'.repeat(32)}),{code:'replacement-review-required'});
+  assert.deepEqual([discovered,checked,created],[0,0,0]);
+  assert.equal((await candidate.restore(request(),old.id)).replacementCheckAvailable,true);
+  const result=await candidate.create(request(),input);
+  assert.notEqual(result.orderId,old.id);assert.equal(result.remoteId,'cs_new');
+  assert.equal((await candidate.restore(request(),result.orderId)).replacesOrderId,old.id);
+  assert.deepEqual([discovered,checked,created],[1,1,1]);
+  assert.equal((await f.repository('lookup',{customer,now:f.state.now,requestKey:'old-key'})).status,'cancelled');
+  assert.equal((await candidate.create(request(),input)).orderId,result.orderId);
+  assert.deepEqual([discovered,checked,created],[1,1,1]);
+  assert.deepEqual(await candidate.lookup(request(),{requestKey:'new-key'}),
+    {found:true,orderId:result.orderId,status:'pending',replacesOrderId:old.id});
+  await assert.rejects(()=>candidate.create(request(),{...input,replaceOldOrderId:'a'.repeat(32)}),{code:'replacement-link-conflict'});
+  await assert.rejects(()=>candidate.create(request('bob','csrf-bob'),input),{code:'replacement-review-required'});
+  await assert.rejects(()=>candidate.create(request(),{...input,requestKey:'racing-key',replaceOldOrderId:undefined}),{code:'customer-checkout-pending'});
+});
+
+test('incomplete discovery or inconclusive finality never releases an old checkout',async t=>{
+  const f=await fixture(t),customer=(await f.auth.identity(request(),{mutation:true})).customer;
+  const old=await f.repository('prepare',{customer,now:f.state.now,requestKey:'old-key',provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD',payerEmail:null}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:old.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:old.id,generation:claim.generation,remoteId:'cs_old',response:{remoteId:'cs_old'}});
+  f.state.now+=3601;
+  const input={provider:'stripe',amountCents:20000,requestKey:'new-key',replaceOldOrderId:old.id};
+  let discovery={ids:['cs_old','cs_other'],total:2,complete:true},finality={kind:'unresolved',provider:'stripe',remoteId:'cs_old'},checked=0;
+  const stripe={...f.adapters.stripe,
+    async discover(terms,interval){return {...discovery,interval};},
+    async terminalUnpaid(){checked++;return finality;},
+    async create(){assert.fail('no new provider creation');}};
+  const candidate=createCheckoutService({auth:f.auth,repository:f.repository,adapters:{...f.adapters,stripe},origin,clock:()=>f.state.now,automaticReplacement:true});
+  await assert.rejects(()=>candidate.create(request(),input),{code:'replacement-review-required'});
+  assert.equal(checked,0);
+  discovery={ids:['cs_old'],total:1,complete:true};
+  await assert.rejects(()=>candidate.create(request(),input),{code:'replacement-review-required'});
+  assert.equal(checked,1);
+  assert.equal((await f.repository('lookup',{customer,now:f.state.now,requestKey:'old-key'})).status,'pending');
+  assert.equal(await f.repository('lookup',{customer,now:f.state.now,requestKey:'new-key'}),null);
+});
+
+test('payment event arriving after terminal provider reads blocks replacement before successor creation',async t=>{
+  const f=await fixture(t),customer=(await f.auth.identity(request(),{mutation:true})).customer;
+  const old=await f.repository('prepare',{customer,now:f.state.now,requestKey:'old-key',provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD',payerEmail:null}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:old.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:old.id,generation:claim.generation,remoteId:'cs_old',response:{remoteId:'cs_old'}});
+  f.state.now+=3601;
+  let created=0;
+  const stripe={...f.adapters.stripe,
+    async discover(_terms,interval){return {ids:['cs_old'],total:1,complete:true,interval};},
+    async terminalUnpaid(){
+      // The provider read looked terminal, but a trusted event was admitted
+      // before the ledger could consume that proof in its transaction.
+      await f.repository('event-receive',{now:f.state.now,event:{provider:'stripe',account:'acct_fixture',environment:'sandbox',
+        eventId:'evt-race',eventType:'checkout.session.completed',resourceId:'cs_old',resourceKind:'checkout.session'}});
+      return {kind:'terminal-unpaid',provider:'stripe',remoteId:'cs_old'};
+    },
+    async create(){created++;assert.fail('provider creation must not run after a conflicting event');}};
+  const service=createCheckoutService({auth:f.auth,repository:f.repository,adapters:{...f.adapters,stripe},origin,
+    clock:()=>f.state.now,automaticReplacement:true});
+  await assert.rejects(()=>service.create(request(),{provider:'stripe',amountCents:20000,requestKey:'new-key',replaceOldOrderId:old.id}),
+    {code:'terminal-event-review-required'});
+  assert.equal(created,0);
+  assert.equal((await f.repository('lookup',{customer,now:f.state.now,requestKey:'old-key'})).status,'pending');
+  assert.equal(await f.repository('lookup',{customer,now:f.state.now,requestKey:'new-key'}),null);
+});
+
+test('uncertain Mercado Pago Orders creation discovers one existing resource or locks without another POST',async t=>{
+  const remoteA='ORD'+'A'.repeat(29),remoteB='ORD'+'B'.repeat(29);
+  for(const scenario of [
+    {name:'one existing Order',ids:[remoteA],complete:true},
+    {name:'no observed Order',ids:[],complete:true},
+    {name:'two distinct Orders',ids:[remoteA,remoteB],complete:true},
+    {name:'incomplete search',ids:[],complete:false},
+    {name:'provider terms mismatch',ids:[remoteA],complete:true,mismatch:true},
+    {name:'active create lease',ids:[remoteA],complete:true,active:true},
+    {name:'stale create lease',ids:[remoteA],complete:true,active:true,stale:true},
+  ])await t.test(scenario.name,async sub=>{
+    const f=await fixture(sub),customer=(await f.auth.identity(request(),{mutation:true})).customer;
+    const email='buyer@example.test',requestKey='mp-uncertain';
+    const old=await f.repository('prepare',{customer,now:f.state.now,requestKey,provider:'mercadopago',account:'123',amountCents:20000,
+      terms:{providerApi:'orders-v1',pixRequestVersion:2,pixExpirationSeconds:1800,pixExpiresAt:f.state.now+1800,
+        amountCents:102000,currency:'BRL',reference:'fixed-5.10',payerEmail:email}});
+    const claim=await f.repository('claim',{customer,now:f.state.now,orderId:old.id});
+    if(!scenario.active)await f.repository('creation-failed',{customer,now:f.state.now,orderId:old.id,generation:claim.generation,definite:false});
+    if(scenario.stale)f.state.now+=61;
+    let searched=0,resumed=0,created=0;
+    const mp={account:'123',api:'orders-v1',async discover(terms,interval){
+      searched++;assert.equal(terms.orderId,old.id);return {ids:scenario.ids,total:scenario.ids.length,complete:scenario.complete,interval};
+    },async resume(id,terms){resumed++;assert.equal(id,remoteA);assert.equal(terms.orderId,old.id);
+      return scenario.mismatch?{remoteId:id,checkoutState:'verification-required',verificationIssues:[{path:'total_amount',code:'mismatch-or-missing'}]}:
+        {remoteId:id,checkoutState:'ready',pixCode:'synthetic-pix'};
+    },async create(){created++;assert.fail('an uncertain Orders POST must not be repeated');}};
+    const service=createCheckoutService({auth:f.auth,repository:f.repository,adapters:{...f.adapters,mercadopago:mp},origin,clock:()=>f.state.now});
+    const input={provider:'mercadopago',amountCents:20000,requestKey,payerEmail:email};
+    if(scenario.active&&!scenario.stale){
+      await assert.rejects(()=>service.create(request(),input),{code:'checkout-in-progress'});
+      assert.deepEqual([searched,resumed,created],[0,0,0]);
+    }else if(scenario.ids.length===1&&scenario.complete&&!scenario.mismatch){
+      const changedApi=createCheckoutService({auth:f.auth,repository:f.repository,
+        adapters:{...f.adapters,mercadopago:{...mp,api:'payments-v1'}},origin,clock:()=>f.state.now});
+      await assert.rejects(()=>changedApi.create(request(),input),{code:'checkout-conflict'});
+      const result=await service.create(request(),input);
+      assert.equal(result.remoteId,remoteA);
+      assert.equal((await f.repository('lookup',{customer,now:f.state.now,requestKey})).creation_state,'bound');
+      assert.equal((await service.create(request(),input)).remoteId,remoteA);
+      assert.deepEqual([searched,resumed,created],[1,1,0]);
+    }else{
+      await assert.rejects(()=>service.create(request(),input),
+        {code:scenario.ids.length>1||scenario.mismatch?'checkout-reconciliation-required':'checkout-in-progress'});
+      const attempt=await f.repository('lookup',{customer,now:f.state.now,requestKey});
+      assert.equal(attempt.remote_id,null);assert.equal(attempt.creation_state,'uncertain');
+      assert.deepEqual([searched,resumed,created],[1,scenario.mismatch?1:0,0]);
+      if(scenario.ids.length===0){
+        scenario.ids=[remoteA];scenario.complete=true;
+        assert.equal((await service.create(request(),input)).remoteId,remoteA);
+        assert.deepEqual([searched,resumed,created],[2,1,0]);
+      }
+    }
+  });
+});
+
+test('explicit replacement keeps its linked successor after a post-commit 409 without another provider create',async t=>{
+  const f=await fixture(t),customer=(await f.auth.identity(request(),{mutation:true})).customer;
+  const old=await f.repository('prepare',{customer,now:f.state.now,requestKey:'old-key',provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD',payerEmail:null}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:old.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:old.id,generation:claim.generation,remoteId:'cs_old',response:{remoteId:'cs_old'}});
+  f.state.now+=3601;
+  let created=0;
+  const stripe={...f.adapters.stripe,
+    async discover(_terms,interval){return {ids:['cs_old'],total:1,complete:true,interval};},
+    async terminalUnpaid(){return {kind:'terminal-unpaid',provider:'stripe',remoteId:'cs_old'};},
+    async create(){created++;assert.fail('provider creation must not run after expiry');}};
+  const repository=async(op,args)=>{
+    const value=await f.repository(op,args);
+    if(op==='replace-prepare')f.state.now+=3601;
+    return value;
+  };
+  const service=createCheckoutService({auth:f.auth,repository,adapters:{...f.adapters,stripe},origin,clock:()=>f.state.now,automaticReplacement:true});
+  const input={provider:'stripe',amountCents:20000,requestKey:'new-key',replaceOldOrderId:old.id};
+  await assert.rejects(()=>service.create(request(),input),{code:'checkout-not-pending'});
+  const found=await service.lookup(request(),{requestKey:'new-key'});
+  assert.equal(found.found,true);assert.equal(found.replacesOrderId,old.id);assert.equal(found.status,'expired');
+  assert.equal(created,0);
+  await assert.rejects(()=>service.create(request(),{...input,replaceOldOrderId:'a'.repeat(32)}),{code:'replacement-link-conflict'});
+});
+
+test('replacement refreshes a Mercado Pago Orders Pix quote and deadline after terminal reads',async t=>{
+  const f=await fixture(t),customer=(await f.auth.identity(request(),{mutation:true})).customer;
+  const old=await f.repository('prepare',{customer,now:f.state.now,requestKey:'old-key',provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD',payerEmail:null}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:old.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:old.id,generation:claim.generation,remoteId:'cs_old',response:{remoteId:'cs_old'}});
+  f.state.now+=3601;
+  let quoted=0,created=0;
+  const stripe={...f.adapters.stripe,
+    async discover(_terms,interval){f.state.now+=120;return {ids:['cs_old'],total:1,complete:true,interval};},
+    async terminalUnpaid(){return {kind:'terminal-unpaid',provider:'stripe',remoteId:'cs_old'};}};
+  const mp={account:'123',api:'orders-v1',async create(terms){created++;assert.equal(terms.pixExpiresAt,f.state.now+1800);
+    assert.equal(terms.amountCents,102000);return {remoteId:'ORD_NEW',pixCode:'000201-fixture'};}};
+  const service=createCheckoutService({auth:f.auth,repository:f.repository,adapters:{...f.adapters,stripe,mercadopago:mp},origin,clock:()=>f.state.now,
+    automaticReplacement:true,quoteBrl:async()=>{quoted++;return {amountCents:102000,currency:'BRL',reference:'fixed-5.10'};}});
+  const result=await service.create(request(),{provider:'mercadopago',amountCents:20000,requestKey:'new-pix',payerEmail:'buyer@example.test',replaceOldOrderId:old.id});
+  assert.equal(result.pixCode,'000201-fixture');assert.deepEqual([quoted,created],[1,1]);
 });
 
 test('reject live credentials and invalid amounts without issuing requests',async t=>{
@@ -145,14 +452,29 @@ test('restart preserves checkout and idempotency; competing provider cannot reus
 
 test('HTTP handler mounts shared login/callback and gates checkout with the session consumer',async t=>{
   const {createHandler}=await import('../src/index.mjs');const {Readable}=await import('node:stream');
-  const {service,auth}=await fixture(t);const handler=createHandler({auth,checkout:service,origin});
+  const {service,auth,repository}=await fixture(t);const handler=createHandler({auth,checkout:service,origin});
   const call=async(path,{method='POST',headers={},body='{}'}={})=>{
     const req=Readable.from([Buffer.from(body)]);req.url=path;req.method=method;req.headers={...request().headers,'content-type':'application/json',...headers};
     const res={headers:{},setHeader(k,v){this.headers[k]=v;},writeHead(status,h){this.status=status;Object.assign(this.headers,h);this.headersSent=true;},end(body){this.body=body;}};
     await handler(req,res);return res;
   };
-  const session=await call('/api/session',{method:'GET'});assert.equal(session.status,200);assert.equal(JSON.parse(session.body).csrf,'csrf-alice');
+  const session=await call('/api/session',{method:'GET'});assert.equal(session.status,200);assert.equal(JSON.parse(session.body).csrf,'csrf-alice');assert.match(JSON.parse(session.body).buyerRef,/^[a-f0-9]{64}$/);
+  const anonymous=await call('/api/session',{method:'GET',headers:{cookie:''}});assert.equal(anonymous.status,200);assert.deepEqual(JSON.parse(anonymous.body),{authenticated:false});
   assert.equal((await call('/api/checkout',{headers:{'x-csrf-token':'wrong'},body:JSON.stringify({provider:'stripe',amountCents:20000,requestKey:'bad'})})).status,403);
+  const customer=(await auth.identity(request(),{mutation:true})).customer;
+  const saved=await repository('list',{customer,now:1800000000});
+  assert.deepEqual(saved.orders,[]);
+  const checkoutOrder=await repository('prepare',{customer,now:1800000000,requestKey:'lookup-owned',provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD',payerEmail:null}});
+  const owned=await call('/api/checkout/lookup',{body:JSON.stringify({requestKey:'lookup-owned'})});
+  assert.equal(owned.status,200);assert.deepEqual(JSON.parse(owned.body),
+    {found:true,orderId:checkoutOrder.id,status:'pending',replacesOrderId:null});
+  const other=await call('/api/checkout/lookup',{headers:{cookie:'__Host-keld_session=bob','x-csrf-token':'csrf-bob'},body:JSON.stringify({requestKey:'lookup-owned'})});
+  assert.equal(other.status,200);assert.deepEqual(JSON.parse(other.body),{found:false});
+  const absent=await call('/api/checkout/lookup',{body:JSON.stringify({requestKey:'missing'})});
+  assert.equal(absent.status,200);assert.deepEqual(JSON.parse(absent.body),{found:false});
+  assert.equal((await call('/api/checkout/lookup',{headers:{'x-csrf-token':'wrong'},body:JSON.stringify({requestKey:'missing'})})).status,403);
+  assert.equal((await call('/api/checkout/lookup',{body:JSON.stringify({requestKey:'missing',orderId:'x'})})).status,400);
   assert.equal((await call('/api/session',{method:'GET',headers:{host:'attacker.invalid'}})).status,400);
   const core={async start(){return {url:'https://issuer.localhost/login',login:'login-handle'};},async complete(){return {id:'new-handle',absolute:100,now:1};},async checkLogout(){},async logout(){}};
   const consumer=bindKeldAuth(core,profile);
@@ -162,6 +484,19 @@ test('HTTP handler mounts shared login/callback and gates checkout with the sess
     const req={method:'GET',url,headers:{host:'keld.localhost:17443'}};
     const res={writeHead(status,h){this.status=status;this.h=h;},end(){}};await authHandler(req,res);
     assert.equal(res.status,303);assert.equal(res.h.location,expected);assert.match(res.h['set-cookie'][0],/Secure; HttpOnly; SameSite=Lax/);
+  }
+  const started={method:'GET',url:'/auth/login?returnTo=%2Fcheckout%3Famount%3D200',headers:{host:'keld.localhost:17443'}};
+  const startResult={writeHead(status,h){this.status=status;this.h=h;},end(){}};await authHandler(started,startResult);
+  const returnCookie=startResult.h['set-cookie'].find(value=>value.startsWith('__Host-keld_return='));
+  assert.ok(returnCookie);assert.match(returnCookie,/Secure; HttpOnly; SameSite=Lax/);
+  const completed={method:'GET',url:'/auth/callback?code=test',headers:{host:'keld.localhost:17443',cookie:returnCookie.split(';')[0]}};
+  const completeResult={writeHead(status,h){this.status=status;this.h=h;},end(){}};await authHandler(completed,completeResult);
+  assert.equal(completeResult.status,303);assert.equal(completeResult.h.location,'/checkout?amount=200');
+  assert.ok(completeResult.h['set-cookie'].some(value=>value.startsWith('__Host-keld_return=')&&value.includes('Max-Age=0')));
+  for(const returnTo of ['https://attacker.invalid/','//attacker.invalid/','/api/session','/checkout?next=https://attacker.invalid','/checkout?amount=1']){
+    const req={method:'GET',url:'/auth/login?returnTo='+encodeURIComponent(returnTo),headers:{host:'keld.localhost:17443'}};
+    const res={writeHead(){throw new Error('unexpected redirect');},end(){}};
+    await assert.rejects(()=>consumer.handle(req,res),error=>error.code==='return-target-rejected');
   }
 });
 
@@ -312,8 +647,31 @@ test('operator reconciliation preserves late review, isolates failures and never
   let paypalCalls=0;
   const adapters={mercadopago:{account:'123',verify:async()=> 'paid-late'},stripe:{account:'acct_fixture',verify:async()=>{throw Error('private-provider-error');}},paypal:{account:'MERCHANT123',verify:async(id,t,options)=>{paypalCalls++;assert.equal(options.capture,false);return null;}}};
   const result=await reconcileBatch({repository:f.repository,adapters,clock:()=>f.state.now+3601});
-  assert.equal(result.checked,4);assert.equal(result.review,1);assert.equal(result.pending,1);assert.equal(result.paid,0);assert.equal(result.failed.length,2);assert.equal(paypalCalls,1);
+  assert.equal(result.checked,4);assert.equal(result.review,3);assert.equal(result.pending,1);assert.equal(result.retried,1);assert.equal(result.paid,0);assert.equal(result.failed.length,2);assert.equal(paypalCalls,1);
   assert.doesNotMatch(JSON.stringify(result),/private-provider-error|wrong-merchant|OLD/);
+  assert.equal((await reconcileBatch({repository:f.repository,adapters,clock:()=>f.state.now+3601})).checked,0);
+  const review=await f.repository('reconcile-inspect',{state:'review',after:0,now:f.state.now+3601});
+  // The late verified payment is terminal `paid-review` in the order ledger, so
+  // reconciliation is done; the two unresolved operator cases remain review.
+  assert.equal(review.counts.review,2);assert.equal(review.counts.done,1);assert.equal(review.orders.length,2);assert.equal(review.next,null);
+  assert.equal(review.orders.every(row=>row.state==='review'&&row.orderId&&row.provider&&row.reason&&row.resolutions===0),true);
+  assert.equal(JSON.stringify(review).includes('customer'),false);
+  await assert.rejects(()=>f.repository('reconcile-inspect',{state:'private',after:0,now:f.state.now}),error=>error.code==='reconciliation-fields');
+  const [firstReview,secondReview]=review.orders;assert.equal(firstReview.provider,'paypal');assert.equal(secondReview.provider,'paypal');
+  await assert.rejects(()=>f.repository('reconcile-resolve',{work:{orderId:firstReview.orderId,generation:firstReview.generation},reason:'mercadopago-canceled-expired',now:f.state.now+3602}),error=>error.code==='reconciliation-resolution-mismatch');
+  await assert.rejects(()=>f.repository('reconcile-resolve',{work:{orderId:firstReview.orderId,generation:firstReview.generation},reason:'paypal-missing-unpaid',now:f.state.now+3602}),error=>error.code==='reconciliation-resolution-mismatch');
+  const mp=await f.repository('prepare',{customer:'mp-review',now:f.state.now,requestKey:'mp-review',provider:'mercadopago',account:'123',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer:'mp-review',now:f.state.now,orderId:mp.id,generation:(await f.repository('claim',{customer:'mp-review',now:f.state.now,orderId:mp.id})).generation,remoteId:'remote-mp-review',response:{remoteId:'remote-mp-review'}});
+  const mpWork=await f.repository('reconcile-claim',{now:f.state.now+3604});assert.equal(mpWork.provider,'mercadopago');
+  await f.repository('reconcile-finish',{work:{orderId:mpWork.id,generation:mpWork.generation},outcome:'review',reason:'pix-order-state-review',now:f.state.now+3604});
+  await assert.rejects(()=>f.repository('reconcile-resolve',{work:{orderId:mpWork.id,generation:mpWork.generation},reason:'mercadopago-canceled-expired',now:f.state.now+3605}),error=>error.code==='reconciliation-terminal-evidence-required'&&error.status===409);
+  const pp=await f.repository('prepare',{customer:'pp-missing',now:f.state.now,requestKey:'pp-missing',provider:'paypal',account:'MERCHANT123',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer:'pp-missing',now:f.state.now,orderId:pp.id,generation:(await f.repository('claim',{customer:'pp-missing',now:f.state.now,orderId:pp.id})).generation,remoteId:'remote-pp-missing',response:{remoteId:'remote-pp-missing'}});
+  const ppWork=await f.repository('reconcile-claim',{now:f.state.now+3606});assert.equal(ppWork.provider,'paypal');
+  await f.repository('reconcile-finish',{work:{orderId:ppWork.id,generation:ppWork.generation},outcome:'review',reason:'paypal-order-missing',now:f.state.now+3606});
+  await assert.rejects(()=>f.repository('reconcile-resolve',{work:{orderId:ppWork.id,generation:ppWork.generation},reason:'paypal-missing-unpaid',now:f.state.now+3607}),error=>error.code==='reconciliation-terminal-evidence-required'&&error.status===409);
+  const unresolved=await f.repository('reconcile-inspect',{state:'review',after:0,now:f.state.now+3607});
+  assert.equal(unresolved.counts.review,4);assert.equal(unresolved.counts.done,1);assert.equal(unresolved.orders.every(row=>row.resolutions===0),true);
 });
 
 test('signed Pix event proceeds through durable inbox worker to verified fixture delivery',async t=>{
@@ -331,19 +689,19 @@ test('signed Pix event proceeds through durable inbox worker to verified fixture
   assert.equal((await receive()).duplicate,true);assert.equal((await processEvents({...f,clock:()=>f.state.now})).claimed,0);assert.ok(nock.isDone());
 });
 
-test('webhook admission is durable per provider and rejects before verification',async t=>{
+test('webhook admission is durable per provider and unauthenticated traffic cannot consume it',async t=>{
   const {createEventInbox}=await import('../src/events.mjs');const {execFileSync}=await import('node:child_process');const f=await fixture(t);
   let verified=0;const verifiers={paypal:async()=>{verified++;return {provider:'paypal',account:'MERCHANT123',environment:'sandbox',eventId:'admission-fixture',eventType:'PAYMENT.CAPTURE.COMPLETED',resourceId:'CAPTURE123',resourceKind:'capture'};}};
   const inbox=createEventInbox({repository:f.repository,clock:()=>f.state.now,verifiers,admissionPerMinute:2});
   assert.equal((await inbox.receive('paypal',Buffer.from('{}'),{},'/events/paypal')).accepted,true);
   assert.equal((await inbox.receive('paypal',Buffer.from('{}'),{},'/events/paypal')).duplicate,true);
   await assert.rejects(()=>inbox.receive('paypal',Buffer.from('{}'),{},'/events/paypal'),error=>error.code==='event-rate-limit'&&error.status===429);
-  assert.equal(verified,2);
+  assert.equal(verified,3);
   const count=Number(execFileSync('python3',['-c',"import sqlite3,sys; print(sqlite3.connect(sys.argv[1]).execute('SELECT attempts FROM sdk_event_admission WHERE provider=\\\"paypal\\\"').fetchone()[0])",join(f.root,'ledger.db')],{encoding:'utf8'}));
   assert.equal(count,2);
   f.state.now+=60;
   assert.equal((await inbox.receive('paypal',Buffer.from('{}'),{},'/events/paypal')).duplicate,true);
-  assert.equal(verified,3);
+  assert.equal(verified,4);
 });
 
 test('event-before-binding retries durably then completes without recreating payment',async t=>{
@@ -370,6 +728,508 @@ test('expired event claim can be recovered; stale worker cannot finish newer gen
   assert.equal(await f.repository('event-claim',{now:f.state.now}),null);f.state.now+=61;
   const c=await f.repository('event-claim',{now:f.state.now});assert.equal(c.generation,3);
   await f.repository('event-finish',{now:f.state.now,event:c,outcome:'done',reason:'verified'});assert.equal(await f.repository('event-claim',{now:f.state.now}),null);
+});
+
+test('Stripe final partial-refund event re-fetches cumulative full proof and revokes with GET only',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'reversal-stripe',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  await f.repository('event-receive',{now:f.state.now+2,event:{provider:'stripe',account:'acct_fixture',
+    environment:'sandbox',eventId:'evt_partial',eventType:'refund.updated',resourceId:'re_first',resourceKind:'refund'}});
+  f.state.now+=3;
+  const stripe=nock('https://api.stripe.com');
+  stripe.get('/v1/account').twice().reply(200,{id:'acct_fixture',object:'account'});
+  stripe.get('/v1/refunds/re_first').reply(200,{id:'re_first',object:'refund',livemode:false,
+    payment_intent:'pi_fixture',charge:'ch_fixture',currency:'usd',amount:10000,status:'succeeded'});
+  stripe.get('/v1/checkout/sessions/cs_fixture').reply(200,stripeSession(order.id,{id:'cs_fixture',
+    status:'complete',payment_status:'paid',payment_intent:'pi_fixture'}));
+  stripe.get('/v1/payment_intents/pi_fixture').query(true).reply(200,{id:'pi_fixture',livemode:false,
+    status:'succeeded',amount:20000,amount_received:20000,currency:'usd',latest_charge:{id:'ch_fixture',
+      payment_intent:'pi_fixture',livemode:false,status:'succeeded',paid:true,captured:true,
+      refunded:false,disputed:false,amount_refunded:10000,amount:20000,currency:'usd'}});
+  stripe.get('/v1/refunds').query({payment_intent:'pi_fixture',limit:'100'}).reply(200,{object:'list',
+    has_more:false,data:[{id:'re_first',object:'refund',livemode:false,payment_intent:'pi_fixture',
+      charge:'ch_fixture',currency:'usd',amount:10000,status:'succeeded'}]});
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).review.length,1);
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+  f.state.now++;
+  await f.repository('event-receive',{now:f.state.now,event:{provider:'stripe',account:'acct_fixture',
+    environment:'sandbox',eventId:'evt_refund',eventType:'refund.updated',resourceId:'re_fixture',resourceKind:'refund'}});
+  stripe.get('/v1/account').twice().reply(200,{id:'acct_fixture',object:'account'});
+  stripe.get('/v1/refunds/re_fixture').reply(200,{id:'re_fixture',object:'refund',livemode:false,
+    payment_intent:'pi_fixture',charge:'ch_fixture',currency:'usd',amount:10000,status:'succeeded'});
+  stripe.get('/v1/checkout/sessions/cs_fixture').reply(200,stripeSession(order.id,{id:'cs_fixture',
+    status:'complete',payment_status:'paid',payment_intent:'pi_fixture'}));
+  stripe.get('/v1/payment_intents/pi_fixture').query(true).reply(200,{id:'pi_fixture',livemode:false,
+    status:'succeeded',amount:20000,amount_received:20000,currency:'usd',latest_charge:{id:'ch_fixture',
+      payment_intent:'pi_fixture',livemode:false,status:'succeeded',paid:true,captured:true,
+      refunded:true,disputed:false,amount_refunded:20000,amount:20000,currency:'usd'}});
+  stripe.get('/v1/refunds').query({payment_intent:'pi_fixture',limit:'100'}).reply(200,{object:'list',
+    has_more:false,data:[{id:'re_fixture',object:'refund',livemode:false,payment_intent:'pi_fixture',
+      charge:'ch_fixture',currency:'usd',amount:10000,status:'succeeded'},
+    {id:'re_first',object:'refund',livemode:false,payment_intent:'pi_fixture',
+      charge:'ch_fixture',currency:'usd',amount:10000,status:'succeeded'}]});
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).done,1);
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+  const inspected=await f.repository('event-inspect',{now:f.state.now});
+  assert.equal(inspected.counts.done,1);assert.equal(inspected.counts.review,1);
+  assert.ok(nock.isDone());
+});
+
+test('pending Stripe full-refund hint retries the same event and revokes only after final proof',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'pending-stripe-refund',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:order.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,generation:claim.generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  await f.repository('event-receive',{now:f.state.now+2,event:{provider:'stripe',account:'acct_fixture',
+    environment:'sandbox',eventId:'evt_refund_pending',eventType:'refund.created',
+    resourceId:'re_fixture',resourceKind:'refund'}});
+  f.adapters.stripe.paymentForRefund=async()=> 'pi_fixture';
+  f.adapters.stripe.inspectRefund=async()=>({kind:'review',provider:'stripe',reason:'refund-pending'});
+  f.state.now+=3;
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).retried,1);
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+  const pending=await f.repository('event-inspect',{now:f.state.now});
+  assert.equal(pending.counts.queued,1);assert.equal(pending.events[0].reason,'refund-pending');
+  f.state.now+=31;
+  f.adapters.stripe.inspectRefund=async()=>({kind:'full-refund',provider:'stripe',providerRef:'re_fixture'});
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).done,1);
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+  assert.equal((await f.repository('event-inspect',{now:f.state.now})).counts.done,1);
+});
+
+test('Stripe closed lost dispute re-fetches exact proof and atomically revokes future access with GET only',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'dispute-stripe',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  await f.repository('event-receive',{now:f.state.now+2,event:{provider:'stripe',account:'acct_fixture',
+    environment:'sandbox',eventId:'evt_dispute',eventType:'charge.dispute.closed',resourceId:'du_fixture',resourceKind:'dispute'}});
+  f.state.now+=3;
+  const stripe=nock('https://api.stripe.com');
+  stripe.get('/v1/account').twice().reply(200,{id:'acct_fixture',object:'account'});
+  stripe.get('/v1/disputes/du_fixture').twice().reply(200,{id:'du_fixture',object:'dispute',livemode:false,
+    status:'lost',charge:'ch_fixture',payment_intent:'pi_fixture',amount:10000,currency:'usd'});
+  stripe.get('/v1/charges/ch_fixture').reply(200,{id:'ch_fixture',object:'charge',livemode:false,
+    status:'succeeded',paid:true,captured:true,amount:20000,currency:'usd',payment_intent:'pi_fixture'});
+  stripe.get('/v1/checkout/sessions/cs_fixture').reply(200,stripeSession(order.id,{id:'cs_fixture',
+    status:'complete',payment_status:'paid',payment_intent:'pi_fixture'}));
+  stripe.get('/v1/payment_intents/pi_fixture').query(true).reply(200,{id:'pi_fixture',livemode:false,
+    status:'succeeded',amount:20000,amount_received:20000,currency:'usd',latest_charge:{id:'ch_fixture',
+      payment_intent:'pi_fixture',livemode:false,status:'succeeded',paid:true,captured:true,
+      amount:20000,currency:'usd'}});
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).done,1);
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+  assert.equal((await f.service.restore(request(),order.id)).revocationReason,'lost-dispute');
+  assert.equal((await f.service.list(request())).orders.find(item=>item.orderId===order.id)?.revocationReason,'lost-dispute');
+  const inspected=await f.repository('event-inspect',{now:f.state.now});
+  assert.equal(inspected.counts.done,1);assert.equal(inspected.events[0].reason,'verified-lost-dispute');
+  assert.ok(nock.isDone());
+});
+
+test('PayPal refund hint records only fresh bound full proof and revokes future access',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'paypal-refund-event',
+    provider:'paypal',account:'MERCHANT123',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD'}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:order.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,generation:claim.generation,
+    remoteId:'ORDER123',response:{remoteId:'ORDER123',checkoutUrl:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER123'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'ORDER123',
+    paymentId:'CAPTURE123',amountCents:20000,currency:'USD'});
+  await f.repository('event-receive',{now:f.state.now+2,event:{provider:'paypal',account:'MERCHANT123',
+    environment:'sandbox',eventId:'WH-REFUND123',eventType:'PAYMENT.CAPTURE.REFUNDED',
+    resourceId:'REFUND123',resourceKind:'refund'}});
+  const calls=[];
+  f.adapters.paypal.captureForKnownRefund=async id=>{calls.push(['refund',id]);return 'CAPTURE123';};
+  f.adapters.paypal.inspectKnownRefund=async(id,_terms,paymentId,refundId)=>{
+    calls.push(['proof',id,paymentId,refundId]);
+    return {kind:'full-refund',provider:'paypal',providerRef:refundId};
+  };
+  f.state.now+=3;
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).done,1);
+  assert.deepEqual(calls,[['refund','REFUND123'],['proof','ORDER123','CAPTURE123','REFUND123']]);
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+  assert.equal((await f.repository('event-inspect',{now:f.state.now})).events[0].reason,'verified-full-refund');
+});
+
+test('PayPal partial proof and unknown webhook resource stay review-only',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'paypal-partial-event',
+    provider:'paypal',account:'MERCHANT123',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD'}});
+  const claim=await f.repository('claim',{customer,now:f.state.now,orderId:order.id});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,generation:claim.generation,
+    remoteId:'ORDER123',response:{remoteId:'ORDER123',checkoutUrl:'https://www.sandbox.paypal.com/checkoutnow?token=ORDER123'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'ORDER123',
+    paymentId:'CAPTURE123',amountCents:20000,currency:'USD'});
+  const receive=(eventId,resourceKind)=>f.repository('event-receive',{now:f.state.now+2,
+    event:{provider:'paypal',account:'MERCHANT123',environment:'sandbox',eventId,
+      eventType:'PAYMENT.CAPTURE.REFUNDED',resourceId:'REFUND123',resourceKind}});
+  await receive('WH-UNKNOWN','capture');await receive('WH-PARTIAL','refund');
+  let calls=0;
+  f.adapters.paypal.captureForKnownRefund=async()=>{calls++;return 'CAPTURE123';};
+  f.adapters.paypal.inspectKnownRefund=async()=>({kind:'partial-refund',provider:'paypal',providerRef:'REFUND123'});
+  f.state.now+=3;
+  const summary=await processEvents({...f,clock:()=>f.state.now});
+  assert.equal(summary.claimed,2);assert.equal(calls,1);
+  assert.equal((await f.repository('event-inspect',{now:f.state.now})).counts.review,2);
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+});
+
+test('dispute reversal bridge rejects wrong event resource, payment and stale claim before revocation',async t=>{
+  const f=await fixture(t),{customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'dispute-fence',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  const receive=(eventId,eventType)=>f.repository('event-receive',{now:f.state.now,event:{provider:'stripe',
+    account:'acct_fixture',environment:'sandbox',eventId,eventType,resourceId:'du_fixture',resourceKind:'dispute'}});
+  const proof={orderId:order.id,remoteId:'cs_fixture',paymentId:'pi_fixture',providerRef:'du_fixture',kind:'lost-dispute'};
+  await receive('evt_not_closed','charge.dispute.created');
+  const wrong=await f.repository('event-claim',{now:f.state.now});
+  await assert.rejects(()=>f.repository('event-record-reversal',{event:wrong,proof,now:f.state.now+1}),
+    {code:'event-dispute-mismatch'});
+  await f.repository('event-finish',{event:wrong,outcome:'review',reason:'event-policy-review',now:f.state.now+1});
+  await receive('evt_closed','charge.dispute.closed');
+  const first=await f.repository('event-claim',{now:f.state.now+1});
+  for(const change of [{providerRef:'du_other'},{paymentId:'pi_other'},{remoteId:'cs_other'}])
+    await assert.rejects(()=>f.repository('event-record-reversal',{event:first,proof:{...proof,...change},now:f.state.now+2}));
+  await assert.rejects(()=>f.repository('event-record-reversal',{event:first,proof,now:f.state.now+61}),
+    {code:'event-work-conflict'});
+  const newer=await f.repository('event-claim',{now:f.state.now+62});
+  await assert.rejects(()=>f.repository('event-record-reversal',{event:first,proof,now:f.state.now+62}),
+    {code:'event-work-conflict'});
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+  assert.equal((await f.repository('event-record-reversal',{event:newer,proof,now:f.state.now+62})).state,'done');
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+});
+
+test('closed won Stripe dispute stays in review without revoking paid access',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'dispute-won',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  await f.repository('event-receive',{now:f.state.now+2,event:{provider:'stripe',account:'acct_fixture',
+    environment:'sandbox',eventId:'evt_won',eventType:'charge.dispute.closed',resourceId:'du_won',resourceKind:'dispute'}});
+  f.state.now+=3;
+  stripeAccount();nock('https://api.stripe.com').get('/v1/disputes/du_won').reply(200,
+    {id:'du_won',object:'dispute',livemode:false,status:'won',charge:'ch_fixture',amount:20000,currency:'usd'});
+  const result=await processEvents({...f,clock:()=>f.state.now});
+  assert.equal(result.done,0);assert.equal(result.review[0].reason,'stripe-dispute-proof-invalid');
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+  assert.ok(nock.isDone());
+});
+
+test('Mercado Pago signed payment hint re-reads full refund and revokes; partial remains review',async t=>{
+  const {processEvents}=await import('../src/event-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'reversal-pix',
+    provider:'mercadopago',account:'123',amountCents:20000,
+    terms:{amountCents:100000,currency:'BRL',payerEmail:'buyer@example.test'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'567',response:{remoteId:'567',pixCode:'fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:order.id,remoteId:'567',
+    paymentId:'567',amountCents:100000,currency:'BRL'});
+  const receive=(id)=>f.repository('event-receive',{now:f.state.now,event:{provider:'mercadopago',
+    account:'123',environment:'sandbox',eventId:id,eventType:'payment.notification',
+    resourceId:'567',resourceKind:'payment'}});
+  await receive('pix-partial');f.state.now+=2;
+  nock('https://api.mercadopago.com').get('/v1/payments/567').reply(200,
+    pix(order.id,{status:'approved',status_detail:'partially_refunded',transaction_amount_refunded:100}));
+  nock('https://api.mercadopago.com').get('/v1/payments/567/refunds/').reply(200,
+    [{id:31,payment_id:567,amount:100,status:'approved'}]);
+  const partial=await processEvents({...f,clock:()=>f.state.now});
+  assert.equal(partial.review.length,1);
+  assert.equal(partial.review[0].reason,'partial-refund-review');
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+  const second=await f.repository('prepare',{customer,now:f.state.now,requestKey:'reversal-pix-full',
+    provider:'mercadopago',account:'123',amountCents:20000,
+    terms:{amountCents:100000,currency:'BRL',payerEmail:'buyer@example.test'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:second.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:second.id})).generation,
+    remoteId:'568',response:{remoteId:'568',pixCode:'fixture'}});
+  await f.repository('settle',{customer,now:f.state.now+1,orderId:second.id,remoteId:'568',
+    paymentId:'568',amountCents:100000,currency:'BRL'});
+  await f.repository('event-receive',{now:f.state.now+1,event:{provider:'mercadopago',
+    account:'123',environment:'sandbox',eventId:'pix-full',eventType:'payment.notification',
+    resourceId:'568',resourceKind:'payment'}});f.state.now+=2;
+  nock('https://api.mercadopago.com').get('/v1/payments/568').reply(200,
+    pix(second.id,{id:568,status:'refunded',transaction_amount_refunded:1000}));
+  nock('https://api.mercadopago.com').get('/v1/payments/568/refunds/').reply(200,
+    [{id:32,payment_id:568,amount:1000,status:'approved'}]);
+  assert.equal((await processEvents({...f,clock:()=>f.state.now})).done,1);
+  await assert.rejects(()=>f.service.download(request(),second.id),{code:'delivery-not-authorized'});
+  assert.equal((await f.service.download(request(),order.id)).sha256,digest);
+  assert.ok(nock.isDone());
+});
+
+test('late Stripe payment uses one idempotent refund command and fresh full outcome before revocation',async t=>{
+  const {processLateRefunds}=await import('../src/refund-worker.mjs');const f=await fixture(t);
+  const {createHandler}=await import('../src/index.mjs');
+  const {Readable}=await import('node:stream');
+  const handler=createHandler({auth:f.auth,checkout:f.service,origin,diagnostic:()=>{}});
+  const http=async(path,orderId,handle='alice')=>{
+    const method=path==='/api/orders'?'GET':'POST';
+    const req=Readable.from(method==='GET'?[]:[Buffer.from(JSON.stringify({orderId}))]);
+    req.url=path;req.method=method;req.headers={...request(handle,'csrf-'+handle).headers,'content-type':'application/json'};
+    const res={headers:{},setHeader(k,v){this.headers[k]=v;},writeHead(status,h){this.status=status;Object.assign(this.headers,h);this.headersSent=true;},end(body){this.body=body;}};
+    await handler(req,res);
+    return {status:res.status,body:JSON.parse(res.body)};
+  };
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'late-refund-command',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  f.state.now=order.expires_at+1;
+  await f.repository('settle',{customer,now:f.state.now,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  assert.equal((await f.service.restore(request(),order.id)).lateRefundStatus,'recorded');
+  assert.equal((await f.service.list(request())).orders.find(item=>item.orderId===order.id)?.lateRefundStatus,'recorded');
+  assert.equal((await f.service.list(request('bob','csrf-bob'))).orders.length,0);
+  await assert.rejects(()=>f.service.restore(request('bob','csrf-bob'),order.id));
+  const recordedHistory=await http('/api/orders');
+  const recordedRestore=await http('/api/restore',order.id);
+  assert.equal(recordedHistory.status,200);assert.equal(recordedRestore.status,200);
+  assert.equal(recordedHistory.body.orders[0].lateRefundStatus,'recorded');
+  assert.equal(recordedRestore.body.lateRefundStatus,'recorded');
+  assert.deepEqual((await http('/api/orders',undefined,'bob')).body.orders,[]);
+  const crossBuyer=await http('/api/restore',order.id,'bob');
+  assert.notEqual(crossBuyer.status,200);
+  for(const view of [recordedHistory.body.orders[0],recordedRestore.body]){
+    for(const internal of ['late_refund_state','late_refund_lease_until','payment_id','last_reason','full_refund_recorded','lost_dispute_recorded'])
+      assert.equal(Object.hasOwn(view,internal),false);
+  }
+  const stripe=nock('https://api.stripe.com');
+  stripe.get('/v1/account').thrice().reply(200,{id:'acct_fixture',object:'account'});
+  stripe.get('/v1/checkout/sessions/cs_fixture').thrice().reply(200,stripeSession(order.id,{id:'cs_fixture',
+    status:'complete',payment_status:'paid',payment_intent:'pi_fixture'}));
+  const charge={id:'ch_fixture',payment_intent:'pi_fixture',livemode:false,status:'succeeded',
+    paid:true,captured:true,refunded:false,disputed:false,amount_refunded:0,amount:20000,currency:'usd'};
+  stripe.get('/v1/payment_intents/pi_fixture').query(true).reply(200,{id:'pi_fixture',livemode:false,
+    status:'succeeded',amount:20000,amount_received:20000,currency:'usd',latest_charge:charge});
+  stripe.get('/v1/refunds').query({payment_intent:'pi_fixture',limit:'100'}).reply(200,{object:'list',
+    has_more:false,data:[]});
+  let posts=0;
+  stripe.post('/v1/refunds',body=>{
+    posts++;const params=new URLSearchParams(body);
+    return params.get('payment_intent')==='pi_fixture'&&params.get('amount')==='20000';
+  }).matchHeader('idempotency-key',v=>/^[a-f0-9]{64}$/.test(v)).reply(200,{id:'re_late',
+    object:'refund',livemode:false,payment_intent:'pi_fixture',charge:'ch_fixture',
+    amount:20000,currency:'usd',status:'succeeded'});
+  stripe.get('/v1/payment_intents/pi_fixture').query(true).reply(200,{id:'pi_fixture',livemode:false,
+    status:'succeeded',amount:20000,amount_received:20000,currency:'usd',
+    latest_charge:{...charge,refunded:true,amount_refunded:20000}});
+  stripe.get('/v1/refunds').query({payment_intent:'pi_fixture',limit:'100'}).reply(200,{object:'list',
+    has_more:false,data:[{id:'re_late',object:'refund',livemode:false,payment_intent:'pi_fixture',
+      charge:'ch_fixture',amount:20000,currency:'usd',status:'succeeded'}]});
+  const result=await processLateRefunds({...f,allowProviderMutation:true,clock:()=>f.state.now});
+  assert.deepEqual([result.succeeded,result.review.length,posts],[1,0,1]);
+  assert.equal((await f.repository('refund-inspect',{now:f.state.now})).counts.succeeded,1);
+  assert.equal((await f.service.list(request())).orders.find(item=>item.orderId===order.id)?.status,'revoked');
+  const restored=await f.service.restore(request(),order.id);
+  assert.equal(restored.state,'revoked');
+  assert.equal(restored.ledgerStatus,'revoked');
+  assert.equal(restored.revocationReason,'full-refund');
+  assert.equal(restored.lateRefundStatus,'verified-full-refund');
+  const finalHistory=await http('/api/orders');
+  const finalRestore=await http('/api/restore',order.id);
+  assert.equal(finalHistory.body.orders[0].lateRefundStatus,'verified-full-refund');
+  assert.equal(finalRestore.body.lateRefundStatus,'verified-full-refund');
+  assert.equal(finalHistory.body.orders[0].revocationReason,'full-refund');
+  assert.equal(finalRestore.body.revocationReason,'full-refund');
+  await f.repository('event-receive',{now:f.state.now+1,event:{provider:'stripe',account:'acct_fixture',
+    environment:'sandbox',eventId:'evt_later_lost_dispute',eventType:'charge.dispute.closed',
+    resourceId:'du_later',resourceKind:'dispute'}});
+  const dispute=await f.repository('event-claim',{now:f.state.now+1});
+  await f.repository('event-record-reversal',{event:dispute,now:f.state.now+2,
+    proof:{orderId:order.id,remoteId:'cs_fixture',paymentId:'pi_fixture',providerRef:'du_later',kind:'lost-dispute'}});
+  f.state.now+=3;
+  const disputedHistory=await http('/api/orders');
+  const disputedRestore=await http('/api/restore',order.id);
+  for(const view of [disputedHistory.body.orders[0],disputedRestore.body]){
+    assert.equal(view.revocationReason,'lost-dispute');
+    assert.equal(view.lateRefundStatus,undefined);
+  }
+  assert.equal(restored.result.checkoutUrl,undefined);
+  assert.deepEqual(await f.service.confirm(request(),order.id),{orderId:order.id,status:'revoked'});
+  assert.equal((await f.service.lookup(request(),{requestKey:'late-refund-command'})).status,'revoked');
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+  assert.ok(nock.isDone());
+});
+
+test('pending late Stripe refund is rechecked without another command before revocation',async t=>{
+  const {processLateRefunds}=await import('../src/refund-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'late-pending-recheck',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  f.state.now=order.expires_at+1;
+  await f.repository('settle',{customer,now:f.state.now,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  let issued=0,reads=0;
+  const adapters={stripe:{account:'acct_fixture',refundPaymentId:async()=> 'pi_fixture',
+    inspectRefund:async()=>{
+      reads++;
+      if(reads===1)return {kind:'unrefunded',provider:'stripe'};
+      if(reads===2)return {kind:'review',provider:'stripe',reason:'refund-pending'};
+      return {kind:'full-refund',provider:'stripe',providerRef:'re_final'};
+    },
+    issueFullRefund:async()=>{issued++;return {providerRef:'re_final',status:'pending'};}}};
+  const run=()=>processLateRefunds({repository:f.repository,adapters,clock:()=>f.state.now,
+    allowProviderMutation:true});
+  const first=await run();
+  assert.deepEqual([first.claimed,first.retried,first.succeeded,issued,reads],[1,1,0,1,2]);
+  assert.equal((await f.repository('refund-inspect',{now:f.state.now})).counts.queued,1);
+  assert.equal((await run()).claimed,0);
+  f.state.now+=60;
+  const second=await run();
+  assert.deepEqual([second.claimed,second.succeeded,issued,reads],[1,1,1,3]);
+  assert.equal((await f.repository('refund-inspect',{now:f.state.now})).counts.succeeded,1);
+  assert.equal((await f.service.restore(request(),order.id)).state,'revoked');
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+});
+
+test('explicit operator GET-only recheck resolves a reviewed full refund with no second POST',async t=>{
+  const {recheckReviewedLateRefund}=await import('../src/refund-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'late-operator-full',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  f.state.now=order.expires_at+1;
+  await f.repository('settle',{customer,now:f.state.now,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  const first=await f.repository('refund-claim',{now:f.state.now});
+  await f.repository('refund-command-start',{now:f.state.now,
+    work:{orderId:order.id,generation:first.generation},
+    proof:{remoteId:'cs_fixture',paymentId:'pi_fixture'}});
+  await f.repository('refund-finish',{now:f.state.now,
+    work:{orderId:order.id,generation:first.generation},outcome:'review',
+    reason:'refund-recheck-attempts-exhausted'});
+  assert.deepEqual(await f.repository('refund-review-preflight',
+    {orderId:order.id,generation:first.generation,now:f.state.now}),{eligible:true});
+  let reads=0;
+  const adapters={stripe:{account:'acct_fixture',refundPaymentId:async()=> 'pi_fixture',
+    inspectRefund:async()=>{reads++;return {kind:'full-refund',provider:'stripe',providerRef:'re_final'};},
+    issueFullRefund:async()=>{throw Error('forbidden second POST');}}};
+  const result=await recheckReviewedLateRefund({repository:f.repository,adapters,
+    orderId:order.id,generation:first.generation,operatorRef:'operator_one',clock:()=>f.state.now});
+  assert.deepEqual(result,{outcome:'verified-full-refund',orderId:order.id});
+  assert.equal(reads,1);
+  assert.equal((await f.repository('refund-inspect',{now:f.state.now})).counts.succeeded,1);
+  assert.deepEqual(await f.repository('refund-review-preflight',
+    {orderId:order.id,generation:first.generation+1,now:f.state.now}),{eligible:false});
+  assert.equal((await f.service.restore(request(),order.id)).state,'revoked');
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+});
+
+test('trusted full-refund event winning an operator recheck reports success without a second POST',async t=>{
+  const {recheckReviewedLateRefund}=await import('../src/refund-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'late-operator-event-race',
+    provider:'stripe',account:'acct_fixture',amountCents:20000,
+    terms:{amountCents:20000,currency:'USD'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'cs_fixture',response:{remoteId:'cs_fixture',checkoutUrl:'https://checkout.stripe.com/c/pay/cs_fixture'}});
+  f.state.now=order.expires_at+1;
+  await f.repository('settle',{customer,now:f.state.now,orderId:order.id,remoteId:'cs_fixture',
+    paymentId:'pi_fixture',amountCents:20000,currency:'USD'});
+  const first=await f.repository('refund-claim',{now:f.state.now});
+  await f.repository('refund-command-start',{now:f.state.now,
+    work:{orderId:order.id,generation:first.generation},
+    proof:{remoteId:'cs_fixture',paymentId:'pi_fixture'}});
+  await f.repository('refund-finish',{now:f.state.now,
+    work:{orderId:order.id,generation:first.generation},outcome:'review',
+    reason:'refund-recheck-attempts-exhausted'});
+  let reads=0;
+  const adapters={stripe:{account:'acct_fixture',refundPaymentId:async()=> 'pi_fixture',
+    inspectRefund:async()=>{
+      reads++;
+      await f.repository('event-receive',{now:f.state.now,event:{provider:'stripe',
+        account:'acct_fixture',environment:'sandbox',eventId:'evt_operator_race',
+        eventType:'refund.updated',resourceId:'re_event',resourceKind:'refund'}});
+      const event=await f.repository('event-claim',{now:f.state.now});
+      assert.equal((await f.repository('event-record-reversal',{now:f.state.now,event,
+        proof:{orderId:order.id,remoteId:'cs_fixture',paymentId:'pi_fixture',
+          providerRef:'re_event',kind:'full-refund'}})).state,'done');
+      assert.deepEqual(await f.repository('refund-review-status',{work:{orderId:order.id,
+        generation:first.generation+1},now:f.state.now}),{verifiedFullRefund:true});
+      return {kind:'full-refund',provider:'stripe',providerRef:'re_event'};
+    },issueFullRefund:async()=>{throw Error('forbidden second POST');}}};
+  const result=await recheckReviewedLateRefund({repository:f.repository,adapters,
+    orderId:order.id,generation:first.generation,operatorRef:'operator_one',clock:()=>f.state.now});
+  assert.deepEqual(result,{outcome:'verified-full-refund',orderId:order.id,source:'recorded-full-refund'});
+  assert.equal(reads,1);
+  assert.equal((await f.repository('refund-inspect',{now:f.state.now})).counts.succeeded,1);
+  assert.equal((await f.service.restore(request(),order.id)).state,'revoked');
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+});
+
+test('late Pix payment uses one exact-amount refund command and provider re-read before revocation',async t=>{
+  const {processLateRefunds}=await import('../src/refund-worker.mjs');const f=await fixture(t);
+  const {customer}=await f.auth.identity(request());
+  const order=await f.repository('prepare',{customer,now:f.state.now,requestKey:'late-pix-refund',
+    provider:'mercadopago',account:'123',amountCents:20000,
+    terms:{amountCents:100000,currency:'BRL',payerEmail:'buyer@example.test'}});
+  await f.repository('bind',{customer,now:f.state.now,orderId:order.id,
+    generation:(await f.repository('claim',{customer,now:f.state.now,orderId:order.id})).generation,
+    remoteId:'567',response:{remoteId:'567',pixCode:'fixture'}});
+  f.state.now=order.expires_at+1;
+  await f.repository('settle',{customer,now:f.state.now,orderId:order.id,remoteId:'567',
+    paymentId:'567',amountCents:100000,currency:'BRL'});
+  const mp=nock('https://api.mercadopago.com');
+  mp.get('/v1/payments/567').twice().reply(200,pix(order.id,{status:'approved',
+    status_detail:'accredited',transaction_amount_refunded:0}));
+  mp.get('/v1/payments/567/refunds/').reply(200,[]);
+  let posts=0;
+  mp.post('/v1/payments/567/refunds',body=>{posts++;return body.amount===1000;})
+    .matchHeader('x-idempotency-key',v=>/^[a-f0-9]{64}$/.test(v)).reply(201,
+      {id:77,payment_id:567,amount:1000,status:'approved'});
+  mp.get('/v1/payments/567').reply(200,pix(order.id,{status:'refunded',
+    transaction_amount_refunded:1000}));
+  mp.get('/v1/payments/567/refunds/').reply(200,[{id:77,payment_id:567,
+    amount:1000,status:'approved'}]);
+  const result=await processLateRefunds({...f,allowProviderMutation:true,clock:()=>f.state.now});
+  assert.deepEqual([result.succeeded,result.review.length,posts],[1,0,1]);
+  assert.equal((await f.repository('refund-inspect',{now:f.state.now})).counts.succeeded,1);
+  await assert.rejects(()=>f.service.download(request(),order.id),{code:'delivery-not-authorized'});
+  assert.ok(nock.isDone());
 });
 
 test('PayPal event worker resolves capture through SDK and verifies order without capture requests',async t=>{
@@ -553,7 +1413,7 @@ test('buyer client through HTTP handler, auth adapter and SDK delivers exact byt
  nock('https://api.mercadopago.com').get('/v1/payments/567').reply(200,pix(id,{status:'approved',status_detail:'accredited',transaction_amount_refunded:0}));
  assert.equal((await client.confirm()).status,'paid');assert.equal(await (await client.download()).text(),'ARE sandbox fixture');
  await client.logout();assert.equal(revocations,1);assert.equal(client.pending(),null);
- await assert.rejects(()=>client.session(),{code:'authentication-required'});
+ assert.deepEqual(await client.session(),{authenticated:false});
  assert.equal((await requestThroughHandler('/api/download',{method:'POST',headers:{'content-type':'application/json','x-csrf-token':'csrf-alice'},body:JSON.stringify({orderId:id})})).status,401);
  assert.ok(nock.isDone());
 });

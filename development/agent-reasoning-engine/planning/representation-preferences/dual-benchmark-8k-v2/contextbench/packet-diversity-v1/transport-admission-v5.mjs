@@ -77,12 +77,14 @@ export function postOnce(url, body, {apiKey, timeout_ms, maximum_response_bytes,
 }
 
 export function createGlmClient({api_key_ref, secret_registry,persistence,before_dispatch,
+  post = postOnce,
   chat_endpoint = 'https://api.z.ai/api/paas/v4/chat/completions',
   tokenizer_endpoint = 'https://api.z.ai/api/paas/v4/tokenizer',
   maximum_output_tokens = 2048, maximum_requests = 12, timeout_ms = 30000,
   maximum_request_bytes = 131072, maximum_response_bytes = 262144,
   maximum_model_retries = 0, maximum_tokenizer_transport_attempts = 1, native_submission = false, model_timeout_ms = timeout_ms, final_timeout_ms = model_timeout_ms, request_budget = 'standard-v1', token_margin = 256, reasoning_effort = 'low', final_reasoning_effort = reasoning_effort, signal} = {}) {
   need(persistence&&typeof persistence.atomicJson==='function'&&typeof before_dispatch==='function','bounded-persistence-and-dispatch-guard-required');
+  need(typeof post==='function','post-required');
   const chat = endpoint(chat_endpoint), tokenizer = endpoint(tokenizer_endpoint);
   need(chat.pathname.endsWith('/chat/completions') && tokenizer.pathname.endsWith('/tokenizer') && chat.origin === tokenizer.origin, 'endpoint-pair-invalid');
   for (const n of [maximum_output_tokens, maximum_requests, timeout_ms, maximum_request_bytes, maximum_response_bytes, token_margin]) need(integer(n) && n > 0, 'limits-invalid');
@@ -218,7 +220,7 @@ export function createGlmClient({api_key_ref, secret_registry,persistence,before
       need(active && !sent, 'duplicate-credential-dispatch'); sent = true;
       try {
         try{await before_dispatch({kind,request_sha256:hash(body),signal:controller.signal});need(!controller.signal.aborted,'cancelled-before-dispatch');}catch(error){guardFailure=true;throw error;}
-        dispatched=true;response = await postOnce(url, body, {apiKey: material === null ? null : Buffer.from(material).toString('utf8'), timeout_ms:selectedTimeout, maximum_response_bytes, signal: controller.signal});
+        dispatched=true;response = await post(url, body, {apiKey: material === null ? null : Buffer.from(material).toString('utf8'), timeout_ms:selectedTimeout, maximum_response_bytes, signal: controller.signal});
       } catch (error) { failure = error; }
     };
     try {

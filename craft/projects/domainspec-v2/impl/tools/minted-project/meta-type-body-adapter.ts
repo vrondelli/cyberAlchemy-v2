@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+import { localImplRoot } from "../lib/local-impl-root.js";
 
 import {
   evaluateCriteria,
@@ -12,8 +13,8 @@ import {
   type CriterionRule,
   type CriterionSubject,
   type MetaTypeSchema,
-} from "../lib/meta-type-criteria";
-import type { JsonObject, JsonSchemaViolation } from "./schema-validator";
+} from "../lib/meta-type-criteria.js";
+import type { JsonObject, JsonSchemaViolation } from "./schema-validator.js";
 
 export const MINTED_NODE_BODY_ADAPTER_VERSION = "minted-node-body-adapter/v1";
 
@@ -37,7 +38,7 @@ export interface MintedNodeFormationViolation extends JsonSchemaViolation {
   subjectPath: string;
 }
 
-const implRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const implRoot = localImplRoot(import.meta.url);
 const canonicalSchemaRoot = resolve(implRoot, "spec/meta-types");
 const canonicalSchemas = new Map(
   loadMetaTypeSchemas(canonicalSchemaRoot).map((entry) => [entry.schema.meta_type, entry]),

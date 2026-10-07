@@ -22,9 +22,9 @@ import {
   resolve,
   win32,
 } from "node:path";
-import { fileURLToPath } from "node:url";
+import { localImplRoot } from "../lib/local-impl-root.js";
 
-import { buildMintedProjectViews, MINTED_PROJECT_GENERATOR_VERSION } from "./views";
+import { buildMintedProjectViews, MINTED_PROJECT_GENERATOR_VERSION } from "./views.js";
 
 export const MINTED_PROJECT_MINTER_ERROR_CODES = [
   "PROJECT_ID_INVALID",
@@ -110,9 +110,9 @@ type ContractManifest = {
   schemas: Array<{ file: string; schema_id: string }>;
 };
 
-const thisFile = fileURLToPath(import.meta.url);
-const toolRoot = dirname(thisFile);
-const implRoot = resolve(toolRoot, "../..");
+const implRoot = localImplRoot(import.meta.url);
+const toolRoot = resolve(implRoot, "tools/minted-project");
+const thisFile = resolve(toolRoot, "minter.ts");
 const domainspecRoot = resolve(implRoot, "..");
 const templateRoot = resolve(toolRoot, "templates/project");
 const profilePath = resolve(domainspecRoot, "definitions/minted-project/supported-profiles.yml");

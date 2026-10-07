@@ -1,7 +1,7 @@
 # Agent Reasoning Engine Specification
 
 Generated human view. Canonical semantics live in the project-local machine sources.
-Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`.
+Graph digest: `e64cf03b3fe8ab41b3967dd788ced4a0728d50244179fbc28556c8edfb2cb98d`.
 
 ## Nodes
 
@@ -12,6 +12,7 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.CacheAffinityProjection` | Entity | Bind exact stable request, reusable explicit reasoning-state, and volatile current-turn segments to byte, digest, and observability evidence. |
 | `agent-reasoning-engine.CapabilitySelection` | Entity | Return the nearest uniquely supported capability, visible ambiguity, no-match, or invalid result with exact profile and provenance digests. |
 | `agent-reasoning-engine.CheckpointReasoningState` | Operation | Verify and flush one selected Reasoning State epoch before a model request, accepted effect, or automatic continuation boundary advances. |
+| `agent-reasoning-engine.CommitEvolutionCommand` | Operation | Commit one validated command, its exact objects, ordered events and deterministic receipt through one immutable visibility marker. |
 | `agent-reasoning-engine.CompletionFrontierBoundary` | Rule | Block automatic continuation or completion replay when the exact completed-turn frontier and after-completion checkpoint do not verify. |
 | `agent-reasoning-engine.ConsequenceAssessment` | Entity | Classify proposed continuations by admissible cardinality, reversibility, hazards, authority implications, and required owner gates. |
 | `agent-reasoning-engine.ContextAssembly` | Operation | Select and freeze only context that is relevant to the bounded request and its declared evidence obligations while recording exclusions and gaps. |
@@ -26,12 +27,27 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.ContextWindowView` | Entity | Expose an immutable consumer-specific projection of one Necessary Context Basis under explicit plan-bound or interaction-bound identity semantics. |
 | `agent-reasoning-engine.ContinuationDecision` | Operation | Return complete, direct, gate, or block after every completion and permit continuation only through one non-consequential admissible option. |
 | `agent-reasoning-engine.CoordinateReasoningStateTransition` | Operation | Automatically assess and execute one configured fail-closed reasoning-state evolution as reuse, successor, branch, or non-destructive reduced successor. |
+| `agent-reasoning-engine.CycleDefinitionAdmissionBoundary` | Rule | Keep structural validity and registry scope separate from the user's sole authority to admit, enable, replace or remove a cycle definition. |
 | `agent-reasoning-engine.DecisionGateProfile` | Entity | Configure route signals, consequence classes, protected hazards, owner-gate mappings, provenance bindings, and continuation limits without becoming authority. |
 | `agent-reasoning-engine.DefinitionClosure` | Entity | Preserve the route-profiled least fixed point of exact definitions needed to interpret one bounded request before ontology selection or strategy. |
 | `agent-reasoning-engine.DefinitionClosureResolution` | Operation | Resolve exact request-relative definitions to the selected route profile's deterministic least fixed point before ontology selection. |
+| `agent-reasoning-engine.DiagnoseEvolutionKernel` | Operation | Materialize a diagnostic report for corruption, index drift, writer-lock presence and interrupted pre-commit residue without mutating authoritative state. |
+| `agent-reasoning-engine.DurableEvolutionKernel` | Workflow | Own durable multi-cycle evolution state behind a closed JSON command boundary while leaving cycle admission and external execution disabled. |
 | `agent-reasoning-engine.EngineVariant` | Entity | Identify one isolated content-addressed candidate implementation built from an exact serving baseline and declared changes. |
 | `agent-reasoning-engine.EvaluateEngineVariant` | Operation | Apply the fixed benchmark fitness function to one exact target, baseline, and isolated candidate variant. |
+| `agent-reasoning-engine.EvolutionArtifactIdentity` | Entity | Separate immutable byte identity from cycle-specific semantic role, provenance, applicability and claim ceiling. |
+| `agent-reasoning-engine.EvolutionCommand` | Entity | Bind one closed JSON transition proposal to stable command and idempotency identities, expected revision, attributed actor, cycle definition, target and payload digest without a direct state field. |
+| `agent-reasoning-engine.EvolutionCommandReceipt` | Entity | Bind an accepted or rejected command to exact definition and command bytes, revision outcome, event references and reason codes without granting authority. |
 | `agent-reasoning-engine.EvolutionCycle` | Workflow | Run one serialized measured-improvement cycle from signals through target selection and variant comparison to a non-authorizing upgrade decision. |
+| `agent-reasoning-engine.EvolutionCycleDefinition` | Entity | Describe one versioned cycle kind through closed command, event and derived-disposition vocabularies, typed policy extension and exact validator bindings while keeping candidacy separate from user admission. |
+| `agent-reasoning-engine.EvolutionEffectEnvelope` | Entity | Freeze user-authorized effect classes, resource limits and expiry for one cycle without allowing a runtime or agent to widen them. |
+| `agent-reasoning-engine.EvolutionEvent` | Entity | Preserve one immutable accepted evolution fact at a monotonic cycle revision, attributable to an exact command and payload digest. |
+| `agent-reasoning-engine.EvolutionHandoff` | Entity | Bind a typed source-cycle offer and receiving-cycle acceptance to exact artifacts and claims without transferring state, budget, credentials or authority. |
+| `agent-reasoning-engine.EvolutionKernelCommit` | Entity | Represent the immutable atomic visibility point for one durable evolution command unit. |
+| `agent-reasoning-engine.EvolutionKernelProjection` | Entity | Expose byte-deterministic aggregate-cycle, subordinate-record and executable-work projections at one verified commit head. |
+| `agent-reasoning-engine.EvolutionObjectStore` | Entity | Preserve exact create-only SHA-256 objects used by durable evolution commits and artifact identities. |
+| `agent-reasoning-engine.EvolutionPhaseAdmission` | Entity | Record whether one named phase fits its exact revision, bounded envelope and prerequisite receipts while remaining distinct from execution settlement. |
+| `agent-reasoning-engine.EvolutionStateDerivedBoundary` | Rule | Reject direct cycle or record-state assignment and permit projections only from exact definition bytes plus accepted ordered events. |
 | `agent-reasoning-engine.ExactDispatchPreparation` | Operation | Materialize, append, reconstruct, verify, and checkpoint the exact outbound request before it crosses a model, effect, or continuation boundary. |
 | `agent-reasoning-engine.GatewayConnection` | Operation | Authorize a declared consumer and lane, attach one isolated app-server transport, and resume only its existing in-memory session when allowed. |
 | `agent-reasoning-engine.GatewayConsumerSession` | Entity | Bind one declared consumer and lane to authenticated reconnect state, durable request intent/outcome facts, an isolated live wrapper and upstream connection, and recoverable per-consumer Reasoning State. |
@@ -42,6 +58,7 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.JournalReplay` | Operation | Verify one immutable runtime-journal cut and reconstruct its recorded lifecycle state deterministically with zero external calls. |
 | `agent-reasoning-engine.ManageAdvancedReasoningState` | Operation | Perform bounded branch, replay, reduction, checkpoint, counterevidence, portability, and provenance operations over verified reasoning state. |
 | `agent-reasoning-engine.MaterializeCacheAffinity` | Operation | Materialize and compare byte-stable request-series prefixes without treating cache behavior as correctness or authority. |
+| `agent-reasoning-engine.MultiCycleEvolutionProtocol` | Workflow | Provide one versioned JSON boundary for independently defined evolution cycles while keeping structural validation, definition admission, phase admission and effects distinct. |
 | `agent-reasoning-engine.NecessaryContextBasis` | Entity | Bind the minimum explicit request-relative semantic substrate required before a selected route creates strategy or begins work. |
 | `agent-reasoning-engine.OntologySelectorBinding` | Operation | Close and freeze only owner-declared required ontology edges and their recursively required endpoints for the bounded request. |
 | `agent-reasoning-engine.OntologySelectorLock` | Entity | Freeze the owner-declared dependency-closed ontology records required for one request while keeping omissions, conflicts, gaps, and authority limits explicit. |
@@ -72,6 +89,8 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.ReasoningStateTransitionReceipt` | Entity | Prove the exact planned reasoning-state transition result and successor epoch without granting authority. |
 | `agent-reasoning-engine.ReasoningStateWriterLock` | Entity | Represent exclusive live-writer ownership for one exact file-backed reasoning-state ledger. |
 | `agent-reasoning-engine.RebuildReasoningStateIndex` | Operation | Verify canonical Reasoning State records and deterministically rebuild their disposable indexes with zero external calls. |
+| `agent-reasoning-engine.RecordEvolutionEvent` | Operation | Materialize one immutable candidate event from an accepted exact command at the next monotonic revision without persisting it or directly assigning projection state. |
+| `agent-reasoning-engine.RecoverEvolutionKernel` | Operation | Reconstruct exact evolution state and a disposable SQLite index from the verified durable commit chain. |
 | `agent-reasoning-engine.RecoverGatewayReasoningState` | Operation | Derive a collision-resistant per-consumer log, acquire exclusive ownership, and recover its checkpointed reasoning state before accepting a gateway client. |
 | `agent-reasoning-engine.RecoverReasoningState` | Operation | Hydrate one exact checkpointed Reasoning State ledger after verified index rebuilding and source rechecking. |
 | `agent-reasoning-engine.RequestContext` | Entity | Preserve a raw request with explicit or inferred objective, effect, target, constraint, and provenance fields for fast deterministic routing. |
@@ -82,6 +101,8 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.SemanticReduction` | Operation | Select one exact opt-in semantic-domain binding and derive exactly one typed outcome from its admitted frozen context and finite provider catalog while abstaining on missing support or unresolved ownership. |
 | `agent-reasoning-engine.TechniqueCandidate` | Entity | Bind a research mechanism and exact source identity to a locally testable ARE integration hypothesis. |
 | `agent-reasoning-engine.UpgradeDecision` | Entity | Bind one retain, recommend, activate, or block disposition to an exact predecessor, candidate, comparison, and rollback target. |
+| `agent-reasoning-engine.ValidateCycleDefinition` | Operation | Verify definition structure, exact digest, policy and validator bindings, version lineage, additive compatibility and candidate-only admission posture without approving a definition. |
+| `agent-reasoning-engine.ValidateEvolutionCommand` | Operation | Fail closed on malformed, stale, conflicting, definition-substituted or undeclared commands and deterministically produce rejection evidence or an acceptance assessment plus a receipt. |
 | `agent-reasoning-engine.VariantComparison` | Entity | Preserve the deterministic fitness result for one exact baseline, candidate, manifest, environment, and holdout set. |
 | `agent-reasoning-engine.VerifyProductStability` | Operation | Verify the integrated ARE product profile, exact runtime, component and integration presence, repository profile, deterministic source closure, and unified test surface. |
 
@@ -104,6 +125,8 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.edge.basis-construction-reads-selector-lock` | `agent-reasoning-engine.ContextBasisConstruction` | `reads` | `agent-reasoning-engine.OntologySelectorLock` |
 | `agent-reasoning-engine.edge.checkpoint-state-creates-checkpoint` | `agent-reasoning-engine.CheckpointReasoningState` | `creates` | `agent-reasoning-engine.ReasoningStateCheckpoint` |
 | `agent-reasoning-engine.edge.checkpoint-state-reads-epoch` | `agent-reasoning-engine.CheckpointReasoningState` | `reads` | `agent-reasoning-engine.ReasoningStateEpoch` |
+| `agent-reasoning-engine.edge.commit-evolution-command-creates-commit` | `agent-reasoning-engine.CommitEvolutionCommand` | `creates` | `agent-reasoning-engine.EvolutionKernelCommit` |
+| `agent-reasoning-engine.edge.commit-evolution-command-reads-command` | `agent-reasoning-engine.CommitEvolutionCommand` | `reads` | `agent-reasoning-engine.EvolutionCommand` |
 | `agent-reasoning-engine.edge.completion-frontier-boundary-enforces-sealing` | `agent-reasoning-engine.CompletionFrontierBoundary` | `enforces` | `agent-reasoning-engine.SealCompletionFrontier` |
 | `agent-reasoning-engine.edge.context-assembly-creates-envelope` | `agent-reasoning-engine.ContextAssembly` | `creates` | `agent-reasoning-engine.ContextEnvelope` |
 | `agent-reasoning-engine.edge.context-assembly-reads-context-item` | `agent-reasoning-engine.ContextAssembly` | `reads` | `agent-reasoning-engine.ContextItem` |
@@ -118,17 +141,25 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.edge.continuation-reads-receipt-constraint` | `agent-reasoning-engine.ContinuationDecision` | `reads` | `agent-reasoning-engine.ReasoningReceiptConstraint` |
 | `agent-reasoning-engine.edge.coordinate-transition-creates-plan` | `agent-reasoning-engine.CoordinateReasoningStateTransition` | `creates` | `agent-reasoning-engine.ReasoningStateTransitionPlan` |
 | `agent-reasoning-engine.edge.coordinate-transition-reads-epoch` | `agent-reasoning-engine.CoordinateReasoningStateTransition` | `reads` | `agent-reasoning-engine.ReasoningStateEpoch` |
+| `agent-reasoning-engine.edge.cycle-definition-admission-boundary-enforces-definition-validation` | `agent-reasoning-engine.CycleDefinitionAdmissionBoundary` | `enforces` | `agent-reasoning-engine.ValidateCycleDefinition` |
 | `agent-reasoning-engine.edge.definition-closure-creates-definition-closure` | `agent-reasoning-engine.DefinitionClosureResolution` | `creates` | `agent-reasoning-engine.DefinitionClosure` |
 | `agent-reasoning-engine.edge.definition-closure-reads-capability-selection` | `agent-reasoning-engine.DefinitionClosureResolution` | `reads` | `agent-reasoning-engine.CapabilitySelection` |
 | `agent-reasoning-engine.edge.definition-closure-reads-request-context` | `agent-reasoning-engine.DefinitionClosureResolution` | `reads` | `agent-reasoning-engine.RequestContext` |
+| `agent-reasoning-engine.edge.diagnose-evolution-kernel-reads-commit` | `agent-reasoning-engine.DiagnoseEvolutionKernel` | `reads` | `agent-reasoning-engine.EvolutionKernelCommit` |
+| `agent-reasoning-engine.edge.diagnose-evolution-kernel-reads-objects` | `agent-reasoning-engine.DiagnoseEvolutionKernel` | `reads` | `agent-reasoning-engine.EvolutionObjectStore` |
 | `agent-reasoning-engine.edge.dispatch-preparation-creates-dispatch` | `agent-reasoning-engine.ExactDispatchPreparation` | `creates` | `agent-reasoning-engine.ReasoningDispatch` |
 | `agent-reasoning-engine.edge.dispatch-preparation-reads-epoch` | `agent-reasoning-engine.ExactDispatchPreparation` | `reads` | `agent-reasoning-engine.ReasoningStateEpoch` |
+| `agent-reasoning-engine.edge.durable-evolution-kernel-orchestrates-commit` | `agent-reasoning-engine.DurableEvolutionKernel` | `orchestrates` | `agent-reasoning-engine.CommitEvolutionCommand` |
+| `agent-reasoning-engine.edge.durable-evolution-kernel-orchestrates-diagnosis` | `agent-reasoning-engine.DurableEvolutionKernel` | `orchestrates` | `agent-reasoning-engine.DiagnoseEvolutionKernel` |
+| `agent-reasoning-engine.edge.durable-evolution-kernel-orchestrates-recovery` | `agent-reasoning-engine.DurableEvolutionKernel` | `orchestrates` | `agent-reasoning-engine.RecoverEvolutionKernel` |
 | `agent-reasoning-engine.edge.evaluate-variant-creates-comparison` | `agent-reasoning-engine.EvaluateEngineVariant` | `creates` | `agent-reasoning-engine.VariantComparison` |
 | `agent-reasoning-engine.edge.evaluate-variant-reads-target` | `agent-reasoning-engine.EvaluateEngineVariant` | `reads` | `agent-reasoning-engine.ImprovementTarget` |
 | `agent-reasoning-engine.edge.evaluate-variant-reads-variant` | `agent-reasoning-engine.EvaluateEngineVariant` | `reads` | `agent-reasoning-engine.EngineVariant` |
 | `agent-reasoning-engine.edge.evolution-orchestrates-comparison` | `agent-reasoning-engine.EvolutionCycle` | `orchestrates` | `agent-reasoning-engine.EvaluateEngineVariant` |
 | `agent-reasoning-engine.edge.evolution-orchestrates-selection` | `agent-reasoning-engine.EvolutionCycle` | `orchestrates` | `agent-reasoning-engine.SelectImprovementTarget` |
 | `agent-reasoning-engine.edge.evolution-orchestrates-upgrade` | `agent-reasoning-engine.EvolutionCycle` | `orchestrates` | `agent-reasoning-engine.ApplyUpgradeDecision` |
+| `agent-reasoning-engine.edge.evolution-state-derived-boundary-enforces-command-validation` | `agent-reasoning-engine.EvolutionStateDerivedBoundary` | `enforces` | `agent-reasoning-engine.ValidateEvolutionCommand` |
+| `agent-reasoning-engine.edge.evolution-state-derived-boundary-enforces-event-recording` | `agent-reasoning-engine.EvolutionStateDerivedBoundary` | `enforces` | `agent-reasoning-engine.RecordEvolutionEvent` |
 | `agent-reasoning-engine.edge.frontier-sealing-creates-frontier` | `agent-reasoning-engine.SealCompletionFrontier` | `creates` | `agent-reasoning-engine.ReasoningStateFrontier` |
 | `agent-reasoning-engine.edge.frontier-sealing-reads-consequence-assessment` | `agent-reasoning-engine.SealCompletionFrontier` | `reads` | `agent-reasoning-engine.ConsequenceAssessment` |
 | `agent-reasoning-engine.edge.frontier-sealing-reads-ledger` | `agent-reasoning-engine.SealCompletionFrontier` | `reads` | `agent-reasoning-engine.ReasoningStateLedger` |
@@ -158,6 +189,9 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.edge.lifecycle-orchestrates-view-binding` | `agent-reasoning-engine.ReasoningContextLifecycle` | `orchestrates` | `agent-reasoning-engine.ContextViewBinding` |
 | `agent-reasoning-engine.edge.materialize-cache-creates-projection` | `agent-reasoning-engine.MaterializeCacheAffinity` | `creates` | `agent-reasoning-engine.CacheAffinityProjection` |
 | `agent-reasoning-engine.edge.materialize-cache-reads-epoch` | `agent-reasoning-engine.MaterializeCacheAffinity` | `reads` | `agent-reasoning-engine.ReasoningStateEpoch` |
+| `agent-reasoning-engine.edge.multi-cycle-protocol-orchestrates-command-validation` | `agent-reasoning-engine.MultiCycleEvolutionProtocol` | `orchestrates` | `agent-reasoning-engine.ValidateEvolutionCommand` |
+| `agent-reasoning-engine.edge.multi-cycle-protocol-orchestrates-definition-validation` | `agent-reasoning-engine.MultiCycleEvolutionProtocol` | `orchestrates` | `agent-reasoning-engine.ValidateCycleDefinition` |
+| `agent-reasoning-engine.edge.multi-cycle-protocol-orchestrates-event-recording` | `agent-reasoning-engine.MultiCycleEvolutionProtocol` | `orchestrates` | `agent-reasoning-engine.RecordEvolutionEvent` |
 | `agent-reasoning-engine.edge.reasoning-state-boundary-enforces-checkpoint` | `agent-reasoning-engine.ReasoningStateBoundary` | `enforces` | `agent-reasoning-engine.CheckpointReasoningState` |
 | `agent-reasoning-engine.edge.reasoning-state-boundary-enforces-dispatch` | `agent-reasoning-engine.ReasoningStateBoundary` | `enforces` | `agent-reasoning-engine.ExactDispatchPreparation` |
 | `agent-reasoning-engine.edge.reasoning-state-boundary-enforces-formation` | `agent-reasoning-engine.ReasoningStateBoundary` | `enforces` | `agent-reasoning-engine.ReasoningStateFormation` |
@@ -166,6 +200,11 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.edge.reasoning-state-formation-reads-ledger` | `agent-reasoning-engine.ReasoningStateFormation` | `reads` | `agent-reasoning-engine.ReasoningStateLedger` |
 | `agent-reasoning-engine.edge.rebuild-reasoning-index-creates-index` | `agent-reasoning-engine.RebuildReasoningStateIndex` | `creates` | `agent-reasoning-engine.ReasoningStateDerivedIndex` |
 | `agent-reasoning-engine.edge.rebuild-reasoning-index-reads-ledger` | `agent-reasoning-engine.RebuildReasoningStateIndex` | `reads` | `agent-reasoning-engine.ReasoningStateLedger` |
+| `agent-reasoning-engine.edge.record-evolution-event-creates-event` | `agent-reasoning-engine.RecordEvolutionEvent` | `creates` | `agent-reasoning-engine.EvolutionEvent` |
+| `agent-reasoning-engine.edge.record-evolution-event-reads-command` | `agent-reasoning-engine.RecordEvolutionEvent` | `reads` | `agent-reasoning-engine.EvolutionCommand` |
+| `agent-reasoning-engine.edge.recover-evolution-kernel-creates-projection` | `agent-reasoning-engine.RecoverEvolutionKernel` | `creates` | `agent-reasoning-engine.EvolutionKernelProjection` |
+| `agent-reasoning-engine.edge.recover-evolution-kernel-reads-commit` | `agent-reasoning-engine.RecoverEvolutionKernel` | `reads` | `agent-reasoning-engine.EvolutionKernelCommit` |
+| `agent-reasoning-engine.edge.recover-evolution-kernel-reads-objects` | `agent-reasoning-engine.RecoverEvolutionKernel` | `reads` | `agent-reasoning-engine.EvolutionObjectStore` |
 | `agent-reasoning-engine.edge.recover-reasoning-state-creates-assessment` | `agent-reasoning-engine.RecoverReasoningState` | `creates` | `agent-reasoning-engine.ReasoningStateRecoveryAssessment` |
 | `agent-reasoning-engine.edge.recover-reasoning-state-reads-checkpoint` | `agent-reasoning-engine.RecoverReasoningState` | `reads` | `agent-reasoning-engine.ReasoningStateCheckpoint` |
 | `agent-reasoning-engine.edge.recover-reasoning-state-reads-index` | `agent-reasoning-engine.RecoverReasoningState` | `reads` | `agent-reasoning-engine.ReasoningStateDerivedIndex` |
@@ -187,6 +226,10 @@ Graph digest: `33fb3e0d7c8deb03d1ca6f9bfb3b5d3fc5b8f652876d784b3f5e726e40a5c646`
 | `agent-reasoning-engine.edge.system-rule-enforces-route` | `agent-reasoning-engine.ReasoningAndContextManagement` | `enforces` | `agent-reasoning-engine.IntentRouteResolution` |
 | `agent-reasoning-engine.edge.system-rule-enforces-selector-binding` | `agent-reasoning-engine.ReasoningAndContextManagement` | `enforces` | `agent-reasoning-engine.OntologySelectorBinding` |
 | `agent-reasoning-engine.edge.system-rule-enforces-view` | `agent-reasoning-engine.ReasoningAndContextManagement` | `enforces` | `agent-reasoning-engine.ContextViewBinding` |
+| `agent-reasoning-engine.edge.validate-cycle-definition-reads-definition` | `agent-reasoning-engine.ValidateCycleDefinition` | `reads` | `agent-reasoning-engine.EvolutionCycleDefinition` |
+| `agent-reasoning-engine.edge.validate-evolution-command-creates-receipt` | `agent-reasoning-engine.ValidateEvolutionCommand` | `creates` | `agent-reasoning-engine.EvolutionCommandReceipt` |
+| `agent-reasoning-engine.edge.validate-evolution-command-reads-command` | `agent-reasoning-engine.ValidateEvolutionCommand` | `reads` | `agent-reasoning-engine.EvolutionCommand` |
+| `agent-reasoning-engine.edge.validate-evolution-command-reads-definition` | `agent-reasoning-engine.ValidateEvolutionCommand` | `reads` | `agent-reasoning-engine.EvolutionCycleDefinition` |
 | `agent-reasoning-engine.edge.verify-product-stability-reads-surface` | `agent-reasoning-engine.VerifyProductStability` | `reads` | `agent-reasoning-engine.IntegratedProductSurface` |
 | `agent-reasoning-engine.edge.view-binding-creates-view` | `agent-reasoning-engine.ContextViewBinding` | `creates` | `agent-reasoning-engine.ContextWindowView` |
 | `agent-reasoning-engine.edge.view-binding-reads-basis` | `agent-reasoning-engine.ContextViewBinding` | `reads` | `agent-reasoning-engine.NecessaryContextBasis` |

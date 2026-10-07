@@ -6,7 +6,7 @@ import {
   assertNoDuplicateSchemaKey,
   attributeNonemptyViolation,
   uiRepairViolation,
-} from "./ui-repair-rule-contract";
+} from "./ui-repair-rule-contract.js";
 
 export const META_TYPE_CRITERIA_REGISTRY = "meta-type-criteria/v1";
 

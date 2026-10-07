@@ -1,7 +1,7 @@
 # Key And Door Specification
 
 Generated human view. Canonical semantics live in the project-local machine sources.
-Graph digest: `1efff941ba15e419fb4e03fff5f7dd28f6cbd1824780836b83888f319cacffd6`.
+Graph digest: `6b559b446df4057c57c1d356ef2f82f791d8e43dae16b28301e2343ae8f7fd31`.
 
 ## Nodes
 

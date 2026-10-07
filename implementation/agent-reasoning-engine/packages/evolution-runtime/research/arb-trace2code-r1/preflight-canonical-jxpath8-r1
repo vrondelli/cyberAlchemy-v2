@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# One already-exposed case. No provider calls or fresh evaluation labels.
+# Open Questions: ../../evidence/G01-DEFECTS4J-TRACE-SOURCE-AUDIT-R1.md.
+set -euo pipefail
+task_script=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+task_repo=$(git -C "$task_script" rev-parse --show-toplevel)
+task_framework=/home/vlad_/are-benchmark-archive/defects4j-runtime-v3.0.1
+task_stage=/home/vlad_/are-benchmark-archive/defects4j-canonical-jxpath8-r1
+task_pin=6d54320e0db5a357f9ab38a8e4d2e5aead7e1c09
+test "$(git -C "$task_framework" rev-parse HEAD)" = "$task_pin"
+test -f /home/vlad_/.local/share/are-toolchains/defects4j-v3/framework-initialized
+# mkdir without -p: an old/incomplete run requires diagnosis, never overwrite.
+mkdir -m 700 "$task_stage"
+export GIT_AUTHOR_NAME='ARE fixture preparation'
+export GIT_AUTHOR_EMAIL='fixture@are.invalid'
+export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+export GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+export TZ=America/Los_Angeles
+bash "$task_repo/tools/toolchain/run-defects4j" checkout -p JxPath -v 8b \
+  -w "$task_stage/trusted-preparation" > "$task_stage/PREPARATION.log" 2>&1
+node "$task_script/project-canonical-buggy-fixture-r1.mjs" \
+  "$task_stage/trusted-preparation" "$task_stage/buggy-java-only" JxPath 8 "$task_pin"
+printf 'Buggy-only projection complete; trusted checkout/log remains excluded.\n'

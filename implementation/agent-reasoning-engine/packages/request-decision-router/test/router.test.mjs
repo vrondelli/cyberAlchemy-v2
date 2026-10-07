@@ -31,7 +31,25 @@ const routeRequest = (input, decisionProfile, port = modulePort) => routeRequest
 const routingSignalMatches = (text, signal) => routingSignalJudgment(text, signal, modulePort).matched;
 
 function context(raw_request, objective_kind = null) {
-  return {schema_version: "are.request-context/v1", request_id: "R-1", raw_request, objective_kind, requested_effects: [], target_refs: [], constraints: [], evidence_refs: ["user"]};
+  return {
+    schema_version: "are.request-context/v1",
+    request_id: "R-1",
+    raw_request,
+    objective_kind,
+    requested_effects: [],
+    target_refs: [],
+    constraints: [],
+    evidence_refs: ["user"],
+    field_postures: {
+      request_id: "inferred",
+      raw_request: "explicit",
+      objective_kind: objective_kind === null ? "absent" : "explicit",
+      requested_effects: "absent",
+      target_refs: "absent",
+      constraints: "absent",
+      evidence_refs: "explicit",
+    },
+  };
 }
 
 function boundProfile(routeId = "CA2-ROUTE-DEFINE", capabilityId = "route.available/define/v1") {
@@ -64,6 +82,15 @@ test("Define routes directly without Goal", () => {
   assert.equal(result.kind, "direct");
   assert.equal(result.selected.route_id, "CA2-ROUTE-DEFINE");
   assert.equal(result.candidates.includes("CA2-ROUTE-PLAN"), false);
+});
+
+test("benchmarking objective routes from user wording even with an inferred objective kind", () => {
+  const request = context("Continue researching and benchmarking until we can claim superiority.", "benchmark-run");
+  request.field_postures.objective_kind = "inferred";
+  const result = routeRequest(request, profile);
+  assert.equal(result.kind, "direct");
+  assert.equal(result.selected.route_id, "CA2-ROUTE-BENCHMARK-RUN");
+  assert.deepEqual(result.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-BENCHMARK-RUN").matched_signals, ["benchmarking"]);
 });
 
 test("compiled semantic contract normalizes routing separators without substring collapse", () => {
@@ -136,21 +163,74 @@ test("explicit objective suppresses incidental lexical candidates", () => {
   assert.deepEqual(researchDefinition.suppressed_lexical_candidates, ["CA2-ROUTE-RESEARCH"]);
 });
 
-test("explicit objective does not suppress structured effect conflicts or exclusions", () => {
+test("inferred objective is evidence but cannot suppress conflicting user text", () => {
+  const inferred = context("Plan and implement all gaps.", "implement");
+  inferred.field_postures.objective_kind = "inferred";
+  const result = routeRequest(inferred, profile);
+  assert.equal(result.kind, "gate");
+  assert.deepEqual(result.candidates, ["CA2-ROUTE-IMPLEMENT", "CA2-ROUTE-PLAN"]);
+  assert.deepEqual(result.suppressed_lexical_candidates, []);
+  assert.equal(result.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-IMPLEMENT").objective_posture, "inferred");
+});
+
+test("inferred objective cannot create a route without user-text evidence", () => {
+  const inferred = context("Handle this bounded request.", "validate");
+  inferred.field_postures.objective_kind = "inferred";
+  const result = routeRequest(inferred, profile);
+  assert.equal(result.kind, "block");
+  assert.ok(result.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-VALIDATE").reason_codes.includes("route.inferred-objective-nonselecting"));
+});
+
+test("explicit objective owns affinity while incompatible effects gate that route", () => {
   const effectConflict = context("Explain this architecture.", "explain");
   effectConflict.requested_effects = ["publication"];
   const gated = routeRequest(effectConflict, profile);
   assert.equal(gated.kind, "gate");
-  assert.deepEqual(gated.candidates, ["CA2-ROUTE-PUBLISH", "CA2-ROUTE-UNDERSTAND"]);
+  assert.deepEqual(gated.candidates, ["CA2-ROUTE-UNDERSTAND"]);
+  assert.deepEqual(gated.selected.requested_effect_assessment.forbidden, ["publication"]);
+  assert.deepEqual(gated.routing_affinity_fields, ["raw_request", "objective_kind", "target_refs", "constraints"]);
+  assert.deepEqual(gated.effect_assessment_fields, ["requested_effects"]);
 
   const negatedAction = routeRequest(context("Explain only; do not implement.", "explain"), profile);
   assert.equal(negatedAction.kind, "direct");
   assert.equal(negatedAction.selected.route_id, "CA2-ROUTE-UNDERSTAND");
   assert.equal(negatedAction.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-IMPLEMENT").posture, "rejected");
 
-  const explicitExclusion = routeRequest(context("Implement the repair read only.", "implement"), profile);
+  const explicitExclusion = routeRequest(context("Implement the repair, but do not implement it yet.", "implement"), profile);
   assert.equal(explicitExclusion.kind, "block");
   assert.ok(explicitExclusion.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-IMPLEMENT").reason_codes.includes("route.explicit-exclusion"));
+});
+
+test("read-only product requirements do not veto an explicit implementation objective", () => {
+  const productRequest = routeRequest(context("Implement a read-only Companion dashboard.", "implement"), profile);
+  assert.equal(productRequest.kind, "direct");
+  assert.equal(productRequest.selected.route_id, "CA2-ROUTE-IMPLEMENT");
+
+  const constrained = context("Implement the Companion dashboard.", "implement");
+  constrained.constraints = ["Read-only Companion status; no control actions."];
+  constrained.field_postures.constraints = "explicit";
+  const result = routeRequest(constrained, profile);
+  assert.equal(result.kind, "direct");
+  assert.equal(result.selected.route_id, "CA2-ROUTE-IMPLEMENT");
+});
+
+test("inferred context cannot add lexical affinity or exclusion", () => {
+  const inferred = context("Implement the bounded repair.", "implement");
+  inferred.constraints = ["Do not implement", "research"];
+  inferred.target_refs = ["validate"];
+  inferred.field_postures.constraints = "inferred";
+  inferred.field_postures.target_refs = "inferred";
+  const result = routeRequest(inferred, profile);
+  assert.equal(result.kind, "direct");
+  assert.equal(result.selected.route_id, "CA2-ROUTE-IMPLEMENT");
+  assert.deepEqual(result.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-IMPLEMENT").matched_exclusions, []);
+  assert.deepEqual(result.suppressed_lexical_candidates, []);
+
+  inferred.field_postures.constraints = "explicit";
+  const explicitConstraint = routeRequest(inferred, profile);
+  assert.equal(explicitConstraint.kind, "block");
+  assert.deepEqual(explicitConstraint.reason_codes, ["route.explicit-objective-excluded"]);
+  assert.ok(explicitConstraint.evaluated_routes.find((route) => route.route_id === "CA2-ROUTE-IMPLEMENT").matched_exclusions.includes("do not implement"));
 });
 
 test("negated lexical actions never become positive route evidence", () => {
@@ -168,13 +248,19 @@ test("unverified profiles cannot route or classify continuation", () => {
   assert.deepEqual(continuation.reason_codes, ["profile.unverified"]);
 });
 
-test("structured requested effects and constraints participate in routing", () => {
+test("structured requested effects gate but never create route affinity", () => {
   const mixed = context("Explain architecture.");
   mixed.requested_effects = ["publication"];
   assert.equal(routeRequest(mixed, profile).kind, "gate");
+  const effectOnly = context("Handle this bounded request.");
+  effectOnly.requested_effects = ["publication"];
+  assert.equal(routeRequest(effectOnly, profile).kind, "block");
+  const unknown = context("Explain architecture.");
+  unknown.requested_effects = ["send-it-somewhere"];
+  assert.deepEqual(routeRequest(unknown, profile).reason_codes, ["route.requested-effect-unknown"]);
   const constrained = context("Implement the repair.");
   constrained.constraints = ["read only"];
-  assert.equal(routeRequest(constrained, profile).kind, "block");
+  assert.equal(routeRequest(constrained, profile).selected.route_id, "CA2-ROUTE-IMPLEMENT");
 });
 
 test("canonical Definitions route is reachable and blocked Session remains visible", () => {

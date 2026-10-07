@@ -1,0 +1,3 @@
+export interface ReferenceConfiguration { readonly DATABASE_URL:string; readonly INBOUND_BIND_ADDRESS:string; readonly NATS_URL:string; readonly PAYMENT_BASE_URL:string; readonly WEBHOOK_SECRET:string; readonly ORDER_EVENTS_TOPIC:string; }
+const REQUIRED=["DATABASE_URL","INBOUND_BIND_ADDRESS","NATS_URL","PAYMENT_BASE_URL","WEBHOOK_SECRET","ORDER_EVENTS_TOPIC"] as const;
+export function decodeReferenceConfiguration(environment:Readonly<Record<string,string|undefined>>):ReferenceConfiguration { const missing=REQUIRED.filter(name=>!environment[name]); if(missing.length)throw new Error(`PROVIDER_CONFIGURATION_MISSING:${missing.join(",")}`); return Object.freeze(Object.fromEntries(REQUIRED.map(name=>[name,environment[name]!])) as unknown as ReferenceConfiguration); }

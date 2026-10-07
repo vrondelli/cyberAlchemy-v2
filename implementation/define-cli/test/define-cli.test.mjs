@@ -28,6 +28,7 @@ import {
   validateDefinitionPack,
 } from "../index.mjs";
 import {digest} from "../src/canonical.mjs";
+import {codexGatewayLifecycleParameterPosture} from "../../agent-reasoning-engine/packages/codex-app-server-wrapper/src/host-method-policy.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
 const fixture = resolve(import.meta.dirname, "../fixtures/smoke-input.json");
@@ -764,6 +765,7 @@ test("CLI waits for the broad opening before creating the app-server agent", asy
   assert.equal(code, 0, stderr.value());
   assert.equal(agentCreated, true);
   assert.equal(agentOptions.transport_mode, "gateway");
+  assert.equal(agentOptions.define_entrypoint_selected, true);
   assert.match(prompts[0], /domain, subject, context, or project/);
 });
 
@@ -802,10 +804,11 @@ test("agent preserves an app-server exit reason that occurs before initialize", 
       return child;
     },
   });
-  await assert.rejects(
-    agent.respond({mode: "discovery", user_input: "escape room", scope_confirmed: false}),
-    /App-server transport exited: 3: profile failed to load/,
-  );
+  await assert.rejects(agent.respond({mode: "discovery", user_input: "escape room", scope_confirmed: false}), (error) => {
+    assert.match(error.message, /App-server transport exited: 3/);
+    assert.equal(error.details?.diagnostic?.preview, "profile failed to load");
+    return true;
+  });
   assert.match(agent.inspect().rpc.failure, /App-server transport exited: 3/);
 });
 
@@ -827,18 +830,59 @@ test("agent delegates the app-server lifecycle to the shared RPC client", async 
   assert.deepEqual(calls.map(([method]) => method), ["initialize", "thread/start", "turn/start"]);
   assert.equal(calls[0][1].capabilities.experimentalApi, true);
   assert.equal(calls[1][1].sandbox, "read-only");
-  assert.equal(calls[2][1].approvalPolicy, "never");
+  assert.equal(calls[1][1].approvalPolicy, "on-request");
+  assert.equal(calls[2][1].approvalPolicy, "on-request");
   assert.equal(calls[2][1].outputSchema.properties.schema_version.const, "cav2.define-conversation-turn/v2");
-  const applicationContext = JSON.parse(calls[2][1].additionalContext["cyberalchemy.define.conversation"].value);
+  assert.deepEqual(codexGatewayLifecycleParameterPosture({method: "thread/start", params: calls[1][1]}), {kind: "admitted"});
+  assert.deepEqual(codexGatewayLifecycleParameterPosture({method: "turn/start", params: calls[2][1]}), {kind: "admitted"});
+  assert.deepEqual(Object.keys(calls[2][1].additionalContext), ["cyberalchemy.request-context"]);
+  const prompt = calls[2][1].input[0].text;
+  const applicationContext = JSON.parse(prompt.slice(prompt.indexOf("\n\n") + 2));
   assert.equal(applicationContext.schema_version, "cav2.define-conversation-request/v2");
   assert.ok(applicationContext.instructions.some((instruction) => instruction.includes("form candidate domain language")));
   const requestHint = JSON.parse(calls[2][1].additionalContext["cyberalchemy.request-context"].value);
   assert.equal(requestHint.schema_version, "are.request-context-hint/v1");
   assert.equal(requestHint.raw_request, "Atlas vocabulary");
   assert.equal(requestHint.objective_kind, "define-intake");
+  assert.equal(requestHint.field_postures.objective_kind, "inferred");
   assert.equal(result.options[0].option_id, "option:vocabulary");
   await agent.close();
   assert.equal(calls.at(-1)[0], "close");
+});
+
+test("Define uses the configured gateway consumer and pins the Codex adapter", async () => {
+  const captures = [];
+  const turn = {...scopeReview([option("option:vocabulary", "shared vocabulary", "A bounded vocabulary.")]), phase: "options-ready"};
+  const makeAgent = () => createAppServerDefineAgent({repository_root: repositoryRoot,
+    transport_factory: (options) => {
+      captures.push(options);
+      const input = new PassThrough();
+      const output = new PassThrough();
+      input.on("data", (bytes) => {
+        for (const line of String(bytes).trim().split("\n")) {
+          if (!line) continue;
+          const request = JSON.parse(line);
+          if (request.method === "initialize") output.write(`${JSON.stringify({id: request.id, result: {}})}\n`);
+          if (request.method === "thread/start") output.write(`${JSON.stringify({id: request.id, result: {thread: {id: "thread:define"}}})}\n`);
+          if (request.method === "turn/start") {
+            output.write(`${JSON.stringify({id: request.id, result: {turn: {id: "turn:define"}}})}\n`);
+            output.write(`${JSON.stringify({method: "turn/completed", params: {turn: {id: "turn:define", status: "completed", items: [{type: "agentMessage", text: JSON.stringify(turn)}]}}})}\n`);
+          }
+        }
+      });
+      return {input, output, ready: Promise.resolve({}), close: async () => { input.end(); output.end(); }};
+    }});
+  const first = makeAgent();
+  const second = makeAgent();
+  await first.respond({mode: "discovery", user_input: "one", scope_confirmed: false});
+  await second.respond({mode: "discovery", user_input: "two", scope_confirmed: false});
+  assert.equal(captures.length, 2);
+  assert.equal(captures[0].consumer_id, "codex:define-cli");
+  assert.equal(captures[1].consumer_id, "codex:define-cli");
+  assert.notEqual(captures[0].consumer_id, "codex:human-chat");
+  assert.ok(captures.every((entry) => entry.expected_backend_adapter_id === "codex-app-server/v1"));
+  await first.close();
+  await second.close();
 });
 
 test("agent rejects scope readiness before all user-language dimensions are covered", async () => {

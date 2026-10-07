@@ -17,6 +17,27 @@ def require(ok, why):
     if not ok: raise ValueError('PYTHON_WORKFLOW_SEMANTICS:' + why)
 
 
+def first_difference(observed, expected, location='$'):
+    if observed == expected: return None
+    if type(observed) is not type(expected):
+        return location + ':type:' + type(observed).__name__ + '!=' + type(expected).__name__
+    if isinstance(expected, dict):
+        observed_keys, expected_keys = set(observed), set(expected)
+        if observed_keys != expected_keys:
+            return location + ':keys:' + repr(sorted(observed_keys - expected_keys)) + ':' + repr(sorted(expected_keys - observed_keys))
+        for key in sorted(expected):
+            difference = first_difference(observed[key], expected[key], location + '.' + key)
+            if difference is not None: return difference
+        return None
+    if isinstance(expected, list):
+        if len(observed) != len(expected): return location + ':length:' + str(len(observed)) + '!=' + str(len(expected))
+        for index, value in enumerate(expected):
+            difference = first_difference(observed[index], value, location + '[' + str(index) + ']')
+            if difference is not None: return difference
+        return None
+    return location + ':value:' + repr(observed)[:256] + '!=' + repr(expected)[:256]
+
+
 async def observe_case(call, case, row, Fact):
     runtime = operations.Runtime(row['recipes'])
     selected = json.loads(case['values'][0])
@@ -181,7 +202,7 @@ def run(data, predecessor, observer, event_observer):
             for case in row['cases']:
                 expected = json.loads(case['expected']['value'])
                 observed = facts.thaw(call.descriptor) if case['mode'] == 'workflow-descriptor' else await observe_case(call, case, row, Fact)
-                require(observed == expected, 'outcome:' + row['selector'] + ':' + case['id'] + ':' + repr(observed)[:1400] + ':expected:' + repr(expected)[:1400])
+                require(observed == expected, 'outcome:' + row['selector'] + ':' + case['id'] + ':' + str(first_difference(observed, expected)))
             for name in ('__call__', 'descriptor', 'extra'):
                 try: setattr(call, name, None)
                 except (AttributeError, TypeError): pass

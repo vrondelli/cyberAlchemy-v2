@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://domainspec.local/schemas/alchlang/verification-request/v1-candidate",
+  "title": "AlchLang Verification Request Candidate",
+  "description": "A deterministic, evaluation-free request for one exact FormalClaim and EvaluationContext. It grants no release admission and reports no provider result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "request_state",
+    "formal_claim_ref",
+    "evaluation_context_ref",
+    "route_binding_ref",
+    "provider_profile_ref",
+    "runtime_ref",
+    "execution_policy",
+    "authority_effect",
+    "release_admission",
+    "claim_ceiling",
+    "residue"
+  ],
+  "properties": {
+    "schema_version": {"const": "alchlang.verification-request/v1-candidate"},
+    "request_id": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+    "request_state": {"const": "ready"},
+    "formal_claim_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "evaluation_context_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "route_binding_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "provider_profile_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "runtime_ref": {"$ref": "#/$defs/exactCurrentRef"},
+    "execution_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeout_ms", "memory_ceiling_bytes", "max_output_bytes", "network", "working_directory", "environment_allowlist"],
+      "properties": {
+        "timeout_ms": {"type": "integer", "minimum": 1},
+        "memory_ceiling_bytes": {"type": "integer", "minimum": 1},
+        "max_output_bytes": {"type": "integer", "minimum": 1},
+        "network": {"const": "forbidden"},
+        "working_directory": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$"},
+        "environment_allowlist": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}}
+      }
+    },
+    "authority_effect": {"const": "none"},
+    "release_admission": {"const": "not-granted"},
+    "claim_ceiling": {"type": "string", "minLength": 1},
+    "residue": {"type": "array", "maxItems": 0}
+  },
+  "$defs": {
+    "exactCurrentRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "current"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "current": {"const": true}
+      }
+    }
+  }
+}

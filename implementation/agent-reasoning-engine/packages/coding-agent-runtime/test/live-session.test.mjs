@@ -22,12 +22,22 @@ test("Codex binding preflight exposes version drift before starting a session", 
 });
 
 test("live turn request context selects the no-effect research route deterministically", () => {
-  const context = buildLiveTurnRequestContext({mutation_allowlist: ["src/z.mjs", "src/a.mjs", "src/z.mjs"]});
+  const context = buildLiveTurnRequestContext({request: "Repair the sum function", mutation_allowlist: ["src/z.mjs", "src/a.mjs", "src/z.mjs"]});
   assert.equal(context.schema_version, "are.request-context-hint/v1");
+  assert.equal(context.raw_request, "Repair the sum function");
   assert.equal(context.objective_kind, "research");
+  assert.equal(context.field_postures.objective_kind, "inferred");
   assert.deepEqual(context.requested_effects, []);
   assert.deepEqual(context.target_refs, ["ephemeral-fixture:src/a.mjs", "ephemeral-fixture:src/z.mjs"]);
   assert.deepEqual(context.constraints, ["proposal-only", "no-tool-execution", "no-mutation-during-model-turn"]);
+});
+
+test("selected Implement entrypoint preserves user text and declares its objective posture", () => {
+  const context = buildLiveTurnRequestContext({request: "Fix the inclusive sum", mutation_allowlist: ["src/a.mjs"], entrypoint_selected: true});
+  assert.equal(context.raw_request, "Fix the inclusive sum");
+  assert.equal(context.objective_kind, "implement");
+  assert.equal(context.field_postures.objective_kind, "explicit");
+  assert.ok(context.evidence_refs.includes("coding-agent:user-selected-implement-entrypoint"));
 });
 
 test("iterative live context declares bounded outer-runtime tools without effect authority", () => {
@@ -56,8 +66,8 @@ function fakeClient(item, {failInitialize = false, failClose = false} = {}) {
     get closed() { return closed; },
     async initialize(params) { calls.push(["initialize", params]); if (failInitialize) throw new Error("offline"); return {}; },
     async notify(method, params) { calls.push(["notify", method, params]); },
-    async startThread(params) { calls.push(["startThread", params]); return {thread: {id: "thread-live-1"}}; },
-    async runTurn(params) { calls.push(["runTurn", params]); return {started: {turn: {id: "turn-live-1"}}, completed: {turn: {id: "turn-live-1", status: "completed"}}, text: JSON.stringify(candidate)}; },
+    async startThread(params, requestOptions) { calls.push(["startThread", params, requestOptions]); return {thread: {id: "thread-live-1"}}; },
+    async runTurn(params, requestOptions) { calls.push(["runTurn", params, requestOptions]); return {started: {turn: {id: "turn-live-1"}}, completed: {turn: {id: "turn-live-1", status: "completed"}}, text: JSON.stringify(candidate)}; },
     async close() { calls.push(["close"]); closed = true; if (failClose) throw new Error("close failed"); }
   };
 }
@@ -85,7 +95,7 @@ function iterativeFakeClient(item) {
 }
 
 function input(item, client, overrides = {}) {
-  return {client, fixture_root: item.root, request: "repair sum", observation_allowlist: ["package.json", "src/range.mjs", "test/range.test.mjs"], mutation_allowlist: ["src/range.mjs"], verification_command: [process.execPath, "--test"], ...overrides};
+  return {client, run_id: "coding-fixture-run", fixture_root: item.root, request: "repair sum", observation_allowlist: ["package.json", "src/range.mjs", "test/range.test.mjs"], mutation_allowlist: ["src/range.mjs"], verification_command: [process.execPath, "--test"], ...overrides};
 }
 
 test("live session performs the required lifecycle and remains non-effectful without approval", async () => {
@@ -99,10 +109,12 @@ test("live session performs the required lifecycle and remains non-effectful wit
     assert.deepEqual(client.calls.map((call) => call[0]), ["initialize", "notify", "startThread", "runTurn", "close"]);
     assert.equal(client.calls[1][1], "initialized");
     assert.equal(client.calls[2][1].ephemeral, true);
-    assert.equal(client.calls[2][1].approvalPolicy, "never");
+    assert.equal(client.calls[2][1].approvalPolicy, "on-request");
     assert.equal(client.calls[2][1].sandbox, "read-only");
     assert.equal(client.calls[2][1].model, "test-model");
-    assert.equal(client.calls[3][1].approvalPolicy, "never");
+    assert.match(client.calls[2][2].idempotency_key, /^coding:thread:[a-f0-9]{64}$/u);
+    assert.equal(client.calls[3][1].approvalPolicy, "on-request");
+    assert.equal(client.calls[3][2].idempotency_key, client.calls[2][2].idempotency_key.replace("coding:thread:", "coding:turn:") + ":1");
     assert.deepEqual(client.calls[3][1].sandboxPolicy, {type: "readOnly", networkAccess: false});
     const requestContextEntry = client.calls[3][1].additionalContext["cyberalchemy.request-context"];
     assert.equal(requestContextEntry.kind, "application");
@@ -123,6 +135,17 @@ test("live session optionally captures an immutable proposal for a UI adapter", 
     assert.match(receipt.proposal.candidate_utf8, /are.next-action-candidate\/v1/u);
     assert.deepEqual(receipt.proposal.mutation_allowlist, ["src/range.mjs"]);
     assert.equal(snapshotTree(item.root).tree_sha256, before.tree_sha256);
+  } finally { item.cleanup(); }
+});
+
+test("durable proposal thread is opt-in and reported in its policy receipt", async () => {
+  const item = fixture();
+  try {
+    const client = fakeClient(item);
+    const receipt = await runLiveCodingAgentSession(input(item, client, {durable_thread: true}));
+    assert.equal(receipt.status, "AWAITING_APPROVAL");
+    assert.equal(client.calls.find((call) => call[0] === "startThread")[1].ephemeral, false);
+    assert.equal(receipt.thread_policy.ephemeral, false);
   } finally { item.cleanup(); }
 });
 
@@ -187,5 +210,30 @@ test("live session reports a failed transport close as a terminal block", async 
     assert.equal(receipt.status, "BLOCK");
     assert.deepEqual(receipt.reason_codes, ["live.client-close-failed"]);
     assert.equal(client.closed, true);
+  } finally { item.cleanup(); }
+});
+
+test("resumed live session reuses initialization without replaying initialized notification", async () => {
+  const item = fixture();
+  try {
+    const client = fakeClient(item);
+    client.ready = async () => ({resumed: true});
+    const receipt = await runLiveCodingAgentSession(input(item, client));
+    assert.equal(receipt.status, "AWAITING_APPROVAL");
+    assert.equal(client.calls.some((call) => call[0] === "notify"), false);
+  } finally { item.cleanup(); }
+});
+
+test("gateway receipt persistence failure stops before initialization and host thread creation", async () => {
+  const item = fixture();
+  try {
+    const client = fakeClient(item);
+    client.ready = async () => ({resumed: false, continuity: {resume_token: "fixture-token"}});
+    const receipt = await runLiveCodingAgentSession(input(item, client, {
+      on_gateway_connected: () => { throw new Error("private-state-write-failed"); },
+    }));
+    assert.equal(receipt.status, "BLOCK");
+    assert.match(receipt.error, /private-state-write-failed/u);
+    assert.deepEqual(client.calls.map((call) => call[0]), ["close"]);
   } finally { item.cleanup(); }
 });

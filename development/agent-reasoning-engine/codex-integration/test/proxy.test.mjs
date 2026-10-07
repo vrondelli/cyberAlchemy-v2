@@ -83,7 +83,7 @@ test("interaction-bound continuation always gates", async (t) => {
     params: {
       threadId: "00000000-0000-7000-8000-000000000001",
       input: [{type: "text", text: "Validate this harmless canary."}],
-      _are: {continuation: {interaction_bound: [{option_id: "CHAT-1", route_id: "CA2-ROUTE-VALIDATE", effect_classes: ["local-read"], reversible: true}]}},
+      _are: {continuation: {interaction_bound: [{option_id: "CHAT-1", route_id: "CA2-ROUTE-VALIDATE", effect_classes: ["non-effectful-validate"], reversible: true}]}},
     },
   }], (message, child) => {
     if (message.method === "item/commandExecution/requestApproval") child.stdin.write(`${JSON.stringify({id: message.id, result: {decision: "decline"}})}\n`);

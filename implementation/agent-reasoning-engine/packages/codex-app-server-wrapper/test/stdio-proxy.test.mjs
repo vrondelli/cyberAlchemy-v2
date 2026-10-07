@@ -21,6 +21,8 @@ function fakeChild() {
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
+  child.killed = false;
+  child.kill = () => { child.killed = true; child.emit("exit", 0, "SIGTERM"); };
   return child;
 }
 
@@ -78,6 +80,24 @@ test("stdio proxy turns malformed client JSON into a local parse error", async (
   child.emit("exit", 0, null);
 });
 
+test("stdio proxy denies an unassessed host tool call before client delivery", async () => {
+  const child = fakeChild();
+  const clientInput = new PassThrough();
+  const clientOutput = new PassThrough();
+  runStdioProxy({wrapper: wrapper(), spawn_impl: () => child, client_input: clientInput,
+    client_output: clientOutput, client_error: new PassThrough()});
+  const backendResponse = nextLine(child.stdin);
+  child.stdout.write(`${JSON.stringify({jsonrpc: "2.0", id: "tool-call-stdio", method: "item/tool/call",
+    params: {threadId: "thread-1", tool: "private-tool"}})}\n`);
+  const denied = await backendResponse;
+  assert.deepEqual(denied.error?.data?.reason_codes, ["host.server-request-unsupported"]);
+  assert.equal(clientOutput.read(), null);
+  clientInput.end();
+  child.stdout.end();
+  child.stderr.end();
+  child.emit("exit", 0, null);
+});
+
 test("stdio proxy drains a pending response before closing child stdin", async () => {
   const child = fakeChild();
   const clientInput = new PassThrough();
@@ -97,4 +117,24 @@ test("stdio proxy drains a pending response before closing child stdin", async (
   child.stdout.end();
   child.stderr.end();
   child.emit("exit", 0, null);
+});
+
+test("stdio proxy stops after a wrapper binding failure", async () => {
+  const child = fakeChild();
+  const clientInput = new PassThrough();
+  const clientOutput = new PassThrough();
+  const instance = {processClientMessage: async (message) => ({to_server: [message], to_client: []}),
+    processServerMessage: async () => { throw new Error("semantic.turn-binding-not-durable"); }};
+  runStdioProxy({wrapper: instance, spawn_impl: () => child, client_input: clientInput,
+    client_output: clientOutput, client_error: new PassThrough()});
+  const forwardedLine = nextLine(child.stdin);
+  clientInput.write(`${JSON.stringify({jsonrpc: "2.0", id: 12, method: "turn/start", params: {threadId: "test", input: []}})}\n`);
+  await forwardedLine;
+  const errorLine = nextLine(clientOutput);
+  child.stdout.write(`${JSON.stringify({jsonrpc: "2.0", id: 12, result: {turn: {id: "host-turn"}}})}\n`);
+  assert.equal((await errorLine).error?.message, "Wrapper server-path failure");
+  assert.equal(child.killed, true);
+  clientInput.end();
+  child.stdout.end();
+  child.stderr.end();
 });

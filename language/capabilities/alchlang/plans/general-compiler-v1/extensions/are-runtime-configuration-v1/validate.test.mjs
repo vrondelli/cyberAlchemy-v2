@@ -3,19 +3,18 @@ import test from "node:test";
 
 import {validateRuntimeConfiguration} from "./validate.mjs";
 
-test("compiled configuration composes and every declared entry conforms", () => {
+test("historical exact configuration blocks after adapter drift", () => {
   const result = validateRuntimeConfiguration();
-  assert.equal(result.status, "PASS");
+  assert.equal(result.status, "BLOCK");
   assert.equal(result.runtime_admitted, false);
   assert.equal(result.enforcement_active, false);
-  assert.match(result.module_set_digest, /^[a-f0-9]{64}$/u);
-  assert.equal(result.checks.filter((row) => row.outcome === "BLOCK").length, 0);
+  assert.equal(result.checks.find((row) => row.check_id === "static-composition-available")?.outcome, "BLOCK");
 });
 
-test("semantic, router, and intent entry meanings remain explicit", () => {
+test("historical entry projections remain explicit but cannot currently invoke", () => {
   const result = validateRuntimeConfiguration();
   for (const id of ["RequestIntentContainsPhrase", "RequestIntentSemanticKey", "RouterContainsPhrase"]) {
-    assert.equal(result.checks.find((row) => row.check_id === `entry-invocation:${id}`)?.outcome, "PASS");
+    assert.equal(result.checks.find((row) => row.check_id === `entry-invocation:${id}`)?.outcome, "BLOCK");
   }
   assert.equal(result.checks.find((row) => row.check_id === "entry-semantic-orthogonality")?.outcome, "PASS");
 });

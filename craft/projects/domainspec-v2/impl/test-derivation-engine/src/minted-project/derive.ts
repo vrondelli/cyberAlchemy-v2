@@ -115,10 +115,29 @@ export function loadEvfS1Bundle(repoRoot: string): EvfS1Bundle {
   }
 
   const binding = bindingRaw as unknown as KeyDoorBindingContract;
+  if (
+    binding.schema_version !== "evf.key-door-binding-contract/v2" ||
+    binding.binding_id !== "evf.key-door.binding.v2" ||
+    binding.predicate_ref?.path !== EVF_PATHS.predicate ||
+    binding.fixture_ref?.path !== EVF_PATHS.fixture ||
+    binding.runtime_contract_ref?.path !== EVF_PATHS.runtimeContract ||
+    binding.ospec_ref.path !== EVF_PATHS.ospec ||
+    binding.runtime_source_binding.postimage_ref?.path !== binding.runtime_source_binding.path
+  ) {
+    fail("BINDING_STALE", "current S1 binding identity or paths are invalid");
+  }
   assertExactRef(repoRoot, binding.predicate_ref, "BINDING_STALE");
   assertExactRef(repoRoot, binding.fixture_ref, "BINDING_STALE");
   assertExactRef(repoRoot, binding.runtime_contract_ref, "BINDING_STALE");
   assertExactRef(repoRoot, binding.ospec_ref, "BINDING_STALE");
+  const runtimeTarget = object(runtimeRaw.target, "runtime target");
+  if (
+    runtimeTarget.path !== binding.runtime_source_binding.path ||
+    runtimeTarget.export !== binding.runtime_source_binding.export ||
+    runtimeTarget.version !== binding.runtime_source_binding.version
+  ) {
+    fail("BINDING_STALE", "runtime contract target does not join to selected source binding");
+  }
 
   return {
     predicate: predicateRaw as unknown as PredicateSource,
@@ -273,5 +292,6 @@ export function assertRuntimeSourcePresent(repoRoot: string, binding: KeyDoorBin
   } catch {
     fail("RUNTIME_TARGET_UNADMITTED", `runtime source is absent: ${path}`);
   }
+  assertExactRef(repoRoot, binding.runtime_source_binding.postimage_ref, "BINDING_STALE");
   return exactRef(repoRoot, path);
 }

@@ -4,7 +4,9 @@ import {resolve} from "node:path";
 import {proposeConfiguredIterativeCodingAgent} from "../../agent-reasoning-engine/packages/coding-agent-runtime/configured-runner.mjs";
 import {applyConfiguredCodingAgentProposal} from "../../agent-reasoning-engine/packages/coding-agent-runtime/configured-runner.mjs";
 import {applyCodexAppServerProposal} from "../../agent-reasoning-engine/packages/coding-agent-runtime/codex-proposal.mjs";
+import {createGatewayClientRecoveryState} from "../../agent-reasoning-engine/packages/codex-app-server-wrapper/index.mjs";
 import {runCodexAppServerProposal} from "./codex-coding-agent.mjs";
+import {observePendingGatewayTurn} from "./pending-turn-reconciliation.mjs";
 
 function immutableSnapshot(state) {
   return Object.freeze({...state, transcript: Object.freeze([...state.transcript]), timeline: Object.freeze([...(state.timeline ?? [])])});
@@ -52,20 +54,34 @@ export function createCodingAgentController(options = {}) {
   const listeners = new Set();
   const runProposal = options.runProposal ?? proposeConfiguredIterativeCodingAgent;
   const runCodexProposal = options.runCodexProposal ?? runCodexAppServerProposal;
+  const observePendingTurn = options.observePendingTurn ?? observePendingGatewayTurn;
   const applyCodexProposal = options.applyCodexProposal ?? applyCodexAppServerProposal;
   const applyConfiguredProposal = options.applyConfiguredProposal ?? applyConfiguredCodingAgentProposal;
   let pendingProposal = null;
   let activeClient = null;
+  let gatewayRecovery = null;
+  let gatewayRecoveryError = null;
+  if (options.gatewayRecoveryPath) {
+    try { gatewayRecovery = createGatewayClientRecoveryState({path: options.gatewayRecoveryPath, consumer_id: "codex:coding-proposal"}); }
+    catch (error) { gatewayRecoveryError = error; }
+  }
+  let gatewayResumeToken = gatewayRecovery?.resume_token() ?? null;
+  let activeTurnIntent = null;
+  let reconciling = false;
+  const unresolvedTurnAtStartup = gatewayRecovery?.has_unresolved_turn_intent() ?? false;
   let turnNumber = 0;
   let state = immutableSnapshot({
-    phase: "idle",
-    prompt: "Describe the bounded repository change you want the coding agent to propose.",
+    phase: unresolvedTurnAtStartup ? "uncertain" : "idle",
+    prompt: unresolvedTurnAtStartup
+      ? "Previous model turn outcome is uncertain. New proposals are blocked until host history is reconciled."
+      : "Describe the bounded repository change you want the coding agent to propose.",
     transcript: [],
     timeline: [],
     preflight: options.preflightResult ?? null,
     diagnostics: diagnosticProjection(options.preflightResult),
     result: null,
-    error: null,
+    error: unresolvedTurnAtStartup ? "coding-agent.gateway-turn-outcome-unresolved" : null,
+    reconciliation: null,
     lastTurnStatus: null,
   });
 
@@ -91,6 +107,11 @@ export function createCodingAgentController(options = {}) {
   }
 
   function settle(phase, prompt, patch = {}) {
+    if (gatewayRecovery?.has_unresolved_turn_intent()) {
+      publish({phase: "uncertain", prompt: "Model turn outcome is uncertain. New proposals are blocked until host history is reconciled.",
+        lastTurnStatus: "uncertain", ...patch, error: "coding-agent.gateway-turn-outcome-unresolved"});
+      return;
+    }
     if (options.chatMode) {
       append("agent", "What would you like to do next?");
       publish({phase: "idle", prompt: "Type your next message.", lastTurnStatus: phase, ...patch});
@@ -113,6 +134,7 @@ export function createCodingAgentController(options = {}) {
     mark("model-and-tools", "started");
     try {
       const codexMode = options.provider === "codex-app-server";
+      if (codexMode && gatewayRecoveryError) throw gatewayRecoveryError;
       if (!options.config || !options.repositoryRoot || (!codexMode && !options.sessionPath)) {
         throw new Error(codexMode
           ? "Codex scope configuration and repository root are required"
@@ -132,6 +154,31 @@ export function createCodingAgentController(options = {}) {
         codexCommand: options.codexCommand,
         codexProfile: options.codexProfile,
         wrapperPath: options.wrapperPath,
+        gatewaySocket: options.gatewaySocket,
+        durableProposalThread: options.durableProposalThread === true,
+        gatewayResumeToken,
+        onGatewayContinuity: (token) => { gatewayResumeToken = token; },
+        onGatewayConnected: (receipt) => {
+          gatewayRecovery?.bind_gateway(receipt);
+          gatewayResumeToken = receipt?.continuity?.resume_token ?? null;
+          if (!gatewayResumeToken) throw new Error("coding-agent.gateway-resume-token-missing");
+          if (gatewayRecovery?.has_unresolved_turn_intent()) throw new Error("coding-agent.gateway-turn-outcome-unresolved");
+        },
+        onGatewayThreadStarted: (threadId) => gatewayRecovery?.record_thread(threadId),
+        onGatewayTurnStarting: ({thread_id, request_key, prompt_sha256}) => {
+          if (!gatewayRecovery) return;
+          const pending = gatewayRecovery.pending_turn_intent();
+          if (pending) throw new Error("coding-agent.gateway-turn-outcome-unresolved");
+          activeTurnIntent = Object.freeze({schema_version: "are.codex-client-pending-turn/v1", thread_id,
+            request_key, text_digest: prompt_sha256, created_at: new Date().toISOString()});
+          gatewayRecovery.record_turn_intent(activeTurnIntent);
+        },
+        onGatewayTurnCompleted: ({turn_id}) => {
+          if (!gatewayRecovery) return;
+          gatewayRecovery.settle_turn_intent(activeTurnIntent, turn_id);
+          activeTurnIntent = null;
+        },
+        transportMode: options.transportMode,
         authorityRepositoryRoot: options.authorityRepositoryRoot,
         model: options.model,
         onClient: (client) => { activeClient = client; },
@@ -229,8 +276,35 @@ export function createCodingAgentController(options = {}) {
     return true;
   }
 
+  async function reconcilePendingTurn() {
+    if (state.phase !== "uncertain" || reconciling || !gatewayRecovery) return false;
+    reconciling = true;
+    publish({reconciliation: Object.freeze({status: "checking", authority_effect: "none"}),
+      prompt: "Checking owned host history. New proposals remain blocked."});
+    try {
+      const observation = await observePendingTurn({recoveryState: gatewayRecovery, gatewaySocket: options.gatewaySocket,
+        connectionToken: options.connectionToken, onClient: (client) => { activeClient = client; }});
+      const detail = observation.disposition === "host-active" ? "The matching host turn is still active."
+        : observation.disposition === "host-terminal" ? `The matching host turn is ${observation.turn_status}. Its proposal has not been recovered.`
+          : observation.disposition === "host-active-unbound" ? "The owned host thread is active, but ephemeral history cannot bind the pending turn."
+            : observation.disposition === "host-idle-unbound" ? "The owned host thread is idle, but ephemeral history cannot bind the pending turn."
+          : "The pending turn could not be matched to host history.";
+      append("agent", `Read-only recovery check: ${detail} New proposals remain blocked.`);
+      publish({reconciliation: observation,
+        prompt: "Host history observed; the pending model result is not yet recovered. Ctrl+R rechecks."});
+    } catch {
+      const observation = Object.freeze({schema_version: "are.tui-pending-turn-observation/v1", disposition: "unverified",
+        reason_codes: Object.freeze(["history.read-unavailable"]), turn_status: null, turn_id_digest: null, authority_effect: "none"});
+      append("agent", "Read-only recovery check could not reach or verify host history. New proposals remain blocked.");
+      publish({reconciliation: observation,
+        prompt: "Host history unavailable; new proposals remain blocked. Ctrl+R rechecks."});
+    } finally { reconciling = false; }
+    return true;
+  }
+
   return Object.freeze({
     start,
+    reconcilePendingTurn,
     submit(value) {
       if (state.phase === "idle") { void start(value); return String(value ?? "").trim().length > 0; }
       if (state.phase === "review") { void decide(value); return true; }
@@ -245,7 +319,9 @@ export function createCodingAgentController(options = {}) {
     async close() {
       const client = activeClient;
       activeClient = null;
-      await client?.close?.();
+      gatewayResumeToken = null;
+      try { await client?.close?.(); }
+      finally { gatewayRecovery?.close(); }
     },
     subscribe(listener) {
       listeners.add(listener);

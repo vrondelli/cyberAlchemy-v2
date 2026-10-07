@@ -8,6 +8,6 @@ import '../../prototype/assets/ui-review.css';
 import './styles.css';
 
 const root = document.getElementById('root');
-if (!root) throw new Error('KELD root element is missing');
+if (!root) throw new Error('Synvora root element is missing');
 
 createRoot(root).render(<App />);

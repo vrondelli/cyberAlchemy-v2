@@ -3,6 +3,7 @@ import { normalizeApplicationDeclarations, type ApplicationDeclaration } from ".
 import { applicationIntegrationKinds, normalizeApplicationIntegrations, type ApplicationIntegration } from "./application-integration.js";
 import { normalizeApplicationRuntimeProfiles, type ApplicationRuntimeProfile } from "./application-runtime-profile.js";
 import { normalizeApplicationRealizations, type ApplicationRealization } from "./application-realization.js";
+import { normalizeApplicationVerificationProfiles, type ApplicationVerificationProfile } from "./application-verification-profile.js";
 
 export interface FormalSignature {
   sorts: Array<{ name: string }>;
@@ -43,10 +44,12 @@ export interface ApplicationFormalSource {
   owner: string;
   formal_claims: FormalClaimDeclaration[];
   rules: Array<{ id: string; claim_ref: string; ontology: string | null; meaning: string | null; enforces: string[]; source_line: number }>;
+  invariants: Array<{ id: string; claim_ref: string | null; rule_ref: string | null; source_line: number }>;
   declarations: ApplicationDeclaration[];
   integrations: ApplicationIntegration[];
   runtime_profiles?: ApplicationRuntimeProfile[];
   realizations?: ApplicationRealization[];
+  verification_profiles?: ApplicationVerificationProfile[];
   authority_effect: "none";
 }
 
@@ -54,7 +57,7 @@ export interface ApplicationFormalSource {
 export function normalizeApplicationFormalSource(domain: { id: string; title: string; owner: string }, sections: ApplicationSourceSection[]): ApplicationFormalSource {
   const fail = (code: string, line: number, message: string): never => { throw new CompilationRejected([{ code, path: `$line:${line}`, message }]); };
   const ids = new Set<string>();
-  for (const section of sections) {
+  for (const section of sections.filter(item => item.kind !== "rule-enforcement")) {
     if (ids.has(section.id)) fail("DUPLICATE_IDENTIFIER", section.line, `duplicate declaration ${section.id}`);
     ids.add(section.id);
   }
@@ -90,6 +93,7 @@ export function normalizeApplicationFormalSource(domain: { id: string; title: st
       ceiling: ceiling!, source_line: section.line };
   });
   const claimIds = new Set(formalClaims.map(claim => claim.id));
+  const enforcementSections = sections.filter(s => s.kind === "rule-enforcement");
   const rules = sections.filter(s => s.kind === "rule").map(section => {
     let claim: string | undefined; let ontology: string | null = null; let meaning: string | null = null; const enforces: string[] = [];
     for (const row of section.rows) {
@@ -107,15 +111,40 @@ export function normalizeApplicationFormalSource(domain: { id: string; title: st
       } else fail("RULE_SECOND_CONDITION", row.line, "Rule conditions must reference one declared FormalClaim");
     }
     if (!claim || !claimIds.has(claim)) fail("CLAIM_UNRESOLVED", section.line, `claim ${claim ?? "<missing>"} is not declared`);
+    for (const relation of enforcementSections.filter(item => item.id === section.id)) {
+      const target = relation.rows[0]?.text;
+      if (!target || enforces.includes(target)) fail("RULE_SYNTAX", relation.line, "duplicate or malformed enforcement target");
+      enforces.push(target);
+    }
     for (const target of enforces) if (!sections.some(s => s.kind === "operation" && s.id === target)) fail("UNRESOLVED_REFERENCE", section.line, `Operation ${target} is not declared`);
     return { id: section.id, claim_ref: claim!, ontology, meaning, enforces, source_line: section.line };
   });
-  const declarations = normalizeApplicationDeclarations(sections.filter(s => s.kind !== "formal-claim" && s.kind !== "rule" && s.kind !== "runtime-profile" && s.kind !== "realization" && !applicationIntegrationKinds.has(s.kind)), new Set(rules.map(r => r.id)));
+  for (const relation of enforcementSections) if (!rules.some(rule => rule.id === relation.id)) fail("UNRESOLVED_REFERENCE", relation.line, `Rule ${relation.id} is not declared`);
+  const ruleIds = new Set(rules.map(r => r.id));
+  const invariants = sections.filter(s => s.kind === "invariant").map(section => {
+    let claimRef: string | null = null; let ruleRef: string | null = null;
+    for (const row of section.rows) {
+      let match: RegExpExecArray | null;
+      if ((match = /^claim\s+([A-Za-z_][\w.-]*)$/.exec(row.text))) {
+        if (claimRef !== null || ruleRef !== null) fail("INVARIANT_CONDITION_COUNT", row.line, "Invariant requires exactly one claim or Rule");
+        claimRef = match[1]!;
+      } else if ((match = /^rule\s+([A-Za-z_][\w.-]*)$/.exec(row.text))) {
+        if (claimRef !== null || ruleRef !== null) fail("INVARIANT_CONDITION_COUNT", row.line, "Invariant requires exactly one claim or Rule");
+        ruleRef = match[1]!;
+      } else fail("INVARIANT_CONDITION_COUNT", row.line, "Invariant conditions must reference one declared claim or Rule");
+    }
+    if ((claimRef === null) === (ruleRef === null)) fail("INVARIANT_CONDITION_COUNT", section.line, "Invariant requires exactly one claim or Rule");
+    if (claimRef !== null && !claimIds.has(claimRef)) fail("CLAIM_UNRESOLVED", section.line, `claim ${claimRef} is not declared`);
+    if (ruleRef !== null && !ruleIds.has(ruleRef)) fail("UNRESOLVED_REFERENCE", section.line, `Rule ${ruleRef} is not declared`);
+    return { id: section.id, claim_ref: claimRef, rule_ref: ruleRef, source_line: section.line };
+  });
+  const declarations = normalizeApplicationDeclarations(sections.filter(s => !["formal-claim", "rule", "invariant", "rule-enforcement", "runtime-profile", "realization", "verification-profile"].includes(s.kind) && !applicationIntegrationKinds.has(s.kind)), ruleIds);
   return { schema_version: "alchlang.application-source/v1-candidate", profile: "application-v1",
-    domain_id: domain.id, title: domain.title, owner: domain.owner, formal_claims: formalClaims, rules,
+    domain_id: domain.id, title: domain.title, owner: domain.owner, formal_claims: formalClaims, rules, invariants,
     declarations,
     ...(sections.some(s => s.kind === "realization") ? { realizations: normalizeApplicationRealizations(sections.filter(s => s.kind === "realization"), declarations, new Set(rules.map(r => r.id))) } : {}),
     ...(sections.some(s => s.kind === "runtime-profile") ? { runtime_profiles: normalizeApplicationRuntimeProfiles(sections.filter(s => s.kind === "runtime-profile")) } : {}),
+    ...(sections.some(s => s.kind === "verification-profile") ? { verification_profiles: normalizeApplicationVerificationProfiles(sections.filter(s => s.kind === "verification-profile"), claimIds) } : {}),
     integrations: normalizeApplicationIntegrations(sections.filter(s => applicationIntegrationKinds.has(s.kind))), authority_effect: "none" };
 }
 

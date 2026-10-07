@@ -17,21 +17,20 @@ function stable(value) {
   return JSON.stringify(value);
 }
 
-export function buildLiveTurnRequestContext({mutation_allowlist, iterative_options}) {
+export function buildLiveTurnRequestContext({request, mutation_allowlist, iterative_options, entrypoint_selected = false}) {
   const iterative = iterative_options !== undefined && iterative_options !== null;
   const targetRefs = [...new Set(mutation_allowlist ?? [])]
     .sort()
     .map((path) => `ephemeral-fixture:${path}`);
   return Object.freeze({
     schema_version: "are.request-context-hint/v1",
-    raw_request: iterative
-      ? "Use only the bounded outer-runtime read-only tools to inspect the immutable fixture and propose one patch candidate without applying effects."
-      : "Analyze the supplied immutable fixture observations and propose one bounded patch candidate without executing tools or applying effects.",
-    objective_kind: "research",
+    raw_request: typeof request === "string" && request.trim() ? request : "Propose a bounded patch candidate without applying effects.",
+    objective_kind: entrypoint_selected ? "implement" : "research",
     requested_effects: Object.freeze([]),
     target_refs: Object.freeze(targetRefs),
     constraints: Object.freeze(iterative ? ["proposal-only", "outer-runtime-read-only-tools", "no-mutation-during-model-turn"] : ["proposal-only", "no-tool-execution", "no-mutation-during-model-turn"]),
-    evidence_refs: Object.freeze(["coding-agent-live-session:fixture-snapshot"])
+    evidence_refs: Object.freeze(["coding-agent-live-session:fixture-snapshot", ...(entrypoint_selected ? ["coding-agent:user-selected-implement-entrypoint"] : [])]),
+    field_postures: Object.freeze({objective_kind: entrypoint_selected ? "explicit" : "inferred"}),
   });
 }
 
@@ -64,29 +63,37 @@ export function inspectLiveCodexBinding({command = "codex", expected_version, ex
 
 export async function runLiveCodingAgentSession(input) {
   const client = requireClient(input?.client);
+  if (typeof input.run_id !== "string" || !input.run_id.trim()) throw new TypeError("run_id is required for stable coding-agent request identity.");
+  const requestIdentity = sha256(input.run_id);
   let threadId = null;
   let sessionResult;
   let capturedFinalBytes = null;
   try {
+    const connection = typeof client.ready === "function" ? await client.ready() : null;
+    if (typeof input.on_gateway_connected === "function") await input.on_gateway_connected(connection);
     await client.initialize({
       clientInfo: {name: "cyberalchemy-coding-agent", title: "CyberAlchemy Coding Agent", version: "0.1.0"},
       capabilities: {experimentalApi: true}
     });
-    await client.notify("initialized", {});
+    if (connection?.resumed !== true) await client.notify("initialized", {});
     const started = await client.startThread({
       cwd: input.fixture_root,
-      ephemeral: true,
-      approvalPolicy: "never",
+      ephemeral: input.durable_thread !== true,
+      approvalPolicy: "on-request",
       sandbox: "read-only",
       serviceName: "cyberalchemy-coding-agent",
       ...(input.model ? {model: input.model} : {})
-    });
+    }, {idempotency_key: `coding:thread:${requestIdentity}`});
     threadId = started?.thread?.id ?? null;
     if (!threadId) throw new Error("LIVE_THREAD_ID_MISSING");
+    if (typeof input.on_gateway_thread_started === "function") await input.on_gateway_thread_started(threadId);
     const requestContext = buildLiveTurnRequestContext(input);
     const baseModelTransport = createCodexAppServerModelTransport({
       client,
       thread_id: threadId,
+      request_key_prefix: `coding:turn:${requestIdentity}`,
+      on_before_turn: input.on_gateway_turn_starting,
+      on_turn_completed: input.on_gateway_turn_completed,
       turn_options: {
         additionalContext: {
           [REQUEST_CONTEXT_KEY]: {kind: "application", value: JSON.stringify(requestContext)}
@@ -129,7 +136,7 @@ export async function runLiveCodingAgentSession(input) {
       schema_version: "are.coding-agent-live-session/v1",
       status: codingResult.status,
       thread_id: threadId,
-      thread_policy: Object.freeze({ephemeral: true, approval_policy: "never", sandbox: "read-only"}),
+      thread_policy: Object.freeze({ephemeral: input.durable_thread !== true, approval_policy: "on-request", sandbox: "read-only"}),
       coding_result: codingResult,
       ...(codingResult.status === "AWAITING_APPROVAL" ? {} : {reason_codes: Object.freeze([...(codingResult.reason_codes ?? [])])}),
       ...(codingResult.model_error ? {error: codingResult.model_error} : {}),

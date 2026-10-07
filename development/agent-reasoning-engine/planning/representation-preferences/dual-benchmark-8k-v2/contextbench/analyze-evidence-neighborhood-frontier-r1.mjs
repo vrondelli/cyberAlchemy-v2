@@ -1,15 +1,31 @@
 // Label-free facet generation followed by exposed-cohort acquisition evaluation.
 // No provider or model calls. Open questions: RECENT-EVIDENCE-POSTRUN-R1.md.
 import assert from 'node:assert/strict';
-import {readFileSync,writeFileSync} from 'node:fs';
-import {join,basename} from 'node:path';
-import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+import {existsSync,readFileSync,realpathSync,writeFileSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {join,basename,resolve} from 'node:path';
+import {queryEvidenceNeighborhood} from './evidence-neighborhood-frontier-r1.mjs';
 
 const here=import.meta.dirname;
+const root=resolve(here,'../../../../../..');
 const live=join(here,'recent-evidence-production-live-r1');
 const read=path=>JSON.parse(readFileSync(path));
+const hash=value=>createHash('sha256').update(value).digest('hex');
 const config=read(join(here,'discovery-v1/live-config.json'));
-const worker=join(here,'ranked_source_frontier_worker_r1.py');
+const relocateProjectPath=(frozen,sha256)=>{
+  const marker='/cyberAlchemy-v2/',at=frozen.indexOf(marker);
+  assert.ok(at>=0,'frozen-project-path');
+  const current=join(root,frozen.slice(at+marker.length));
+  assert.equal(hash(readFileSync(current)),sha256,'relocated-project-file-digest');
+  return realpathSync(current);
+};
+const relocateCachePath=frozen=>{
+  const marker='/.local/share/are/',at=frozen.indexOf(marker);
+  assert.ok(at>=0,'frozen-cache-path');
+  return realpathSync(join(homedir(),'.local/share/are',frozen.slice(at+marker.length)));
+};
+const python=existsSync(config.python)?realpathSync(config.python):'/usr/bin/python3';
 const facets=(problem,repository,prediction)=>{
   const project=basename(repository).replace(/\.git$/,'');
   const visitedPaths=prediction.traj_data.pred_files??[],visited=visitedPaths.join(' ');
@@ -30,24 +46,17 @@ const facets=(problem,repository,prediction)=>{
 
 const rows=[];
 for(const [index,task] of config.tasks.entries()){
-  const taskInput=read(task.task_path);
+  const taskPath=relocateProjectPath(task.task_path,task.task_sha256);
+  const taskInput=read(taskPath);
   const prediction=read(join(live,'score',String(index).padStart(2,'0'),'prediction.json'));
   const queries=facets(taskInput.problem_statement,taskInput.repo_url,prediction);
-  const repository=join(live,'source_root',String(index).padStart(2,'0'),'base');
-  const beforeStatus=spawnSync('git',['--no-optional-locks','-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false','-C',repository,'status','--porcelain'],{encoding:'utf8',timeout:10000});
-  assert.equal(beforeStatus.status,0);assert.equal(beforeStatus.stdout,'');
-  const child=spawnSync(config.python,['-B',worker],{
-    input:JSON.stringify({repository,base_commit:task.base_commit,queries}),
-    encoding:'utf8',timeout:60000,maxBuffer:128*1024**2,
-  });
-  assert.equal(child.status,0,`frontier-worker-${index}`);
-  const workerResult=JSON.parse(child.stdout);
+  const repository=relocateCachePath(task.repository_cache);
+  const workerResult=await queryEvidenceNeighborhood({repository,base_commit:task.base_commit,queries,python});
   assert.equal(workerResult.ok,true);assert.equal(workerResult.model_calls,0);
   assert.equal(workerResult.post_verification_required,true);
-  const status=spawnSync('git',['--no-optional-locks','-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false','-C',repository,'status','--porcelain'],{encoding:'utf8',timeout:10000});
-  assert.equal(status.status,0);assert.equal(status.stdout,'');
-  const head=spawnSync('git',['--no-optional-locks','-C',repository,'rev-parse','HEAD'],{encoding:'utf8',timeout:10000});
-  assert.equal(head.status,0);assert.equal(head.stdout.trim(),task.base_commit);
+  assert.equal(workerResult.process_settlement.local_settled,true);
+  assert.equal(workerResult.process_settlement.process_group_absent,true);
+  assert.equal(workerResult.process_settlement.forced,false);
   const results=Object.entries(workerResult.query_results).map(([facet,result])=>({
     facet,query_digest:result.query_digest,hints:result.hints,
     omitted_hints:result.omitted_hints,index_digest:workerResult.index_digest,
@@ -61,7 +70,9 @@ for(const [index,task] of config.tasks.entries()){
   const goldFiles=native.final.file.gold_size;
   const observedGold=goldFiles-missingLabeled.length;
   assert.equal(native.trajectory.steps.at(-1).coverage.file,observedGold/goldFiles);
-  rows.push({task_id:task.id,instance_id:task.instance_id,facets:Object.keys(queries),
+  rows.push({task_id:task.id,instance_id:task.instance_id,
+    source_relocation:{task_path:taskPath,repository,python},facets:Object.keys(queries),
+    process_settlement:workerResult.process_settlement,
     returned_hints:results.reduce((n,result)=>n+result.hints.length,0),
     unique_hint_paths:frontierPaths.size,observed_paths:observed.size,gold_files:goldFiles,
     labeled_unvisited_paths:missingLabeled,acquired_labeled_unvisited_paths:acquiredMissing,
@@ -69,7 +80,7 @@ for(const [index,task] of config.tasks.entries()){
     projected_frontier_file_recall:(observedGold+acquiredMissing.length)/goldFiles,
     query_results:results});
 }
-const result={schema:'are.evidence-neighborhood-frontier-replay/v6',
+const result={schema:'are.evidence-neighborhood-frontier-replay/v7',
   mechanism:'Eight label-blind facets: task, verification, documentation, CMake/build, Make/build, CI/package, a visited-source neighborhood, and a visited test-tree neighborhood. Each uses the additive deterministic top-ten path-diverse source frontier. Facets are generated before label comparison.',
   rows,mean_trajectory_file_recall:rows.reduce((n,row)=>n+row.trajectory_file_recall,0)/rows.length,
   mean_projected_frontier_file_recall:rows.reduce((n,row)=>n+row.projected_frontier_file_recall,0)/rows.length,
@@ -77,6 +88,6 @@ const result={schema:'are.evidence-neighborhood-frontier-replay/v6',
   provider_calls:0,model_calls:0,
   claim_ceiling:'Exposed-cohort path-acquisition replay only. A returned hint is not delivered evidence, model use, exact-span retrieval, native quality, token savings, or untouched confirmation.',
   open_questions_ref:'RECENT-EVIDENCE-POSTRUN-R1.md'};
-const output=join(here,'EVIDENCE-NEIGHBORHOOD-FRONTIER-REPLAY-R6.json');
+const output=join(here,'EVIDENCE-NEIGHBORHOOD-FRONTIER-REPLAY-R7.json');
 writeFileSync(output,JSON.stringify(result,null,2)+'\n',{flag:'wx'});
 console.log(JSON.stringify({rows:rows.map(row=>({task_id:row.task_id,missing:row.labeled_unvisited_paths,acquired:row.acquired_labeled_unvisited_paths,before:row.trajectory_file_recall,after:row.projected_frontier_file_recall,hints:row.returned_hints})),mean_before:result.mean_trajectory_file_recall,mean_after:result.mean_projected_frontier_file_recall,all_missing_acquired:result.all_missing_labeled_paths_acquired,provider_calls:0,model_calls:0}));

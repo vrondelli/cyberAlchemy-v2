@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertRuntimeSourcePresent,
   deriveEnforcesObligations,
   loadEvfS1Bundle,
   type EvfS1Bundle,
@@ -37,7 +38,7 @@ describe("EVF S1 enforces obligation derivation", () => {
       source_node_id: "key-and-door.HasKeyRule",
       target_node_id: "key-and-door.UnlockDoor",
       predicate_id: "evf.key-door.has-key.v1",
-      binding_id: "evf.key-door.binding.v1",
+      binding_id: "evf.key-door.binding.v2",
     });
   });
 
@@ -92,6 +93,40 @@ describe("EVF S1 enforces obligation derivation", () => {
     expectEvfCode(
       () => deriveEnforcesObligations(REPO_ROOT, staleBundle),
       "GENERATED_GRAPH_STALE",
+    );
+  });
+
+  it("rejects stale relationship bytes and runtime postimage before execution", () => {
+    const bundle = loadEvfS1Bundle(REPO_ROOT);
+    expectEvfCode(
+      () => deriveEnforcesObligations(REPO_ROOT, {
+        ...bundle,
+        binding: {
+          ...bundle.binding,
+          lineage_refs: {
+            ...bundle.binding.lineage_refs,
+            relationship_registry: {
+              ...bundle.binding.lineage_refs.relationship_registry,
+              sha256: "82c55ea1ad031d3135c5b8a85162e44b4e85f296b54057fda0dc38131ab376a1",
+              size_bytes: 26867,
+            },
+          },
+        },
+      }),
+      "SOURCE_DIGEST_STALE",
+    );
+    expectEvfCode(
+      () => assertRuntimeSourcePresent(REPO_ROOT, {
+        ...bundle.binding,
+        runtime_source_binding: {
+          ...bundle.binding.runtime_source_binding,
+          postimage_ref: {
+            ...bundle.binding.runtime_source_binding.postimage_ref,
+            sha256: "0".repeat(64),
+          },
+        },
+      }),
+      "BINDING_STALE",
     );
   });
 });

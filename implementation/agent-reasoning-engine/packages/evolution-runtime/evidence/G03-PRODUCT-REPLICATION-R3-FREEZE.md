@@ -1,0 +1,28 @@
+# G03 product replication r3 — terminal failed attempt
+
+Status: **terminal failed**, 2026-09-28 UTC. This is not a scored benchmark result or a product-page accuracy claim.
+
+The owner approved treating the 78 r2 questions never dispatched to GLM as unexposed in a separately named campaign. The r3 selector excludes the entire r1 cohort, the two r2-assigned IDs (`b6019101`, `b3c15d39`), the earlier exposed queue and 16-question cohort, and the prior four IDs. It verifies the exact sealed r2 result SHA-256 `fa7ef5e709ed4bd718e8bf17ff4b1e6bbfbd7f2c5aafe6812859fa48e69e0381` by hash only; it does not parse the completed answer or evaluator references.
+
+The new deterministic seed selected 80 questions from the pinned 500-record LongMemEval-S source, with quotas 14 `knowledge-update`, 14 `multi-session`, and 13 each for the other four types. Twenty-nine selected questions are among the 78 eligible, never-dispatched r2 questions; six selected IDs are abstention cases. The source-only check and the freeze both succeeded. No question was substituted after freezing.
+
+- Selector: `development/agent-reasoning-engine/planning/representation-preferences/dual-benchmark-8k-v2/longmemeval/confirmation-v1/select-product-replication-r3.py`, SHA-256 `eaa0756994e6400225e6fabc4a17612b51c6eca87b196fcf8c55f43576ee0274`.
+- VPS selection: `/opt/are/evolution-runtime/g03-product-replication-r3/SELECTION.json`, SHA-256 `9bb2a9905ad9323366088a0e72cb9a77fbb8870440b6d0a914c7c0763441aad2`.
+- VPS source-only manifest: `/opt/are/evolution-runtime/g03-product-replication-r3/source/manifest.json`, SHA-256 `9653ac2fc652a3c08eb822542fd619a53d21afbf22c16db5754d9d2e1f64bd4f`.
+- Separate VPS generation code snapshot: `/opt/are/evolution-runtime/g03-product-replication-code-r5`. Its runner SHA-256 is `45589ea878bbf8bd523b15262e8ac32d12e3c7fcb204562aced7fd13d98c965c`; gateway SHA-256 is `87fc46f5222f9002167d305cd08f90804ca1f6ad442332c8301e3359a1b3faa5`.
+
+The generation adapter loaded and hash-validated all 80 projected source rows from the frozen manifest. Five local gateway tests passed, including the numeric provider-error/no-retry case. The VPS gateway inspection confirmed a running container, a readable nonempty secret inside the container, and no credential crossing into the host process. The previous r1 and r2 attempts remain unchanged.
+
+The first dispatch assessment returned `continuation.zero-admissible` because `CA2-ROUTE-IMPLEMENT` does not generally permit `external-effect` or `spend`. The owner then requested continuation. A narrowly tested exception now matches only the exact frozen r3 effect proposal, while preserving the ordinary protected-effect owner gate; it does not add either class to the general IMPLEMENT route. The full classification included `implementation`, `persistent-mutation`, `external-effect`, and `spend`. The exact proposal returned `kind: gate`, decision digest `6e35f3186404b84f9e443ac025556fac2aad62c8462804e723a2bd298b5db63f`; changed cohort, output, worker count, or retry parameters remain blocked. The already recorded owner approval for GLM calls and the direction to continue were applied to this exact run.
+
+The VPS preflight rechecked the four pinned selection, source manifest, runner, and gateway hashes. `are-g03-product-r3.service` launched with invocation ID `56f22daa2a4448aca61e39b52855bf8e` using the pinned 80-question source, new output `/opt/are-benchmark-runs/longmemeval-product80-20260927-r3`, start index 0, and `stop-on-failure`. The write-once `RUN.json` SHA-256 is `0b43bc5bffec963c874809411c16371c280088f5f695cc742f13b084cca0cc5a`.
+
+The terminal `RESULT.json` SHA-256 is `eb033c328411ac86c6212d377957e2bdd260ac4b9a662e21cb22a22845c11289`. It records 23 assigned, 22 completed, one failed, and 57 explicit `not-started` slots. There were 843 completed model calls and 3,112,931 known model tokens; `unknown_usage=false`. The failed question was `c19f7a0b`. Its tokenizer made ten successful measurements, then the next exact-wire tokenizer request returned HTTP 400 with numeric provider error code `1301`. Its model-call count and known model tokens are both zero. That rejected wire was not resent, and the frozen question was not substituted. The durable service exited with status 1 as intended; a later `systemctl show` of the collected unit is not reliable as an exit receipt, whereas the journal records `status=1/FAILURE`.
+
+The original run directory is retained. The verified private [archive manifest](G03-R3-ARCHIVE-MANIFEST.json) binds the content-addressed 1,031,061-byte compressed attempt archive, SHA-256 `639fbff4f215137009cbdf518d8463033554e3aff1dc1bec10cf4db77ba13826`. The archive contains the attempt directory, not the separately frozen source; no source or attempt files were deleted. Reference projection, native scoring, product analysis, and public claim preparation were not run because the strict 80-question generation prerequisite failed. Do not reinterpret the 22 completed questions as a prespecified cohort.
+
+## Open Questions
+
+- Should the temporary exact-scope exception be retired now that r3 is sealed and archived?
+- What provider-compatible benchmark protocol and changed population should be chosen before another cohort is frozen, given repeated tokenizer HTTP 400 rejections and the [source-only supply audit](G03-R4-SOURCE-SUPPLY-AUDIT.json) proving the old 13-question `single-session-preference` quota infeasible? Repeatedly excluding rejected questions is not an unbiased continuation of this product replication.
+- What raw-retention period should Vlad and Dave approve for the private r1–r3 attempt archives?

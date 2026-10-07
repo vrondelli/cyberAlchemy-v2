@@ -1,0 +1,17 @@
+# G01 reserved confirmation r8 — raw-listwise 8K treatment and claim gate
+
+Status: fixed before r8 tokenizer or generation calls and before confirmation evaluator access. Inputs are the r7 candidate seal SHA-256 `f0b38a2157995ad763ce6aa4e327ac0ccbe900bc0f98f41596e7441865d1c364` and 24-packet seal SHA-256 `20b43fcb0d3d5de2ed17222848eb58f0d4298a5222a3eaff0c5ce48e07d9e682`. Packet bytes SHA-256: `f311bb898823756015e5a0cc4ea2d1918ed29f0cbabafcc283e13623188cd5b5`. No gold, passing-commit code, or score has entered these packets.
+
+Transfer the exposed cohort-B raw-listwise selector without its unhelpful pairwise guard. On the VPS, use the same account and pinned HTTPS `glm-5.3-flash` transport. First tokenize each exact packet; require HTTP 200, integer prompt tokens, prompt tokens plus 512 output reserve <=8,192, all 24 admitted, and total tokenizer prompt tokens <=220,000. Stop at first failed admission without generation. Then make exactly one generation call per case in frozen order, at most 512 output tokens, low reasoning effort, no retry. Stop on transport failure. Preserve raw request/response hashes, provider payload, usage, finish reason, elapsed time, and every attempt. No labels or full source trees go to the VPS.
+
+Parse the whole response as a sole `candidate_ids` JSON array with at most eight distinct values. Accept safe integer IDs, canonical positive decimal strings, or exact listed candidate paths; reject fuzzy matches. For a valid response, rank selected paths in returned order, then append every unselected graph-r2 source path in graph-r2 order. Invalid output falls back to the complete graph-r2 ranking for the all-case analysis. Seal all 24 complete predictions and source-side cost receipts before any evaluator label read.
+
+Evaluator-only labels must come from authenticated exact HTTPS Git trees at the passing and failing commits, never from a provider packet. Score all 24 availability-selected repositories with file-level MRR@8, Hit@3, top-30 candidate reach, paired wins/ties/losses, and a 20,000-draw repository-unit bootstrap 95% interval for raw listwise minus unchanged ARE and graph-r2. Preserve multiple gold paths per case where applicable. Report actual generation prompt/completion tokens, summed model time, tokenizer time, and source-side ranker time. Do not claim efficiency superiority if cost or latency is worse.
+
+The bounded accuracy advancement gate requires 24/24 admitted tokenizer cases, 24/24 valid listwise responses, no transport failure, complete authenticated labels, candidate reach at least 20/24, raw-listwise MRR@8 at least graph-r2 MRR@8 +0.10, at least 16/24 wins versus ARE, and paired 95% lower bounds strictly above zero versus both ARE and graph-r2. Every condition is conjunctive. If any fails, record a failed gate and return to exposed development or a separately versioned new population; do not tune this confirmation cohort and relabel it untouched. A pass supports only a bounded, availability-selected, file-localization accuracy claim with the full comparator and cost caveats. Broader ARE or ContextBench superiority remains a separate claim requiring separate evidence and reviewer approval.
+
+## Open Questions
+
+- Can the exact sealed packets pass same-account tokenization and complete generation without provider failures?
+- Will authenticated HTTPS Git-tree labels cover every selected case and preserve the full 24-case denominator?
+- Will the predeclared gain survive comparator parity and full cost reporting?

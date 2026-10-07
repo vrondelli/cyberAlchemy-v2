@@ -201,6 +201,23 @@ npm run test:product
 A `PASS_BOUNDED` receipt is current product-candidate test evidence. It does not
 constitute product approval, adoption, publication, release, or deployment.
 
+## Runtime-only candidate and product suite
+
+`npm run candidate:manifest` now emits a v2 source manifest for this
+coding-agent runtime package only. `npm run test:product-suite` binds its v2
+receipt to that freshly computed manifest and runs the runtime tests, the
+disposable product canary, and the credential-free provider matrix. The
+discontinued TUI is neither included in the current source digest nor required
+by this test command. Earlier TUI-bound v1 candidate manifests and receipts
+remain historical evidence; they are not rewritten or silently promoted into
+this runtime-only candidate.
+
+The suite honors `ARE_PRODUCT_CANARY_ENGINE` and
+`ARE_PRODUCT_CANARY_IMAGE` for an already available digest-pinned container
+image. A missing image blocks the canary and reports its reason codes; the
+sandbox never pulls an image automatically. Passing the runtime-only suite
+does not establish UI conformance, desktop-task control, or product approval.
+
 ## Preflight, scoped secrets, and provider matrix
 
 `runCodingAgentPreflight()` performs collect-all launch checks before a model
@@ -434,3 +451,11 @@ mutation. Add `--model <id>` to override the configured Codex default. This
 command invokes a real model but changes only its temporary fixture; `--keep`
 prints and retains that fixture for inspection. The selected Codex executable
 is version-checked before a fixture or App Server session is created.
+
+## Open Questions
+
+- Which selected active client, if any, should supply a separately tested UI
+  candidate for this runtime after the TUI's discontinuation?
+- Which digest-pinned Node image should be the default on each supported build
+  host? A locally installed alternative can validate the bounded suite without
+  changing the frozen default.

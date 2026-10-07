@@ -13,7 +13,7 @@ import {planConfiguredRustFactories, RUST_ENTITY_PROTOCOL, RUST_FACTORY_CONTRACT
 import {rustSelectorModule} from '../../src/generation/configured-rust-values.ts';
 import {pythonAllTypesFixture} from './reconciled-python-fixture.ts';
 
-const cargo = '/home/vrondelli/.cargo/bin/cargo';
+const cargo = process.env.CARGO ?? 'cargo';
 const definitionRoot = path.resolve(import.meta.dirname, '../../../../development/reconciliation-v1/profile-compiler-reconciliation');
 const read = (name: string) => fs.readFileSync(path.join(definitionRoot, name), 'utf8');
 

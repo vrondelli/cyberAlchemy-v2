@@ -2,6 +2,26 @@
 
 Command examples require Node 26.8.1 on PATH and run from this package directory.
 
+To validate and durably settle one existing real-evidence exemplar for every
+registered cycle kind into a shared local runtime:
+
+```sh
+node bin/review-cycle-exemplars.mjs \
+  --root /home/vlad_/.local/share/are/evolution-runtime-v1 \
+  --report evidence/FIVE-CYCLE-EXEMPLAR-REVIEW.v1.json
+```
+
+This review performs no provider/model calls and does not admit the candidate
+definitions globally. It content-addresses the selected evidence, applies a
+kind-specific validator, settles the five coordinator phases, and verifies
+restart and SQLite-loss recovery.
+
+Start with the [evolution lifecycle architecture](EVOLUTION-LIFECYCLE.md) for
+the objective-driven model, five cycle kinds, runtime layers, evidence and
+receipt flow, cross-cycle handoffs, evolution through use and time, HEN-10
+walkthrough, current implementation boundary, and open questions. This README
+then provides the implementation history and detailed package surfaces.
+
 This package implements the Agent Reasoning Engine improvement loop as
 immutable records stored through the existing append-only Reasoning State
 ledger.
@@ -100,7 +120,318 @@ The runtime does not expose model chain-of-thought. It stores inspectable
 system records and provenance. Research providers are disabled by default, and
 benchmark success does not activate or deploy an engine version.
 
+## Multi-cycle JSON protocol foundation
+
+P1 adds the shared, non-durable protocol foundation for independently defined
+evolution cycles. The public boundaries are closed and versioned in
+`schemas/protocol-v1.schema.json`, `schemas/cycle-definition-v1.schema.json`,
+and `schemas/cycle-policies-v1.schema.json`. They cover commands, results,
+events, command receipts, artifact identities, effect envelopes, named phase
+admissions, typed handoff offers and acceptances, cycle definitions, and the
+five typed policy extensions.
+
+`src/protocol-v1.mjs` provides deterministic materializers and structural
+validators. Commands bind an idempotency key, expected event revision, actor or
+worker, exact cycle-definition digest, operation, target, and payload digest.
+Unknown fields, direct state assignment, stale revisions, malformed hashes,
+replay conflicts, and definition substitution fail closed. Accepted and
+rejected commands both produce deterministic non-authorizing receipts.
+
+`registry/cycle-definitions.v1.json` contains exactly five candidate entries:
+benchmark research, research learning, engine improvement, interaction
+learning, and controlled upgrade. Every entry is explicitly `admitted: false`
+and `enabled: false`. Registry membership is not admission; only a separate
+user decision may admit or enable a definition or its successor.
+
+The P1 protocol by itself does not persist events or reconstruct projections.
+The P2 kernel below consumes it; work dispatch, leases, providers, benchmarks,
+and upgrade activation remain later construction slices. The deterministic
+positive and negative receipt fixture is in
+`fixtures/protocol-v1/deterministic-command-receipts.json`.
+
+## Durable kernel and reconstruction
+
+P2 adds `src/durable-kernel-v1.mjs`, a small synchronous runtime that accepts
+closed protocol commands and owns all durable state changes. One immutable
+commit marker is the atomic visibility point for its command object, ordered
+event entries, event payload objects, and command receipt. On the file-ledger
+route (Linux), referenced SHA-256 objects and append-only entries are created
+and fsynced before the commit marker. On native Windows, the kernel uses
+`src/sqlite-ledger-store-v1.mjs`: immutable, SHA-256-checked entries in SQLite
+WAL mode with `synchronous=FULL`; one transaction publishes the event entries,
+receipt, and commit marker together after the referenced objects are stored.
+Interrupted pre-commit objects can remain as diagnostic residue. Both routes
+reconstruct committed state after a process crash and reject mixed file/SQLite
+ledger roots. The separate `observeDurableEvolution` path reopens the selected
+ledger read-only, verifies it, and does not construct a writer.
+
+The focused durable-kernel and SQLite-store tests pass 24/26 on Linux (two
+Windows-only skips), and the native Windows durable-kernel tests pass 21/21,
+including write, read-only observation, CLI observation, exact replay,
+corruption rejection, mixed-root rejection, and fault recovery. The full
+Evolution suite remains red in eight unrelated H-EN benchmark-source drift
+cases (183 pass, 8 fail, 2 skip on Linux). SQLite WAL/FULL is the storage
+design basis; process-crash and injected-fault recovery are tested, but physical
+power-loss durability has not been tested. The historical
+[Windows development probe](../../apps/desktop-companion/docs/WINDOWS-SOURCE-DIAGNOSTICS-TEST-2026-09-26.md)
+records the earlier directory-`fsync` failure; it is not a current-source
+writer verdict. This kernel binding does not by itself validate a rebuilt
+Companion package, installed Windows UI, or live Evolution execution.
+
+The global object store is content addressed. Event and receipt ledgers are
+create-only. Aggregate-cycle, subordinate-record, and executable-work views
+are derived from the same verified commit chain. SQLite is a transactional,
+disposable operational index: deleting or corrupting it cannot change state,
+and `recover()` rebuilds it from durable inputs. Missing, changed,
+non-canonical, contradictory, secret-bearing, or revision-inconsistent durable
+evidence blocks recovery.
+
+`bin/kernel.mjs --root PATH` is the minimal JSON-stdin boundary with `process`,
+`inspect`, `diagnose`, `recover`, and `put-artifact` operations. The trusted
+launcher fixes the storage root outside agent-controlled JSON. Its production default
+requires an enabled cycle definition, so all five candidate definitions remain
+non-runnable. The accepted-command tests use an explicit construction-only
+override without changing registry bytes. The runtime performs no work
+dispatch and no model, provider, benchmark, network, Docker, activation, or
+external effect.
+
+The deterministic three-layer inspection fixture is
+`fixtures/durable-kernel-v1/three-layer-snapshot.json`. Recovery is explicit:
+a stale writer lock blocks new work until `recover` verifies that its process
+is gone; a live or unreadable lock is never stolen.
+
+## Bounded work coordination and handoffs
+
+P3 adds `src/coordination-protocol-v1.mjs` and `src/coordination-v1.mjs`. The
+coordination protocol has closed, versioned command, event, receipt, result, and
+projection documents. Coordination commits use the same P2 commit chain,
+object store, event and receipt ledgers, expected cycle revision, writer lock,
+recovery path, and disposable SQLite rebuild. There is no second journal,
+cursor, DAG executor, or RWO runtime dependency.
+
+The coordinator accepts an immutable Research Work Plan and enabled effect
+envelope only after its exact cycle-kind validator and every task validator are
+available. It derives ready work from accepted settlements, lets an agent select
+one ready task with rationale and resource request, and issues a time-bounded
+lease with a fencing token. Settlement requires the live lease, exact fence,
+bounded accounting, and criterion-complete validator-approved evidence.
+Retryable attempts preserve lineage and remain bounded by the envelope.
+
+Expired leases block redispatch until explicit coordination recovery records
+their expiry. Concurrency, attempts, tokens, cost, elapsed time, effect classes,
+and envelope expiry fail closed. `external-dispatch` remains disabled in this
+slice even if named by an envelope. Typed handoff offers transfer immutable
+artifact and claim references only; the receiving cycle binds the exact derived
+offer digest and receives its own durable acceptance receipt.
+
+`bin/coordinate.mjs --root PATH` is the JSON-stdin control surface. It exposes
+only `inspect`, `admit-phase`, `lease-work`, `settle-work`, `recover`,
+`offer-handoff`, and `accept-handoff`; callers cannot submit event drafts or
+projection state. Production mode still requires an admitted and enabled cycle
+definition, so the five candidate definitions remain non-runnable. The
+`--construction-disabled-definitions` option exists only for bounded local
+construction tests.
+
+RWO remains reference and conformance evidence only. P3 reuses its one-root
+authority, deterministic replay, compare-bound acceptance, and separation
+principles without importing its Rust DAG, accepted-history stores, shell
+executor, or transports.
+
+The shared P3 engine is also construction-tested across every non-benchmark
+cycle kind. `research-learning`, `engine-improvement`, `interaction-learning`,
+and `controlled-upgrade` each pass phase admission, dependency-ordered leasing,
+criterion-complete settlement, bounded accounting, byte-identical restart, and
+SQLite-loss reconstruction. Each kind also fails closed without its own cycle
+validator, and all four remain non-runnable under production defaults because
+their registry definitions are still candidate, unadmitted, and disabled. This
+proves the kernel and coordinator are cycle-kind neutral; it does not substitute
+generic test validators for production domain semantics. Exact bindings and the
+nine-test result are retained in
+`evidence/OTHER-CYCLE-KINDS-ENGINE-VALIDATION.v1.json`.
+
+The first real non-activating controlled-upgrade preflight is retained under
+`research/ilh04-host-confirmation-v1/`. It validates the IL-H04 notification at
+the shared headless RPC host boundary, preserves the disabled repository
+profile, and settles its evidence through the same durable coordinator. Its
+claim excludes Codex Desktop/Windows UI display and real-user effectiveness.
+
+The missing engine-owned state binding is now implemented and settled as a
+separate `engine-improvement` cycle under
+`research/ilh04-continuity-provider-v1/`. A closed, digest-bound snapshot feeds
+the real wrapper and persistent gateway entrypoints; selector misses fail
+closed, the repository default remains disabled, and activation is still a
+separate controlled-upgrade decision.
+
+That decision is now represented by the admitted single-cycle instance under
+`research/ilh04-headless-activation-v1/`. It proved failed-canary rollback,
+passed the real gateway canary, and retained the provider package in a local
+evidence-owned serving pointer. The global cycle definition and repository
+default profile remain disabled; actual operator-launcher selection is still a
+separate operational boundary.
+
+The operational successor under `research/ilh04-headless-operational-v1/` now
+closes that boundary. Both real entrypoints consume one closed activation
+manifest, the installed Codex protocol was re-observed, and a real app-server
+initialize plus the model-neutral continuity canary passed. The local headless
+scope is complete; external deployment and Desktop UI remain different scopes.
+
+## H-EN working prototype
+
+P4 adds `src/benchmark-research-v1.mjs` and the exact bounded import manifest at
+`registry/hen-frontier-import.v1.json`. The manifest imports only the current
+GLM 8K ContextBench H-EN construction frontier: its controlling workflow,
+rejected R1 candidate and review, repaired R2 candidate, and supervised R7
+offline replay. The complete historical ContextBench campaign, H-L, H-MC,
+ARE-DSH rounds 73–78, LongMemEval, credentials, caches, and benchmark execution
+remain excluded.
+
+Import verifies every original path, byte length, and SHA-256 before storing the
+bytes in the P2 content-addressed object store. Five durable commands reconstruct
+the immutable objective, H-EN hypothesis, R2 candidate, retrospective import
+receipt, and HEN-06 independent-review task. The initial derived benchmark
+projection shows the candidate as `awaiting-validation`; it does not convert
+the pending review into approval or claim the historical work ran inside this
+runtime. A separate `advance-hen` operation verifies the closed HEN-07–09
+evidence and independent-review record, stores all eleven exact evidence objects,
+and appends three durable commands that qualify the successor candidate and make
+HEN-10 the only ready task in that retrospective provider-free projection. The
+later live HEN-10 execution is separate evidence and still awaits final
+coordinator settlement, as documented in
+[`EVOLUTION-LIFECYCLE.md`](EVOLUTION-LIFECYCLE.md#hen-10-walkthrough).
+
+`bin/prototype.mjs` is the provider-free JSON stdin surface. Production defaults
+still reject the disabled benchmark definition. Local construction requires the
+explicit `--construction-disabled-definitions` switch:
+
+```sh
+printf '%s\n' '{"schema_version":"are.evolution-prototype-cli-request/v1","operation":"import-hen","input":{"imported_at":"2026-09-22T15:00:00.000Z","actor":{"actor_id":"agent:local-prototype","actor_kind":"agent"}}}' |
+  node bin/prototype.mjs --root /tmp/are-evolution-prototype \
+    --repository-root ../../../../.. --construction-disabled-definitions
+```
+
+The import binds eleven exact artifacts: the five workflow/review/replay records
+plus the repaired worker, its two transitive ranking modules, the process-group
+supervisor, the R7 analyzer, and the focused 11-test source. `advance-hen` adds
+the HEN-06 rereview, immutable HEN-07/08 predecessor, independently accepted
+runtime-continuity record, HEN-09 summary, independent reviews, and six frozen
+result/receipt objects, bringing the reconstructed projection to twenty-two content-addressed bindings
+and eight commits. The same CLI supports `inspect` and
+`reconstruction-bundle`. Deleting SQLite and
+running kernel recovery reconstructs the byte-identical benchmark projection
+from the verified durable chain. No operation dispatches workers, calls a model
+or provider, runs a benchmark, or enables a cycle definition.
+
+HEN-07 adds `hen-balanced-facet-round-robin/v1`. It accepts only closed
+path-and-span records, deduplicates by path/span/content hash, retains the best
+duplicate, and selects by rank across facets under three independent bounds:
+4,096 UTF-8 payload bytes, sixteen records total, and four records per path.
+The wire payload uses a declared field-order tuple representation to avoid
+spending the small context budget on repeated JSON keys.
+
+HEN-08 materializes each result as a distinct digest-bound candidate view with
+exact source-query, raw-hint, omitted-hint, selected-hint, payload-byte, model-
+call, and provider-call accounting. Both operations are available through the
+closed prototype CLI as `compress-hen-hints` and
+`build-hen-candidate-view`. The four-task R7 offline replay retains seven of
+nine previously missing labeled paths after compression from 320 to 64 hints;
+labels are post-hoc evaluation data and are rejected from candidate-view input.
+The exact evidence is in
+`evidence/HEN-07-08-PROVIDER-FREE-COMPLETION.v1.json`.
+
+HEN-09 is complete at the tokenizer-only qualification ceiling. The first
+frozen composition correctly failed with 48 populated-request overflows because
+it repeated the full audit view in every request. The accepted successor keeps
+that full view in evidence and projects only adaptively admitted path/range
+hints to the model. All 4 initial, 85 populated-replay, and 4 representative
+terminal requests fit the strict 8K envelope; maxima were 4,544, 7,924, and
+3,867 tokens respectively. The rejected and accepted attempts made 93 tokenizer
+calls each (186 total); both attempts and all redacted receipts remain under
+`evidence/hen-09-tokenizer-qualification-v*/`. HEN-10 registration, independent
+launch review, live execution, recovery, and native scoring are now complete.
+The selected composite preserves tasks 1–2 from the interrupted v2 run and
+uses the fresh v7 recovery for tasks 3–4. All four assigned outcomes are valid,
+long-trajectory, reconciled, and verified inside the strict 8K request window.
+Native ContextBench scoring reports mean Span-F1 `0.3920897271519605` and mean
+File-F1 `0.6627747252747253`; the strict every-task-perfect development target
+did not pass, so neither the benchmark nor campaign is cleared. Selected
+generation used 86 model calls and 315,839 model tokens; complete all-attempt
+accounting, including superseded work and prelaunch diagnostics, is retained.
+The authoritative selected scoring result is
+`evidence/hen-10-contextbench-live-v7-recovery/score-r4/RESULTS.json`, with the
+selection and failed local scorer-attempt lineage summarized by
+`evidence/hen-10-contextbench-live-v7-recovery/SCORING-SUMMARY.json`. The
+independent post-run review passes the exact denominator, provenance,
+settlement, reconciliation, 8K, accounting, and score-integrity checks. The
+claim ceiling remains the same four exposed development tasks; confirmation on
+an independently frozen cohort is still required before any generalization
+claim.
+
+After `import-hen`, advance only through the already accepted milestones with:
+
+```sh
+printf '%s\n' '{"schema_version":"are.evolution-prototype-cli-request/v1","operation":"advance-hen","input":{"actor":{"actor_id":"agent:local-prototype","actor_kind":"agent"}}}' |
+  node bin/prototype.mjs --root /tmp/are-evolution-prototype \
+    --repository-root ../../../../.. --construction-disabled-definitions
+```
+
 ## Runtime surfaces
+
+### Historical interaction-learning ingestion
+
+`bin/interaction-learning.mjs --root PATH` adds a closed JSON-in/JSON-out
+construction surface for the approved historical interaction-learning cycle.
+The `scan` operation streams Codex JSONL sources, selects sessions by declared
+working-directory markers, and writes a compact `ingestion.json` beneath the
+cycle root. It retains record ordinals, timestamps, hashes, counts, language
+hints, and correction-signal classes, but never durable message text, tool
+arguments or outputs, environment values, encrypted reasoning, or credentials.
+
+The `baseline` operation accepts labels from a separate evaluator, rejects
+unknown or multiply assigned turns and causally inconsistent failures, preserves
+objective groups in chronological partitions, and writes `baseline.json`.
+It never treats correction-keyword matches as final failure labels. `hypothesis`,
+`screen`, `assess`, and `package` freeze each subsequent candidate and preserve
+both counterevidence and supported learning packages. Version-suffixed operations
+retain later hypotheses without overwriting earlier results. `close` accepts only
+a valid supported package, records the owner's retention decision, and closes the
+objective with `activation: none`.
+
+The first real execution measured a `0.50` historical baseline and evaluated
+four candidates. The deterministic high-risk transition renderer, IL-H04,
+passed 20/20 prospective episodes with Wilson 95% lower bound `0.8389`, zero
+critical regressions, and no provider calls. The owner retained it through
+DG-IL-15 and the runtime closed the objective without activating or integrating
+the renderer. The coordinator bound 22 experiment artifacts and passed restart
+and SQLite-loss reconstruction; the later closure artifact and receipt are also
+durable under the cycle root. The complete contract, plan, and bounded result are
+in
+[`../../benchmarks/real-reasoning-v1/interaction-learning/CYCLE-DEFINITION.md`](../../benchmarks/real-reasoning-v1/interaction-learning/CYCLE-DEFINITION.md),
+[`../../benchmarks/real-reasoning-v1/interaction-learning/IMPLEMENTATION-PLAN.md`](../../benchmarks/real-reasoning-v1/interaction-learning/IMPLEMENTATION-PLAN.md),
+and
+[`../../benchmarks/real-reasoning-v1/interaction-learning/RESULTS.md`](../../benchmarks/real-reasoning-v1/interaction-learning/RESULTS.md).
+
+The retained IL-H04 package now has a separately settled `engine-improvement`
+successor under `research/ilh04-engine-improvement-v1/`. It integrates the
+renderer at the Codex wrapper's post-objective-resolution boundary, emits a
+typed continuity context and client notification when enabled in construction,
+and keeps the repository profile disabled. Its deterministic comparison passed
+20/20 exact parity cases; activation remains `none`.
+
+The later `ilh04-continuity-provider-v1` engine-improvement cycle closes the
+runtime-state gap: both real entrypoints can exact-load an operator-supplied
+snapshot and provide deterministic bindings to the renderer. Its gateway
+canary and all regressions passed; it recommends the provider variant without
+activating it.
+
+Example scan request:
+
+```json
+{"schema_version":"are.interaction-learning-cli-request/v1","operation":"scan","cycle_id":"interaction-learning-001","input":{"sources":[{"source_id":"windows-active","root":"/mnt/c/Users/vlad_/.codex/sessions"},{"source_id":"wsl-active","root":"/home/vlad_/.codex/sessions"}],"cwd_markers":["cyberAlchemy-v2","agent-reasoning-engine"]}}
+```
+
+This candidate surface produces evidence only. It does not admit the disabled
+cycle definition, call an evaluator or provider, activate a lesson, or upgrade
+the serving engine.
 
 - `createEvolutionRuntime` appends and seals signals, targets, research results,
   retained improvements, technique candidates, reproduction trials, variants,
@@ -121,6 +452,15 @@ benchmark success does not activate or deploy an engine version.
   changed path outside the target mutation allowlist.
 - `createEvolutionScheduler` runs one cycle at a time and replays duplicate
   trigger identities without a second cycle call.
+- `createDurableEvolutionKernel` commits command/event/receipt units, stores
+  artifacts, reconstructs all three projection layers, diagnoses residue, and
+  rebuilds its disposable SQLite index.
+- `createEvolutionCoordinator` admits exact work plans, derives ready work,
+  controls fenced leases and recovery, settles evidence and accounting, and
+  records typed handoffs through the P2 commit chain.
+- `createBenchmarkResearchRuntime` verifies and imports the bounded H-EN legacy
+  closure, derives its semantic projection, and builds a provider-free
+  reconstruction-bundle index.
 - `createServingVersionStore` writes a hash-bound serving pointer atomically.
 - `applyUpgradeDecision` leaves recommend-only decisions untouched; controlled
   local activation requires an exact predecessor and an injected canary, and a

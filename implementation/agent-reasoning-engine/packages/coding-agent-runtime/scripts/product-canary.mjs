@@ -41,7 +41,7 @@ function blocked(error, fixtureRoot = null) {
   };
 }
 
-export async function runProductCanary({engine = DEFAULT_ENGINE, image = DEFAULT_IMAGE, keep = false} = {}) {
+export async function runProductCanary({engine = process.env.ARE_PRODUCT_CANARY_ENGINE ?? DEFAULT_ENGINE, image = process.env.ARE_PRODUCT_CANARY_IMAGE ?? DEFAULT_IMAGE, keep = false} = {}) {
   const root = mkdtempSync(resolve(tmpdir(), "are-coding-agent-product-canary-"));
   let retain = keep;
   try {

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Persistent, user-owned benchmark tooling. No system package/profile changes.
+set -euo pipefail
+task_repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+task_root=/home/vlad_/.local/share/are-toolchains/defects4j-v3
+task_framework=/home/vlad_/are-benchmark-archive/defects4j-runtime-v3.0.1
+task_metadata=/home/vlad_/are-benchmark-archive/defects4j-metadata-v3.0.1
+task_pin=6d54320e0db5a357f9ab38a8e4d2e5aead7e1c09
+mkdir -p "$task_root/downloads" "$task_root/logs"
+fetch_verified() {
+  local task_url=$1 task_file=$2 task_sha=$3
+  if ! test -f "$task_file"; then
+    curl --fail --location --retry 3 --connect-timeout 30 --max-time 1800 \
+      "$task_url" -o "$task_file.part"
+    printf '%s  %s\n' "$task_sha" "$task_file.part" | sha256sum -c -
+    mv "$task_file.part" "$task_file"
+  fi
+  printf '%s  %s\n' "$task_sha" "$task_file" | sha256sum -c -
+}
+fetch_verified \
+  'https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.32.1%2B1/OpenJDK11U-jdk_x64_linux_hotspot_11.0.32.1_1.tar.gz' \
+  "$task_root/downloads/temurin11.tar.gz" \
+  5c3f68887c325d36d852ba534303e1f5f1f5cae7d6cc1e951d73e0d8e98a058d
+if ! test -x "$task_root/jdk-11.0.32.1+1/bin/java"; then
+  tar -xzf "$task_root/downloads/temurin11.tar.gz" -C "$task_root"
+fi
+export JAVA_HOME="$task_root/jdk-11.0.32.1+1"
+export PATH="$JAVA_HOME/bin:$task_root/native/usr/bin:$task_root/perl/bin:$PATH"
+export PERL5LIB="$task_root/perl/lib/perl5${PERL5LIB:+:$PERL5LIB}"
+export PERL_CPANM_HOME="$task_root/cpanm-work"
+# ExtUtils uses Perl's baked-in compiler name rather than the CC environment
+# variable. Select the shared launcher's GCC for both Perl build systems.
+export PERL_LOCAL_LIB_ROOT="$task_root/perl"
+export PERL_MM_OPT="INSTALL_BASE=$task_root/perl CC=gcc LD=gcc"
+export PERL_MB_OPT="--install_base $task_root/perl --config cc=gcc --config ld=gcc"
+java -version
+fetch_verified \
+  https://cpan.metacpan.org/authors/id/M/MI/MIYAGAWA/App-cpanminus-1.7048.tar.gz \
+  "$task_root/downloads/App-cpanminus-1.7048.tar.gz" \
+  59b60907ab9fa4f72ca2004fbe6054911439ae9a906890b4d842a87b25f20f3c
+if ! test -f "$task_root/App-cpanminus-1.7048/bin/cpanm"; then
+  tar -xzf "$task_root/downloads/App-cpanminus-1.7048.tar.gz" -C "$task_root"
+fi
+if ! test -e "$task_framework"; then
+  git clone --no-hardlinks "$task_metadata" "$task_framework"
+  git -C "$task_framework" checkout --detach "$task_pin"
+fi
+test "$(git -C "$task_framework" rev-parse HEAD)" = "$task_pin"
+fetch_verified \
+  https://archive.ubuntu.com/ubuntu/pool/main/u/unzip/unzip_6.0-29ubuntu1_amd64.deb \
+  "$task_root/downloads/unzip_6.0-29ubuntu1_amd64.deb" \
+  1f6f2bdcde84641e89c9367a7a99d90e990efa3e487a8d625241c2f9c55db5f4
+if ! test -x "$task_root/native/usr/bin/unzip"; then
+  mkdir -p "$task_root/native"
+  dpkg-deb -x "$task_root/downloads/unzip_6.0-29ubuntu1_amd64.deb" "$task_root/native"
+fi
+fetch_verified \
+  https://archive.ubuntu.com/ubuntu/pool/main/libx/libxcrypt/libcrypt-dev_4.5.1-1_amd64.deb \
+  "$task_root/downloads/libcrypt-dev_4.5.1-1_amd64.deb" \
+  a5d86db4dde3de557a419aa3199e916de30b356717c4c1e8974270fda615c051
+if ! test -f "$task_root/native/usr/include/crypt.h"; then
+  dpkg-deb -x "$task_root/downloads/libcrypt-dev_4.5.1-1_amd64.deb" "$task_root/native"
+fi
+fetch_verified \
+  https://archive.ubuntu.com/ubuntu/pool/main/libx/libxcrypt/libcrypt1_4.5.1-1_amd64.deb \
+  "$task_root/downloads/libcrypt1_4.5.1-1_amd64.deb" \
+  57ab343c3dd28ce7101dc4e23de4e9d5bd3e58c6cb0ecd5ba0c42a877fc8868a
+if ! test -f "$task_root/native/usr/lib/x86_64-linux-gnu/libcrypt.so.1.1.0"; then
+  dpkg-deb -x "$task_root/downloads/libcrypt1_4.5.1-1_amd64.deb" "$task_root/native"
+fi
+export C_INCLUDE_PATH="$task_root/native/usr/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+export LIBRARY_PATH="$task_root/native/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"
+# YAML::PP's upstream highlight tests expect ANSI output; the caller's NO_COLOR
+# suppresses it. Restore that test contract only in the installer child process.
+env -u NO_COLOR -u ANSI_COLORS_DISABLED "$task_repo/tools/toolchain/run" perl "$task_root/App-cpanminus-1.7048/bin/cpanm" \
+  --mirror https://cpan.metacpan.org \
+  --mirror-only --installdeps "$task_framework" \
+  > "$task_root/logs/cpan-install.log" 2>&1
+export PATH="$task_root/native/usr/bin:$PATH"
+# The upstream repository downloader skips extraction when an archive is already
+# current, even if a previous extraction failed (e.g. unzip was absent). Recover
+# only a verified archive in this dedicated fresh runtime, without re-downloading.
+if test -f "$task_framework/project_repos/defects4j-repos-v3.zip" && \
+   ! test -f "$task_framework/project_repos/README"; then
+  "$task_root/native/usr/bin/unzip" -tq "$task_framework/project_repos/defects4j-repos-v3.zip"
+  (cd "$task_framework/project_repos" && \
+    unzip -q -u defects4j-repos-v3.zip && mv defects4j/project_repos/* .)
+fi
+# Official initialization operates only in the dedicated runtime clone. Preserve
+# the metadata source checkout and never point this at an arbitrary caller path.
+if ! test -f "$task_root/framework-initialized"; then
+  if ! test -f "$task_root/framework-resources-initialized"; then
+    (cd "$task_framework" && bash ./init.sh) > "$task_root/logs/framework-init.log" 2>&1
+    touch "$task_root/framework-resources-initialized"
+  fi
+  "$task_framework/framework/bin/defects4j" info -p JxPath -b 8 \
+    > "$task_root/logs/framework-smoke.log" 2>&1
+  node "$task_repo/tools/toolchain/verify-defects4j.mjs"
+  touch "$task_root/framework-initialized"
+fi
+printf 'Persistent benchmark runtime ready: %s\n' "$task_framework"

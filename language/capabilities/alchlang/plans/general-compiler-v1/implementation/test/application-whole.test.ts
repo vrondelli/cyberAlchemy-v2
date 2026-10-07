@@ -30,9 +30,14 @@ test("one Alch source joins domain, optional Query, messaging, named API and run
   assert.deepEqual(result.runtimeBinding.binding.application_graph.operation_requests.map((r: any) => r.operation_ref).sort(), ["commerce:receive-notice", "commerce:submit-order"]);
   assert.equal(result.trace.runtime_guarantees_observed, false);
   assert.equal(result.application.runtime_guarantees_observed, false);
-  assert.equal(result.trace.application_plan_sha256, result.application.plan_sha256);
+  assert.equal(result.trace.whole_application_plan_sha256, result.wholeApplication.plan_sha256);
+  assert.equal(result.trace.provider_application_plan_sha256, result.application.plan_sha256);
+  assert.equal(result.application.whole_application_plan_sha256, result.wholeApplication.plan_sha256);
   assert.ok(result.application.artifacts.some(a=>a.relative_path==="src/integrations/application-request-handlers.ts"));
+  assert.ok(result.application.artifacts.some(a=>a.relative_path==="src/providers/reference/bootstrap.ts"));
+  assert.ok(result.application.artifacts.some(a=>a.relative_path===".domainspec/providers/manifest.json"));
   assert.throws(()=>f.compiler.composeApplicationArtifacts(structuredClone(result.executable.plan),result.integrationSource,result.runtimeBinding.binding), /registered reconciled/);
+  assert.throws(()=>f.compiler.composeProviderApplicationArtifacts(structuredClone(result.wholeApplication),f.candidate.projection.formation.runtime!.selected.selection,result.integrationSource), /WHOLE_APPLICATION/);
   const outbound = result.runtimeBinding.providers.find((p: any) => p.role === "outbound_http");
   assert.equal(outbound.logical_boundary_ref, "commerce:order-api");
   assert.equal(result.integrationSource.external_api.external_api_contracts[0].contract_id, "contract:payment-gateway");

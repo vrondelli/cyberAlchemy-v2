@@ -23,13 +23,38 @@ export async function planApplicationFile(sourcePath: string, options: Applicati
       : compileApplicationWhole(loaded.candidate, graph, loaded.observation, loaded.compiler);
     const executable = whole?.executable ?? compileApplicationExecutable(loaded.candidate, graph, loaded.compiler);
     assertApplicationFileCurrent(loaded);
+    const sourceSha256 = loaded.inputs[path.basename(loaded.source_path)]!;
+    const inputsSha256 = digest(json(loaded.inputs));
+    const executableTraceSha256 = digest(json(executable.trace));
+    const entryManifestSha256 = loaded.entry_manifest ? digest(json(loaded.entry_manifest)) : null;
+    const currentnessReceipt = Object.freeze({
+      schema_version: "alchlang.application-currentness-receipt/v1-candidate" as const,
+      status: "current" as const,
+      source_sha256: sourceSha256,
+      inputs_sha256: inputsSha256,
+      input_count: Object.keys(loaded.inputs).length,
+      domain_manifest_sha256: graph.source_manifest.manifest_sha256,
+      executable_trace_sha256: executableTraceSha256,
+      entry_manifest_sha256: entryManifestSha256,
+      whole_application_plan_sha256: whole?.wholeApplication.plan_sha256 ?? null,
+      provider_application_plan_sha256: whole?.application.plan_sha256 ?? null,
+      unsupported_residue: Object.freeze([]) as readonly never[],
+      authority_effect: "none" as const,
+    });
     const report = { status: "valid" as const, profile: "application-v1" as const,
-      scope: whole ? "whole-application-artifacts" as const : "executable" as const,
-      source_sha256: loaded.inputs[path.basename(loaded.source_path)]!,
-      inputs_sha256: digest(json(loaded.inputs)), domain_manifest_sha256: graph.source_manifest.manifest_sha256,
-      executable_trace_sha256: digest(json(executable.trace)), nodes: graph.nodes.length,
+      scope: whole ? "provider-application-artifacts" as const : "executable" as const,
+      source_sha256: sourceSha256,
+      inputs_sha256: inputsSha256, domain_manifest_sha256: graph.source_manifest.manifest_sha256,
+      executable_trace_sha256: executableTraceSha256, nodes: graph.nodes.length,
       generated_artifacts: (whole?.application.artifacts ?? executable.view.artifacts).length,
-      ...(whole ? { runtime_binding_sha256: whole.runtimeBinding.runtime_binding_sha256, application_plan_sha256: whole.application.plan_sha256 } : {}),
+      ...(loaded.entry_manifest ? { selected_entry: loaded.entry_manifest.selected_entry,
+        entry_manifest_sha256: digest(json(loaded.entry_manifest)) } : {}),
+      ...(whole ? { runtime_binding_sha256: whole.runtimeBinding.runtime_binding_sha256,
+        whole_application_plan_sha256: whole.wholeApplication.plan_sha256,
+        provider_application_plan_sha256: whole.application.plan_sha256 } : {}),
+      unsupported_residue: currentnessReceipt.unsupported_residue,
+      currentness_receipt: currentnessReceipt,
+      currentness_receipt_sha256: digest(json(currentnessReceipt)),
       runtime_guarantees_observed: false as const, authority_effect: "none" as const };
     return { loaded, report, executable, whole };
   } finally { rmSync(root, { recursive: true, force: true }); }

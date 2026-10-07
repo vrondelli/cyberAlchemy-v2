@@ -135,7 +135,7 @@ export function conversationStatus(phase) {
   if (["working", "applying", "self-testing"].includes(phase)) return "running";
   if (["waiting", "review"].includes(phase)) return "waiting-human";
   if (phase === "completed") return "completed";
-  if (["error", "stopped"].includes(phase)) return "blocked";
+  if (["error", "stopped", "uncertain"].includes(phase)) return "blocked";
   return "idle";
 }
 

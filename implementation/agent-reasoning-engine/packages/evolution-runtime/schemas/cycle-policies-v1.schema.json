@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberalchemy.local/are/evolution-runtime/cycle-policies-v1.schema.json",
+  "title": "ARE evolution cycle policy extensions v1",
+  "oneOf": [
+    {"$ref": "#/$defs/benchmarkObjective"},
+    {"$ref": "#/$defs/researchAnswerability"},
+    {"$ref": "#/$defs/engineComparison"},
+    {"$ref": "#/$defs/interactionLearning"},
+    {"$ref": "#/$defs/controlledUpgrade"}
+  ],
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "exactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {"ref": {"$ref": "#/$defs/identifier"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "boundedResources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_attempts", "maximum_concurrency"],
+      "properties": {
+        "maximum_attempts": {"type": "integer", "minimum": 1},
+        "maximum_concurrency": {"type": "integer", "minimum": 1},
+        "maximum_tokens": {"type": ["integer", "null"], "minimum": 1},
+        "maximum_cost": {"type": ["number", "null"], "minimum": 0},
+        "maximum_elapsed_seconds": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "benchmarkObjective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "objective", "benchmark", "metric_policy", "comparison_reference_mode", "success_rule", "falsification_rule", "resources", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.benchmark-objective-policy/v1"},
+        "objective": {"$ref": "#/$defs/exactBinding"},
+        "benchmark": {"$ref": "#/$defs/exactBinding"},
+        "metric_policy": {"$ref": "#/$defs/exactBinding"},
+        "comparison_reference_mode": {"enum": ["absolute-target", "frozen-baseline", "prospective-paired-control"]},
+        "success_rule": {"$ref": "#/$defs/identifier"},
+        "falsification_rule": {"$ref": "#/$defs/identifier"},
+        "resources": {"$ref": "#/$defs/boundedResources"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "researchAnswerability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "question", "answerability_contract", "accepted_evidence_kinds", "resources", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.research-answerability-policy/v1"},
+        "question": {"$ref": "#/$defs/exactBinding"},
+        "answerability_contract": {"$ref": "#/$defs/exactBinding"},
+        "accepted_evidence_kinds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/identifier"}},
+        "resources": {"$ref": "#/$defs/boundedResources"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "engineComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "objective", "baseline", "comparison_contract", "mutation_allowlist", "resources", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.engine-comparison-policy/v1"},
+        "objective": {"$ref": "#/$defs/exactBinding"},
+        "baseline": {"$ref": "#/$defs/exactBinding"},
+        "comparison_contract": {"$ref": "#/$defs/exactBinding"},
+        "mutation_allowlist": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "resources": {"$ref": "#/$defs/boundedResources"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "interactionLearning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "objective", "participant_scope", "privacy_contract", "retention_contract", "resources", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.interaction-learning-policy/v1"},
+        "objective": {"$ref": "#/$defs/exactBinding"},
+        "participant_scope": {"$ref": "#/$defs/identifier"},
+        "privacy_contract": {"$ref": "#/$defs/exactBinding"},
+        "retention_contract": {"$ref": "#/$defs/exactBinding"},
+        "resources": {"$ref": "#/$defs/boundedResources"},
+        "authority_effect": {"const": "none"}
+      }
+    },
+    "controlledUpgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "recommendation", "serving_predecessor", "rollback_target", "canary_contract", "activation_authorization_required", "isolation", "authority_effect"],
+      "properties": {
+        "schema_version": {"const": "are.controlled-upgrade-policy/v1"},
+        "recommendation": {"$ref": "#/$defs/exactBinding"},
+        "serving_predecessor": {"$ref": "#/$defs/exactBinding"},
+        "rollback_target": {"$ref": "#/$defs/exactBinding"},
+        "canary_contract": {"$ref": "#/$defs/exactBinding"},
+        "activation_authorization_required": {"const": true},
+        "isolation": {"const": "separate-process-and-credentials"},
+        "authority_effect": {"const": "none"}
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
-import {isAbsolute, resolve} from "node:path";
+import {isAbsolute, relative, resolve, sep} from "node:path";
 import {loadVerifiedDecisionProfile} from "../../request-decision-router/index.mjs";
 import {loadSemanticInputProfile} from "../../semantic-input-runtime/index.mjs";
 import {loadReasoningPolicy} from "../../reasoning-policy-runtime/index.mjs";
@@ -9,6 +9,7 @@ import {fail, freezeResult, isRecord, nonEmptyString} from "./canonical.mjs";
 import {materializeDefinitionCatalog, materializeOntologySnapshot} from "./source-adapters.mjs";
 import {validMeaningSelection} from "./objective-meanings.mjs";
 import {validInteractionLearningConfiguration} from "./interaction-learning-lifecycle.mjs";
+import {validContinuityRendererConfiguration} from "./continuity-renderer.mjs";
 
 const SOURCE_HASH_IMPLEMENTATIONS = new Set(["node-crypto-sha256", "portable-js-sha256"]);
 
@@ -19,7 +20,12 @@ function sourceTextDigest(text, implementation) {
 }
 
 function absolute(repositoryRoot, path) {
-  return isAbsolute(path) ? path : resolve(repositoryRoot, path);
+  if (isAbsolute(path)) return null;
+  const root = resolve(repositoryRoot);
+  const candidate = resolve(root, path);
+  const fromRoot = relative(root, candidate);
+  if (fromRoot === ".." || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) return null;
+  return candidate;
 }
 
 function readBoundJson(repositoryRoot, binding) {
@@ -27,6 +33,7 @@ function readBoundJson(repositoryRoot, binding) {
     return fail("config", ["config.source-binding-invalid"]);
   }
   const path = absolute(repositoryRoot, binding.path);
+  if (!path) return fail("config", ["config.source-path-escape"], [{path: binding.path}]);
   let text;
   try {
     text = readFileSync(path, "utf8");
@@ -45,6 +52,7 @@ function readBoundJson(repositoryRoot, binding) {
 function readLiveJson(repositoryRoot, binding, hashImplementation) {
   if (!isRecord(binding) || !nonEmptyString(binding.path)) return fail("config", ["config.source-binding-invalid"]);
   const path = absolute(repositoryRoot, binding.path);
+  if (!path) return fail("config", ["config.source-path-escape"], [{path: binding.path}]);
   let text;
   try {
     text = readFileSync(path, "utf8");
@@ -62,6 +70,7 @@ function readLiveJson(repositoryRoot, binding, hashImplementation) {
 function readLiveText(repositoryRoot, binding, hashImplementation) {
   if (!isRecord(binding) || !nonEmptyString(binding.path)) return fail("config", ["config.source-binding-invalid"]);
   const path = absolute(repositoryRoot, binding.path);
+  if (!path) return fail("config", ["config.source-path-escape"], [{path: binding.path}]);
   let text;
   try {
     text = readFileSync(path, "utf8");
@@ -159,7 +168,9 @@ function probeLiveContextSignature(profile, repositoryRoot, hashImplementation) 
     if (!isRecord(binding) || !nonEmptyString(binding.path)) return fail("config", ["config.source-binding-invalid"]);
     let text;
     try {
-      text = readFileSync(absolute(repositoryRoot, binding.path), "utf8");
+      const path = absolute(repositoryRoot, binding.path);
+      if (!path) return fail("config", ["config.source-path-escape"], [{path: binding.path}]);
+      text = readFileSync(path, "utf8");
     } catch {
       return fail("config", ["config.source-unreadable"], [{path: binding.path}]);
     }
@@ -282,8 +293,11 @@ export function loadRepositoryProfile(profilePath, repositoryRoot, options = {})
   if ((intentCompilation.trigger ?? "turn/start") !== "turn/start") return fail("config", ["config.intent-compilation-trigger-unsupported"]);
   const cacheTelemetry = isRecord(profile.cache_telemetry) ? profile.cache_telemetry : {enabled: false, usage_paths: []};
   const objectiveResolution = profile.objective_resolution ?? {enabled: false};
+  const continuityRenderer = profile.continuity_renderer ?? {enabled: false};
   const interactionLearning = profile.interaction_learning ?? {enabled: false};
   if (!validInteractionLearningConfiguration(interactionLearning)) return fail("config", ["config.interaction-learning-invalid"]);
+  if (!validContinuityRendererConfiguration(continuityRenderer)
+    || (continuityRenderer.enabled === true && objectiveResolution.enabled !== true)) return fail("config", ["config.continuity-renderer-invalid"]);
   if (!isRecord(objectiveResolution) || typeof objectiveResolution.enabled !== "boolean"
     || Object.keys(objectiveResolution).some(key => !["enabled", "provider_timeout_ms", "meaning_selection", "requirement_tracking"].includes(key))
     || (objectiveResolution.requirement_tracking !== undefined && typeof objectiveResolution.requirement_tracking !== "boolean")
@@ -330,6 +344,7 @@ export function loadRepositoryProfile(profilePath, repositoryRoot, options = {})
     eviction_retry_ms: 1000,
     allowed_clients: [
       {consumer_id: "codex:human-chat", lane: "interaction-bound"},
+      {consumer_id: "codex:define-cli", lane: "interaction-bound"},
       {consumer_id: "codex:plan", lane: "plan-bound", window_ref: "plan:persistent-codex", request_id: "request:persistent-codex-plan"},
     ],
   };
@@ -391,6 +406,7 @@ export function loadRepositoryProfile(profilePath, repositoryRoot, options = {})
       evolution_signals: freezeResult({enabled: evolutionSignals.enabled, trigger: evolutionSignals.trigger}),
       intent_compilation: freezeResult({enabled: intentCompilation.enabled, trigger: intentCompilation.trigger ?? "turn/start", control_profile: isRecord(intentCompilation.control_profile) ? intentCompilation.control_profile : {visibility: "quiet"}}),
       interaction_learning: freezeResult(interactionLearning),
+      continuity_renderer: freezeResult(continuityRenderer),
       objective_resolution: freezeResult({enabled: objectiveResolution.enabled, provider_timeout_ms: objectiveResolution.provider_timeout_ms ?? 1000,
         ...(objectiveResolution.requirement_tracking !== undefined ? {requirement_tracking: objectiveResolution.requirement_tracking} : {}),
         ...(objectiveResolution.meaning_selection ? {meaning_selection: objectiveResolution.meaning_selection} : {})}),

@@ -11,7 +11,7 @@ import {buildLocalPattern} from './build.mjs';
 import {createEngineFixture} from './fixture.mjs';
 import {createHttpInvocation} from '../../../implementation/dist/http-invocation-adapter.js';
 import {loadOutbound} from '../../../implementation/dist/outbound-composition.js';
-import {compileOutboundComposition} from '../../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/dist/typed-backend/outbound-composition.js';
+import {compileOutboundComposition} from '../../../../../../../../craft/projects/domainspec-v2/impl/cli/dist/typed-backend/outbound-composition.js';
 // Generated-host conformance; Open Questions: README.md.
 const folder=mkdtempSync(join(tmpdir(),'local-pattern-test-'));let api,bundle;
 const baseConfig=JSON.parse(readFileSync(new URL('./configuration.example.json',import.meta.url)));

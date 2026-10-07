@@ -1,6 +1,7 @@
 import {createHash, createPublicKey, verify} from "node:crypto";
-import {lstatSync, readFileSync} from "node:fs";
+import {lstatSync, readFileSync, realpathSync} from "node:fs";
 import {resolve, sep} from "node:path";
+import {spawnSync} from "node:child_process";
 
 import {
   ARTIFACT_MANIFEST_PATH,
@@ -23,6 +24,38 @@ export const envelopeBindings = Object.freeze({
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const exactKeys = (value, keys) => value && typeof value === "object" && !Array.isArray(value)
   && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
+const modeString = (metadata) => `0${(metadata.mode & 0o777).toString(8)}`;
+
+function git(root, args) {
+  const execution = spawnSync("git", ["-C", root, ...args], {
+    encoding: "utf8",
+    timeout: 5000,
+    windowsHide: true,
+  });
+  if (execution.error || execution.status !== 0 || execution.signal || execution.stderr) return null;
+  return execution.stdout.trim();
+}
+
+function isTrackedGitExecutable(root, relativePath) {
+  const topLevel = git(root, ["rev-parse", "--show-toplevel"]);
+  if (!topLevel || realpathSync(topLevel) !== realpathSync(root)) return false;
+  const stage = git(root, ["ls-files", "--stage", "--", relativePath]);
+  const match = /^100755 ([0-9a-f]{40}|[0-9a-f]{64}) 0\t(.+)$/.exec(stage ?? "");
+  if (!match || match[2] !== relativePath) return false;
+  return git(root, ["hash-object", "--", relativePath]) === match[1];
+}
+
+function validateBinaryMode({root, relativePath, signedMode, binaryFile, verificationContext}) {
+  const observedMode = modeString(binaryFile.metadata);
+  if (observedMode === signedMode) return {ok: true, posture: "signed-artifact-mode-exact", observedMode};
+  if (verificationContext !== "git-checkout" || signedMode !== "0555" || observedMode !== "0755") {
+    return {ok: false, posture: "mode-mismatch", observedMode};
+  }
+  if (!isTrackedGitExecutable(root, relativePath)) {
+    return {ok: false, posture: "git-checkout-unverified", observedMode};
+  }
+  return {ok: true, posture: "git-executable-bit-materialization", observedMode};
+}
 
 function readRegular(root, relativePath) {
   let current = resolve(root);
@@ -57,6 +90,10 @@ function result(ok, reasonCodes = [], observed = {}) {
     reason_codes: [...new Set(reasonCodes)].sort(),
     bundle_sha256: observed.bundle_sha256 ?? null,
     signature_sha256: observed.signature_sha256 ?? null,
+    verification_context: observed.verification_context ?? null,
+    signed_binary_mode: observed.signed_binary_mode ?? null,
+    observed_binary_mode: observed.observed_binary_mode ?? null,
+    binary_mode_posture: observed.binary_mode_posture ?? null,
     authority_effect: "none",
   };
   return Object.freeze({...material, receipt_digest: sha256(Buffer.from(JSON.stringify(material)))});
@@ -75,7 +112,7 @@ function validateBundle(bundle, artifactManifest, binaryFile) {
     && exactKeys(payloads[1], ["role", "path", "sha256", "size", "mode"])
     && payloads[1].role === "verifier-binary" && payloads[1].path === BINARY_PATH
     && payloads[1].sha256 === sha256(binaryFile.bytes) && payloads[1].size === binaryFile.bytes.length
-    && payloads[1].mode === `0${(binaryFile.metadata.mode & 0o777).toString(8)}`
+    && /^0[0-7]{3}$/.test(payloads[1].mode)
     && exactKeys(bundle.signature, ["algorithm", "key_id", "trust_posture"])
     && bundle.signature.algorithm === "Ed25519" && bundle.signature.key_id === TEST_KEY_ID
     && bundle.signature.trust_posture === TEST_TRUST_POSTURE
@@ -98,10 +135,11 @@ function validateSignature(signature, bundleBytes) {
   } catch { return false; }
 }
 
-export function verifyDistributionEnvelope({repository_root} = {}) {
-  const observed = {};
+export function verifyDistributionEnvelope({repository_root, verification_context = "packaged-artifact"} = {}) {
+  const observed = {verification_context};
   try {
     if (typeof repository_root !== "string" || !repository_root) throw new Error("envelope.repository-root-invalid");
+    if (!["packaged-artifact", "git-checkout"].includes(verification_context)) throw new Error("envelope.verification-context-invalid");
     const root = resolve(repository_root);
     const bundleFile = readRegular(root, envelopeBindings.bundle_manifest.path);
     const signatureFile = readRegular(root, envelopeBindings.signature.path);
@@ -119,6 +157,17 @@ export function verifyDistributionEnvelope({repository_root} = {}) {
     } catch { throw new Error("envelope.json-invalid"); }
     if (!validateSignature(signature, bundleFile.bytes)) throw new Error("envelope.signature-invalid");
     if (!validateBundle(bundle, artifactManifestFile, binaryFile)) throw new Error("envelope.bundle-policy-invalid");
+    const modeEvidence = validateBinaryMode({
+      root,
+      relativePath: envelopeBindings.binary.path,
+      signedMode: bundle.payloads[1].mode,
+      binaryFile,
+      verificationContext: verification_context,
+    });
+    observed.signed_binary_mode = bundle.payloads[1].mode;
+    observed.observed_binary_mode = modeEvidence.observedMode;
+    observed.binary_mode_posture = modeEvidence.posture;
+    if (!modeEvidence.ok) throw new Error("envelope.binary-mode-policy-invalid");
     if (artifactManifestValue.artifact_id !== ARTIFACT_ID || artifactManifestValue.binary_path !== BINARY_PATH
       || artifactManifestValue.binary_sha256 !== sha256(binaryFile.bytes) || artifactManifestValue.binary_size !== binaryFile.bytes.length
       || artifactManifestValue.effect_authorized !== false || artifactManifestValue.authority_effect !== "none") {

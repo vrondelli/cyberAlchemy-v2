@@ -41,7 +41,18 @@ export function bindCompactDelivery({captures,receipts}){
    for(const {tool_call_id,o} of items){
     let material;try{material=observationMaterial(tool_call_id,o);}catch(e){failures.push({receipt_index,tool_call_id,reason:e.message});continue;}
     if(call.function.name==='search')need(typeof args.query==='string'&&o.utf8.includes(args.query)&&o.path.startsWith(args.path_prefix??''),'search.arguments-output-mismatch');
-    else need(args.path===o.path&&args.start_line===o.start_line,'read.arguments-output-mismatch');
+    else if(['read_file','read-file'].includes(call.function.name))need(args.path===o.path&&args.start_line===o.start_line,'read.arguments-output-mismatch');
+    else {
+     // Recovery's compact wire names an immutable archive observation, not a
+     // path/range. observationItems has already checked that origin binding.
+     const compact='archive_sha256,observation_index';
+     const full='archive_sha256,line_count,observation_index,path,revision,start_line';
+     const shape=Object.keys(args).sort().join(',');
+     need(call.function.name===recoveryName&&(shape===compact||shape===full),'recovery.arguments-shape');
+     if(shape===full)need(args.path===o.path&&args.revision===o.source_revision&&
+       args.start_line===o.start_line&&o.end_line<=args.start_line+args.line_count-1,
+     'recovery.arguments-output-mismatch');
+    }
     const id=hash(material),previous=reads.get(tool_call_id);
     if(previous&&previous.id!==id){failures.push({receipt_index,tool_call_id,reason:'read-visible-version-changed'});continue;}
     if(!previous)reads.set(tool_call_id,{id,...material,first_confirmed_receipt:receipt_index,confirmed_receipts:[]});

@@ -18,7 +18,7 @@ export function validateApplicationOutput(files: Readonly<Record<string, string>
     if (!relative || parts.some(p => !p || p === "." || p === ".." || /[<>:"\\|?*\x00-\x1f]/.test(p) || /[. ]$/.test(p)
       || /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(p))) fail("unsafe output path");
     for (let i = 1; i <= parts.length; i++) {
-      const original = parts.slice(0, i).join("/"), key = original.normalize("NFC").toLowerCase();
+      const original = parts.slice(0, i).join("/"), key = original.normalize("NFKC").toLowerCase();
       if (paths.has(key) && paths.get(key) !== original) fail("portable output path collision");
       paths.set(key, original);
       if (i < parts.length && originals.has(original)) fail("output file/directory collision");

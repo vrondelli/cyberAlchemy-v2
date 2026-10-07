@@ -62,7 +62,12 @@ ARE's repository profile; it invokes no ontology-runtime admission gate.
 6. Bind Workspace/VPS clients to the existing gateway using a compatible Codex
    binary and verified session continuity. Do not replace this live chat's
    transport or launch a model as part of this local construction.
-7. Add MCP last as an adapter over the same tested operations.
+7. The project-local STDIO MCP adapter now exists under
+   `implementation/agent-reasoning-engine/packages/are-mcp-server`. It exposes
+   the same tested decision operations plus durable evolution status, commands,
+   and content-addressed evidence retrieval. Desktop registration and restart
+   remain an operational client action, not evidence that the current chat has
+   adopted the server.
 
 ## Verification
 
@@ -81,7 +86,7 @@ Host instructions preserve explicit/inferred input postures and existing scope.
 | Select the tested binary for an operational host | Runtime operator | Live gateway stage | Codex 0.153.0-alpha.5 passed the isolated native canary; PATH CLI remains 0.114.0. |
 | Validate and enable supported prompt/tool hooks | Host owner | Automatic host integration | Current PATH CLI reports hooks under development/disabled; no hook activation in the first slice. |
 | Select VPS, transport, credentials and persistence | Deployment owner | Remote rollout | Deferred, no local CLI dependency. |
-| Connect MCP | Integration owner | Final adapter stage | Explicitly last. |
+| Register and restart the desktop MCP client | Integration owner | Final adapter stage | Adapter construction is complete; live client activation and its canary remain separate. |
 
 ## Open Questions
 

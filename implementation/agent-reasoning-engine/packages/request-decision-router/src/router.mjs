@@ -175,8 +175,16 @@ export function routeRequest(input, profile, modulePort = EMPTY_MODULE_PORT) {
   const admitted = admitRequestContext(input);
   if (!admitted.ok) return finalize({schema_version: "are.capability-selection/v1", kind: "block", request_id: input?.request_id ?? null, request_context_digest: null, decision_profile_digest: profile.profile_digest, selected: null, candidates: [], evaluated_routes: [], semantic_evidence: blockedEvidence("request.context-invalid"), provenance: profile.provenance, reason_codes: admitted.reason_codes, authority_effect: "none"});
   const context = admitted.value;
-  const routingText = [context.raw_request, ...context.requested_effects, ...context.target_refs, ...context.constraints].join("\n");
+  // Inferred fields help package context, but must not manufacture lexical
+  // route evidence or veto the user's own request.
+  const routingText = [
+    context.raw_request,
+    ...(context.field_postures.target_refs === "explicit" ? context.target_refs : []),
+    ...(context.field_postures.constraints === "explicit" ? context.constraints : []),
+  ].join("\n");
   const lexical = evaluateLexicalEvidence(routingText, profile, modulePort);
+  const objectivePosture = context.field_postures.objective_kind;
+  const objectiveMaySelect = objectivePosture === "explicit";
   const traces = profile.routes.map((route) => {
     const availability = evaluateRouteAvailability(route, modulePort);
     const lexicalAvailable = lexical.evidence.disposition === "evaluated";
@@ -188,30 +196,35 @@ export function routeRequest(input, profile, modulePort = EMPTY_MODULE_PORT) {
     const reasons = [];
     if (availability.status !== "available") reasons.push(...availability.reason_codes);
     else if (excluded.length > 0) reasons.push("route.explicit-exclusion");
-    else if (objectiveMatch) {
+    else if (objectiveMatch && objectiveMaySelect) {
       posture = "eligible";
       reasons.push("route.explicit-objective-match");
-    } else if (matchedSignals.length > 0 || matchedEffects.length > 0) {
+    } else if (matchedSignals.length > 0) {
       posture = "eligible";
-      if (matchedSignals.length > 0) reasons.push("route.lexical-signal-match");
-      if (matchedEffects.length > 0) reasons.push("route.requested-effect-match");
-    } else reasons.push("route.no-match");
+      reasons.push("route.lexical-signal-match");
+    } else {
+      reasons.push("route.no-match");
+      if (objectiveMatch) reasons.push(`route.${objectivePosture}-objective-nonselecting`);
+    }
     if (!lexicalAvailable) reasons.push(`route.lexical-evidence-${lexical.evidence.disposition}`);
-    return canonicalizeJson({route_id: route.route_id, posture, objective_match: objectiveMatch, availability, lexical_evidence_disposition: lexical.evidence.disposition, matched_signals: matchedSignals, matched_effects: matchedEffects, matched_exclusions: excluded, reason_codes: reasons});
+    return canonicalizeJson({route_id: route.route_id, posture, objective_match: objectiveMatch, objective_posture: objectivePosture, availability, lexical_evidence_disposition: lexical.evidence.disposition, matched_signals: matchedSignals, matched_effects: matchedEffects, matched_exclusions: excluded, reason_codes: reasons});
   }).sort((a, b) => a.route_id.localeCompare(b.route_id));
   const eligible = traces.filter((trace) => trace.posture === "eligible");
-  const explicitObjectiveEligible = eligible.filter((trace) => trace.objective_match);
-  const structuredEffectEligible = eligible.filter((trace) => trace.matched_effects.length > 0);
+  const explicitObjectiveEligible = eligible.filter((trace) => trace.objective_match && trace.objective_posture === "explicit");
   const selectedEligible = explicitObjectiveEligible.length > 0
-    ? eligible.filter((trace) => trace.objective_match || structuredEffectEligible.some((effectTrace) => effectTrace.route_id === trace.route_id))
+    ? eligible.filter((trace) => trace.objective_match)
     : eligible;
   const suppressedLexicalCandidates = explicitObjectiveEligible.length > 0
     ? eligible.filter((trace) => !selectedEligible.some((selectedTrace) => selectedTrace.route_id === trace.route_id)).map((trace) => trace.route_id)
     : [];
   const byId = new Map(profile.routes.map((route) => [route.route_id, route]));
   const unavailableExplicit = traces.filter((trace) => trace.objective_match
+    && trace.objective_posture === "explicit"
     && trace.availability.capability_id !== null
     && trace.availability.status !== "available");
+  const excludedExplicit = traces.filter((trace) => trace.objective_match
+    && trace.objective_posture === "explicit"
+    && trace.matched_exclusions.length > 0);
   let kind = "block";
   let selected = null;
   let reasons = ["selection.no-match"];
@@ -220,11 +233,22 @@ export function routeRequest(input, profile, modulePort = EMPTY_MODULE_PORT) {
   } else if (unavailableExplicit.length > 0) {
     kind = "gate";
     reasons = ["route.explicit-capability-unavailable", ...new Set(unavailableExplicit.flatMap((trace) => trace.availability.reason_codes))];
+  } else if (excludedExplicit.length > 0) {
+    reasons = ["route.explicit-objective-excluded"];
   } else if (selectedEligible.length === 1) {
-    kind = "direct";
     const route = byId.get(selectedEligible[0].route_id);
-    selected = canonicalizeJson({route_id: route.route_id, capability_ref: route.capability_ref, label: route.label, owner_gate_ref: route.owner_gate_ref, provenance_ids: route.provenance_ids});
-    reasons = suppressedLexicalCandidates.length > 0 ? ["selection.explicit-objective-priority"] : ["selection.unique-capability"];
+    const knownEffectClasses = new Set(profile.routes.flatMap((candidate) => candidate.effect_classes));
+    const unknownRequestedEffects = context.requested_effects.filter((effect) => !knownEffectClasses.has(effect));
+    const forbiddenRequestedEffects = context.requested_effects.filter((effect) => knownEffectClasses.has(effect) && !route.effect_classes.includes(effect));
+    selected = canonicalizeJson({route_id: route.route_id, capability_ref: route.capability_ref, label: route.label, owner_gate_ref: route.owner_gate_ref, provenance_ids: route.provenance_ids, execution_mode: route.execution_mode, authority_root: route.authority_root, read_first: route.read_first, requires_user_authorization: route.requires_user_authorization, write_ceiling: route.write_ceiling, blockers: route.blockers,
+      permitted_effect_classes: route.effect_classes, requested_effect_assessment: {unknown: unknownRequestedEffects, forbidden: forbiddenRequestedEffects}});
+    if (unknownRequestedEffects.length > 0 || forbiddenRequestedEffects.length > 0) {
+      kind = "gate";
+      reasons = [...(unknownRequestedEffects.length ? ["route.requested-effect-unknown"] : []), ...(forbiddenRequestedEffects.length ? ["route.requested-effect-not-permitted"] : [])];
+    } else {
+      kind = "direct";
+      reasons = suppressedLexicalCandidates.length > 0 ? ["selection.explicit-objective-priority"] : ["selection.unique-capability"];
+    }
   } else if (selectedEligible.length > 1) {
     kind = "gate";
     reasons = ["selection.multiple-capabilities"];
@@ -244,5 +268,5 @@ export function routeRequest(input, profile, modulePort = EMPTY_MODULE_PORT) {
       matched_effects: trace.matched_effects,
     });
   });
-  return finalize({schema_version: "are.capability-selection/v1", kind, request_id: context.request_id, request_context_digest: admitted.digest, decision_profile_digest: profile.profile_digest, selected, candidates: selectedEligible.map((trace) => trace.route_id), suppressed_lexical_candidates: suppressedLexicalCandidates, candidate_details: candidateDetails, evaluated_routes: traces, evaluated_context_fields: ["raw_request", "objective_kind", "requested_effects", "target_refs", "constraints"], semantic_evidence: lexical.evidence, provenance: profile.provenance, reason_codes: reasons, authority_effect: "none"});
+  return finalize({schema_version: "are.capability-selection/v1", kind, request_id: context.request_id, request_context_digest: admitted.digest, decision_profile_digest: profile.profile_digest, selected, candidates: selectedEligible.map((trace) => trace.route_id), suppressed_lexical_candidates: suppressedLexicalCandidates, candidate_details: candidateDetails, evaluated_routes: traces, evaluated_context_fields: ["raw_request", "objective_kind", "requested_effects", "target_refs", "constraints"], routing_affinity_fields: ["raw_request", "objective_kind", "target_refs", "constraints"], effect_assessment_fields: ["requested_effects"], semantic_evidence: lexical.evidence, provenance: profile.provenance, reason_codes: reasons, authority_effect: "none"});
 }

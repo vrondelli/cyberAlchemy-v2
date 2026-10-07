@@ -15,7 +15,7 @@ import {
   type SerializationProfileV1,
 } from "./kernel-v2-types.js";
 
-const DEFINITION_PACK_SHA256 = "cc93b59b68cbb016fdab6b0b4a476e69d1e0e6df99df1d94ca1c48fb7ff16c2a";
+export const SYSTEM_INTEGRATION_DEFINITION_PACK_SHA256 = "cc93b59b68cbb016fdab6b0b4a476e69d1e0e6df99df1d94ca1c48fb7ff16c2a";
 const REF = /^[A-Za-z][A-Za-z0-9]*(?:[-.:/][A-Za-z0-9]+)*$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 
@@ -169,7 +169,7 @@ function runtimeReceipt(value: unknown, pointer: string): IntegrationRuntimeRece
 export function validateIntegrationKernelV2(value: unknown): IntegrationKernelV2 {
   exact(value, ["schema_version", "kernel_id", "definition_pack_sha256", "integration_bindings", "provider_profiles", "provider_realizations", "serialization_profiles", "failure_mappings", "runtime_receipts", "runtime_guarantees_observed", "authority_effect"], "/");
   if (value.schema_version !== "domainspec.integration-kernel/v2-candidate") fail("IK_SCHEMA", "/schema_version", "unsupported schema");
-  if (typeof value.definition_pack_sha256 !== "string" || !SHA256.test(value.definition_pack_sha256) || value.definition_pack_sha256 !== DEFINITION_PACK_SHA256) fail("IK_DEFINITION_DRIFT", "/definition_pack_sha256", "definition pack digest drift");
+  if (typeof value.definition_pack_sha256 !== "string" || !SHA256.test(value.definition_pack_sha256) || value.definition_pack_sha256 !== SYSTEM_INTEGRATION_DEFINITION_PACK_SHA256) fail("IK_DEFINITION_DRIFT", "/definition_pack_sha256", "definition pack digest drift");
   if (value.runtime_guarantees_observed !== false) fail("IK_RUNTIME_CLAIM", "/runtime_guarantees_observed", "kernel formation is not runtime evidence");
   if (value.authority_effect !== "none") fail("IK_AUTHORITY", "/authority_effect", "authority growth forbidden");
 

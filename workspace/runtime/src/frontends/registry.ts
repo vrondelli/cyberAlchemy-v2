@@ -10,9 +10,9 @@ export function frontendHref(app:FrontendRegistration,path:string) {
  return '#'+app.mountPath+path;
 }
 export function frontendRoute(hash:string):{app:FrontendRegistration;path:string}|null {
- // Historical dashboard and Runs links preserve the exact encoded identity.
- if(hash==='#/runs'||hash.startsWith('#/runs/'))return {app:frontends[0],path:hash.slice(1)};
- if(hash.startsWith('#/dashboard/result/'))return {app:frontends[0],path:'/runs/'+hash.slice('#/dashboard/result/'.length)};
+ // Historical Runs links open the new runtime's list; old run identities do
+ // not denote runs in the new orchestrator. Dashboard results stay local.
+ if(hash==='#/runs'||hash.startsWith('#/runs/'))return {app:frontends[0],path:'/runs'};
  for(const app of frontends)if(hash==='#'+app.mountPath||hash.startsWith('#'+app.mountPath+'/'))return {app,path:hash.slice(app.mountPath.length+1)||'/runs'};
  return null;
 }

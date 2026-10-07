@@ -48,4 +48,4 @@ export interface ResponseStream {
   cancel(): Promise<void>;
 }
 // ISB-07: import executable candidate custody signatures instead of duplicating them.
-export type {ExecutionToken,ReservationRequest,Reservation,LocalOutcome,RequestInspection,RequestCustody} from '../../../../../../../../../domainspec-core/projects/domainspec-v2/impl/cli/src/runtime/request-custody.js';
+export type {ExecutionToken,ReservationRequest,Reservation,LocalOutcome,RequestInspection,RequestCustody} from '../../../../../../../../craft/projects/domainspec-v2/impl/cli/src/runtime/request-custody.js';

@@ -90,9 +90,13 @@ export function createOperationValueReference(graph:CompiledProjectGraph){
 }
 
 /** Event fields are not UInt64 domain fields: integer is signed 64-bit. */
-export function operationReferenceEvent(body:any,input:any,clock:()=>unknown):any{
+export function operationReferenceEvent(body:any,input:any,clock:()=>unknown,referenceScalar:(selector:string)=>'String'|'UInt64'=()=> 'String'):any{
  const field=(f:any,v:any):any=>{
-  if(f.type_ref.kind==='reference')return typeof v==='string'&&v.length?v:invalid();
+  if(f.type_ref.kind==='reference'){
+   if(referenceScalar(f.type_ref.selector)==='String')return typeof v==='string'&&v.length?v:invalid();
+   if(typeof v==='number'&&!Number.isSafeInteger(v)||typeof v==='string'&&!/^(?:0|[1-9][0-9]*)$/.test(v)||!['bigint','number','string'].includes(typeof v))invalid();
+   const n=BigInt(v);return n>=0n&&n<=18446744073709551615n?n:invalid();
+  }
   const type=f.type_ref.name;
   if(type==='string')return typeof v==='string'?v:invalid();
   if(type==='uuid'||type==='timestamp')return typeof v==='string'&&v.length?v:invalid();

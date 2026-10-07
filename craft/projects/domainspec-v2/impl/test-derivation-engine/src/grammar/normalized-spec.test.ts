@@ -51,6 +51,17 @@ describe("normalized SPEC.md adapter", () => {
     );
   });
 
+  it("does not promote prose or opaque ternary text to a calculation", () => {
+    const calculation = (formula: string) => derive({
+      nodes: [{ id: "calc#1", source_anchor: "calc#1", type: "Calculation", fields: { id: "C1", formula } }],
+      edges: [],
+    }).map(({ rule_type }) => rule_type);
+    expect(calculation("apply policy when the manager agrees")).toEqual(["needs-formal"]);
+    expect(calculation("if manager agrees ? yes : no")).toEqual(["needs-formal"]);
+    expect(calculation("applyMakeupPolicy(a, b)")).toEqual(["needs-formal"]);
+    expect(calculation("sum(records.profit)")).toEqual(["calculation"]);
+  });
+
   it("is deterministic across independent parses", () => {
     expect(parse(AEO_DIR)).toEqual(parse(AEO_DIR));
     expect(derive(parse(AEO_DIR).graph)).toEqual(

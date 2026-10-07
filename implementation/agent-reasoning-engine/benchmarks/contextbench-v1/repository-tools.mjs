@@ -27,7 +27,7 @@ export const tools=Object.entries(schemas).map(([name,parameters])=>({type:'func
 
 export function createRepositoryTools({root,base_commit,record_source=()=>{}}){
   const repo=realpathSync(root);
-  const git=args=>execFileSync('git',['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...args],{cwd:repo,maxBuffer:16000000,timeout:120000});
+  const git=args=>execFileSync('git',['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false','-c',`safe.directory=${repo}`,...args],{cwd:repo,maxBuffer:16000000,timeout:120000});
   if(!/^[a-f0-9]{40}$/.test(base_commit)||git(['rev-parse','HEAD']).toString().trim()!==base_commit)throw Error('repository.base-mismatch');
   const paths=git(['ls-files','-z']).toString().split('\0').filter(Boolean).sort();
   const grepPaths=(literal,rev)=>{
@@ -46,7 +46,8 @@ export function createRepositoryTools({root,base_commit,record_source=()=>{}}){
   const source=(path,rev)=>{
     const abs=safe(path),bytes=rev==='base'?git(['show',`${base_commit}:${path}`]):readFileSync(abs);
     if(bytes.length>2000000)throw Error('repository.file-too-large');
-    const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+    // Keep a leading UTF-8 BOM in the snapshot: its digest covers the original bytes.
+    const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);
     const sha256=hash(bytes);
     return {text,sha256};
   };

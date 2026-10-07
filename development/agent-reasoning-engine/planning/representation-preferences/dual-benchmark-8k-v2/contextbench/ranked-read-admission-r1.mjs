@@ -39,7 +39,10 @@ export async function admitToolBatch({messages,tools,assistant,results,measure,a
     need(Array.isArray(result.output?.paths)&&result.output.paths.length<=100,'paths');units=result.output.paths.length;
    }else if((name==='read_file'||name===recoveryName)){
     observationMaterial('validate',result.output);units=result.output.end_line-result.output.start_line+1;
-    need(result.output.path===args.path&&result.output.start_line===args.start_line&&result.output.source_revision===args.revision,'read-binding');
+    if(name===recoveryName){
+     need(result.archive_origin?.archive_sha256===args.archive_sha256&&result.archive_origin?.observation_index===args.observation_index,'recovery-origin-binding');
+     if(args.path!==undefined)need(result.output.path===args.path&&result.output.start_line===args.start_line&&result.output.source_revision===args.revision,'read-binding');
+    }else need(result.output.path===args.path&&result.output.start_line===args.start_line&&result.output.source_revision===args.revision,'read-binding');
     need(units<=100&&result.output.utf8.split('\n').length===units,'whole-lines');
    }
   }
@@ -54,11 +57,14 @@ export async function admitToolBatch({messages,tools,assistant,results,measure,a
   if(keep===units)return attachObservationHandles(call,structuredClone(result));
   const name=call.function.name,resume={...args};
   if(name===rankSourcesName)return {...structuredClone(result),output:projectHintOutput({query:args.query,output:result.output,keep}),deferred:{archive_sha256:sha256,omitted_units:units-keep,delivery:'unconfirmed',instruction:'Ranked hints were omitted; refine the query. Hints are not source observations.'}};
-  if((name==='read_file'||name===recoveryName)){resume.start_line=args.start_line+keep;resume.line_count=units-keep;}
+  if((name==='read_file'||name===recoveryName)){
+   if(name===recoveryName){resume.path=result.output.path;resume.revision=result.output.source_revision;}
+   resume.start_line=result.output.start_line+keep;resume.line_count=units-keep;
+  }
   else resume.offset=args.offset+keep;
-  const deferred={archive_sha256:sha256,omitted_units:units-keep,resume:{tool:name,arguments:resume},source_revision:args.revision??null};
+  const deferred={archive_sha256:sha256,omitted_units:units-keep,resume:{tool:name,arguments:resume},source_revision:result.output?.source_revision??args.revision??null};
   if(name==='read_file'||name===recoveryName){
-   const recovery={archive_sha256:sha256,observation_index:0,path:args.path,revision:args.revision,start_line:args.start_line+keep,line_count:units-keep};
+   const recovery={archive_sha256:sha256,observation_index:0,path:result.output.path,revision:result.output.source_revision,start_line:result.output.start_line+keep,line_count:units-keep};
    deferred.archive_recovery={tool:recoveryName,arguments:recovery};
   }else if(name==='search'){
    deferred.archive_recovery={tool:recoveryName,archive_sha256:sha256,observation_indices:Array.from({length:units-keep},(_,i)=>keep+i),instruction:'Recover an omitted observation with its original path/revision/start_line and line_count. Metadata listed below.',observations:result.output.observations.slice(keep).map((o,i)=>({observation_index:keep+i,path:o.path,revision:o.source_revision,start_line:o.start_line,line_count:o.end_line-o.start_line+1}))};
